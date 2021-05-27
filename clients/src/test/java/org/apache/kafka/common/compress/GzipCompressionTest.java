@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,19 +46,23 @@ public class GzipCompressionTest {
 
         for (byte magic : Arrays.asList(RecordBatch.MAGIC_VALUE_V0, RecordBatch.MAGIC_VALUE_V1, RecordBatch.MAGIC_VALUE_V2)) {
             for (int level : Arrays.asList(CompressionType.GZIP_MIN_LEVEL, CompressionType.GZIP_DEFAULT_LEVEL, CompressionType.GZIP_MAX_LEVEL)) {
-                GzipCompression compression = builder.level(level).build();
-                ByteBufferOutputStream bufferStream = new ByteBufferOutputStream(4);
-                try (OutputStream out = compression.wrapForOutput(bufferStream, magic)) {
-                    out.write(data);
-                    out.flush();
-                }
-                bufferStream.buffer().flip();
+                // Theoretically, gzip allows all positive integers for its compression buffer size. But we can't test all available buffer sizes, and too big buffer size
+                // may cause an OutOfMemoryError. So, run tests only with 4 random buffer sizes between [1, 65536 (=64kb)].
+                for (int bufferSize : new Random().ints(4, CompressionType.GZIP_MIN_BUFFER, 8 * CompressionType.GZIP_DEFAULT_BUFFER).toArray()) {
+                    GzipCompression compression = builder.level(level).bufferSize(bufferSize).build();
+                    ByteBufferOutputStream bufferStream = new ByteBufferOutputStream(4);
+                    try (OutputStream out = compression.wrapForOutput(bufferStream, magic)) {
+                        out.write(data);
+                        out.flush();
+                    }
+                    bufferStream.buffer().flip();
 
-                try (InputStream inputStream = compression.wrapForInput(bufferStream.buffer(), magic, BufferSupplier.create())) {
-                    byte[] result = new byte[data.length];
-                    int read = inputStream.read(result);
-                    assertEquals(data.length, read);
-                    assertArrayEquals(data, result);
+                    try (InputStream inputStream = compression.wrapForInput(bufferStream.buffer(), magic, BufferSupplier.create())) {
+                        byte[] result = new byte[data.length];
+                        int read = inputStream.read(result);
+                        assertEquals(data.length, read);
+                        assertArrayEquals(data, result);
+                    }
                 }
             }
         }
@@ -75,6 +80,15 @@ public class GzipCompressionTest {
     }
 
     @Test
+    public void testCompressionBufferSizes() {
+        GzipCompression.Builder builder = Compression.gzip();
+
+        assertThrows(IllegalArgumentException.class, () -> builder.level(CompressionType.GZIP_MIN_BUFFER - 1));
+
+        builder.bufferSize(CompressionType.GZIP_MIN_BUFFER);
+    }
+
+    @Test
     public void testLevelValidator() {
         ConfigDef.Validator validator = CompressionType.GZIP_LEVEL_VALIDATOR;
         for (int level = CompressionType.GZIP_MIN_LEVEL; level <= CompressionType.GZIP_MAX_LEVEL; level++) {
@@ -83,5 +97,15 @@ public class GzipCompressionTest {
         validator.ensureValid("", CompressionType.GZIP_DEFAULT_LEVEL);
         assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.GZIP_MIN_LEVEL - 1));
         assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.GZIP_MAX_LEVEL + 1));
+    }
+
+    @Test
+    public void testBufferSizeValidator() {
+        ConfigDef.Validator validator = CompressionType.GZIP_BUFFER_VALIDATOR;
+        for (int bufferSize : new Random().ints(32, CompressionType.GZIP_MIN_BUFFER, Integer.MAX_VALUE).toArray()) {
+            validator.ensureValid("", bufferSize);
+        }
+        validator.ensureValid("", CompressionType.GZIP_DEFAULT_BUFFER);
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.GZIP_MIN_BUFFER - 1));
     }
 }

@@ -232,13 +232,34 @@ public class ProducerConfig extends AbstractConfig {
     public static final String COMPRESSION_GZIP_LEVEL_CONFIG = "compression.gzip.level";
     private static final String COMPRESSION_GZIP_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>gzip</code>.";
 
+    /** <code>compression.gzip.buffer</code> */
+    public static final String COMPRESSION_GZIP_BUFFER_CONFIG = "compression.gzip.buffer";
+    public static final String COMPRESSION_GZIP_BUFFER_DOC = "The compression buffer size to use in bytes if " + COMPRESSION_TYPE_CONFIG + " is set to <code>gzip</code>." +
+        "The greater the buffer size is, the more data is compressed at once. Available values are: [1, 2147483647]. Default: 8192 (=8KB).";
+
+    /** <code>compression.snappy.block</code> */
+    public static final String COMPRESSION_SNAPPY_BLOCK_CONFIG = "compression.snappy.block";
+    public static final String COMPRESSION_SNAPPY_BLOCK_DOC = "The block size to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>snappy</code>." +
+        "The uncompressed content is divided by this amount to be compressed. Available values are: [1024, 2147483647]. Default: 32768 (=32KB).";
+
     /** <code>compression.lz4.level</code> */
     public static final String COMPRESSION_LZ4_LEVEL_CONFIG = "compression.lz4.level";
     private static final String COMPRESSION_LZ4_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>lz4</code>.";
 
+    /** <code>compression.lz4.block</code> */
+    public static final String COMPRESSION_LZ4_BLOCK_CONFIG = "compression.lz4.block";
+    public static final String COMPRESSION_LZ4_BLOCK_DOC = "The block size to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>lz4</code>." +
+        "The uncompressed content is divided by this amount to be compressed. Available values are: 4 (=64KB, default), 5 (=256KB), 6 (=1MB), 7 (=4MB).";
+
     /** <code>compression.zstd.level</code> */
     public static final String COMPRESSION_ZSTD_LEVEL_CONFIG = "compression.zstd.level";
     private static final String COMPRESSION_ZSTD_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>zstd</code>.";
+
+    /** <code>compression.zstd.window</code> */
+    public static final String COMPRESSION_ZSTD_WINDOW_CONFIG = "compression.zstd.window";
+    public static final String COMPRESSION_ZSTD_WINDOW_DOC = "The compression window size to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>zstd</code>." +
+        "If 0 (default), zstd disables LDM (Long Distance Mode). If set to a value in [10, 32], zstd enables LDM and compresses with a window whose size is 2^{compression.zstd.window} bytes. " +
+        "(For Example, if set to 27 zstd uses 128MB window.) Note: if set to greater than 27, some systems may fail to decompress the message due to lack of memory.";
 
     /** <code>metrics.sample.window.ms</code> */
     public static final String METRICS_SAMPLE_WINDOW_MS_CONFIG = CommonClientConfigs.METRICS_SAMPLE_WINDOW_MS_CONFIG;
@@ -377,8 +398,12 @@ public class ProducerConfig extends AbstractConfig {
                                         ACKS_DOC)
                                 .define(COMPRESSION_TYPE_CONFIG, Type.STRING, CompressionType.NONE.name, in(Utils.enumOptions(CompressionType.class)), Importance.HIGH, COMPRESSION_TYPE_DOC)
                                 .define(COMPRESSION_GZIP_LEVEL_CONFIG, Type.INT, CompressionType.GZIP_DEFAULT_LEVEL, CompressionType.GZIP_LEVEL_VALIDATOR, Importance.MEDIUM, COMPRESSION_GZIP_LEVEL_DOC)
+                                .define(COMPRESSION_GZIP_BUFFER_CONFIG, Type.INT, CompressionType.GZIP_DEFAULT_BUFFER, CompressionType.GZIP_BUFFER_VALIDATOR, Importance.MEDIUM, COMPRESSION_GZIP_BUFFER_DOC)
+                                .define(COMPRESSION_SNAPPY_BLOCK_CONFIG, Type.INT, CompressionType.SNAPPY_DEFAULT_BLOCK, CompressionType.SNAPPY_BLOCK_VALIDATOR, Importance.MEDIUM, COMPRESSION_SNAPPY_BLOCK_DOC)
                                 .define(COMPRESSION_LZ4_LEVEL_CONFIG, Type.INT, CompressionType.LZ4_DEFAULT_LEVEL, CompressionType.LZ4_LEVEL_VALIDATOR, Importance.MEDIUM, COMPRESSION_LZ4_LEVEL_DOC)
+                                .define(COMPRESSION_LZ4_BLOCK_CONFIG, Type.INT, CompressionType.LZ4_DEFAULT_BLOCK, CompressionType.LZ4_BLOCK_VALIDATOR, Importance.MEDIUM, COMPRESSION_LZ4_BLOCK_DOC)
                                 .define(COMPRESSION_ZSTD_LEVEL_CONFIG, Type.INT, CompressionType.ZSTD_DEFAULT_LEVEL, CompressionType.ZSTD_LEVEL_VALIDATOR, Importance.MEDIUM, COMPRESSION_ZSTD_LEVEL_DOC)
+                                .define(COMPRESSION_ZSTD_WINDOW_CONFIG, Type.INT, CompressionType.ZSTD_DEFAULT_WINDOW, CompressionType.ZSTD_WINDOW_VALIDATOR, Importance.MEDIUM, COMPRESSION_ZSTD_WINDOW_DOC)
                                 .define(BATCH_SIZE_CONFIG, Type.INT, 16384, atLeast(0), Importance.MEDIUM, BATCH_SIZE_DOC)
                                 .define(PARTITIONER_ADPATIVE_PARTITIONING_ENABLE_CONFIG, Type.BOOLEAN, true, Importance.LOW, PARTITIONER_ADPATIVE_PARTITIONING_ENABLE_DOC)
                                 .define(PARTITIONER_AVAILABILITY_TIMEOUT_MS_CONFIG, Type.LONG, 0, atLeast(0), Importance.LOW, PARTITIONER_AVAILABILITY_TIMEOUT_MS_DOC)
