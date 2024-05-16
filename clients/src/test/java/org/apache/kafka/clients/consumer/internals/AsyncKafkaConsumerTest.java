@@ -217,7 +217,8 @@ public class AsyncKafkaConsumerTest {
             a -> backgroundEventReaper,
             (a, b, c, d, e, f, g) -> fetchCollector,
             (a, b, c, d) -> metadata,
-            backgroundEventQueue
+            backgroundEventQueue,
+            Optional.empty()
         );
     }
 
@@ -1319,7 +1320,8 @@ public class AsyncKafkaConsumerTest {
             any(),
             any(),
             any(),
-            applicationThreadMemberStateListener.capture()
+            applicationThreadMemberStateListener.capture(),
+            any()
         ));
         return applicationThreadMemberStateListener.getValue();
     }
