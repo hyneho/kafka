@@ -1019,10 +1019,10 @@ public class KafkaStreams implements AutoCloseable {
         metrics = createMetrics(applicationConfigs, time, clientId);
         final StreamsClientMetricsDelegatingReporter reporter = new StreamsClientMetricsDelegatingReporter(adminClient, clientId);
         metrics.addReporter(reporter);
-        
         streamsMetrics = new StreamsMetricsImpl(
             metrics,
             clientId,
+            processId.toString(),
             time
         );
 
