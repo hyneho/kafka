@@ -727,7 +727,7 @@ public class GroupMetadataManagerTestContext {
     }
 
 
-    public CoordinatorResult<StreamsGroupInitializeResponseData, CoordinatorRecord> streamsInitialize(
+    public CoordinatorResult<StreamsGroupInitializeResponseData, CoordinatorRecord> streamsGroupInitialize(
         StreamsGroupInitializeRequestData request
     ) {
         RequestContext context = new RequestContext(
@@ -746,7 +746,7 @@ public class GroupMetadataManagerTestContext {
             false
         );
 
-        CoordinatorResult<StreamsGroupInitializeResponseData, CoordinatorRecord> result = groupMetadataManager.streamsInitialize(
+        CoordinatorResult<StreamsGroupInitializeResponseData, CoordinatorRecord> result = groupMetadataManager.streamsGroupInitialize(
             context,
             request
         );
@@ -757,7 +757,7 @@ public class GroupMetadataManagerTestContext {
         return result;
     }
 
-    public CoordinatorResult<StreamsGroupHeartbeatResponseData, CoordinatorRecord> streamsHeartbeat(
+    public CoordinatorResult<StreamsGroupHeartbeatResponseData, CoordinatorRecord> streamsGroupHeartbeat(
         StreamsGroupHeartbeatRequestData request
     ) {
         RequestContext context = new RequestContext(
@@ -776,7 +776,7 @@ public class GroupMetadataManagerTestContext {
             false
         );
 
-        CoordinatorResult<StreamsGroupHeartbeatResponseData, CoordinatorRecord> result = groupMetadataManager.streamsHeartbeat(
+        CoordinatorResult<StreamsGroupHeartbeatResponseData, CoordinatorRecord> result = groupMetadataManager.streamsGroupHeartbeat(
             context,
             request
         );
