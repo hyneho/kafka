@@ -108,6 +108,7 @@ import org.apache.kafka.coordinator.group.generated.StreamsGroupTopologyValue;
 import org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetrics;
 import org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetricsShard;
 import org.apache.kafka.coordinator.group.taskassignor.MockAssignor;
+import org.apache.kafka.coordinator.group.taskassignor.StickyTaskAssignor;
 import org.apache.kafka.image.MetadataDelta;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
@@ -256,7 +257,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 .withShareGroupSessionTimeout(config.shareGroupSessionTimeoutMs())
                 .withShareGroupHeartbeatInterval(config.shareGroupHeartbeatIntervalMs())
                // TODO: Do we need separate configs for streams groups?
-                .withStreamsGroupAssignors(Collections.singletonList(new MockAssignor()))
+                .withStreamsGroupAssignors(Collections.singletonList(new StickyTaskAssignor()))
                 .withStreamsGroupMaxSize(config.consumerGroupMaxSize())
                 .withStreamsGroupSessionTimeout(config.consumerGroupSessionTimeoutMs())
                 .withStreamsGroupHeartbeatInterval(config.consumerGroupHeartbeatIntervalMs())
