@@ -209,4 +209,24 @@ public interface RemoteLogMetadataManager extends Configurable, Closeable {
      * @return Total size of the log stored in remote storage in bytes.
      */
     long remoteLogSize(TopicIdPartition topicIdPartition, int leaderEpoch) throws RemoteStorageException;
+
+    /**
+     * Returns the next segment that contains the aborted txn entries for the given topic partition, epoch and offset.
+     * <ul>
+     *     <li>The default implementation returns the segment metadata that matches the given epoch and offset
+     *     irrespective of the presence of the txn index.</li>
+     *     <li>The custom implementation can optimize by returning the next segment metadata that contains the txn index
+     *     in the given epoch. If there are no segments with txn index in the given epoch, then return empty.</li>
+     * </ul>
+     * @param topicIdPartition topic partition to search for the next segment.
+     * @param epoch leader epoch of the txn index.
+     * @param offset offset
+     * @return the segment metadata that contains the txn index if exists. Otherwise, returns {@link Optional#empty()}.
+     * @throws RemoteStorageException if there are any storage related errors occurred.
+     */
+    default Optional<RemoteLogSegmentMetadata> nextSegmentWithTxnIndex(TopicIdPartition topicIdPartition,
+                                                                       int epoch,
+                                                                       long offset) throws RemoteStorageException {
+        return remoteLogSegmentMetadata(topicIdPartition, epoch, offset);
+    }
 }
