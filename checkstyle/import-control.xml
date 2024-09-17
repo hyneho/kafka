@@ -155,6 +155,8 @@
 
     <subpackage name="record">
       <allow class="org.apache.kafka.common.config.ConfigDef.Range.between" exact-match="true" />
+      <allow class="org.apache.kafka.common.config.ConfigDef.Range.of" exact-match="true" />
+      <allow class="org.apache.kafka.common.config.ConfigDef.Either" exact-match="true" />
       <allow pkg="org.apache.kafka.common.compress" />
       <allow pkg="org.apache.kafka.common.header" />
       <allow pkg="org.apache.kafka.common.record" />

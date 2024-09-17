@@ -17,11 +17,12 @@
 package org.apache.kafka.common.record;
 
 import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.config.ConfigDef.Either;
 
 import java.util.zip.Deflater;
 
 import static org.apache.kafka.common.config.ConfigDef.Range.between;
+import static org.apache.kafka.common.config.ConfigDef.Range.of;
 
 /**
  * The compression type to use
@@ -52,14 +53,7 @@ public enum CompressionType {
 
         @Override
         public ConfigDef.Validator levelValidator() {
-            return ConfigDef.LambdaValidator.with((name, value) -> {
-                if (value == null)
-                    throw new ConfigException(name, null, "Value must be non-null");
-                int level = ((Number) value).intValue();
-                if (level > MAX_LEVEL || (level < MIN_LEVEL && level != DEFAULT_LEVEL)) {
-                    throw new ConfigException(name, value, "Value must be between " + MIN_LEVEL + " and " + MAX_LEVEL + " or equal to " + DEFAULT_LEVEL);
-                }
-            }, () -> "[" + MIN_LEVEL + ",...," + MAX_LEVEL + "] or " + DEFAULT_LEVEL);
+            return Either.of(of(DEFAULT_LEVEL), between(MIN_LEVEL, MAX_LEVEL));
         }
     },
 
