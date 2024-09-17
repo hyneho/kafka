@@ -36,8 +36,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import static org.apache.kafka.common.record.CompressionType.ZSTD;
-
 public class ZstdCompression implements Compression {
 
     private final int level;
@@ -48,7 +46,7 @@ public class ZstdCompression implements Compression {
 
     @Override
     public CompressionType type() {
-        return ZSTD;
+        return CompressionType.ZSTD;
     }
 
     @Override
@@ -122,10 +120,10 @@ public class ZstdCompression implements Compression {
     }
 
     public static class Builder implements Compression.Builder<ZstdCompression> {
-        private int level = ZSTD.defaultLevel();
+        private int level = CompressionType.ZSTD_DEFAULT_LEVEL;
 
         public Builder level(int level) {
-            if (level < ZSTD.minLevel() || ZSTD.maxLevel() < level) {
+            if (level < CompressionType.ZSTD_MIN_LEVEL || CompressionType.ZSTD_MAX_LEVEL < level) {
                 throw new IllegalArgumentException("zstd doesn't support given compression level: " + level);
             }
 

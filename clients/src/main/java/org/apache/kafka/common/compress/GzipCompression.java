@@ -30,8 +30,6 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.zip.GZIPInputStream;
 
-import static org.apache.kafka.common.record.CompressionType.GZIP;
-
 public class GzipCompression implements Compression {
 
     private final int level;
@@ -42,7 +40,7 @@ public class GzipCompression implements Compression {
 
     @Override
     public CompressionType type() {
-        return GZIP;
+        return CompressionType.GZIP;
     }
 
     @Override
@@ -96,10 +94,10 @@ public class GzipCompression implements Compression {
     }
 
     public static class Builder implements Compression.Builder<GzipCompression> {
-        private int level = GZIP.defaultLevel();
+        private int level = CompressionType.GZIP_DEFAULT_LEVEL;
 
         public Builder level(int level) {
-            if ((level < GZIP.minLevel() || GZIP.maxLevel() < level) && level != GZIP.defaultLevel()) {
+            if ((level < CompressionType.GZIP_MIN_LEVEL || CompressionType.GZIP_MAX_LEVEL < level) && level != CompressionType.GZIP_DEFAULT_LEVEL) {
                 throw new IllegalArgumentException("gzip doesn't support given compression level: " + level);
             }
 

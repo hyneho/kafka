@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.common.compress;
 
+import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.utils.BufferSupplier;
 import org.apache.kafka.common.utils.ByteBufferOutputStream;
@@ -45,7 +46,6 @@ import java.util.Random;
 import java.util.stream.Stream;
 
 import static org.apache.kafka.common.compress.Lz4BlockOutputStream.LZ4_FRAME_INCOMPRESSIBLE_MASK;
-import static org.apache.kafka.common.record.CompressionType.LZ4;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -91,7 +91,7 @@ public class Lz4CompressionTest {
         byte[] data = String.join("", Collections.nCopies(256, "data")).getBytes(StandardCharsets.UTF_8);
 
         for (byte magic : Arrays.asList(RecordBatch.MAGIC_VALUE_V0, RecordBatch.MAGIC_VALUE_V1, RecordBatch.MAGIC_VALUE_V2)) {
-            for (int level : Arrays.asList(LZ4.minLevel(), LZ4.defaultLevel(), LZ4.maxLevel())) {
+            for (int level : Arrays.asList(CompressionType.LZ4_MIN_LEVEL, CompressionType.LZ4_DEFAULT_LEVEL, CompressionType.LZ4_MAX_LEVEL)) {
                 Lz4Compression compression = builder.level(level).build();
                 ByteBufferOutputStream bufferStream = new ByteBufferOutputStream(4);
                 try (OutputStream out = compression.wrapForOutput(bufferStream, magic)) {
@@ -114,11 +114,11 @@ public class Lz4CompressionTest {
     public void testCompressionLevels() {
         Lz4Compression.Builder builder = Compression.lz4();
 
-        assertThrows(IllegalArgumentException.class, () -> builder.level(LZ4.minLevel() - 1));
-        assertThrows(IllegalArgumentException.class, () -> builder.level(LZ4.maxLevel() + 1));
+        assertThrows(IllegalArgumentException.class, () -> builder.level(CompressionType.LZ4_MIN_LEVEL - 1));
+        assertThrows(IllegalArgumentException.class, () -> builder.level(CompressionType.LZ4_MAX_LEVEL + 1));
 
-        builder.level(LZ4.minLevel());
-        builder.level(LZ4.maxLevel());
+        builder.level(CompressionType.LZ4_MIN_LEVEL);
+        builder.level(CompressionType.LZ4_MAX_LEVEL);
     }
 
     private static class Payload {
@@ -193,7 +193,7 @@ public class Lz4CompressionTest {
                     for (boolean ignore : Arrays.asList(false, true))
                         for (boolean blockChecksum : Arrays.asList(false, true))
                             for (boolean close : Arrays.asList(false, true))
-                                for (int level : Arrays.asList(LZ4.minLevel(), LZ4.defaultLevel(), LZ4.maxLevel()))
+                                for (int level : Arrays.asList(CompressionType.LZ4_MIN_LEVEL, CompressionType.LZ4_DEFAULT_LEVEL, CompressionType.LZ4_MAX_LEVEL))
                                     arguments.add(Arguments.of(new Args(broken, ignore, level, blockChecksum, close, payload)));
 
             return arguments.stream();
