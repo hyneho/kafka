@@ -450,7 +450,7 @@ public class Lz4CompressionTest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         Lz4BlockOutputStream lz4 = new Lz4BlockOutputStream(
             output,
-            Lz4BlockOutputStream.BLOCKSIZE_64KB,
+            CompressionType.LZ4_DEFAULT_BLOCK,
             args.level,
             args.blockChecksum,
             args.useBrokenFlagDescriptorChecksum

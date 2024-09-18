@@ -33,9 +33,11 @@ import java.util.zip.GZIPInputStream;
 public class GzipCompression implements Compression {
 
     private final int level;
+    private final int bufferSize;
 
-    private GzipCompression(int level) {
+    private GzipCompression(int level, int bufferSize) {
         this.level = level;
+        this.bufferSize = bufferSize;
     }
 
     @Override
@@ -49,7 +51,7 @@ public class GzipCompression implements Compression {
             // Set input buffer (uncompressed) to 16 KB (none by default) and output buffer (compressed) to
             // 8 KB (0.5 KB by default) to ensure reasonable performance in cases where the caller passes a small
             // number of bytes to write (potentially a single byte)
-            return new BufferedOutputStream(new GzipOutputStream(buffer, 8 * 1024, level), 16 * 1024);
+            return new BufferedOutputStream(new GzipOutputStream(buffer, bufferSize, level), 16 * 1024);
         } catch (Exception e) {
             throw new KafkaException(e);
         }
@@ -65,7 +67,7 @@ public class GzipCompression implements Compression {
             //
             // ChunkedBytesStream is used to wrap the GZIPInputStream because the default implementation of
             // GZIPInputStream does not use an intermediate buffer for decompression in chunks.
-            return new ChunkedBytesStream(new GZIPInputStream(new ByteBufferInputStream(buffer), 8 * 1024),
+            return new ChunkedBytesStream(new GZIPInputStream(new ByteBufferInputStream(buffer), bufferSize),
                                           decompressionBufferSupplier,
                                           decompressionOutputSize(),
                                           false);
@@ -85,16 +87,17 @@ public class GzipCompression implements Compression {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GzipCompression that = (GzipCompression) o;
-        return level == that.level;
+        return level == that.level && bufferSize == that.bufferSize;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(level);
+        return Objects.hash(level, bufferSize);
     }
 
     public static class Builder implements Compression.Builder<GzipCompression> {
         private int level = CompressionType.GZIP_DEFAULT_LEVEL;
+        private int bufferSize = CompressionType.GZIP_DEFAULT_BUFFER;
 
         public Builder level(int level) {
             if ((level < CompressionType.GZIP_MIN_LEVEL || CompressionType.GZIP_MAX_LEVEL < level) && level != CompressionType.GZIP_DEFAULT_LEVEL) {
@@ -105,9 +108,18 @@ public class GzipCompression implements Compression {
             return this;
         }
 
+        public Builder bufferSize(int bufferSize) {
+            if (bufferSize <= 0) {
+                throw new IllegalArgumentException("gzip doesn't support non-positive compression buffer size: " + bufferSize);
+            }
+
+            this.bufferSize = bufferSize;
+            return this;
+        }
+
         @Override
         public GzipCompression build() {
-            return new GzipCompression(level);
+            return new GzipCompression(level, bufferSize);
         }
     }
 }

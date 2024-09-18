@@ -21,6 +21,7 @@ import org.apache.kafka.common.config.ConfigDef.Either;
 
 import java.util.zip.Deflater;
 
+import static org.apache.kafka.common.config.ConfigDef.Range.atLeast;
 import static org.apache.kafka.common.config.ConfigDef.Range.between;
 import static org.apache.kafka.common.config.ConfigDef.Range.of;
 
@@ -49,12 +50,35 @@ public enum CompressionType {
     public static final int GZIP_DEFAULT_LEVEL = Deflater.DEFAULT_COMPRESSION;
     public static final ConfigDef.Validator GZIP_LEVEL_VALIDATOR = Either.of(of(GZIP_DEFAULT_LEVEL), between(GZIP_MIN_LEVEL, GZIP_MAX_LEVEL));
 
+    // Positive integer for a byte array length, to buffer compressed output.
+    // see: java.util.zip.DeflaterOutputStream#Constructor(OutputStream, OutputStream, int, boolean)
+    public static final int GZIP_MIN_BUFFER = 1;
+    // As of KIP-780, the default compression buffer size of GZIPOutputStream is 512 bytes.
+    // see: java.util.zip.GZIPOutputStream#Constructor(OutputStream)
+    public static final int GZIP_DEFAULT_BUFFER = 8 * 1024;
+    public static final ConfigDef.Validator GZIP_BUFFER_VALIDATOR = atLeast(GZIP_MIN_BUFFER);
+
+    // As of KIP-780, the compression block size of SnappyOutputStream is allowed within [1024, 536870912].
+    // see: org.xerial.snappy,SnappyOutputStream#Constructor(OutputStream, int, BufferAllocatorFactory)
+    public static final int SNAPPY_MIN_BLOCK = 1024;
+    public static final int SNAPPY_MAX_BLOCK = 536870912;
+    // As of KIP-780, the default buffer size ofSnappyOutputStream is 32768 bytes.
+    // see: org.xerial.snappy,SnappyOutputStream#Constructor(OutputStream)
+    public static final int SNAPPY_DEFAULT_BLOCK = 32768;
+    public static final ConfigDef.Validator SNAPPY_BLOCK_VALIDATOR = between(SNAPPY_MIN_BLOCK, SNAPPY_MAX_BLOCK);
+
     // These values come from net.jpountz.lz4.LZ4Constants
     // We may need to update them if the lz4 library changes these values.
     public static final int LZ4_MIN_LEVEL = 1;
     public static final int LZ4_MAX_LEVEL = 17;
     public static final int LZ4_DEFAULT_LEVEL = 9;
     public static final ConfigDef.Validator LZ4_LEVEL_VALIDATOR = between(LZ4_MIN_LEVEL, LZ4_MAX_LEVEL);
+
+    // LZ4 blocks: 4=64kb, 5=256kb, 6=1mb, 7=4mb.
+    public static final int LZ4_MIN_BLOCK = 4;
+    public static final int LZ4_MAX_BLOCK = 7;
+    public static final int LZ4_DEFAULT_BLOCK = 4;
+    public static final ConfigDef.Validator LZ4_BLOCK_VALIDATOR = between(LZ4_MIN_BLOCK, LZ4_MAX_BLOCK);
 
     // These values come from the zstd library. We don't use the Zstd.minCompressionLevel(),
     // Zstd.maxCompressionLevel() and Zstd.defaultCompressionLevel() methods to not load the Zstd library
@@ -67,6 +91,11 @@ public enum CompressionType {
     // See ZSTD_CLEVEL_DEFAULT in https://github.com/facebook/zstd/blob/dev/lib/zstd.h#L129
     public static final int ZSTD_DEFAULT_LEVEL = 3;
     public static final ConfigDef.Validator ZSTD_LEVEL_VALIDATOR = between(ZSTD_MIN_LEVEL, ZSTD_MAX_LEVEL);
+
+    public static final int ZSTD_DEFAULT_WINDOW = 0;
+    public static final int ZSTD_MIN_WINDOW = 10;
+    public static final int ZSTD_MAX_WINDOW = 27;
+    public static final ConfigDef.Validator ZSTD_WINDOW_VALIDATOR = Either.of(of(ZSTD_DEFAULT_WINDOW), between(ZSTD_MIN_WINDOW, ZSTD_MAX_WINDOW));
 
     // compression type is represented by two bits in the attributes field of the record batch header, so `byte` is
     // large enough

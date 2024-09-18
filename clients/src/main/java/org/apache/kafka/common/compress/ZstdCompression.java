@@ -39,9 +39,11 @@ import java.util.Objects;
 public class ZstdCompression implements Compression {
 
     private final int level;
+    private final int windowSize;
 
-    private ZstdCompression(int level) {
+    private ZstdCompression(int level, int windowSize) {
         this.level = level;
+        this.windowSize = windowSize;
     }
 
     @Override
@@ -54,7 +56,9 @@ public class ZstdCompression implements Compression {
         try {
             // Set input buffer (uncompressed) to 16 KB (none by default) to ensure reasonable performance
             // in cases where the caller passes a small number of bytes to write (potentially a single byte).
-            return new BufferedOutputStream(new ZstdOutputStreamNoFinalizer(bufferStream, RecyclingBufferPool.INSTANCE, level), 16 * 1024);
+            ZstdOutputStreamNoFinalizer zstdOS = new ZstdOutputStreamNoFinalizer(bufferStream, RecyclingBufferPool.INSTANCE, level);
+            zstdOS.setLong(this.windowSize);
+            return new BufferedOutputStream(zstdOS, 16 * 1024);
         } catch (Throwable e) {
             throw new KafkaException(e);
         }
@@ -111,16 +115,17 @@ public class ZstdCompression implements Compression {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ZstdCompression that = (ZstdCompression) o;
-        return level == that.level;
+        return level == that.level && windowSize == that.windowSize;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(level);
+        return Objects.hash(level, windowSize);
     }
 
     public static class Builder implements Compression.Builder<ZstdCompression> {
         private int level = CompressionType.ZSTD_DEFAULT_LEVEL;
+        private int windowSize = CompressionType.ZSTD_DEFAULT_WINDOW;
 
         public Builder level(int level) {
             if (level < CompressionType.ZSTD_MIN_LEVEL || CompressionType.ZSTD_MAX_LEVEL < level) {
@@ -131,9 +136,18 @@ public class ZstdCompression implements Compression {
             return this;
         }
 
+        public Builder windowSize(int windowSize) {
+            if ((windowSize < CompressionType.ZSTD_MIN_WINDOW || CompressionType.ZSTD_MAX_WINDOW < windowSize) && windowSize != CompressionType.ZSTD_DEFAULT_WINDOW) {
+                throw new IllegalArgumentException("zstd doesn't support given window size: " + windowSize);
+            }
+
+            this.windowSize = windowSize;
+            return this;
+        }
+
         @Override
         public ZstdCompression build() {
-            return new ZstdCompression(level);
+            return new ZstdCompression(level, windowSize);
         }
     }
 }

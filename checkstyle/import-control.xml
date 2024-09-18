@@ -151,6 +151,7 @@
     </subpackage>
 
     <subpackage name="record">
+      <allow class="org.apache.kafka.common.config.ConfigDef.Range.atLeast" exact-match="true" />
       <allow class="org.apache.kafka.common.config.ConfigDef.Range.between" exact-match="true" />
       <allow class="org.apache.kafka.common.config.ConfigDef.Range.of" exact-match="true" />
       <allow class="org.apache.kafka.common.config.ConfigDef.Either" exact-match="true" />
