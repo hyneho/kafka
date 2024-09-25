@@ -19,7 +19,6 @@ from ducktape.mark.resource import cluster
 from ducktape.mark import matrix
 from ducktape.mark import ignore
 from kafkatest.services.kafka import KafkaService, quorum
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.streams import StreamsSmokeTestDriverService, StreamsSmokeTestJobRunnerService
 import time
 import signal
@@ -152,16 +151,9 @@ class StreamsBrokerBounceTest(Test):
         
     def setup_system(self, start_processor=True, num_threads=3):
         # Setup phase
-        self.zk = (
-            ZookeeperService(self.test_context, 1)
-            if quorum.for_test(self.test_context) == quorum.zk
-            else None
-        )
-        if self.zk:
-            self.zk.start()
 
-        self.kafka = KafkaService(self.test_context, num_nodes=self.replication, zk=self.zk, topics=self.topics,
-                                  controller_num_nodes_override=1)
+        self.kafka = KafkaService(self.test_context, num_nodes=3, zk=None, topics=self.topics,
+                                  controller_num_nodes_override=1, dynamicRaftQuorum=True)
         self.kafka.start()
 
         # allow some time for topics to be created
@@ -260,8 +252,8 @@ class StreamsBrokerBounceTest(Test):
     @cluster(num_nodes=7)
     @matrix(failure_mode=["clean_shutdown", "hard_shutdown", "clean_bounce", "hard_bounce"],
             num_failures=[2],
-            metadata_quorum=quorum.all_non_upgrade)
-    def test_many_brokers_bounce(self, failure_mode, num_failures, metadata_quorum=quorum.zk):
+            metadata_quorum=[quorum.isolated_kraft])
+    def test_many_brokers_bounce(self, failure_mode, num_failures, metadata_quorum):
         """
         Start a smoke test client, then kill a few brokers and ensure data is still received
         Record if records are delivered
@@ -279,8 +271,8 @@ class StreamsBrokerBounceTest(Test):
     @cluster(num_nodes=7)
     @matrix(failure_mode=["clean_bounce", "hard_bounce"],
             num_failures=[3],
-            metadata_quorum=quorum.all_non_upgrade)
-    def test_all_brokers_bounce(self, failure_mode, num_failures, metadata_quorum=quorum.zk):
+            metadata_quorum=[quorum.isolated_kraft])
+    def test_all_brokers_bounce(self, failure_mode, num_failures, metadata_quorum):
         """
         Start a smoke test client, then kill a few brokers and ensure data is still received
         Record if records are delivered
