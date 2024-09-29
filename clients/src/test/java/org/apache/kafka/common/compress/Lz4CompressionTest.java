@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.common.compress;
 
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.utils.BufferSupplier;
@@ -119,6 +121,17 @@ public class Lz4CompressionTest {
 
         builder.level(CompressionType.LZ4_MIN_LEVEL);
         builder.level(CompressionType.LZ4_MAX_LEVEL);
+    }
+
+    @Test
+    public void testLevelValidator() {
+        ConfigDef.Validator validator = CompressionType.LZ4_LEVEL_VALIDATOR;
+        for (int level = CompressionType.LZ4_MIN_LEVEL; level <= CompressionType.LZ4_MAX_LEVEL; level++) {
+            validator.ensureValid("", level);
+        }
+        validator.ensureValid("", CompressionType.LZ4_DEFAULT_LEVEL);
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.LZ4_MIN_LEVEL - 1));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.LZ4_MAX_LEVEL + 1));
     }
 
     private static class Payload {

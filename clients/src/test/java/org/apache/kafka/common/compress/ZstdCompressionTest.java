@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.common.compress;
 
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.utils.BufferSupplier;
@@ -70,5 +72,16 @@ public class ZstdCompressionTest {
 
         builder.level(CompressionType.ZSTD_MIN_LEVEL);
         builder.level(CompressionType.ZSTD_MAX_LEVEL);
+    }
+
+    @Test
+    public void testLevelValidator() {
+        ConfigDef.Validator validator = CompressionType.ZSTD_LEVEL_VALIDATOR;
+        for (int level = CompressionType.ZSTD_MIN_LEVEL; level <= CompressionType.ZSTD_MAX_LEVEL; level++) {
+            validator.ensureValid("", level);
+        }
+        validator.ensureValid("", CompressionType.ZSTD_DEFAULT_LEVEL);
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.ZSTD_MIN_LEVEL - 1));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.ZSTD_MAX_LEVEL + 1));
     }
 }
