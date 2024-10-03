@@ -32,7 +32,7 @@ import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,7 +62,6 @@ import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.c
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.createTopic;
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.createTopics;
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.createTransactionalProducer;
-import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.maybeWaitForAtLeastOneSegmentUpload;
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.producerRecordWithExpectedTransactionStatus;
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.recordValueAsString;
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.restartDeadBrokers;
@@ -72,8 +71,6 @@ import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.t
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.testTimeout;
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.verifyLogStartOffsets;
 import static org.apache.kafka.tiered.storage.integration.TransactionTestUtils.waitUntilLeaderIsKnown;
-import static org.apache.kafka.tiered.storage.utils.TieredStorageTestUtils.createPropsForRemoteStorage;
-import static org.apache.kafka.tiered.storage.utils.TieredStorageTestUtils.createTopicConfigForRemoteStorage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -83,32 +80,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith(ClusterTestExtensions.class)
-public class TransactionsWithTieredStoreTest {
+public class TransactionsTest {
 
     private static List<ClusterConfig> generator() {
-        String randomString = TestUtils.randomString(5);
-        String storageDirPath = TestUtils.tempDirectory("kafka-remote-tier-" + randomString).getAbsolutePath();
-        return TransactionTestUtils.generator(overridingProps(randomString, storageDirPath));
+        return TransactionTestUtils.generator(new Properties());
     }
 
     private static List<ClusterConfig> generateTV2Disabled() {
-        String randomString = TestUtils.randomString(5);
-        String storageDirPath = TestUtils.tempDirectory("kafka-remote-tier-" + randomString).getAbsolutePath();
-        return TransactionTestUtils.generateTV2Disabled(overridingProps(randomString, storageDirPath));
+        return TransactionTestUtils.generateTV2Disabled(new Properties());
     }
 
     private static List<ClusterConfig> generateTV2Enabled() {
-        String randomString = TestUtils.randomString(5);
-        String storageDirPath = TestUtils.tempDirectory("kafka-remote-tier-" + randomString).getAbsolutePath();
-        return TransactionTestUtils.generateTV2Enabled(overridingProps(randomString, storageDirPath));
+        return TransactionTestUtils.generateTV2Enabled(new Properties());
     }
 
-    private static Properties overridingProps(String randomString, String storageDirPath) {
-        int numRemoteLogMetadataPartitions = 3;
-        return createPropsForRemoteStorage(randomString, storageDirPath, 3,
-                numRemoteLogMetadataPartitions, new Properties());
+    private Map<String, String> topicConfig() {
+        return Collections.singletonMap(MIN_IN_SYNC_REPLICAS_CONFIG, "2");
     }
-    // FIXME
+
     @ClusterTemplate("generator")
     public void testBasicTransactions(ClusterInstance cluster) throws Exception {
         createTopics(cluster, topicConfig());
@@ -129,16 +118,13 @@ public class TransactionsWithTieredStoreTest {
             // Since we haven't committed/aborted any records, the last stable offset is still 0,
             // no segments should be offloaded to remote storage
             verifyLogStartOffsets(cluster, Map.of(t1p1, 0, t2p2, 0));
-            maybeVerifyLocalLogStartOffsets(cluster, Map.of(t1p1, 0L, t2p2, 0L));
             producer.abortTransaction();
 
-            maybeWaitForAtLeastOneSegmentUpload(cluster, Set.of(t1p1, t2p2), false);
 
             // We've sent 1 record + 1 abort mark = 2 (segments) to each topic partition,
             // so 1 segment should be offloaded, the local log start offset should be 1
             // And log start offset is still 0
             verifyLogStartOffsets(cluster, Map.of(t1p1, 0, t2p2, 0));
-            maybeVerifyLocalLogStartOffsets(cluster, Map.of(t1p1, 1L, t2p2, 1L));
 
             producer.beginTransaction();
             producer.send(producerRecordWithExpectedTransactionStatus(TOPIC1, 1, "1", "1", true));
@@ -146,7 +132,6 @@ public class TransactionsWithTieredStoreTest {
 
             // Before records are committed, these records won't be offloaded.
             verifyLogStartOffsets(cluster, Map.of(t1p1, 0, t2p2, 0));
-            maybeVerifyLocalLogStartOffsets(cluster, Map.of(t1p1, 1L, t2p2, 1L));
 
             producer.commitTransaction();
 
@@ -154,7 +139,6 @@ public class TransactionsWithTieredStoreTest {
             // so 3 segments should be offloaded, the local log start offset should be 3
             // And log start offset is still 0
             verifyLogStartOffsets(cluster, Map.of(t1p1, 0, t2p2, 0));
-            maybeVerifyLocalLogStartOffsets(cluster, Map.of(t1p1, 3L, t2p2, 3L));
 
             consumer.subscribe(List.of(t1p1.topic(), t2p2.topic()));
             unCommittedConsumer.subscribe(List.of(t1p1.topic(), t2p2.topic()));
@@ -229,7 +213,7 @@ public class TransactionsWithTieredStoreTest {
             assertNull(readCommittedOffsetsForTimes.get(tp2));
         }
     }
-    // FIXME
+
     @ClusterTemplate("generator")
     public void testDelayedFetchIncludesAbortedTransaction(ClusterInstance cluster) throws Exception {
         createTopics(cluster, topicConfig());
@@ -262,17 +246,14 @@ public class TransactionsWithTieredStoreTest {
             // Since we haven't committed/aborted any records, the last stable offset is still 0,
             // no segments should be offloaded to remote storage
             verifyLogStartOffsets(cluster, Map.of(t1p0, 0));
-            maybeVerifyLocalLogStartOffsets(cluster, Map.of(t1p0, 0L));
 
             producer1.abortTransaction();
             producer2.commitTransaction();
 
-            maybeWaitForAtLeastOneSegmentUpload(cluster, Set.of(t1p0), false);
             // We've sent 4 records + 1 abort mark + 1 commit mark = 6 (segments),
             // so 5 segments should be offloaded, the local log start offset should be 5
             // And log start offset is still 0
             verifyLogStartOffsets(cluster, Map.of(t1p0, 0));
-            maybeVerifyLocalLogStartOffsets(cluster, Map.of(t1p0, 5L));
 
             readCommittedConsumer.assign(Set.of(t1p0));
             var records = consumeRecords(readCommittedConsumer, 2);
@@ -295,14 +276,14 @@ public class TransactionsWithTieredStoreTest {
     public void testSendOffsetsWithGroupId(ClusterInstance cluster) throws Exception {
         createTopics(cluster, topicConfig());
         sendOffset(cluster, (producer, groupId, consumer) ->
-                producer.sendOffsetsToTransaction(consumerPositions(consumer), groupId), false);
+                producer.sendOffsetsToTransaction(consumerPositions(consumer), groupId), true);
     }
 
     @ClusterTemplate("generator")
     public void testSendOffsetsWithGroupMetadata(ClusterInstance cluster) throws Exception {
         createTopics(cluster, topicConfig());
         sendOffset(cluster, (producer, groupId, consumer) ->
-                producer.sendOffsetsToTransaction(consumerPositions(consumer), consumer.groupMetadata()), false);
+                producer.sendOffsetsToTransaction(consumerPositions(consumer), consumer.groupMetadata()), true);
     }
 
     @ClusterTemplate("generator")
@@ -553,7 +534,7 @@ public class TransactionsWithTieredStoreTest {
             assertTrue(currentProducerEpoch > previousProducerEpoch,
                     "Producer epoch after abortTransaction ($currentProducerEpoch) should be greater than after first commit ($previousProducerEpoch)"
             );
-
+            
             // Update previousProducerEpoch
             var producerEpoch = producerStateEntry.producerEpoch();
 
@@ -736,27 +717,5 @@ public class TransactionsWithTieredStoreTest {
     @ClusterTemplate("generateTV2Enabled")
     public void testFailureToFenceEpochTV2Enable(ClusterInstance cluster) throws Exception {
         testFailureToFenceEpoch(cluster, true, topicConfig());
-    }
-
-    public Map<String, String> topicConfig() {
-        boolean enableRemoteStorage = true;
-        int maxBatchCountPerSegment = 1;
-        Map<String, String> config = new HashMap<>();
-        config.put(MIN_IN_SYNC_REPLICAS_CONFIG, "2");
-        config.putAll(createTopicConfigForRemoteStorage(enableRemoteStorage, maxBatchCountPerSegment));
-        return config;
-    }
-
-    private void maybeVerifyLocalLogStartOffsets(ClusterInstance cluster, Map<TopicPartition, Long> partitionLocalStartOffsets) throws InterruptedException {
-        Map<Integer, Long> offsets = new HashMap<>();
-        TestUtils.waitForCondition(() ->
-                cluster.brokers().values().stream().allMatch(broker ->
-                        partitionLocalStartOffsets
-                                .entrySet().stream().allMatch(entry -> {
-                                    long offset = broker.replicaManager().localLog(entry.getKey()).get().localLogStartOffset();
-                                    offsets.put(broker.config().brokerId(), offset);
-                                    return entry.getValue() == offset;
-                                })
-                ), () -> "local log start offset doesn't change to the expected position:" + partitionLocalStartOffsets + ", current position:" + offsets);
     }
 }
