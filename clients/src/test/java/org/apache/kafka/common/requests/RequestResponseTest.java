@@ -488,7 +488,8 @@ public class RequestResponseTest {
                                 .iterator()))
                         .setAcks((short) 1)
                         .setTimeoutMs(5000)
-                        .setTransactionalId("transactionalId"))
+                        .setTransactionalId("transactionalId"),
+                true)
             .build((short) 3);
         assertEquals(2, request.partitionSizes().size());
         assertEquals(records0.sizeInBytes(), (int) request.partitionSizes().get(tp0));
@@ -2583,7 +2584,8 @@ public class RequestResponseTest {
                                                 .setRecords(records)))).iterator()))
                         .setAcks((short) 1)
                         .setTimeoutMs(5000)
-                        .setTransactionalId(version >= 3 ? "transactionalId" : null))
+                        .setTransactionalId(version >= 3 ? "transactionalId" : null),
+                true)
                 .build(version);
     }
 

@@ -39,12 +39,14 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class TxnOffsetCommitRequest extends AbstractRequest {
+    public static final short LAST_BEFORE_TRANSACTION_V2_VERSION = 4;
 
     private final TxnOffsetCommitRequestData data;
 
     public static class Builder extends AbstractRequest.Builder<TxnOffsetCommitRequest> {
 
         public final TxnOffsetCommitRequestData data;
+        public final boolean canUseTransactionV2AboveVersion;
 
 
         public Builder(final String transactionalId,
@@ -70,21 +72,35 @@ public class TxnOffsetCommitRequest extends AbstractRequest {
                        final String memberId,
                        final int generationId,
                        final Optional<String> groupInstanceId) {
+            this(transactionalId, consumerGroupId, producerId, producerEpoch, pendingTxnOffsetCommits, memberId, generationId, groupInstanceId, true);
+        }
+
+        public Builder(final String transactionalId,
+                       final String consumerGroupId,
+                       final long producerId,
+                       final short producerEpoch,
+                       final Map<TopicPartition, CommittedOffset> pendingTxnOffsetCommits,
+                       final String memberId,
+                       final int generationId,
+                       final Optional<String> groupInstanceId,
+                       final boolean canUseTransactionV2AboveVersion) {
             super(ApiKeys.TXN_OFFSET_COMMIT);
+            this.canUseTransactionV2AboveVersion = canUseTransactionV2AboveVersion;
             this.data = new TxnOffsetCommitRequestData()
-                            .setTransactionalId(transactionalId)
-                            .setGroupId(consumerGroupId)
-                            .setProducerId(producerId)
-                            .setProducerEpoch(producerEpoch)
-                            .setTopics(getTopics(pendingTxnOffsetCommits))
-                            .setMemberId(memberId)
-                            .setGenerationId(generationId)
-                            .setGroupInstanceId(groupInstanceId.orElse(null));
+                    .setTransactionalId(transactionalId)
+                    .setGroupId(consumerGroupId)
+                    .setProducerId(producerId)
+                    .setProducerEpoch(producerEpoch)
+                    .setTopics(getTopics(pendingTxnOffsetCommits))
+                    .setMemberId(memberId)
+                    .setGenerationId(generationId)
+                    .setGroupInstanceId(groupInstanceId.orElse(null));
         }
 
         public Builder(final TxnOffsetCommitRequestData data) {
             super(ApiKeys.TXN_OFFSET_COMMIT);
             this.data = data;
+            this.canUseTransactionV2AboveVersion = true;
         }
 
         @Override
@@ -92,6 +108,9 @@ public class TxnOffsetCommitRequest extends AbstractRequest {
             if (version < 3 && groupMetadataSet()) {
                 throw new UnsupportedVersionException("Broker doesn't support group metadata commit API on version " + version
                 + ", minimum supported request version is 3 which requires brokers to be on version 2.5 or above.");
+            }
+            if (!canUseTransactionV2AboveVersion) {
+                version = (short) Math.min(version, LAST_BEFORE_TRANSACTION_V2_VERSION);
             }
             return new TxnOffsetCommitRequest(data, version);
         }

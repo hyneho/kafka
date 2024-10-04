@@ -904,8 +904,12 @@ public class Sender implements Runnable {
         }
 
         String transactionalId = null;
+        boolean canUseTransactionV2AboveVersion = true;
         if (transactionManager != null && transactionManager.isTransactional()) {
             transactionalId = transactionManager.transactionalId();
+            if (!transactionManager.isTransactionV2Enabled()) {
+                canUseTransactionV2AboveVersion = false;
+            }
         }
 
         ProduceRequest.Builder requestBuilder = ProduceRequest.forMagic(minUsedMagic,
@@ -913,7 +917,9 @@ public class Sender implements Runnable {
                         .setAcks(acks)
                         .setTimeoutMs(timeout)
                         .setTransactionalId(transactionalId)
-                        .setTopicData(tpd));
+                        .setTopicData(tpd),
+                canUseTransactionV2AboveVersion
+        );
         RequestCompletionHandler callback = response -> handleProduceResponse(response, recordsByPartition, time.milliseconds());
 
         String nodeId = Integer.toString(destination);
