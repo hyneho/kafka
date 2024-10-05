@@ -24,7 +24,9 @@ import java.nio.file.StandardOpenOption
 import java.util.{Properties, Random}
 import joptsimple._
 import kafka.log._
-import org.apache.kafka.common.compress.{Compression, GzipCompression, Lz4Compression, ZstdCompression}
+import kafka.server.BrokerTopicStats
+import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.record._
 import org.apache.kafka.common.utils.{Exit, Time, Utils}
@@ -34,6 +36,7 @@ import org.apache.kafka.server.util.CommandLineUtils
 import org.apache.kafka.storage.internals.log.{LogConfig, LogDirFailureChannel, ProducerStateManagerConfig}
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats
 
+import scala.jdk.CollectionConverters._
 import scala.math.max
 
 /**
@@ -91,6 +94,10 @@ object TestLinearWriteSpeed {
                             .describedAs("level")
                             .ofType(classOf[java.lang.Integer])
                             .defaultsTo(0)
+    val compressionPropertyOpt = parser.accepts("compression-property", "A mechanism to pass per-codec properties in the form of key=value. ")
+                            .withRequiredArg
+                            .describedAs("compression_prop")
+                            .ofType(classOf[String])
     val mmapOpt = parser.accepts("mmap", "Do writes to memory-mapped files.")
     val channelOpt = parser.accepts("channel", "Do writes to file channels.")
     val logOpt = parser.accepts("log", "Do writes to kafka logs.")
@@ -109,13 +116,42 @@ object TestLinearWriteSpeed {
     val messageSize = options.valueOf(messageSizeOpt).intValue
     val flushInterval = options.valueOf(flushIntervalOpt).longValue
     val compressionType = CompressionType.forName(options.valueOf(compressionCodecOpt))
-    val compressionBuilder = Compression.of(compressionType)
-    val compressionLevel = options.valueOf(compressionLevelOpt)
-    compressionType match {
-      case CompressionType.GZIP => compressionBuilder.asInstanceOf[GzipCompression.Builder].level(compressionLevel)
-      case CompressionType.LZ4 => compressionBuilder.asInstanceOf[Lz4Compression.Builder].level(compressionLevel)
-      case CompressionType.ZSTD => compressionBuilder.asInstanceOf[ZstdCompression.Builder].level(compressionLevel)
-      case _ => //Noop
+    // default compression properties
+    val baseCompressionProps = Map(
+      ProducerConfig.COMPRESSION_GZIP_LEVEL_CONFIG -> CompressionType.GZIP_DEFAULT_LEVEL,
+      ProducerConfig.COMPRESSION_GZIP_BUFFER_CONFIG -> CompressionType.GZIP_DEFAULT_BUFFER,
+      ProducerConfig.COMPRESSION_SNAPPY_BLOCK_CONFIG -> CompressionType.SNAPPY_DEFAULT_BLOCK,
+      ProducerConfig.COMPRESSION_LZ4_LEVEL_CONFIG -> CompressionType.LZ4_DEFAULT_LEVEL,
+      ProducerConfig.COMPRESSION_LZ4_BLOCK_CONFIG -> CompressionType.LZ4_DEFAULT_BLOCK,
+      ProducerConfig.COMPRESSION_ZSTD_LEVEL_CONFIG -> CompressionType.ZSTD_DEFAULT_LEVEL,
+      ProducerConfig.COMPRESSION_ZSTD_WINDOW_CONFIG -> CompressionType.ZSTD_DEFAULT_WINDOW,
+    )
+    val levelCompressionProps = Map(s"compression.${compressionType.name}.level" -> options.valueOf(compressionLevelOpt).intValue)
+    // given compression properties: filter only valid ones.
+    val givenCompressionProps = CommandLineUtils.parseKeyValueArgs(options.valuesOf(compressionPropertyOpt))
+      .asScala.toMap
+      .filter(e => baseCompressionProps.keySet.contains(e._1))
+      .view.mapValues(_.toInt)
+    // override baseCompressionProps with levelCompressionProps, givenCompressionProps
+    val compressionProps = baseCompressionProps ++ levelCompressionProps ++ givenCompressionProps
+    val compressionBuilder = compressionType match {
+      case CompressionType.GZIP =>
+        Compression.gzip()
+          .level(compressionProps(ProducerConfig.COMPRESSION_GZIP_LEVEL_CONFIG))
+          .bufferSize(compressionProps(ProducerConfig.COMPRESSION_GZIP_BUFFER_CONFIG))
+      case CompressionType.SNAPPY =>
+        Compression.snappy()
+          .blockSize(compressionProps(ProducerConfig.COMPRESSION_SNAPPY_BLOCK_CONFIG))
+      case CompressionType.LZ4 =>
+        Compression.lz4()
+          .level(compressionProps(ProducerConfig.COMPRESSION_LZ4_LEVEL_CONFIG))
+          .blockSize(compressionProps(ProducerConfig.COMPRESSION_LZ4_BLOCK_CONFIG))
+      case CompressionType.ZSTD =>
+        Compression.zstd()
+          .level(compressionProps(ProducerConfig.COMPRESSION_ZSTD_LEVEL_CONFIG))
+          .windowSize(compressionProps(ProducerConfig.COMPRESSION_ZSTD_WINDOW_CONFIG))
+      case _ => // Noop
+        Compression.none()
     }
     val compression = compressionBuilder.build()
     val rand = new Random
