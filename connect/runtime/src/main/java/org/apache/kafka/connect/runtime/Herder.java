@@ -275,6 +275,14 @@ public interface Herder {
 
     /**
      * Restart the connector and optionally its tasks.
+     * @param delayMs delay before restart
+     * @param request the details of the restart request
+     * @param cb      callback to invoke upon completion with the connector state info
+     */
+    HerderRequest restartConnectorAndTasks(long delayMs, RestartRequest request, Callback<ConnectorStateInfo> cb);
+
+    /**
+     * Restart the connector and optionally its tasks.
      * @param request the details of the restart request
      * @param cb      callback to invoke upon completion with the connector state info
      */

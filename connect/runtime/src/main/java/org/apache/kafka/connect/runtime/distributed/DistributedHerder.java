@@ -1511,9 +1511,15 @@ public class DistributedHerder extends AbstractHerder implements Runnable {
     }
 
     @Override
-    public void restartConnectorAndTasks(RestartRequest request, Callback<ConnectorStateInfo> callback) {
+    public void restartConnectorAndTasks(final RestartRequest request, final Callback<ConnectorStateInfo> callback) {
+        restartConnectorAndTasks(0, request, callback);
+    }
+
+    @Override
+    public HerderRequest restartConnectorAndTasks(long delayMs, RestartRequest request, Callback<ConnectorStateInfo> callback) {
         final String connectorName = request.connectorName();
-        addRequest(
+        return addRequest(
+                delayMs,
                 () -> {
                     if (checkRebalanceNeeded(callback)) {
                         return null;

@@ -22,8 +22,8 @@ import org.apache.kafka.common.config.ConfigTransformerResult;
 import org.apache.kafka.common.config.provider.ConfigProvider;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.runtime.Herder.ConfigReloadAction;
-import org.apache.kafka.connect.util.Callback;
-
+import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
+import org.apache.kafka.connect.util.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,12 +86,18 @@ public class WorkerConfigTransformer implements AutoCloseable {
                 previousRequest.cancel();
             }
             log.info("Scheduling a restart of connector {} in {} ms", connectorName, ttl);
-            Callback<Void> cb = (error, result) -> {
-                if (error != null) {
-                    log.error("Unexpected error during connector restart: ", error);
-                }
-            };
-            return worker.herder().restartConnector(ttl, connectorName, cb);
+            FutureCallback<ConnectorStateInfo> cb = new FutureCallback<>();
+            //TODO: Check a best way to add this error message
+            //TODO: Why callback for connector is void but for connector and tasks it's callback with connector state info?
+            //Callback<Void> cb = (error, result) -> {
+            //    if (error != null) {
+            //        log.error("Unexpected error during connector restart: ", error);
+            //    }
+            //};
+            //TODO: Check if doing this in Standalone also makes sense?
+            RestartRequest restartRequest = new RestartRequest(connectorName, false, false);
+            worker.herder().restartConnectorAndTasks(ttl, restartRequest, cb);
+            return null;
         });
     }
 
