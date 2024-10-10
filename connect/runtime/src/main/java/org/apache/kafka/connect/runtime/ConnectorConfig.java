@@ -29,6 +29,7 @@ import org.apache.kafka.connect.runtime.errors.ToleranceType;
 import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.PluginUtils;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
+import org.apache.kafka.connect.runtime.isolation.VersionedPluginLoadingException;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.HeaderConverter;
 import org.apache.kafka.connect.transforms.Transformation;
@@ -37,17 +38,15 @@ import org.apache.kafka.connect.util.ConcreteSubClassValidator;
 import org.apache.kafka.connect.util.InstantiableClassValidator;
 
 import org.apache.kafka.connect.util.PluginVersionUtils;
+import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.apache.kafka.common.config.ConfigDef.NonEmptyStringWithoutControlChars.nonEmptyStringWithoutControlChars;
@@ -409,8 +408,8 @@ public class ConnectorConfig extends AbstractConfig {
             }
 
             @Override
-            protected Stream<Map.Entry<String, ConfigDef.ConfigKey>> configDefsForClass(String typeConfig) {
-                return super.configDefsForClass(typeConfig)
+            protected Stream<Map.Entry<String, ConfigDef.ConfigKey>> configDefsForClass(String typeConfig, String versionConfig, Plugins plugins) {
+                return super.configDefsForClass(typeConfig, versionConfig, plugins)
                         .filter(entry -> {
                             // The implicit parameters mask any from the transformer with the same name
                             if (TransformationStage.PREDICATE_CONFIG.equals(entry.getKey())
@@ -439,7 +438,13 @@ public class ConnectorConfig extends AbstractConfig {
                             "but there is no config '" + prefixedPredicate + "' defining a predicate to be negated.");
                 }
             }
-        }.enrich(newDef);
+
+            @Override
+            protected ConfigDef.Recommender versionRecommender(String typeConfig) {
+                return new PluginVersionUtils.TransformationPluginRecommender(typeConfig);
+            }
+
+        }.enrich(newDef, plugins);
 
         new EnrichablePlugin<Predicate<?>>("Predicate", PREDICATES_CONFIG, PREDICATES_GROUP,
                 (Class) Predicate.class, props, requireFullConfig) {
@@ -452,7 +457,13 @@ public class ConnectorConfig extends AbstractConfig {
             protected ConfigDef config(Predicate<?> predicate) {
                 return predicate.config();
             }
-        }.enrich(newDef);
+
+            @Override
+            protected ConfigDef.Recommender versionRecommender(String typeConfig) {
+                return new PluginVersionUtils.PredicatePluginRecommender(typeConfig);
+            }
+
+        }.enrich(newDef, plugins);
         return newDef;
     }
 
@@ -490,7 +501,7 @@ public class ConnectorConfig extends AbstractConfig {
         /**
          * Add the configs for this alias to the given {@code ConfigDef}.
          */
-        void enrich(ConfigDef newDef) {
+        void enrich(ConfigDef newDef, Plugins plugins) {
             Object aliases = ConfigDef.parseType(aliasConfig, props.get(aliasConfig), Type.LIST);
             if (!(aliases instanceof List)) {
                 return;
@@ -508,12 +519,15 @@ public class ConnectorConfig extends AbstractConfig {
                 int orderInGroup = 0;
 
                 final String typeConfig = prefix + "type";
+                final String versionConfig = prefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
+
+                // Add the class configuration
                 final ConfigDef.Validator typeValidator = ConfigDef.LambdaValidator.with(
                         (String name, Object value) -> {
                             validateProps(prefix);
                             // The value will be null if the class couldn't be found; no point in performing follow-up validation
                             if (value != null) {
-                                getConfigDefFromConfigProvidingClass(typeConfig, (Class<?>) value);
+                                getConfigDefFromPlugin(typeConfig, ((Class<?>) value).getName(), versionConfig, plugins);
                             }
                         },
                         () -> "valid configs for " + alias + " " + aliasKind.toLowerCase(Locale.ENGLISH));
@@ -522,7 +536,23 @@ public class ConnectorConfig extends AbstractConfig {
                         baseClass.getSimpleName() + " type for " + alias,
                         Collections.emptyList(), new ClassRecommender());
 
-                final ConfigDef configDef = populateConfigDef(typeConfig);
+                // Add the version configuration
+                final ConfigDef.Validator versionValidator = (name, value) -> {
+                    try {
+                        PluginVersionUtils.connectorVersionRequirement((String) value);
+                    } catch (InvalidVersionSpecificationException e) {
+                        throw new ConfigException(name, value, e.getMessage());
+                    }
+                    if (value != null) {
+                        getConfigDefFromPlugin(typeConfig, props.get(typeConfig), (String) value, plugins);
+                    }
+                };
+                newDef.define(versionConfig, Type.STRING, null, versionValidator, Importance.HIGH,
+                        "Version of the '" + alias + "' " + aliasKind.toLowerCase(Locale.ENGLISH) + ".", group, orderInGroup++, Width.LONG,
+                        baseClass.getSimpleName() + " version for " + alias,
+                        Collections.emptyList(), versionRecommender(typeConfig));
+
+                final ConfigDef configDef = populateConfigDef(typeConfig, versionConfig, plugins);
                 if (configDef == null) continue;
                 newDef.embed(prefix, group, orderInGroup, configDef);
             }
@@ -538,10 +568,10 @@ public class ConnectorConfig extends AbstractConfig {
          * Populates the ConfigDef according to the configs returned from {@code configs()} method of class
          * named in the {@code ...type} parameter of the {@code props}.
          */
-        protected ConfigDef populateConfigDef(String typeConfig) {
+        protected ConfigDef populateConfigDef(String typeConfig, String versionConfig, Plugins plugins) {
             final ConfigDef configDef = initialConfigDef();
             try {
-                configDefsForClass(typeConfig)
+                configDefsForClass(typeConfig, versionConfig, plugins)
                         .forEach(entry -> configDef.define(entry.getValue()));
             } catch (ConfigException e) {
                 if (requireFullConfig) {
@@ -557,9 +587,8 @@ public class ConnectorConfig extends AbstractConfig {
          * Return a stream of configs provided by the {@code configs()} method of class
          * named in the {@code ...type} parameter of the {@code props}.
          */
-        protected Stream<Map.Entry<String, ConfigDef.ConfigKey>> configDefsForClass(String typeConfig) {
-            final Class<?> cls = (Class<?>) ConfigDef.parseType(typeConfig, props.get(typeConfig), Type.CLASS);
-            return getConfigDefFromConfigProvidingClass(typeConfig, cls)
+        protected Stream<Map.Entry<String, ConfigDef.ConfigKey>> configDefsForClass(String typeConfig, String versionConfig, Plugins plugins) {
+            return getConfigDefFromPlugin(typeConfig, props.get(typeConfig), versionConfig, plugins)
                     .configKeys().entrySet().stream();
         }
 
@@ -601,6 +630,31 @@ public class ConnectorConfig extends AbstractConfig {
             return configDef;
         }
 
+        @SuppressWarnings("unchecked")
+        ConfigDef getConfigDefFromPlugin(String key, String classOrAlias, String version, Plugins plugins) {
+            T pluginInstance;
+            try {
+                VersionRange range = PluginVersionUtils.connectorVersionRequirement(version);
+                pluginInstance = (T) plugins.newPlugin(classOrAlias, range);
+            } catch (InvalidVersionSpecificationException e) {
+                // this should be caught in the validation of the version string, just return empty config def to prevent entire validation from failing
+                return new ConfigDef();
+            } catch (Exception e) {
+                throw new ConfigException(key, classOrAlias, "Error getting config definition from " + baseClass.getSimpleName() + ": " + e.getMessage());
+            }
+            Utils.ensureConcreteSubclass(baseClass, pluginInstance.getClass());
+            ConfigDef configDef = config(pluginInstance);
+            if (null == configDef) {
+                throw new ConnectException(
+                        String.format(
+                                "%s.config() must return a ConfigDef that is not null.",
+                                pluginInstance.getClass().getName()
+                        )
+                );
+            }
+            return configDef;
+        }
+
         /**
          * Get the ConfigDef from the given entity.
          * This is necessary because there's no abstraction across {@link Transformation#config()} and
@@ -613,6 +667,8 @@ public class ConnectorConfig extends AbstractConfig {
          * for the {@link ClassRecommender}.
          */
         protected abstract Set<PluginDesc<T>> plugins();
+
+        protected abstract ConfigDef.Recommender versionRecommender(String typeConfig);
 
         /**
          * Recommend bundled transformations or predicates.
@@ -633,6 +689,6 @@ public class ConnectorConfig extends AbstractConfig {
                 return true;
             }
         }
-    }
 
+    }
 }

@@ -7,12 +7,15 @@ import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorType;
+import org.apache.kafka.connect.transforms.Transformation;
+import org.apache.kafka.connect.transforms.predicates.Predicate;
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
 import org.apache.maven.artifact.versioning.VersionRange;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -178,6 +181,61 @@ public class PluginVersionUtils {
         protected Function<String, List<Object>> recommendations() {
             return (converterClass) -> plugins.headerConverters(converterClass).stream()
                     .map(PluginDesc::version).distinct().collect(Collectors.toList());
+        }
+    }
+
+    // Recommender for transformation and predicate plugins
+    public static abstract class SMTPluginRecommender<T> implements ConfigDef.Recommender {
+
+        abstract protected Function<String, Set<PluginDesc<T>>> plugins();
+
+        protected final String classOrAliasConfig;
+
+        public SMTPluginRecommender(String classOrAliasConfig) {
+            this.classOrAliasConfig = classOrAliasConfig;
+        }
+
+        @Override
+        @SuppressWarnings({"rawtypes"})
+        public List<Object> validValues(String name, Map<String, Object> parsedConfig) {
+            if (plugins == null) {
+                return Collections.emptyList();
+            }
+            if (!parsedConfig.containsKey(classOrAliasConfig)) {
+                return Collections.emptyList();
+            }
+            Class classOrAlias = (Class) parsedConfig.get(classOrAliasConfig);
+            return plugins().apply(classOrAlias.getName())
+                    .stream().map(PluginDesc::version).distinct().collect(Collectors.toList());
+        }
+
+        @Override
+        public boolean visible(String name, Map<String, Object> parsedConfig) {
+            return true;
+        }
+    }
+
+    public static class TransformationPluginRecommender extends SMTPluginRecommender<Transformation<?>> {
+
+        public TransformationPluginRecommender(String classOrAliasConfig) {
+            super(classOrAliasConfig);
+        }
+
+        @Override
+        protected Function<String, Set<PluginDesc<Transformation<?>>>> plugins() {
+            return classOrAlias -> plugins.transformations(classOrAlias);
+        }
+    }
+
+    public static class PredicatePluginRecommender extends SMTPluginRecommender<Predicate<?>> {
+
+        public PredicatePluginRecommender(String classOrAliasConfig) {
+            super(classOrAliasConfig);
+        }
+
+        @Override
+        protected Function<String, Set<PluginDesc<Predicate<?>>>> plugins() {
+            return classOrAlias -> plugins.predicates(classOrAlias);
         }
     }
 }
