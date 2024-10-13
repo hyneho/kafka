@@ -68,7 +68,6 @@ import java.util.stream.Stream;
 import static org.apache.kafka.clients.consumer.internals.AbstractMembershipManager.TOPIC_PARTITION_COMPARATOR;
 import static org.apache.kafka.clients.consumer.internals.AsyncKafkaConsumer.invokeRebalanceCallbacks;
 import static org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH;
-import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkSortedSet;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -775,8 +774,8 @@ public class ConsumerMembershipManagerTest {
         when(subscriptionState.hasAutoAssignedPartitions()).thenReturn(true);
         when(metadata.topicNames()).thenReturn(
             mkMap(
-                mkEntry(topicId1, topic1),
-                mkEntry(topicId2, topic2)
+                Map.entry(topicId1, topic1),
+                Map.entry(topicId2, topic2)
             )
         );
 
@@ -788,8 +787,8 @@ public class ConsumerMembershipManagerTest {
         // No reconciliation triggered, because another reconciliation is in progress.
         Map<Uuid, SortedSet<Integer>> newAssignment =
             mkMap(
-                mkEntry(topicId1, mkSortedSet(0)),
-                mkEntry(topicId2, mkSortedSet(0))
+                Map.entry(topicId1, mkSortedSet(0)),
+                Map.entry(topicId2, mkSortedSet(0))
             );
 
         receiveAssignment(newAssignment, membershipManager);
@@ -849,8 +848,8 @@ public class ConsumerMembershipManagerTest {
 
         Map<Uuid, SortedSet<Integer>> newAssignment =
             mkMap(
-                mkEntry(topicId1, mkSortedSet(0)),
-                mkEntry(topicId2, mkSortedSet(0))
+                Map.entry(topicId1, mkSortedSet(0)),
+                Map.entry(topicId2, mkSortedSet(0))
             );
 
         receiveAssignment(newAssignment, membershipManager);
@@ -872,8 +871,8 @@ public class ConsumerMembershipManagerTest {
         // with membership manager entering ACKNOWLEDGING state.
 
         Map<Uuid, String> fullTopicMetadata = mkMap(
-            mkEntry(topicId1, topic1),
-            mkEntry(topicId2, topic2)
+            Map.entry(topicId1, topic1),
+            Map.entry(topicId2, topic2)
         );
         when(metadata.topicNames()).thenReturn(fullTopicMetadata);
 
@@ -2597,7 +2596,7 @@ public class ConsumerMembershipManagerTest {
     private void mockOwnedPartition(ConsumerMembershipManager membershipManager, Uuid topicId, String topic) {
         int partition = 0;
         TopicPartition previouslyOwned = new TopicPartition(topic, partition);
-        membershipManager.updateAssignment(mkMap(mkEntry(topicId, new TreeSet<>(Collections.singletonList(partition)))));
+        membershipManager.updateAssignment(mkMap(Map.entry(topicId, new TreeSet<>(Collections.singletonList(partition)))));
         when(subscriptionState.assignedPartitions()).thenReturn(Collections.singleton(previouslyOwned));
         when(subscriptionState.hasAutoAssignedPartitions()).thenReturn(true);
     }

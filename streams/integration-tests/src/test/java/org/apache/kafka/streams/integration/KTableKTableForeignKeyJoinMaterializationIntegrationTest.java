@@ -64,7 +64,7 @@ public class KTableKTableForeignKeyJoinMaterializationIntegrationTest {
     @BeforeEach
     public void before() {
         streamsConfig = mkProperties(mkMap(
-            mkEntry(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getPath())
+            Map.entry(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getPath())
         ));
     }
 

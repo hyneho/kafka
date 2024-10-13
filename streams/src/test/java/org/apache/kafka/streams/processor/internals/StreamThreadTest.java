@@ -135,7 +135,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
-import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkProperties;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.adminClientId;
@@ -255,17 +254,17 @@ public class StreamThreadTest {
 
     private Properties configProps(final boolean enableEoS, final boolean stateUpdaterEnabled, final boolean processingThreadsEnabled) {
         return mkProperties(mkMap(
-            mkEntry(StreamsConfig.APPLICATION_ID_CONFIG, APPLICATION_ID),
-            mkEntry(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:2171"),
-            mkEntry(StreamsConfig.BUFFERED_RECORDS_PER_PARTITION_CONFIG, "3"),
-            mkEntry(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockTimestampExtractor.class.getName()),
-            mkEntry(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getAbsolutePath()),
-            mkEntry(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, enableEoS ? StreamsConfig.EXACTLY_ONCE_V2 : StreamsConfig.AT_LEAST_ONCE),
-            mkEntry(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.ByteArraySerde.class.getName()),
-            mkEntry(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.ByteArraySerde.class.getName()),
-            mkEntry(InternalConfig.STATE_UPDATER_ENABLED, Boolean.toString(stateUpdaterEnabled)),
-            mkEntry(InternalConfig.PROCESSING_THREADS_ENABLED, Boolean.toString(processingThreadsEnabled)),
-            mkEntry(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "1")
+            Map.entry(StreamsConfig.APPLICATION_ID_CONFIG, APPLICATION_ID),
+            Map.entry(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:2171"),
+            Map.entry(StreamsConfig.BUFFERED_RECORDS_PER_PARTITION_CONFIG, "3"),
+            Map.entry(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockTimestampExtractor.class.getName()),
+            Map.entry(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory().getAbsolutePath()),
+            Map.entry(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, enableEoS ? StreamsConfig.EXACTLY_ONCE_V2 : StreamsConfig.AT_LEAST_ONCE),
+            Map.entry(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.ByteArraySerde.class.getName()),
+            Map.entry(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.ByteArraySerde.class.getName()),
+            Map.entry(InternalConfig.STATE_UPDATER_ENABLED, Boolean.toString(stateUpdaterEnabled)),
+            Map.entry(InternalConfig.PROCESSING_THREADS_ENABLED, Boolean.toString(processingThreadsEnabled)),
+            Map.entry(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, "1")
         ));
     }
 
@@ -368,7 +367,7 @@ public class StreamThreadTest {
 
         final StateListenerStub stateListener = new StateListenerStub();
         thread.setStateListener(stateListener);
-        assertEquals(thread.state(), StreamThread.State.CREATED);
+        assertEquals(thread.state(), State.CREATED);
 
         final ConsumerRebalanceListener rebalanceListener = thread.rebalanceListener();
 
@@ -376,11 +375,11 @@ public class StreamThreadTest {
         final List<TopicPartition> assignedPartitions;
 
         // revoke nothing
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         revokedPartitions = Collections.emptyList();
         rebalanceListener.onPartitionsRevoked(revokedPartitions);
 
-        assertEquals(thread.state(), StreamThread.State.PARTITIONS_REVOKED);
+        assertEquals(thread.state(), State.PARTITIONS_REVOKED);
 
         // assign single partition
         assignedPartitions = Collections.singletonList(t1p1);
@@ -390,12 +389,12 @@ public class StreamThreadTest {
         mockConsumer.updateBeginningOffsets(Collections.singletonMap(t1p1, 0L));
         rebalanceListener.onPartitionsAssigned(assignedPartitions);
         runOnce(processingThreadsEnabled);
-        assertEquals(thread.state(), StreamThread.State.RUNNING);
+        assertEquals(thread.state(), State.RUNNING);
         assertEquals(4, stateListener.numChanges);
-        assertEquals(StreamThread.State.PARTITIONS_ASSIGNED, stateListener.oldState);
+        assertEquals(State.PARTITIONS_ASSIGNED, stateListener.oldState);
 
         thread.shutdown();
-        assertSame(StreamThread.State.PENDING_SHUTDOWN, thread.state());
+        assertSame(State.PENDING_SHUTDOWN, thread.state());
     }
 
     @ParameterizedTest
@@ -408,18 +407,18 @@ public class StreamThreadTest {
 
         thread.start();
         TestUtils.waitForCondition(
-            () -> thread.state() == StreamThread.State.STARTING,
+            () -> thread.state() == State.STARTING,
             10 * 1000,
             "Thread never started.");
 
         thread.shutdown();
         TestUtils.waitForCondition(
-            () -> thread.state() == StreamThread.State.DEAD,
+            () -> thread.state() == State.DEAD,
             10 * 1000,
             "Thread never shut down.");
 
         thread.shutdown();
-        assertEquals(thread.state(), StreamThread.State.DEAD);
+        assertEquals(thread.state(), State.DEAD);
     }
 
     @ParameterizedTest
@@ -497,7 +496,7 @@ public class StreamThreadTest {
 
         final String taskGroupName = "stream-task-metrics";
         final Map<String, String> taskTags =
-            mkMap(mkEntry("task-id", "all"), mkEntry("thread-id", thread.getName()));
+            mkMap(Map.entry("task-id", "all"), Map.entry("thread-id", thread.getName()));
         assertNull(metrics.metrics().get(metrics.metricName(
             "commit-latency-avg", taskGroupName, descriptionIsNotVerified, taskTags)));
         assertNull(metrics.metrics().get(metrics.metricName(
@@ -760,13 +759,13 @@ public class StreamThreadTest {
 
         thread.start();
         TestUtils.waitForCondition(
-            () -> thread.state() == StreamThread.State.STARTING,
+            () -> thread.state() == State.STARTING,
             10 * 1000,
             "Thread never started.");
 
         thread.shutdown();
         TestUtils.waitForCondition(
-            () -> thread.state() == StreamThread.State.DEAD,
+            () -> thread.state() == State.DEAD,
             10 * 1000,
             "Thread never shut down.");
 
@@ -824,7 +823,7 @@ public class StreamThreadTest {
 
         thread.start();
         TestUtils.waitForCondition(
-            () -> thread.state() == StreamThread.State.STARTING,
+            () -> thread.state() == State.STARTING,
             10 * 1000,
             "Thread never started.");
 
@@ -842,7 +841,7 @@ public class StreamThreadTest {
         thread.taskManager().handleRebalanceComplete();
 
         TestUtils.waitForCondition(
-            () -> thread.state() == StreamThread.State.DEAD,
+            () -> thread.state() == State.DEAD,
             10 * 1000,
             "Thread never shut down.");
 
@@ -864,7 +863,7 @@ public class StreamThreadTest {
 
         AtomicLong nextRebalanceMs() {
             return ((ReferenceContainer) consumerConfigs.get(
-                    StreamsConfig.InternalConfig.REFERENCE_CONTAINER_PARTITION_ASSIGNOR)
+                    InternalConfig.REFERENCE_CONTAINER_PARTITION_ASSIGNOR)
                 ).nextScheduledRebalanceMs;
         }
     }
@@ -903,8 +902,8 @@ public class StreamThreadTest {
                                                                                          properties));
         thread = createStreamThread(CLIENT_ID, config);
 
-        thread.setState(StreamThread.State.STARTING);
-        thread.setState(StreamThread.State.PARTITIONS_REVOKED);
+        thread.setState(State.STARTING);
+        thread.setState(State.PARTITIONS_REVOKED);
 
         final TaskId task1 = new TaskId(0, t1p1.partition());
         final Set<TopicPartition> assignedPartitions = Collections.singleton(t1p1);
@@ -1175,7 +1174,7 @@ public class StreamThreadTest {
 
         thread = buildStreamThread(consumer, taskManager, config, topologyMetadata);
         thread.updateThreadMetadata("adminClientId");
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
         activeTasks.put(task1, Collections.singleton(t1p1));
@@ -1238,7 +1237,7 @@ public class StreamThreadTest {
         final StreamsConfig config = new StreamsConfig(configProps(false, stateUpdaterEnabled, processingThreadsEnabled));
         thread = createStreamThread(CLIENT_ID, config);
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptyList());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1277,7 +1276,7 @@ public class StreamThreadTest {
         final Properties props = configProps(true, stateUpdaterEnabled, processingThreadsEnabled);
         thread = createStreamThread(CLIENT_ID, new StreamsConfig(props));
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptyList());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1336,7 +1335,7 @@ public class StreamThreadTest {
 
         thread.start();
         TestUtils.waitForCondition(
-                () -> thread.state() == StreamThread.State.STARTING,
+                () -> thread.state() == State.STARTING,
                 10 * 1000,
                 "Thread never started.");
 
@@ -1349,12 +1348,12 @@ public class StreamThreadTest {
 
         Thread.sleep(1000);
         assertEquals(Set.of(task1, task2), thread.taskManager().activeTaskIds());
-        assertEquals(StreamThread.State.PENDING_SHUTDOWN, thread.state());
+        assertEquals(State.PENDING_SHUTDOWN, thread.state());
 
         thread.rebalanceListener().onPartitionsAssigned(assignedPartitions);
 
         TestUtils.waitForCondition(
-            () -> thread.state() == StreamThread.State.DEAD,
+            () -> thread.state() == State.DEAD,
             10 * 1000,
             "Thread never shut down.");
         assertEquals(Collections.emptySet(), thread.taskManager().activeTaskIds());
@@ -1377,7 +1376,7 @@ public class StreamThreadTest {
             .updateThreadMetadata(adminClientId(CLIENT_ID));
         thread.setStateListener(
             (t, newState, oldState) -> {
-                if (oldState == StreamThread.State.CREATED && newState == StreamThread.State.STARTING) {
+                if (oldState == State.CREATED && newState == State.STARTING) {
                     thread.shutdown();
                 }
             });
@@ -1511,7 +1510,7 @@ public class StreamThreadTest {
         final StreamsConfig config = new StreamsConfig(configProps(false, stateUpdaterEnabled, processingThreadsEnabled));
         thread = createStreamThread(CLIENT_ID, config);
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptyList());
 
         final Map<TaskId, Set<TopicPartition>> standbyTasks = new HashMap<>();
@@ -1537,7 +1536,7 @@ public class StreamThreadTest {
 
         consumer.updatePartitions(topic1, Collections.singletonList(new PartitionInfo(topic1, 1, null, null, null)));
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1602,7 +1601,7 @@ public class StreamThreadTest {
         internalTopologyBuilder.addSource(null, "name", null, null, null, topic1);
         internalTopologyBuilder.addSink("out", "output", null, null, null, "name");
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1684,7 +1683,7 @@ public class StreamThreadTest {
         );
         internalTopologyBuilder.buildTopology();
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1699,12 +1698,12 @@ public class StreamThreadTest {
         final MockConsumer<byte[], byte[]> mockConsumer = (MockConsumer<byte[], byte[]>) thread.mainConsumer();
         mockConsumer.assign(assignedPartitions);
         mockConsumer.updateBeginningOffsets(mkMap(
-                mkEntry(t1p1, 0L)
+                Map.entry(t1p1, 0L)
         ));
 
         final MockConsumer<byte[], byte[]> restoreConsumer = (MockConsumer<byte[], byte[]>) thread.restoreConsumer();
         restoreConsumer.updateBeginningOffsets(mkMap(
-                mkEntry(storeChangelogTopicPartition, 0L)
+                Map.entry(storeChangelogTopicPartition, 0L)
         ));
         final MockAdminClient admin = (MockAdminClient) thread.adminClient();
         admin.updateEndOffsets(singletonMap(storeChangelogTopicPartition, 0L));
@@ -1778,7 +1777,7 @@ public class StreamThreadTest {
 
         consumer.updatePartitions(topic1, Collections.singletonList(new PartitionInfo(topic1, 1, null, null, null)));
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1842,7 +1841,7 @@ public class StreamThreadTest {
         internalTopologyBuilder.addSource(null, "name", null, null, null, topic1);
         internalTopologyBuilder.addSink("out", "output", null, null, null, "name");
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1923,7 +1922,7 @@ public class StreamThreadTest {
             HANDLER
         );
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -1943,7 +1942,7 @@ public class StreamThreadTest {
         runOnce(processingThreadsEnabled);
 
         final ThreadMetadata metadata = thread.threadMetadata();
-        assertEquals(StreamThread.State.RUNNING.name(), metadata.threadState());
+        assertEquals(State.RUNNING.name(), metadata.threadState());
         assertTrue(metadata.activeTasks().contains(new TaskMetadataImpl(task1, Set.of(t1p1), new HashMap<>(), new HashMap<>(), Optional.empty())));
         assertTrue(metadata.standbyTasks().isEmpty());
 
@@ -1983,7 +1982,7 @@ public class StreamThreadTest {
         restoreConsumer.updateEndOffsets(offsets);
         restoreConsumer.updateBeginningOffsets(offsets);
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> standbyTasks = new HashMap<>();
@@ -1998,7 +1997,7 @@ public class StreamThreadTest {
         runOnce(processingThreadsEnabled);
 
         final ThreadMetadata threadMetadata = thread.threadMetadata();
-        assertEquals(StreamThread.State.RUNNING.name(), threadMetadata.threadState());
+        assertEquals(State.RUNNING.name(), threadMetadata.threadState());
         assertTrue(threadMetadata.standbyTasks().contains(new TaskMetadataImpl(task1, Set.of(t1p1), new HashMap<>(), new HashMap<>(), Optional.empty())));
         assertTrue(threadMetadata.activeTasks().isEmpty());
     }
@@ -2107,7 +2106,7 @@ public class StreamThreadTest {
             = new OffsetCheckpoint(new File(stateDirectory.getOrCreateDirectoryForTask(task3), CHECKPOINT_FILE_NAME));
         checkpoint.write(Collections.singletonMap(partition2, 5L));
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
 
         final Map<TaskId, Set<TopicPartition>> activeTasks = new HashMap<>();
@@ -2246,7 +2245,7 @@ public class StreamThreadTest {
         final StreamsConfig config = new StreamsConfig(configProps(false, stateUpdaterEnabled, processingThreadsEnabled));
         thread = createStreamThread(CLIENT_ID, config);
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
         final List<TopicPartition> assignedPartitions = new ArrayList<>();
 
@@ -2325,7 +2324,7 @@ public class StreamThreadTest {
         final long currTime = mockTime.milliseconds();
         thread = createStreamThread(CLIENT_ID, stateUpdaterEnabled, processingThreadsEnabled);
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.rebalanceListener().onPartitionsRevoked(Collections.emptySet());
         final List<TopicPartition> assignedPartitions = new ArrayList<>();
 
@@ -2375,14 +2374,14 @@ public class StreamThreadTest {
         final StreamsConfig config = new StreamsConfig(configProps(false, stateUpdaterEnabled, processingThreadsEnabled));
         thread = createStreamThread(CLIENT_ID, config);
         ThreadMetadata metadata = thread.threadMetadata();
-        assertEquals(StreamThread.State.CREATED.name(), metadata.threadState());
+        assertEquals(State.CREATED.name(), metadata.threadState());
 
-        thread.setState(StreamThread.State.STARTING);
-        thread.setState(StreamThread.State.PARTITIONS_REVOKED);
-        thread.setState(StreamThread.State.PARTITIONS_ASSIGNED);
-        thread.setState(StreamThread.State.RUNNING);
+        thread.setState(State.STARTING);
+        thread.setState(State.PARTITIONS_REVOKED);
+        thread.setState(State.PARTITIONS_ASSIGNED);
+        thread.setState(State.RUNNING);
         metadata = thread.threadMetadata();
-        assertEquals(StreamThread.State.RUNNING.name(), metadata.threadState());
+        assertEquals(State.RUNNING.name(), metadata.threadState());
     }
 
     @ParameterizedTest
@@ -2442,7 +2441,7 @@ public class StreamThreadTest {
         mockAdminClient.updateEndOffsets(Collections.singletonMap(changelogPartition, 2L));
 
         mockConsumer.schedulePollTask(() -> {
-            thread.setState(StreamThread.State.PARTITIONS_REVOKED);
+            thread.setState(State.PARTITIONS_REVOKED);
             thread.rebalanceListener().onPartitionsAssigned(topicPartitionSet);
         });
 
@@ -2522,8 +2521,8 @@ public class StreamThreadTest {
         properties.setProperty(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.Integer().getClass().getName());
         thread = createStreamThread(CLIENT_ID, new StreamsConfig(properties));
 
-        thread.setState(StreamThread.State.STARTING);
-        thread.setState(StreamThread.State.PARTITIONS_REVOKED);
+        thread.setState(State.STARTING);
+        thread.setState(State.PARTITIONS_REVOKED);
 
         final TaskId task1 = new TaskId(0, t1p1.partition());
         final Set<TopicPartition> assignedPartitions = Collections.singleton(t1p1);
@@ -2596,11 +2595,11 @@ public class StreamThreadTest {
             .updateThreadMetadata(adminClientId(CLIENT_ID));
 
         consumer.schedulePollTask(() -> {
-            thread.setState(StreamThread.State.PARTITIONS_REVOKED);
+            thread.setState(State.PARTITIONS_REVOKED);
             thread.rebalanceListener().onPartitionsLost(assignedPartitions);
         });
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         assertThrows(TaskMigratedException.class, () -> runOnce(processingThreadsEnabled));
     }
 
@@ -2626,11 +2625,11 @@ public class StreamThreadTest {
             .updateThreadMetadata(adminClientId(CLIENT_ID));
 
         consumer.schedulePollTask(() -> {
-            thread.setState(StreamThread.State.PARTITIONS_REVOKED);
+            thread.setState(State.PARTITIONS_REVOKED);
             thread.rebalanceListener().onPartitionsRevoked(assignedPartitions);
         });
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         assertThrows(TaskMigratedException.class, () -> runOnce(processingThreadsEnabled));
     }
 
@@ -2812,7 +2811,7 @@ public class StreamThreadTest {
             }
         }.updateThreadMetadata(adminClientId(CLIENT_ID));
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.runLoop();
 
         verify(consumer, times(2)).subscribe((Collection<String>) any(), any());
@@ -2875,7 +2874,7 @@ public class StreamThreadTest {
             }
         }.updateThreadMetadata(adminClientId(CLIENT_ID));
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.runLoop();
 
         verify(consumer).subscribe((Collection<String>) any(), any());
@@ -2935,7 +2934,7 @@ public class StreamThreadTest {
             }
         }.updateThreadMetadata(adminClientId(CLIENT_ID));
 
-        thread.setState(StreamThread.State.STARTING);
+        thread.setState(State.STARTING);
         thread.runLoop();
 
         verify(consumer).subscribe((Collection<String>) any(), any());
@@ -2962,9 +2961,9 @@ public class StreamThreadTest {
         when(task3.state()).thenReturn(Task.State.CREATED);
 
         when(taskManager.allOwnedTasks()).thenReturn(mkMap(
-            mkEntry(taskId1, task1),
-            mkEntry(taskId2, task2),
-            mkEntry(taskId3, task3)
+            Map.entry(taskId1, task1),
+            Map.entry(taskId2, task2),
+            Map.entry(taskId3, task3)
         ));
 
         // expect not to try and commit task3, because it's not running.
@@ -2997,8 +2996,8 @@ public class StreamThreadTest {
         final StreamsConfig config = new StreamsConfig(properties);
         thread = createStreamThread(CLIENT_ID, config);
 
-        thread.setState(StreamThread.State.STARTING);
-        thread.setState(StreamThread.State.PARTITIONS_REVOKED);
+        thread.setState(State.STARTING);
+        thread.setState(State.PARTITIONS_REVOKED);
 
         final TaskId task1 = new TaskId(0, t1p1.partition());
         final Set<TopicPartition> assignedPartitions = Collections.singleton(t1p1);
@@ -3214,14 +3213,14 @@ public class StreamThreadTest {
         ) {
             @Override
             void runOnceWithProcessingThreads() {
-                setState(StreamThread.State.PENDING_SHUTDOWN);
+                setState(State.PENDING_SHUTDOWN);
                 if (shouldFail) {
                     throw new StreamsException(Thread.currentThread().getName());
                 }
             }
             @Override
             void runOnceWithoutProcessingThreads() {
-                setState(StreamThread.State.PENDING_SHUTDOWN);
+                setState(State.PENDING_SHUTDOWN);
                 if (shouldFail) {
                     throw new StreamsException(Thread.currentThread().getName());
                 }

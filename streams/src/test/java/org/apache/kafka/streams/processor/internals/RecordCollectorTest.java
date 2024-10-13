@@ -85,7 +85,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
-import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.streams.internals.StreamsConfigUtils.ProcessingMode.AT_LEAST_ONCE;
 import static org.apache.kafka.streams.internals.StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_V2;
@@ -464,8 +463,8 @@ public class RecordCollectorTest {
                 "stream-task-metrics",
                 "The total number of dropped records",
                 mkMap(
-                        mkEntry("thread-id", Thread.currentThread().getName()),
-                        mkEntry("task-id", taskId.toString())
+                        Map.entry("thread-id", Thread.currentThread().getName()),
+                        Map.entry("task-id", taskId.toString())
                 )
         ));
 
@@ -1303,8 +1302,8 @@ public class RecordCollectorTest {
             "stream-task-metrics",
             "The total number of dropped records",
             mkMap(
-                mkEntry("thread-id", Thread.currentThread().getName()),
-                mkEntry("task-id", taskId.toString())
+                Map.entry("thread-id", Thread.currentThread().getName()),
+                Map.entry("task-id", taskId.toString())
             )
         ));
         assertEquals(1.0, metric.metricValue());
@@ -1548,8 +1547,8 @@ public class RecordCollectorTest {
                     "stream-task-metrics",
                     "The total number of dropped records",
                     mkMap(
-                        mkEntry("thread-id", Thread.currentThread().getName()),
-                        mkEntry("task-id", taskId.toString())
+                        Map.entry("thread-id", Thread.currentThread().getName()),
+                        Map.entry("task-id", taskId.toString())
                     ))).metricValue(),
                 equalTo(1.0)
             );

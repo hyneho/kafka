@@ -68,7 +68,6 @@ import java.util.regex.Pattern;
 
 import static java.time.Duration.ofSeconds;
 import static java.util.Arrays.asList;
-import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkProperties;
 import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
@@ -1366,8 +1365,8 @@ public class InternalTopologyBuilderTest {
         builder.initializeSubscription();
 
         builder.rewriteTopology(new StreamsConfig(mkProperties(mkMap(
-            mkEntry(StreamsConfig.APPLICATION_ID_CONFIG, "asdf"),
-            mkEntry(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "asdf")
+            Map.entry(StreamsConfig.APPLICATION_ID_CONFIG, "asdf"),
+            Map.entry(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "asdf")
         ))));
 
         assertThat(builder.buildGlobalStateTopology().storeToChangelogTopic().get(globalStoreName), is(globalTopic));

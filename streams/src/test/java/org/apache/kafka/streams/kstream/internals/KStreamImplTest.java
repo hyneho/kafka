@@ -2398,7 +2398,7 @@ public class KStreamImplTest {
             inputTopic.pipeInput("A", "01");
             inputTopic.pipeInput("B", "02");
             inputTopic.pipeInput("A", "03");
-            final Map<String, String> expectedStore = mkMap(mkEntry("A", "03"), mkEntry("B", "02"));
+            final Map<String, String> expectedStore = mkMap(Map.entry("A", "03"), Map.entry("B", "02"));
 
             assertThat(asMap(store), is(expectedStore));
         }
@@ -2561,8 +2561,8 @@ public class KStreamImplTest {
             left.pipeInput("lhs2", "lhsValue2|rhs2");
 
             final Map<String, String> expected = mkMap(
-                mkEntry("lhs1", "(lhsValue1|rhs1,rhsValue1)"),
-                mkEntry("lhs2", "(lhsValue2|rhs2,rhsValue2)")
+                Map.entry("lhs1", "(lhsValue1|rhs1,rhsValue1)"),
+                Map.entry("lhs2", "(lhsValue2|rhs2,rhsValue2)")
             );
             assertThat(outputTopic.readKeyValuesToMap(), is(expected));
 
@@ -2572,7 +2572,7 @@ public class KStreamImplTest {
             assertThat(
                 outputTopic.readKeyValuesToMap(),
                 is(mkMap(
-                    mkEntry("lhs3", "(lhsValue3|rhs1,rhsValue1)")
+                    Map.entry("lhs3", "(lhsValue3|rhs1,rhsValue1)")
                 ))
             );
 
@@ -2647,7 +2647,7 @@ public class KStreamImplTest {
             left.pipeInput("lhs2", "lhsValue2");
 
             final Map<String, String> expected = mkMap(
-                mkEntry("lhs1", "lhsValue1+rhsValue1")
+                Map.entry("lhs1", "lhsValue1+rhsValue1")
             );
 
             assertThat(
@@ -2660,7 +2660,7 @@ public class KStreamImplTest {
             assertThat(
                 output.readKeyValuesToMap(),
                 is(mkMap(
-                    mkEntry("lhs3", "lhsValue3+rhsValue3")
+                    Map.entry("lhs3", "lhsValue3+rhsValue3")
                 ))
             );
 
@@ -2668,7 +2668,7 @@ public class KStreamImplTest {
             assertThat(
                 output.readKeyValuesToMap(),
                 is(mkMap(
-                    mkEntry("lhs1", "lhsValue4+rhsValue1")
+                    Map.entry("lhs1", "lhsValue4+rhsValue1")
                 ))
             );
         }
@@ -2723,7 +2723,7 @@ public class KStreamImplTest {
             left.pipeInput("lhs2", "lhsValue2");
 
             final Map<String, String> expected = mkMap(
-                mkEntry("lhs1", "lhsValue1+rhsValue1")
+                Map.entry("lhs1", "lhsValue1+rhsValue1")
             );
 
             assertThat(
@@ -2736,7 +2736,7 @@ public class KStreamImplTest {
             assertThat(
                 output.readKeyValuesToMap(),
                 is(mkMap(
-                    mkEntry("lhs3", "lhsValue3+rhsValue3")
+                    Map.entry("lhs3", "lhsValue3+rhsValue3")
                 ))
             );
 
@@ -2744,7 +2744,7 @@ public class KStreamImplTest {
             assertThat(
                 output.readKeyValuesToMap(),
                 is(mkMap(
-                    mkEntry("lhs1", "lhsValue4+rhsValue1")
+                    Map.entry("lhs1", "lhsValue4+rhsValue1")
                 ))
             );
         }
