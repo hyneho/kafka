@@ -493,9 +493,14 @@ public class RaftUtil {
         int leaderEpoch,
         long highWatermark,
         Collection<LeaderState.ReplicaState> voters,
+        Collection<LeaderState.ReplicaState> committedVoters,
         Collection<LeaderState.ReplicaState> observers,
         long currentTimeMs
     ) {
+        if (apiVersion < 3) {
+            committedVoters = null;
+        }
+
         DescribeQuorumResponseData response = new DescribeQuorumResponseData()
             .setTopics(
                 Collections.singletonList(
@@ -510,6 +515,7 @@ public class RaftUtil {
                                     .setLeaderEpoch(leaderEpoch)
                                     .setHighWatermark(highWatermark)
                                     .setCurrentVoters(toReplicaStates(apiVersion, leaderId, voters, currentTimeMs))
+                                    .setCommittedVoters(toReplicaStates(apiVersion, leaderId, committedVoters, currentTimeMs))
                                     .setObservers(toReplicaStates(apiVersion, leaderId, observers, currentTimeMs))))));
         if (apiVersion >= 2) {
             DescribeQuorumResponseData.NodeCollection nodes = new DescribeQuorumResponseData.NodeCollection(voters.size());

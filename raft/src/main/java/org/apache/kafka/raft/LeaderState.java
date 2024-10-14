@@ -70,6 +70,8 @@ public class LeaderState<T> implements EpochState {
 
     private Optional<LogOffsetMetadata> highWatermark = Optional.empty();
     private Optional<Long> currentVoterOffset = Optional.empty();
+    private Map<Integer, ReplicaState> currentVoterStates = new HashMap<>();
+    private Map<Integer, ReplicaState> committedVoterStates = new HashMap<>();
     private Optional<AddVoterHandlerState> addVoterHandlerState = Optional.empty();
     private Optional<RemoveVoterHandlerState> removeVoterHandlerState = Optional.empty();
 
@@ -108,6 +110,10 @@ public class LeaderState<T> implements EpochState {
         for (VoterSet.VoterNode voterNode: voterSetAtEpochStart.voterNodes()) {
             boolean hasAcknowledgedLeader = voterNode.isVoter(localReplicaKey);
             this.currentVoterStates.put(
+                voterNode.voterKey().id(),
+                new ReplicaState(voterNode.voterKey(), hasAcknowledgedLeader, voterNode.listeners())
+            );
+            this.committedVoterStates.put(
                 voterNode.voterKey().id(),
                 new ReplicaState(voterNode.voterKey(), hasAcknowledgedLeader, voterNode.listeners())
             );
@@ -423,6 +429,9 @@ public class LeaderState<T> implements EpochState {
     Map<Integer, ReplicaState> currentVoterStates() {
         return currentVoterStates;
     }
+
+    Map<Integer, ReplicaState> committedVoterStates() {
+        return committedVoterStates;
     }
 
     Map<ReplicaKey, ReplicaState> observerStates(final long currentTimeMs) {
@@ -473,6 +482,13 @@ public class LeaderState<T> implements EpochState {
                             !highWatermarkUpdateMetadata.metadata().equals(currentHighWatermarkMetadata.metadata()))) {
                         Optional<LogOffsetMetadata> oldHighWatermark = highWatermark;
                         highWatermark = highWatermarkUpdateOpt;
+
+                        // If the new high watermark is greater than the current voter offset,
+                        // then the current voter set is committed.
+                        if (currentVoterOffset.isPresent() && currentVoterOffset.get() <= highWatermarkUpdateOffset) {
+                            committedVoterStates = currentVoterStates;
+                        }
+
                         logHighWatermarkUpdate(
                             oldHighWatermark,
                             highWatermarkUpdateMetadata,
@@ -540,7 +556,8 @@ public class LeaderState<T> implements EpochState {
      */
     public boolean updateLocalState(
         LogOffsetMetadata endOffsetMetadata,
-        VoterSet lastVoterSet
+        VoterSet lastVoterSet,
+        long lastVoterSetOffset
     ) {
         ReplicaState state = getOrCreateReplicaState(localReplicaKey);
         state.endOffset.ifPresent(currentEndOffset -> {
@@ -551,7 +568,7 @@ public class LeaderState<T> implements EpochState {
         });
 
         state.updateLeaderEndOffset(endOffsetMetadata);
-        updateVoterAndObserverStates(lastVoterSet);
+        updateVoterAndObserverStates(lastVoterSet, lastVoterSetOffset);
 
         return maybeUpdateHighWatermark();
     }
@@ -620,7 +637,7 @@ public class LeaderState<T> implements EpochState {
     }
 
     private ReplicaState ensureValidVoter(int remoteNodeId) {
-        ReplicaState state = voterStates.get(remoteNodeId);
+        ReplicaState state = currentVoterStates.get(remoteNodeId);
         if (state == null) {
             throw new IllegalArgumentException("Unexpected acknowledgement from non-voter " + remoteNodeId);
         }
@@ -664,9 +681,9 @@ public class LeaderState<T> implements EpochState {
         return state != null && state.matchesKey(remoteReplicaKey);
     }
 
-    private void updateVoterAndObserverStates(VoterSet lastVoterSet) {
+    private void updateVoterAndObserverStates(VoterSet lastVoterSet, Long lastVoterSetOffset) {
         Map<Integer, ReplicaState> newVoterStates = new HashMap<>();
-        Map<Integer, ReplicaState> oldVoterStates = new HashMap<>(voterStates);
+        Map<Integer, ReplicaState> oldVoterStates = new HashMap<>(currentVoterStates);
 
         // Compute the new voter states map
         for (VoterSet.VoterNode voterNode : lastVoterSet.voterNodes()) {
@@ -685,6 +702,7 @@ public class LeaderState<T> implements EpochState {
             newVoterStates.put(state.replicaKey.id(), state);
         }
         currentVoterStates = newVoterStates;
+        currentVoterOffset = Optional.ofNullable(lastVoterSetOffset);
 
         // Move any of the remaining old voters to observerStates
         for (ReplicaState replicaStateEntry : oldVoterStates.values()) {
