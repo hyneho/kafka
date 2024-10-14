@@ -49,6 +49,7 @@ import org.apache.kafka.server.common.AdminOperationException
 import org.apache.kafka.server.config.{ConfigType, QuotaConfig, ZooKeeperInternals}
 import org.apache.kafka.server.config.ServerLogConfigs.CREATE_TOPIC_POLICY_CLASS_NAME_CONFIG
 import org.apache.kafka.server.config.ServerLogConfigs.ALTER_CONFIG_POLICY_CLASS_NAME_CONFIG
+import org.apache.kafka.server.purgatory.{DelayedOperation, DelayedOperationPurgatory}
 import org.apache.kafka.storage.internals.log.LogConfig
 
 import scala.collection.{Map, mutable, _}
@@ -74,7 +75,7 @@ class ZkAdminManager(val config: KafkaConfig,
 
   this.logIdent = "[Admin Manager on Broker " + config.brokerId + "]: "
 
-  private val topicPurgatory = DelayedOperationPurgatory[DelayedOperation]("topic", config.brokerId)
+  private val topicPurgatory = new DelayedOperationPurgatory[DelayedOperation]("topic", config.brokerId)
   private val adminZkClient = new AdminZkClient(zkClient, Some(config))
   private val configHelper = new ConfigHelper(metadataCache, config, new ZkConfigRepository(adminZkClient))
 
@@ -93,7 +94,7 @@ class ZkAdminManager(val config: KafkaConfig,
     * Try to complete delayed topic operations with the request key
     */
   def tryCompleteDelayedTopicOperations(topic: String): Unit = {
-    val key = TopicKey(topic)
+    val key = new TopicKey(topic)
     val completed = topicPurgatory.checkAndComplete(key)
     debug(s"Request key ${key.keyLabel} unblocked $completed topic requests.")
   }
@@ -250,9 +251,9 @@ class ZkAdminManager(val config: KafkaConfig,
       // 3. else pass the assignments and errors to the delayed operation and set the keys
       val delayedCreate = new DelayedCreatePartitions(timeout, metadata, this,
         responseCallback)
-      val delayedCreateKeys = toCreate.values.map(topic => TopicKey(topic.name)).toBuffer
+      val delayedCreateKeys = toCreate.values.map(topic => new TopicKey(topic.name)).toList
       // try to complete the request immediately, otherwise put it into the purgatory
-      topicPurgatory.tryCompleteElseWatch(delayedCreate, delayedCreateKeys)
+      topicPurgatory.tryCompleteElseWatch(delayedCreate, delayedCreateKeys.asJava)
     }
   }
 
@@ -297,9 +298,9 @@ class ZkAdminManager(val config: KafkaConfig,
     } else {
       // 3. else pass the topics and errors to the delayed operation and set the keys
       val delayedDelete = new DelayedDeleteTopics(timeout, metadata.toSeq, this, responseCallback)
-      val delayedDeleteKeys = topics.map(TopicKey).toSeq
+      val delayedDeleteKeys = topics.map(new TopicKey(_)).toList
       // try to complete the request immediately, otherwise put it into the purgatory
-      topicPurgatory.tryCompleteElseWatch(delayedDelete, delayedDeleteKeys)
+      topicPurgatory.tryCompleteElseWatch(delayedDelete, delayedDeleteKeys.asJava)
     }
   }
 
@@ -393,9 +394,9 @@ class ZkAdminManager(val config: KafkaConfig,
     } else {
       // 3. else pass the assignments and errors to the delayed operation and set the keys
       val delayedCreate = new DelayedCreatePartitions(timeoutMs, metadata, this, callback)
-      val delayedCreateKeys = newPartitions.map(createPartitionTopic => TopicKey(createPartitionTopic.name))
+      val delayedCreateKeys = newPartitions.map(createPartitionTopic => new TopicKey(createPartitionTopic.name)).toList
       // try to complete the request immediately, otherwise put it into the purgatory
-      topicPurgatory.tryCompleteElseWatch(delayedCreate, delayedCreateKeys)
+      topicPurgatory.tryCompleteElseWatch(delayedCreate, delayedCreateKeys.asJava)
     }
   }
 

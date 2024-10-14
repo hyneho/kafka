@@ -14,12 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.server.share;
-
-import org.apache.kafka.server.purgatory.DelayedOperationKey;
+package org.apache.kafka.server.purgatory;
 
 /**
- * A key for delayed operations that fetch data for share consumers.
+ * Keys used for delayed operation metrics recording
  */
-public interface DelayedShareFetchKey extends DelayedOperationKey {
+public interface DelayedOperationKey {
+
+    String keyLabel();
 }
