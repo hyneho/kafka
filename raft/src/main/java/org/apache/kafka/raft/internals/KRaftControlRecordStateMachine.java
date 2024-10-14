@@ -34,6 +34,7 @@ import org.apache.kafka.snapshot.SnapshotReader;
 
 import org.slf4j.Logger;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -139,6 +140,17 @@ public final class KRaftControlRecordStateMachine {
     public VoterSet lastVoterSet() {
         synchronized (voterSetHistory) {
             return voterSetHistory.lastValue();
+        }
+    }
+
+    /**
+     * Returns the last voter set with its offset.
+     */
+    public Map.Entry<VoterSet, Long> lastVoterSetWithOffset() {
+        synchronized (voterSetHistory) {
+            VoterSet voters = voterSetHistory.lastValue();
+            Long offset = voterSetHistory.lastVoterSetOffset().orElse(0L);
+            return Map.entry(voters, offset);
         }
     }
 
