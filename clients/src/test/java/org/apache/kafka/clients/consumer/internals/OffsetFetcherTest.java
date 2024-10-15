@@ -1286,7 +1286,7 @@ public class OffsetFetcherTest {
                 metadata,
                 subscriptions,
                 fetchConfig,
-                new Deserializers<>(new ByteArrayDeserializer(), new ByteArrayDeserializer()),
+                new Deserializers<>(new ByteArrayDeserializer(), new ByteArrayDeserializer(), metrics),
                 new FetchMetricsManager(metrics, metricsRegistry),
                 time,
                 apiVersions);
