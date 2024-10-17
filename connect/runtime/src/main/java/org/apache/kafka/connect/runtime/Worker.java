@@ -134,7 +134,7 @@ import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CON
  * Since each task has a dedicated thread, this is mainly just a container for them.
  * </p>
  */
-public class Worker {
+public final class Worker {
 
     public static final long CONNECTOR_GRACEFUL_SHUTDOWN_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(5);
     public static final long EXECUTOR_SHUTDOWN_TERMINATION_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(1);
@@ -173,7 +173,6 @@ public class Worker {
         this(workerId, time, plugins, config, globalOffsetBackingStore, Executors.newCachedThreadPool(), connectorClientConfigOverridePolicy, Admin::create);
     }
 
-    @SuppressWarnings("this-escape")
     Worker(
             String workerId,
             Time time,
