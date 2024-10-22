@@ -247,7 +247,9 @@ public class MockAdminClient extends AdminClient {
         Map<String, String> defaultGroupConfigs
     ) {
         this.brokers = brokers;
-        controller(controller);
+        if (!brokers.contains(controller))
+            throw new IllegalArgumentException("The controller node must be in the list of brokers");
+        this.controller = controller;
         this.clusterId = clusterId;
         this.defaultPartitions = defaultPartitions;
         this.defaultReplicationFactor = defaultReplicationFactor;

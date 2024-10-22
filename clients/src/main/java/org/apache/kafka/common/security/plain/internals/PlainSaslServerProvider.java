@@ -21,16 +21,17 @@ import org.apache.kafka.common.security.plain.internals.PlainSaslServer.PlainSas
 import java.security.Provider;
 import java.security.Security;
 
-public final class PlainSaslServerProvider extends Provider {
+public class PlainSaslServerProvider extends Provider {
 
     private static final long serialVersionUID = 1L;
 
     private PlainSaslServerProvider() {
         super("Simple SASL/PLAIN Server Provider", "1.0", "Simple SASL/PLAIN Server Provider for Kafka");
-        put("SaslServerFactory." + PlainSaslServer.PLAIN_MECHANISM, PlainSaslServerFactory.class.getName());
     }
 
     public static void initialize() {
-        Security.addProvider(new PlainSaslServerProvider());
+        PlainSaslServerProvider plainSaslServerProvider = new PlainSaslServerProvider();
+        plainSaslServerProvider.put("SaslServerFactory." + PlainSaslServer.PLAIN_MECHANISM, PlainSaslServerFactory.class.getName());
+        Security.addProvider(plainSaslServerProvider);
     }
 }
