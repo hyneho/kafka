@@ -5078,7 +5078,8 @@ public class KafkaAdminClient extends AdminClient {
             return clientInstanceId;
         }
 
-        return ClientTelemetryUtils.fetchClientInstanceId(clientTelemetryReporter.get(), timeout);
+        clientInstanceId = ClientTelemetryUtils.fetchClientInstanceId(clientTelemetryReporter.get(), timeout);
+        return clientInstanceId;
     }
 
     private <K, V> void invokeDriver(
