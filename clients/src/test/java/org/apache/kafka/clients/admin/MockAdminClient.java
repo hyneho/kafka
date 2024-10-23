@@ -272,12 +272,6 @@ public class MockAdminClient extends AdminClient {
         this.maxSupportedFeatureLevels = new HashMap<>(maxSupportedFeatureLevels);
     }
 
-    public final synchronized void controller(Node controller) {
-        if (!brokers.contains(controller))
-            throw new IllegalArgumentException("The controller node must be in the list of brokers");
-        this.controller = controller;
-    }
-
     public void addTopic(boolean internal,
                          String name,
                          List<TopicPartitionInfo> partitions,
