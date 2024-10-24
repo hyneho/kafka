@@ -28,7 +28,7 @@ class ConsumerRollingUpgradeTest(VerifiableConsumerTest):
 
     def __init__(self, test_context):
         super(ConsumerRollingUpgradeTest, self).__init__(test_context, num_consumers=2, num_producers=0,
-                                                         num_zk=1, num_brokers=1, topics={
+                                                         num_zk=0, num_brokers=1, topics={
             self.TOPIC : { 'partitions': self.NUM_PARTITIONS, 'replication-factor': 1 }
         })
 
@@ -49,14 +49,10 @@ class ConsumerRollingUpgradeTest(VerifiableConsumerTest):
 
     @cluster(num_nodes=4)
     @matrix(
-        metadata_quorum=[quorum.zk],
-        use_new_coordinator=[False]
-    )
-    @matrix(
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[True, False]
     )
-    def rolling_update_test(self, metadata_quorum=quorum.zk, use_new_coordinator=False):
+    def rolling_update_test(self, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False):
         """
         Verify rolling updates of partition assignment strategies works correctly. In this
         test, we use a rolling restart to change the group's assignment strategy from "range" 

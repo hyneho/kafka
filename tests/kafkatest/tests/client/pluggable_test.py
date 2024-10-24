@@ -28,13 +28,12 @@ class PluggableConsumerTest(VerifiableConsumerTest):
 
     def __init__(self, test_context):
         super(PluggableConsumerTest, self).__init__(test_context, num_consumers=1, num_producers=0,
-                                num_zk=1, num_brokers=1, topics={
+                                num_zk=0, num_brokers=1, topics={
                                 self.TOPIC : { 'partitions': self.NUM_PARTITIONS, 'replication-factor': 1 },
         })
 
     @cluster(num_nodes=4)
-    @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_start_stop(self, metadata_quorum=quorum.zk):
+    def test_start_stop(self, metadata_quorum=quorum.isolated_kraft):
         """
         Test that a pluggable VerifiableConsumer module load works
         """

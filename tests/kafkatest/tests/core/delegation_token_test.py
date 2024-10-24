@@ -114,7 +114,7 @@ client.id=console-consumer
 
     @cluster(num_nodes=5)
     @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_delegation_token_lifecycle(self, metadata_quorum=quorum.zk):
+    def test_delegation_token_lifecycle(self, metadata_quorum=quorum.isolated_kraft):
         self.kafka.start()
         self.delegation_tokens = DelegationTokens(self.kafka, self.test_context)
 

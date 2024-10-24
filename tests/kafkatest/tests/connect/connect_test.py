@@ -73,7 +73,7 @@ class ConnectStandaloneFileTest(Test):
     @cluster(num_nodes=6)
     @matrix(security_protocol=[SecurityConfig.SASL_SSL], metadata_quorum=quorum.all_non_upgrade)
     def test_file_source_and_sink(self, converter="org.apache.kafka.connect.json.JsonConverter", schemas=True, security_protocol='PLAINTEXT',
-                                  metadata_quorum=quorum.zk):
+                                  metadata_quorum=quorum.isolated_kraft):
         """
         Validates basic end-to-end functionality of Connect standalone using the file source and sink converters. Includes
         parameterizations to test different converters (which also test per-connector converter overrides), schema/schemaless
@@ -138,10 +138,10 @@ class ConnectStandaloneFileTest(Test):
             return False
 
     @cluster(num_nodes=5)
-    @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.zk)
+    @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.isolated_kraft)
     @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.isolated_kraft)
     @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.isolated_kraft)
-    @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.zk)
+    @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.isolated_kraft)
     def test_skip_and_log_to_dlq(self, error_tolerance, metadata_quorum):
         self.kafka = KafkaService(self.test_context, self.num_brokers, self.zk, topics=self.topics)
 

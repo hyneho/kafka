@@ -64,15 +64,13 @@ class ClientCompatibilityFeaturesTest(Test):
         """:type test_context: ducktape.tests.test.TestContext"""
         super(ClientCompatibilityFeaturesTest, self).__init__(test_context=test_context)
 
-        self.zk = ZookeeperService(test_context, num_nodes=3) if quorum.for_test(test_context) == quorum.zk else None
-
         # Generate a unique topic name
         topic_name = "client_compat_features_topic_%d%d" % (int(time.time()), randint(0, 2147483647))
         self.topics = { topic_name: {
             "partitions": 1, # Use only one partition to avoid worrying about ordering
             "replication-factor": 3
             }}
-        self.kafka = KafkaService(test_context, num_nodes=3, zk=self.zk, topics=self.topics)
+        self.kafka = KafkaService(test_context, num_nodes=3, topics=self.topics)
         # Always use the latest version of org.apache.kafka.tools.ClientCompatibilityTest
         # so store away the path to the DEV version before we set the Kafka version
         self.dev_script_path = self.kafka.path.script("kafka-run-class.sh", self.kafka.nodes[0])
@@ -127,9 +125,7 @@ class ClientCompatibilityFeaturesTest(Test):
     @parametrize(broker_version=str(LATEST_3_6))
     @parametrize(broker_version=str(LATEST_3_7))
     @parametrize(broker_version=str(LATEST_3_8))
-    def run_compatibility_test(self, broker_version, metadata_quorum=quorum.zk):
-        if self.zk:
-            self.zk.start()
+    def run_compatibility_test(self, broker_version, metadata_quorum=quorum.isolated_kraft):
         self.kafka.set_version(KafkaVersion(broker_version))
         self.kafka.start()
         features = get_broker_features(broker_version)

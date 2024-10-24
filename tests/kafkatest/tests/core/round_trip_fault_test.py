@@ -77,13 +77,13 @@ class RoundTripFaultTest(Test):
 
     @cluster(num_nodes=9)
     @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_round_trip_workload(self, metadata_quorum=quorum.zk):
+    def test_round_trip_workload(self, metadata_quorum=quorum.isolated_kraft):
         workload1 = self.trogdor.create_task("workload1", self.round_trip_spec)
         workload1.wait_for_done(timeout_sec=600)
 
     @cluster(num_nodes=9)
     @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_round_trip_workload_with_broker_partition(self, metadata_quorum=quorum.zk):
+    def test_round_trip_workload_with_broker_partition(self, metadata_quorum=quorum.isolated_kraft):
         workload1 = self.trogdor.create_task("workload1", self.round_trip_spec)
         time.sleep(2)
         part1 = [self.kafka.nodes[0]]
@@ -97,7 +97,7 @@ class RoundTripFaultTest(Test):
 
     @cluster(num_nodes=9)
     @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_produce_consume_with_broker_pause(self, metadata_quorum=quorum.zk):
+    def test_produce_consume_with_broker_pause(self, metadata_quorum=quorum.isolated_kraft):
         workload1 = self.trogdor.create_task("workload1", self.round_trip_spec)
         time.sleep(2)
         stop1_spec = ProcessStopFaultSpec(0, TaskSpec.MAX_DURATION_MS, [self.kafka.nodes[0]],
@@ -110,7 +110,7 @@ class RoundTripFaultTest(Test):
 
     @cluster(num_nodes=9)
     @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_produce_consume_with_client_partition(self, metadata_quorum=quorum.zk):
+    def test_produce_consume_with_client_partition(self, metadata_quorum=quorum.isolated_kraft):
         workload1 = self.trogdor.create_task("workload1", self.round_trip_spec)
         time.sleep(2)
         part1 = [self.workload_service.nodes[0]]
@@ -123,7 +123,7 @@ class RoundTripFaultTest(Test):
 
     @cluster(num_nodes=9)
     @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_produce_consume_with_latency(self, metadata_quorum=quorum.zk):
+    def test_produce_consume_with_latency(self, metadata_quorum=quorum.isolated_kraft):
         workload1 = self.trogdor.create_task("workload1", self.round_trip_spec)
         time.sleep(2)
         spec = DegradedNetworkFaultSpec(0, 60000)

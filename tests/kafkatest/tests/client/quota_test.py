@@ -108,8 +108,7 @@ class QuotaTest(Test):
         self.num_records = 50000
         self.record_size = 3000
 
-        self.zk = ZookeeperService(test_context, num_nodes=1)
-        self.kafka = KafkaService(test_context, num_nodes=1, zk=self.zk,
+        self.kafka = KafkaService(test_context, num_nodes=1,
                                   security_protocol='SSL', authorizer_class_name='',
                                   interbroker_security_protocol='SSL',
                                   topics={self.topic: {'partitions': 6, 'replication-factor': 1, 'configs': {'min.insync.replicas': 1}}},
@@ -118,9 +117,6 @@ class QuotaTest(Test):
                                   jmx_attributes=['OneMinuteRate'])
         self.num_producers = 1
         self.num_consumers = 2
-
-    def setUp(self):
-        self.zk.start()
 
     def min_cluster_size(self):
         """Override this since we're adding services outside of the constructor"""

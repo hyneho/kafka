@@ -36,8 +36,7 @@ class CompressionTest(ProduceConsumeValidateTest):
         super(CompressionTest, self).__init__(test_context=test_context)
 
         self.topic = "test_topic"
-        self.zk = ZookeeperService(test_context, num_nodes=1) if quorum.for_test(test_context) == quorum.zk else None
-        self.kafka = KafkaService(test_context, num_nodes=1, zk=self.zk, topics={self.topic: {
+        self.kafka = KafkaService(test_context, num_nodes=1, topics={self.topic: {
                                                                     "partitions": 10,
                                                                     "replication-factor": 1}})
         self.num_partitions = 10
@@ -47,17 +46,13 @@ class CompressionTest(ProduceConsumeValidateTest):
         self.messages_per_producer = 1000
         self.num_consumers = 1
 
-    def setUp(self):
-        if self.zk:
-            self.zk.start()
-
     def min_cluster_size(self):
         # Override this since we're adding services outside of the constructor
         return super(CompressionTest, self).min_cluster_size() + self.num_producers + self.num_consumers
 
     @cluster(num_nodes=8)
     @matrix(compression_types=[COMPRESSION_TYPES], metadata_quorum=quorum.all_non_upgrade)
-    def test_compressed_topic(self, compression_types, metadata_quorum=quorum.zk):
+    def test_compressed_topic(self, compression_types, metadata_quorum=quorum.isolated_kraft):
         """Test produce => consume => validate for compressed topics
         Setup: 1 zk, 1 kafka node, 1 topic with partitions=10, replication-factor=1
 

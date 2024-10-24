@@ -37,8 +37,7 @@ class ClientCompatibilityProduceConsumeTest(ProduceConsumeValidateTest):
         super(ClientCompatibilityProduceConsumeTest, self).__init__(test_context=test_context)
 
         self.topic = "test_topic"
-        self.zk = ZookeeperService(test_context, num_nodes=3) if quorum.for_test(test_context) == quorum.zk else None
-        self.kafka = KafkaService(test_context, num_nodes=3, zk=self.zk, topics={self.topic:{
+        self.kafka = KafkaService(test_context, num_nodes=3, topics={self.topic:{
                                                                     "partitions": 10,
                                                                     "replication-factor": 2}})
         self.num_partitions = 10
@@ -47,10 +46,6 @@ class ClientCompatibilityProduceConsumeTest(ProduceConsumeValidateTest):
         self.num_producers = 2
         self.messages_per_producer = 1000
         self.num_consumers = 1
-
-    def setUp(self):
-        if self.zk:
-            self.zk.start()
 
     def min_cluster_size(self):
         # Override this since we're adding services outside of the constructor
@@ -78,7 +73,7 @@ class ClientCompatibilityProduceConsumeTest(ProduceConsumeValidateTest):
     @parametrize(broker_version=str(LATEST_3_6))
     @parametrize(broker_version=str(LATEST_3_7))
     @parametrize(broker_version=str(LATEST_3_8))
-    def test_produce_consume(self, broker_version, metadata_quorum=quorum.zk):
+    def test_produce_consume(self, broker_version, metadata_quorum=quorum.isolated_kraft):
         print("running producer_consumer_compat with broker_version = %s" % broker_version, flush=True)
         self.kafka.set_version(KafkaVersion(broker_version))
         self.kafka.security_protocol = "PLAINTEXT"
