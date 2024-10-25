@@ -478,12 +478,11 @@ object StorageTool extends Logging {
     val name = input.substring(0, equalsIndex).trim
     val levelString = input.substring(equalsIndex + 1).trim
     try {
-      levelString.toShort
+      (name, levelString.toShort)
     } catch {
       case _: Throwable =>
         throw new RuntimeException("Can't parse feature=level string " + input + ": " + "unable to parse " + levelString + " as a short.")
     }
-    (name, levelString.toShort)
   }
 
   def featureNamesAndLevels(features: java.util.List[String]): Map[String, java.lang.Short] = {
