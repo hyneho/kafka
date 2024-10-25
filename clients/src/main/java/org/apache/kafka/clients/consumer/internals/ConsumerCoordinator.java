@@ -960,9 +960,13 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
                     if (!isReuseSubsetRequest) {
                         return future.value();
                     }
-                    return future.value().entrySet().stream().
-                            filter(entry -> partitions.contains(entry.getKey()))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    Map<TopicPartition, OffsetAndMetadata> results = new HashMap<>(future.value().size());
+                    future.value().forEach((key, value) -> {
+                        if (partitions.contains(key)) {
+                            results.put(key, value);
+                        }
+                    });
+                    return results;
                 } else if (!future.isRetriable()) {
                     throw future.exception();
                 } else {
