@@ -511,6 +511,61 @@ public class DelayedShareFetchTest {
     }
 
     @Test
+    public void testCombineLogReadResponseForOnComplete() {
+        String groupId = "grp";
+        ReplicaManager replicaManager = mock(ReplicaManager.class);
+        TopicIdPartition tp0 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0));
+        TopicIdPartition tp1 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 1));
+        Map<TopicIdPartition, Integer> partitionMaxBytes = new HashMap<>();
+        partitionMaxBytes.put(tp0, PARTITION_MAX_BYTES);
+        partitionMaxBytes.put(tp1, PARTITION_MAX_BYTES);
+
+        SharePartition sp0 = mock(SharePartition.class);
+        SharePartition sp1 = mock(SharePartition.class);
+
+        SharePartitionManager sharePartitionManager = mock(SharePartitionManager.class);
+        when(sharePartitionManager.sharePartition(groupId, tp0)).thenReturn(sp0);
+        when(sharePartitionManager.sharePartition(groupId, tp1)).thenReturn(sp1);
+
+        CompletableFuture<Map<TopicIdPartition, ShareFetchResponseData.PartitionData>> future = new CompletableFuture<>();
+        ShareFetchData shareFetchData = new ShareFetchData(
+            new FetchParams(ApiKeys.SHARE_FETCH.latestVersion(), FetchRequest.ORDINARY_CONSUMER_ID, -1, MAX_WAIT_MS,
+                1, 1024 * 1024, FetchIsolation.HIGH_WATERMARK, Optional.empty()), groupId, Uuid.randomUuid().toString(),
+            future, partitionMaxBytes, MAX_FETCH_RECORDS);
+
+        DelayedShareFetch delayedShareFetch = DelayedShareFetchBuilder.builder()
+            .withShareFetchData(shareFetchData)
+            .withReplicaManager(replicaManager)
+            .withSharePartitionManager(sharePartitionManager)
+            .build();
+
+        Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = new HashMap<>();
+        topicPartitionData.put(tp0, mock(FetchRequest.PartitionData.class));
+        topicPartitionData.put(tp1, mock(FetchRequest.PartitionData.class));
+
+        // Case 1 - logReadResponseFromTryComplete contains tp0.
+
+        Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponseFromTryComplete = Collections.singletonMap(
+            tp0, mock(FetchPartitionOffsetData.class));
+        delayedShareFetch.logReadResponseFromTryComplete(logReadResponseFromTryComplete);
+
+        doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp1))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
+        Map<TopicIdPartition, FetchPartitionOffsetData> combinedLogReadResponse = delayedShareFetch.combineLogReadResponseForOnComplete(topicPartitionData);
+        assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
+        assertEquals(combinedLogReadResponse.get(tp0), logReadResponseFromTryComplete.get(tp0));
+
+        // Case 2 - logReadResponseFromTryComplete contains tp0 and tp1.
+        logReadResponseFromTryComplete = new HashMap<>();
+        logReadResponseFromTryComplete.put(tp0, mock(FetchPartitionOffsetData.class));
+        logReadResponseFromTryComplete.put(tp1, mock(FetchPartitionOffsetData.class));
+        delayedShareFetch.logReadResponseFromTryComplete(logReadResponseFromTryComplete);
+        combinedLogReadResponse = delayedShareFetch.combineLogReadResponseForOnComplete(topicPartitionData);
+        assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
+        assertEquals(combinedLogReadResponse.get(tp0), logReadResponseFromTryComplete.get(tp0));
+        assertEquals(combinedLogReadResponse.get(tp1), logReadResponseFromTryComplete.get(tp1));
+    }
+
+    @Test
     public void testExceptionInMinBytesCalculation() {
         String groupId = "grp";
         Uuid topicId = Uuid.randomUuid();
