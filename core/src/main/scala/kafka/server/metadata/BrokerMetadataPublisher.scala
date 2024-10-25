@@ -218,9 +218,7 @@ class BrokerMetadataPublisher(
 
       try {
         // Propagate the new image to the share coordinator.
-        if (shareCoordinator.isDefined) {
-          shareCoordinator.get.onNewMetadataImage(newImage, delta)
-        }
+        shareCoordinator.foreach(coordinator => coordinator.onNewMetadataImage(newImage, delta))
       } catch {
         case t: Throwable => metadataPublishingFaultHandler.handleFault("Error updating share " +
           s"coordinator with local changes in $deltaName", t)

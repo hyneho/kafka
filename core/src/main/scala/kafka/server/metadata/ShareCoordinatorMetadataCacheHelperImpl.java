@@ -17,6 +17,7 @@
 
 package kafka.server.metadata;
 
+import kafka.server.MetadataCache;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.message.MetadataResponseData;
 import org.apache.kafka.common.network.ListenerName;
@@ -35,12 +36,12 @@ import scala.jdk.javaapi.CollectionConverters;
 import scala.jdk.javaapi.OptionConverters;
 
 public class ShareCoordinatorMetadataCacheHelperImpl implements ShareCoordinatorMetadataCacheHelper {
-    private final KRaftMetadataCache metadataCache;
+    private final MetadataCache metadataCache;
     private final Function<String, Integer> keyToPartitionMapper;
     private final ListenerName interBrokerListenerName;
 
     public ShareCoordinatorMetadataCacheHelperImpl(
-        KRaftMetadataCache metadataCache,
+        MetadataCache metadataCache,
         Function<String, Integer> keyToPartitionMapper,
         ListenerName interBrokerListenerName
     ) {
@@ -95,6 +96,6 @@ public class ShareCoordinatorMetadataCacheHelperImpl implements ShareCoordinator
 
     @Override
     public List<Node> getClusterNodes() {
-        return CollectionConverters.asJava(metadataCache.getAliveBrokerNodes(interBrokerListenerName));
+        return CollectionConverters.asJava(metadataCache.getAliveBrokerNodes(interBrokerListenerName).toSeq());
     }
 }

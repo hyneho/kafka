@@ -48,7 +48,6 @@ import org.apache.kafka.server.util.InterBrokerSendThread;
 import org.apache.kafka.server.util.RequestAndCompletionHandler;
 import org.apache.kafka.server.util.timer.Timer;
 import org.apache.kafka.server.util.timer.TimerTask;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -148,16 +147,25 @@ public class PersisterStateManager {
         if (client == null) {
             throw new IllegalArgumentException("Kafkaclient must not be null.");
         }
-        this.time = time == null ? Time.SYSTEM : time;
+        if (time == null) {
+            throw new IllegalArgumentException("Time must not be null.");
+        }
+        if (timer == null) {
+            throw new IllegalArgumentException("Timer must not be null.");
+        }
+        if (cacheHelper == null) {
+            throw new IllegalArgumentException("CacheHelper must not be null.");
+        }
+        this.time = time;
+        this.timer = timer;
+        this.cacheHelper = cacheHelper;
         this.sender = new SendThread(
             "PersisterStateManager",
             client,
-            30_000,  //30 seconds
+            Math.toIntExact(CommonClientConfigs.DEFAULT_SOCKET_CONNECTION_SETUP_TIMEOUT_MAX_MS),  //30 seconds
             this.time,
             true,
             new Random(this.time.milliseconds()));
-        this.timer = timer;
-        this.cacheHelper = cacheHelper;
     }
 
     public void enqueue(PersisterStateManagerHandler handler) {
@@ -216,6 +224,8 @@ public class PersisterStateManager {
             this.topicId = topicId;
             this.partition = partition;
             this.findCoordBackoff = new BackoffManager(maxRPCRetryAttempts, backoffMs, backoffMaxMs);
+            this.onCompleteCallback = response -> {
+            }; // noop
         }
 
         /**
