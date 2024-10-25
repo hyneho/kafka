@@ -24,7 +24,6 @@ import org.junit.jupiter.params.provider.MethodSource
 import java.util.Collections
 
 class ConsumerRebootstrapTest extends RebootstrapTest {
-
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
   def testRebootstrap(quorum: String, groupProtocol: String): Unit = {
