@@ -1680,7 +1680,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         try {
             applicationEventHandler.add(new CreateFetchRequestsEvent(calculateDeadlineMs(timer)));
         } catch (Throwable t) {
-            // ...any unexpected errors will be logged for troubleshooting, but again, not thrown.
+            // Any unexpected errors will be logged for troubleshooting, but not thrown.
             log.warn("An unexpected error occurred while pre-fetching data in Consumer.poll(), but was suppressed", t);
         }
     }
