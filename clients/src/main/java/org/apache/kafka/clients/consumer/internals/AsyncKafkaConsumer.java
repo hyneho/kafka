@@ -1632,16 +1632,13 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *     </li>
      *     <li>
      *         The method will throw exceptions encountered during request creation to the user <b>immediately</b>.
-     *         If request creation were instead handled asynchronously, any errors found would be reported via the
-     *         {@link #backgroundEventQueue background event queue}, with the result that those errors would be
-     *         thrown in future calls to the {@link Consumer} APIs.
      *     </li>
      *     <li>
      *         The method will suppress {@link TimeoutException}s that occur while waiting for the confirmation.
      *         Timeouts during request creation are a byproduct of this consumer's thread communication mechanisms.
      *         That exception type isn't thrown in the request creation step of the {@link ClassicKafkaConsumer}.
      *         Additionally, timeouts will not impact the logic of {@link #pollForFetches(Timer) blocking requests}
-     *         as it can handle requests that are created after the error.
+     *         as it can handle requests that are created after the timeout.
      *     </li>
      * </ul>
      *
@@ -1670,12 +1667,6 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *         The method will wait for confirmation of the request creation before continuing.
      *     </li>
      *     <li>
-     *         It seems unintuitive for pre-fetch to submit its event synchronously, but it avoids a potential problem.
-     *         If request creation were instead handled asynchronously, any errors found would be reported via the
-     *         {@link #backgroundEventQueue background event queue}, with the result that those errors would be
-     *         thrown in future calls to the {@link Consumer} APIs.
-     *     </li>
-     *     <li>
      *         The method will suppress exceptions encountered during request creation. It is important that if
      *         records were found in {@link #poll(Duration)}, they are returned to the user since the consumed
      *         position was already updated.
@@ -1687,9 +1678,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      */
     private void sendPrefetches(Timer timer) {
         try {
-            applicationEventHandler.addAndGet(new CreateFetchRequestsEvent(calculateDeadlineMs(timer)));
-        } catch (InterruptException | TimeoutException e) {
-            // These two can be specifically ignored, but...
+            applicationEventHandler.add(new CreateFetchRequestsEvent(calculateDeadlineMs(timer)));
         } catch (Throwable t) {
             // ...any unexpected errors will be logged for troubleshooting, but again, not thrown.
             log.warn("An unexpected error occurred while pre-fetching data in Consumer.poll(), but was suppressed", t);
