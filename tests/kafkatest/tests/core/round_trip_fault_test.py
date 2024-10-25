@@ -24,7 +24,6 @@ from kafkatest.services.trogdor.process_stop_fault_spec import ProcessStopFaultS
 from kafkatest.services.trogdor.round_trip_workload import RoundTripWorkloadService, RoundTripWorkloadSpec
 from kafkatest.services.trogdor.task_spec import TaskSpec
 from kafkatest.services.trogdor.trogdor import TrogdorService
-from kafkatest.services.zookeeper import ZookeeperService
 
 
 class RoundTripFaultTest(Test):
@@ -33,12 +32,9 @@ class RoundTripFaultTest(Test):
     def __init__(self, test_context):
         """:type test_context: ducktape.tests.test.TestContext"""
         super(RoundTripFaultTest, self).__init__(test_context)
-        self.zk = ZookeeperService(test_context, num_nodes=3) if quorum.for_test(test_context) == quorum.zk else None
-        self.kafka = KafkaService(test_context, num_nodes=4, zk=self.zk)
+        self.kafka = KafkaService(test_context, num_nodes=4)
         self.workload_service = RoundTripWorkloadService(test_context, self.kafka)
-        if quorum.for_test(test_context) == quorum.zk:
-            trogdor_client_services = [self.zk, self.kafka, self.workload_service]
-        elif quorum.for_test(test_context) == quorum.isolated_kraft:
+        if quorum.for_test(test_context) == quorum.isolated_kraft:
             trogdor_client_services = [self.kafka.controller_quorum, self.kafka, self.workload_service]
         else: #co-located case, which we currently don't test but handle here for completeness in case we do test it
             trogdor_client_services = [self.kafka, self.workload_service]
@@ -56,21 +52,15 @@ class RoundTripFaultTest(Test):
                                      active_topics=active_topics)
 
     def setUp(self):
-        if self.zk:
-            self.zk.start()
         self.kafka.start()
         self.trogdor.start()
 
     def teardown(self):
         self.trogdor.stop()
         self.kafka.stop()
-        if self.zk:
-            self.zk.stop()
 
     def remote_quorum_nodes(self):
-        if quorum.for_test(self.test_context) == quorum.zk:
-            return self.zk.nodes
-        elif quorum.for_test(self.test_context) == quorum.isolated_kraft:
+        if quorum.for_test(self.test_context) == quorum.isolated_kraft:
             return self.kafka.controller_quorum.nodes
         else: # co-located case, which we currently don't test but handle here for completeness in case we do test it
             return []

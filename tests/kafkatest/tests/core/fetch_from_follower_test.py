@@ -23,7 +23,6 @@ from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.monitor.jmx import JmxTool
 from kafkatest.services.verifiable_producer import VerifiableProducer
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest
 from kafkatest.utils import is_int
 
@@ -37,10 +36,8 @@ class FetchFromFollowerTest(ProduceConsumeValidateTest):
         super(FetchFromFollowerTest, self).__init__(test_context=test_context)
         self.jmx_tool = JmxTool(test_context, jmx_poll_ms=100)
         self.topic = "test_topic"
-        self.zk = ZookeeperService(test_context, num_nodes=1) if quorum.for_test(test_context) == quorum.zk else None
         self.kafka = KafkaService(test_context,
                                   num_nodes=3,
-                                  zk=self.zk,
                                   topics={
                                       self.topic: {
                                           "partitions": 1,
@@ -65,13 +62,11 @@ class FetchFromFollowerTest(ProduceConsumeValidateTest):
         return super(FetchFromFollowerTest, self).min_cluster_size() + self.num_producers * 2 + self.num_consumers * 2
 
     def setUp(self):
-        if self.zk:
-            self.zk.start()
         self.kafka.start()
 
     @cluster(num_nodes=9)
     @matrix(
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(

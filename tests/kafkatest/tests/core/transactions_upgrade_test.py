@@ -208,7 +208,6 @@ class TransactionsUpgradeTest(Test):
         fromKafkaVersion = KafkaVersion(from_kafka_version)
         self.kafka = KafkaService(self.test_context,
                                   num_nodes=self.num_brokers,
-                                  zk=None,
                                   version=fromKafkaVersion,
                                   controller_num_nodes_override=1)
 

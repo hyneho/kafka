@@ -28,7 +28,7 @@ all_kraft = [isolated_kraft, combined_kraft]
 #   [“ZK”] before the KIP-500 bridge release(s)
 #   [“ZK”, “ISOLATED_KRAFT”] during the KIP-500 bridge release(s) and in preview releases
 #   [“ISOLATED_KRAFT”] after the KIP-500 bridge release(s)
-all_non_upgrade = [zk, isolated_kraft]
+all_non_upgrade = [isolated_kraft]
 
 def for_test(test_context):
     # A test uses ZooKeeper if it doesn't specify a metadata quorum or if it explicitly specifies ZooKeeper

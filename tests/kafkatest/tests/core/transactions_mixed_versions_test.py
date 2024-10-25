@@ -187,7 +187,6 @@ class TransactionsMixedVersionsTest(Test):
         oldKafkaVersion = KafkaVersion(old_kafka_version)
         self.kafka = KafkaService(self.test_context,
                                   num_nodes=self.num_brokers,
-                                  zk=None,
                                   version=oldKafkaVersion,
                                   controller_num_nodes_override=1)
 

@@ -102,7 +102,6 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
         """
         self.kafka = KafkaService(self.test_context,
                                   num_nodes=4,  # 2 combined, 2 broker-only nodes
-                                  zk=None,
                                   topics={self.topic: {"partitions": self.partitions,
                                                        "replication-factor": self.replication_factor,
                                                        'configs': {"min.insync.replicas": 1}}},
@@ -141,7 +140,6 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
         remote_quorum = partial(ServiceQuorumInfo, isolated_kraft)
         self.kafka = KafkaService(self.test_context,
                                   num_nodes=3,  # 3 broker-only nodes
-                                  zk=None,
                                   topics={self.topic: {"partitions": self.partitions,
                                                        "replication-factor": self.replication_factor,
                                                        'configs': {"min.insync.replicas": 1}}},

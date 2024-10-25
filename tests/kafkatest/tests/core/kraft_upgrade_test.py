@@ -88,7 +88,6 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
         fromKafkaVersion = KafkaVersion(from_kafka_version)
         self.kafka = KafkaService(self.test_context,
                                   num_nodes=3,
-                                  zk=None,
                                   version=fromKafkaVersion,
                                   topics={self.topic: {"partitions": self.partitions,
                                                        "replication-factor": self.replication_factor,

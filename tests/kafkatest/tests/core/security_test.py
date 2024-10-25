@@ -61,7 +61,7 @@ class SecurityTest(EndToEndTest):
     @matrix(
         security_protocol=['PLAINTEXT'],
         interbroker_security_protocol=['SSL'],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -74,7 +74,7 @@ class SecurityTest(EndToEndTest):
     @matrix(
         security_protocol=['SSL'],
         interbroker_security_protocol=['PLAINTEXT'],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -98,10 +98,6 @@ class SecurityTest(EndToEndTest):
         # Start Kafka with valid hostnames in the certs' SANs so that we can create the test topic via the admin client
         SecurityConfig.ssl_stores = TestSslStores(self.test_context.local_scratch_dir,
                                                   valid_hostname=True)
-
-        self.create_zookeeper_if_necessary()
-        if self.zk:
-            self.zk.start()
 
         self.create_kafka(security_protocol=security_protocol,
                           interbroker_security_protocol=interbroker_security_protocol)
@@ -157,7 +153,7 @@ class SecurityTest(EndToEndTest):
 
     @cluster(num_nodes=2)
     @matrix(
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -167,37 +163,25 @@ class SecurityTest(EndToEndTest):
     )
     def test_quorum_ssl_endpoint_validation_failure(self, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=None):
         """
-        Test that invalid hostname in ZooKeeper or KRaft Controller results in broker inability to start.
+        Test that invalid hostname ub KRaft Controller results in broker inability to start.
         """
-        # Start ZooKeeper/KRaft Controller with valid hostnames in the certs' SANs
+        # Start KRaft Controller with valid hostnames in the certs' SANs
         # so that we can start Kafka
         SecurityConfig.ssl_stores = TestSslStores(self.test_context.local_scratch_dir,
                                                   valid_hostname=True)
 
-        self.create_zookeeper_if_necessary(num_nodes=1,
-                                           zk_client_port = False,
-                                           zk_client_secure_port = True,
-                                           zk_tls_encrypt_only = True,
-                                           )
-        if self.zk:
-            self.zk.start()
-
         self.create_kafka(num_nodes=1,
                           interbroker_security_protocol='SSL', # also sets the broker-to-kraft-controller security protocol for the KRaft case
-                          zk_client_secure=True, # ignored if we aren't using ZooKeeper
                           )
         self.kafka.start()
 
         # now stop the Kafka broker
-        # and set the cert for ZooKeeper/KRaft Controller to have an invalid hostname
+        # and set the cert for KRaft Controller to have an invalid hostname
         # so we can restart Kafka and ensure it is unable to start
         self.kafka.stop_node(self.kafka.nodes[0])
 
         SecurityConfig.ssl_stores.valid_hostname = False
-        if quorum.for_test(self.test_context) == quorum.zk:
-            self.kafka.zk.restart_cluster()
-        else:
-            self.kafka.isolated_controller_quorum.restart_cluster()
+        self.kafka.isolated_controller_quorum.restart_cluster()
 
         try:
             self.kafka.start_node(self.kafka.nodes[0], timeout_sec=30)

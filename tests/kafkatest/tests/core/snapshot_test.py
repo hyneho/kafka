@@ -46,7 +46,7 @@ class TestSnapshots(ProduceConsumeValidateTest):
 
         security_protocol = 'PLAINTEXT'
         # Setup Custom Config to ensure snapshot will be generated deterministically
-        self.kafka = KafkaService(self.test_context, self.num_nodes, zk=None,
+        self.kafka = KafkaService(self.test_context, self.num_nodes,
                                   topics={self.topic: {"partitions": self.partitions,
                                                        "replication-factor": self.replication_factor,
                                                        'configs': {"min.insync.replicas": 2}}},

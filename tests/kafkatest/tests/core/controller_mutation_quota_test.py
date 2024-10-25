@@ -22,7 +22,6 @@ from kafkatest.services.trogdor.consume_bench_workload import ConsumeBenchWorklo
 from kafkatest.services.trogdor.task_spec import TaskSpec
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.trogdor.trogdor import TrogdorService
-from kafkatest.services.zookeeper import ZookeeperService
 
 import time
 
@@ -54,11 +53,10 @@ class ControllerMutationQuotaTest(Test):
     def __init__(self, test_context):
         super(ControllerMutationQuotaTest, self).__init__(test_context=test_context)
         self.test_context = test_context
-        self.zk = ZookeeperService(test_context, num_nodes=1) if quorum.for_test(test_context) == quorum.zk else None
         self.window_num = 10
         self.window_size_seconds = 200 # must be long enough such that all CLI commands fit into it
 
-        self.kafka = KafkaService(self.test_context, num_nodes=1, zk=self.zk,
+        self.kafka = KafkaService(self.test_context, num_nodes=1,
             server_prop_overrides=[
                 ["quota.window.num", "%s" % self.window_num],
                 ["controller.quota.window.size.seconds", "%s" % self.window_size_seconds]
@@ -66,15 +64,11 @@ class ControllerMutationQuotaTest(Test):
             controller_num_nodes_override=1)
 
     def setUp(self):
-        if self.zk:
-            self.zk.start()
         self.kafka.start()
 
     def teardown(self):
         # Need to increase the timeout due to partition count
         self.kafka.stop()
-        if self.zk:
-            self.zk.stop()
 
     @cluster(num_nodes=2)
     @matrix(metadata_quorum=quorum.all)
