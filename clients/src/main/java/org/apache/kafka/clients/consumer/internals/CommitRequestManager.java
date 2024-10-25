@@ -576,6 +576,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
             log.info("Member {} won't include epoch in following offset " +
                 "commit/fetch requests because it has left the group.", memberInfo.memberId);
         }
+        memberInfo.memberId = memberId;
         memberInfo.memberEpoch = memberEpoch;
     }
 

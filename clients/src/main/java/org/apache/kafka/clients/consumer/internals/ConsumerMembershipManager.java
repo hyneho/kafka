@@ -186,7 +186,6 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
         this.rebalanceTimeoutMs = rebalanceTimeoutMs;
         this.serverAssignor = serverAssignor;
         this.commitRequestManager = commitRequestManager;
-        this.commitRequestManager.memberInfo.memberId = this.memberId;
         this.backgroundEventHandler = backgroundEventHandler;
     }
 
