@@ -101,19 +101,66 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
      */
     @Override
     public PollResult poll(long currentTimeMs) {
+        return pollInternal(
+            this::prepareFetchRequests,
+            this::handleFetchSuccess,
+            this::handleFetchFailure
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public PollResult pollOnClose(long currentTimeMs) {
+        // There needs to be a pending fetch request for pollInternal to create the requests.
+        createFetchRequests();
+
+        // TODO: move the logic to poll to handle signal close
+        return pollInternal(
+                this::prepareCloseFetchSessionRequests,
+                this::handleCloseFetchSessionSuccess,
+                this::handleCloseFetchSessionFailure
+        );
+    }
+
+    /**
+     * Creates the {@link PollResult poll result} that contains a list of zero or more
+     * {@link FetchRequest.Builder fetch requests}.
+     *
+     * @param fetchRequestPreparer {@link FetchRequestPreparer} to generate a {@link Map} of {@link Node nodes}
+     *                             to their {@link FetchSessionHandler.FetchRequestData}
+     * @param successHandler       {@link ResponseHandler Handler for successful responses}
+     * @param errorHandler         {@link ResponseHandler Handler for failure responses}
+     * @return {@link PollResult}
+     */
+    private PollResult pollInternal(FetchRequestPreparer fetchRequestPreparer,
+                                    ResponseHandler<ClientResponse> successHandler,
+                                    ResponseHandler<Throwable> errorHandler) {
         if (pendingFetchRequestFuture == null) {
             // If no explicit request for creating fetch requests was issued, just short-circuit.
             return PollResult.EMPTY;
         }
 
         try {
-            PollResult result = pollInternal(
-                prepareFetchRequests(),
-                this::handleFetchSuccess,
-                this::handleFetchFailure
-            );
+            Map<Node, FetchSessionHandler.FetchRequestData> fetchRequests = fetchRequestPreparer.prepare();
+
+            List<UnsentRequest> requests = fetchRequests.entrySet().stream().map(entry -> {
+                final Node fetchTarget = entry.getKey();
+                final FetchSessionHandler.FetchRequestData data = entry.getValue();
+                final FetchRequest.Builder request = createFetchRequest(fetchTarget, data);
+                final BiConsumer<ClientResponse, Throwable> responseHandler = (clientResponse, error) -> {
+                    if (error != null)
+                        errorHandler.handle(fetchTarget, data, error);
+                    else
+                        successHandler.handle(fetchTarget, data, clientResponse);
+                };
+
+                return new UnsentRequest(request, Optional.of(fetchTarget)).whenComplete(responseHandler);
+            }).collect(Collectors.toList());
+
             pendingFetchRequestFuture.complete(null);
-            return result;
+            return new PollResult(requests);
         } catch (Throwable t) {
             // A "dummy" poll result is returned here rather than rethrowing the error because any error
             // that is thrown from any RequestManager.poll() method interrupts the polling of the other
@@ -126,44 +173,11 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
     }
 
     /**
-     * {@inheritDoc}
+     * Simple functional interface to all passing in a method reference for improved readability.
      */
-    @Override
-    public PollResult pollOnClose(long currentTimeMs) {
-        // TODO: move the logic to poll to handle signal close
-        return pollInternal(
-                prepareCloseFetchSessionRequests(),
-                this::handleCloseFetchSessionSuccess,
-                this::handleCloseFetchSessionFailure
-        );
-    }
+    @FunctionalInterface
+    protected interface FetchRequestPreparer {
 
-    /**
-     * Creates the {@link PollResult poll result} that contains a list of zero or more
-     * {@link FetchRequest.Builder fetch requests}.
-     *
-     * @param fetchRequests  {@link Map} of {@link Node nodes} to their {@link FetchSessionHandler.FetchRequestData}
-     * @param successHandler {@link ResponseHandler Handler for successful responses}
-     * @param errorHandler   {@link ResponseHandler Handler for failure responses}
-     * @return {@link PollResult}
-     */
-    private PollResult pollInternal(Map<Node, FetchSessionHandler.FetchRequestData> fetchRequests,
-                                    ResponseHandler<ClientResponse> successHandler,
-                                    ResponseHandler<Throwable> errorHandler) {
-        List<UnsentRequest> requests = fetchRequests.entrySet().stream().map(entry -> {
-            final Node fetchTarget = entry.getKey();
-            final FetchSessionHandler.FetchRequestData data = entry.getValue();
-            final FetchRequest.Builder request = createFetchRequest(fetchTarget, data);
-            final BiConsumer<ClientResponse, Throwable> responseHandler = (clientResponse, error) -> {
-                if (error != null)
-                    errorHandler.handle(fetchTarget, data, error);
-                else
-                    successHandler.handle(fetchTarget, data, clientResponse);
-            };
-
-            return new UnsentRequest(request, Optional.of(fetchTarget)).whenComplete(responseHandler);
-        }).collect(Collectors.toList());
-
-        return new PollResult(requests);
+        Map<Node, FetchSessionHandler.FetchRequestData> prepare();
     }
 }

@@ -709,7 +709,13 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 updateAssignmentMetadataIfNeeded(timer);
                 final Fetch<K, V> fetch = pollForFetches(timer);
                 if (!fetch.isEmpty()) {
-                    sendFetches(timer);
+                    // before returning the fetched records, we can send off the next round of fetches
+                    // and avoid block waiting for their responses to enable pipelining while the user
+                    // is handling the fetched records.
+                    //
+                    // NOTE: since the consumed position has already been updated, we must not allow
+                    // wakeups or any other errors to be triggered prior to returning the fetched records.
+                    sendPrefetches(timer);
 
                     if (fetch.records().isEmpty()) {
                         log.trace("Returning empty records from `poll()` "
@@ -1628,27 +1634,14 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *         The method will throw exceptions encountered during request creation to the user <b>immediately</b>.
      *         If request creation were instead handled asynchronously, any errors found would be reported via the
      *         {@link #backgroundEventQueue background event queue}, with the result that those errors would be
-     *         thrown in the <em>next</em> invocation of {@link #poll(Duration)}, not the <em>current</em> one.
-     *      </li>
+     *         thrown in future calls to the {@link Consumer} APIs.
+     *     </li>
      *     <li>
-     *         The method will suppress {@link TimeoutException}s that occur while waiting for the confirmation:
-     *
-     *         <ul>
-     *             <li>
-     *                 Timeouts during request creation are a byproduct of this consumer's thread communication
-     *                 mechanisms. That exception type isn't thrown in the request creation step of the
-     *                 {@link ClassicKafkaConsumer}.
-     *            </li>
-     *             <li>
-     *                 Timeouts are only likely to occur in cases where the given {@link Timer} has very little
-     *                 (or no) remaining time.
-     *             </li>
-     *             <li>
-     *                 Timeouts will not impact the logic of {@link #pollForFetches(Timer) blocking requests} or
-     *                 {@link #poll(Duration) pre-fetch requests}, and both cases handle requests that are created
-     *                 after the error.
-     *             </li>
-     *         </ul>
+     *         The method will suppress {@link TimeoutException}s that occur while waiting for the confirmation.
+     *         Timeouts during request creation are a byproduct of this consumer's thread communication mechanisms.
+     *         That exception type isn't thrown in the request creation step of the {@link ClassicKafkaConsumer}.
+     *         Additionally, timeouts will not impact the logic of {@link #pollForFetches(Timer) blocking requests}
+     *         as it can handle requests that are created after the error.
      *     </li>
      * </ul>
      *
@@ -1660,6 +1653,46 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             applicationEventHandler.addAndGet(new CreateFetchRequestsEvent(calculateDeadlineMs(timer)));
         } catch (TimeoutException e) {
             // Can be ignored, per above comments.
+        }
+    }
+
+    /**
+     * This method signals the background thread to {@link CreateFetchRequestsEvent create fetch requests} for the
+     * prefetch case, i.e. right before {@link #poll(Duration)} exits.
+     *
+     * <p/>
+     *
+     * This method takes the following steps to maintain compatibility with the {@link ClassicKafkaConsumer}
+     * {@code sendFetches()} method that appears at the end of {@link ClassicKafkaConsumer#poll(Duration)}:
+     *
+     * <ul>
+     *     <li>
+     *         The method will wait for confirmation of the request creation before continuing.
+     *     </li>
+     *     <li>
+     *         It seems unintuitive for pre-fetch to submit its event synchronously, but it avoids a potential problem.
+     *         If request creation were instead handled asynchronously, any errors found would be reported via the
+     *         {@link #backgroundEventQueue background event queue}, with the result that those errors would be
+     *         thrown in future calls to the {@link Consumer} APIs.
+     *     </li>
+     *     <li>
+     *         The method will suppress exceptions encountered during request creation. It is important that if
+     *         records were found in {@link #poll(Duration)}, they are returned to the user since the consumed
+     *         position was already updated.
+     *     </li>
+     * </ul>
+     *
+     * @param timer Timer used to bound how long the consumer waits for the requests to be created, which in practice
+     *              is used to avoid using {@link Long#MAX_VALUE} to wait "forever"
+     */
+    private void sendPrefetches(Timer timer) {
+        try {
+            applicationEventHandler.addAndGet(new CreateFetchRequestsEvent(calculateDeadlineMs(timer)));
+        } catch (InterruptException | TimeoutException e) {
+            // These two can be specifically ignored, but...
+        } catch (Throwable t) {
+            // ...any unexpected errors will be logged for troubleshooting, but again, not thrown.
+            log.warn("An unexpected error occurred while pre-fetching data in Consumer.poll(), but was suppressed", t);
         }
     }
 
