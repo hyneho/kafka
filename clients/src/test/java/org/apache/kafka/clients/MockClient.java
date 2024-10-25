@@ -69,26 +69,6 @@ public class MockClient implements KafkaClient {
 
     }
 
-    private static class ConcurrentCounterLinkedList<E> extends ConcurrentLinkedDeque<E> {
-        // This counter records the node which insert into this Linked list
-        int receivedCounter = 0;
-
-        public ConcurrentCounterLinkedList() {
-            super();
-            this.receivedCounter = 0;
-        }
-
-        @Override
-        public boolean add(E e) {
-            receivedCounter += 1;
-            return super.add(e);
-        }
-
-        public int receivedCounter() {
-            return receivedCounter;
-        }
-    }
-
     private int correlation;
     private Runnable wakeupHook;
     private final Time time;
@@ -97,7 +77,7 @@ public class MockClient implements KafkaClient {
     private final Map<Node, Long> pendingAuthenticationErrors = new HashMap<>();
     private final Map<Node, AuthenticationException> authenticationErrors = new HashMap<>();
     // Use concurrent queue for requests so that requests may be queried from a different thread
-    private final Queue<ClientRequest> requests = new ConcurrentCounterLinkedList<>();
+    private final Queue<ClientRequest> requests = new ConcurrentLinkedDeque<>();
     // Use concurrent queue for responses so that responses may be updated during poll() from a different thread.
     private final Queue<ClientResponse> responses = new ConcurrentLinkedDeque<>();
     private final Queue<FutureResponse> futureResponses = new ConcurrentLinkedDeque<>();
@@ -539,10 +519,6 @@ public class MockClient implements KafkaClient {
     @Override
     public int inFlightRequestCount() {
         return requests.size();
-    }
-
-    public int receivedCounter() {
-        return ((ConcurrentCounterLinkedList<?>) requests).receivedCounter();
     }
 
     @Override
