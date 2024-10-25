@@ -19,7 +19,6 @@ from ducktape.mark.resource import cluster
 from ducktape.mark import matrix
 from ducktape.mark import ignore
 from kafkatest.services.kafka import KafkaService, quorum
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.streams import StreamsSmokeTestDriverService, StreamsSmokeTestJobRunnerService
 import time
 import signal
@@ -63,14 +62,6 @@ def hard_bounce(test, topic, broker_type):
     for i in range(5):
         prev_broker_node = broker_node(test, topic, broker_type)
         test.kafka.signal_node(prev_broker_node, sig=signal.SIGKILL)
-
-        # Since this is a hard kill, we need to make sure the process is down and that
-        # zookeeper has registered the loss by expiring the broker's session timeout.
-
-        wait_until(lambda: not test.kafka.pids(prev_broker_node) and
-                           not (quorum.for_test(test.test_context) == quorum.zk and test.kafka.is_registered(prev_broker_node)),
-                   timeout_sec=test.kafka.zk_session_timeout + 5,
-                   err_msg="Failed to see timely deregistration of hard-killed broker %s" % str(prev_broker_node.account))
 
         test.kafka.start_node(prev_broker_node)
     
@@ -152,15 +143,7 @@ class StreamsBrokerBounceTest(Test):
         
     def setup_system(self, start_processor=True, num_threads=3):
         # Setup phase
-        self.zk = (
-            ZookeeperService(self.test_context, 1)
-            if quorum.for_test(self.test_context) == quorum.zk
-            else None
-        )
-        if self.zk:
-            self.zk.start()
-
-        self.kafka = KafkaService(self.test_context, num_nodes=self.replication, zk=self.zk, topics=self.topics,
+        self.kafka = KafkaService(self.test_context, num_nodes=self.replication, topics=self.topics,
                                   controller_num_nodes_override=1)
         self.kafka.start()
 
@@ -217,11 +200,6 @@ class StreamsBrokerBounceTest(Test):
             num_threads=[1, 3],
             sleep_time_secs=[120],
             metadata_quorum=[quorum.isolated_kraft])
-    @matrix(failure_mode=["clean_shutdown", "hard_shutdown", "clean_bounce", "hard_bounce"],
-            broker_type=["leader", "controller"],
-            num_threads=[1, 3],
-            sleep_time_secs=[120],
-            metadata_quorum=[quorum.zk])
     def test_broker_type_bounce(self, failure_mode, broker_type, sleep_time_secs, num_threads, metadata_quorum):
         """
         Start a smoke test client, then kill one particular broker and ensure data is still received

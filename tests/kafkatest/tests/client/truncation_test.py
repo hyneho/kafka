@@ -34,7 +34,7 @@ class TruncationTest(VerifiableConsumerTest):
 
     def __init__(self, test_context):
         super(TruncationTest, self).__init__(test_context, num_consumers=1, num_producers=1,
-                                             num_zk=0, num_brokers=3, topics=self.TOPICS)
+                                             num_brokers=3, topics=self.TOPICS)
         self.last_total = 0
         self.all_offsets_consumed = []
         self.all_values_consumed = []

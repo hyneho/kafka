@@ -28,7 +28,7 @@ class ConsumerRollingUpgradeTest(VerifiableConsumerTest):
 
     def __init__(self, test_context):
         super(ConsumerRollingUpgradeTest, self).__init__(test_context, num_consumers=2, num_producers=0,
-                                                         num_zk=0, num_brokers=1, topics={
+                                                         num_brokers=1, topics={
             self.TOPIC : { 'partitions': self.NUM_PARTITIONS, 'replication-factor': 1 }
         })
 

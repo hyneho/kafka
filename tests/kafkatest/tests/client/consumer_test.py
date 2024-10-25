@@ -29,7 +29,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
 
     def __init__(self, test_context):
         super(OffsetValidationTest, self).__init__(test_context, num_consumers=3, num_producers=1,
-                                                     num_zk=0, num_brokers=2, topics={
+                                                     num_brokers=2, topics={
             self.TOPIC : { 'partitions': self.NUM_PARTITIONS, 'replication-factor': 2 }
         })
 
@@ -558,7 +558,7 @@ class AssignmentValidationTest(VerifiableConsumerTest):
 
     def __init__(self, test_context):
         super(AssignmentValidationTest, self).__init__(test_context, num_consumers=3, num_producers=0,
-                                                num_zk=0, num_brokers=2, topics={
+                                                num_brokers=2, topics={
             self.TOPIC : { 'partitions': self.NUM_PARTITIONS, 'replication-factor': 1 },
         })
 

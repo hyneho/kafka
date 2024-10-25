@@ -26,7 +26,7 @@ class StreamsShutdownDeadlockTest(KafkaTest):
     """
 
     def __init__(self, test_context):
-        super(StreamsShutdownDeadlockTest, self).__init__(test_context, num_zk=1, num_brokers=1, topics={
+        super(StreamsShutdownDeadlockTest, self).__init__(test_context, num_brokers=1, topics={
             'source' : { 'partitions': 1, 'replication-factor': 1 }
         })
 

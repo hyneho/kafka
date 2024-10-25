@@ -26,7 +26,7 @@ class StreamsEosTest(KafkaTest):
     """
 
     def __init__(self, test_context):
-        super(StreamsEosTest, self).__init__(test_context, num_zk=1, num_brokers=3, topics={
+        super(StreamsEosTest, self).__init__(test_context, num_brokers=3, topics={
             'data': {'partitions': 5, 'replication-factor': 2},
             'echo': {'partitions': 5, 'replication-factor': 2},
             'min': {'partitions': 5, 'replication-factor': 2},

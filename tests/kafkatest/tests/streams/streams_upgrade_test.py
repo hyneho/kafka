@@ -31,17 +31,11 @@ from kafkatest.version import LATEST_0_10_0, LATEST_0_10_1, LATEST_0_10_2, LATES
 
 # broker 0.10.0 is not compatible with newer Kafka Streams versions
 # broker 0.10.1 and 0.10.2 do not support headers, as required by suppress() (since v2.2.1)
-broker_upgrade_versions = [str(LATEST_0_11_0), str(LATEST_1_0), str(LATEST_1_1),
-                           str(LATEST_2_0), str(LATEST_2_1), str(LATEST_2_2), str(LATEST_2_3),
-                           str(LATEST_2_4), str(LATEST_2_5), str(LATEST_2_6), str(LATEST_2_7),
-                           str(LATEST_2_8), str(LATEST_3_0), str(LATEST_3_1), str(LATEST_3_2),
+broker_upgrade_versions = [str(LATEST_3_0), str(LATEST_3_1), str(LATEST_3_2),
                            str(LATEST_3_3), str(LATEST_3_4), str(LATEST_3_5), str(LATEST_3_6),
                            str(LATEST_3_7), str(LATEST_3_8), str(DEV_BRANCH)]
 
-metadata_1_versions = [str(LATEST_0_10_0)]
-metadata_2_versions = [str(LATEST_0_10_1), str(LATEST_0_10_2), str(LATEST_0_11_0), str(LATEST_1_0), str(LATEST_1_1),
-                       str(LATEST_2_4), str(LATEST_2_5), str(LATEST_2_6), str(LATEST_2_7), str(LATEST_2_8),
-                       str(LATEST_3_0), str(LATEST_3_1), str(LATEST_3_2), str(LATEST_3_3)]
+metadata_2_versions = [str(LATEST_3_0), str(LATEST_3_1), str(LATEST_3_2), str(LATEST_3_3)]
 # upgrading from version (2.4...3.3) is broken and only fixed later in 3.3.3 (unreleased) and 3.4.0
 # -> https://issues.apache.org/jira/browse/KAFKA-14646
 # thus, we cannot test two bounce rolling upgrade because we know it's broken
@@ -203,7 +197,6 @@ class StreamsUpgradeTest(Test):
         processor.node.account.ssh_capture("grep SMOKE-TEST-CLIENT-CLOSED %s" % processor.STDOUT_FILE, allow_fail=False)
 
     @cluster(num_nodes=6)
-    @matrix(from_version=metadata_1_versions)
     @matrix(from_version=metadata_2_versions)
     @matrix(from_version=fk_join_versions)
     def test_rolling_upgrade_with_2_bounces(self, from_version):

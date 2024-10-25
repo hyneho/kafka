@@ -35,7 +35,7 @@ class ConnectPluginDiscoveryTest(KafkaTest):
     PLUGIN_PATH = "/mnt/connect-plugin-path"
 
     def __init__(self, test_context):
-        super(ConnectPluginDiscoveryTest, self).__init__(test_context, num_zk=0, num_brokers=1)
+        super(ConnectPluginDiscoveryTest, self).__init__(test_context, num_brokers=1)
 
         self.cc = ConnectStandaloneService(test_context, self.kafka, [self.PLUGIN_PATH, self.OFFSETS_FILE])
 

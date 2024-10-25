@@ -76,7 +76,7 @@ class StreamsRelationalSmokeTest(KafkaTest):
     """
 
     def __init__(self, test_context):
-        super(StreamsRelationalSmokeTest, self).__init__(test_context, num_zk=1, num_brokers=3, topics={
+        super(StreamsRelationalSmokeTest, self).__init__(test_context, num_brokers=3, topics={
             'in-article': {'partitions': 3, 'replication-factor': 1},
             'in-comment': {'partitions': 5, 'replication-factor': 1},
             'out-augmented-article': {'partitions': 3, 'replication-factor': 1},

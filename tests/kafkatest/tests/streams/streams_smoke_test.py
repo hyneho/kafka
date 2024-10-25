@@ -26,7 +26,7 @@ class StreamsSmokeTest(KafkaTest):
     """
 
     def __init__(self, test_context):
-        super(StreamsSmokeTest, self).__init__(test_context, num_zk=1, num_brokers=3, topics={
+        super(StreamsSmokeTest, self).__init__(test_context, num_brokers=3, topics={
             'echo' : { 'partitions': 5, 'replication-factor': 1 },
             'data' : { 'partitions': 5, 'replication-factor': 1 },
             'min' : { 'partitions': 5, 'replication-factor': 1 },

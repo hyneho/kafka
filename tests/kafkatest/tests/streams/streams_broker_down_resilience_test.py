@@ -40,10 +40,6 @@ class StreamsBrokerDownResilience(BaseStreamsTest):
                                                                   self.outputTopic: {'partitions': 1, 'replication-factor': 1}},
                                                           num_brokers=1)
 
-    def setUp(self):
-        if self.zk:
-            self.zk.start()
-
     @cluster(num_nodes=7)
     @matrix(metadata_quorum=[quorum.isolated_kraft], use_new_coordinator=[True, False])
     def test_streams_resilient_to_broker_down(self, metadata_quorum, use_new_coordinator=False):
