@@ -511,7 +511,7 @@ public class DelayedShareFetchTest {
     }
 
     @Test
-    public void testCombineLogReadResponseForOnComplete() {
+    public void testCombineLogReadResponse() {
         String groupId = "grp";
         ReplicaManager replicaManager = mock(ReplicaManager.class);
         TopicIdPartition tp0 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0));
@@ -543,26 +543,26 @@ public class DelayedShareFetchTest {
         topicPartitionData.put(tp0, mock(FetchRequest.PartitionData.class));
         topicPartitionData.put(tp1, mock(FetchRequest.PartitionData.class));
 
-        // Case 1 - logReadResponseFromTryComplete contains tp0.
+        // Case 1 - logReadResponse contains tp0.
 
-        Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponseFromTryComplete = Collections.singletonMap(
+        Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponse = Collections.singletonMap(
             tp0, mock(FetchPartitionOffsetData.class));
-        delayedShareFetch.logReadResponseFromTryComplete(logReadResponseFromTryComplete);
+        delayedShareFetch.updateLogReadResponse(logReadResponse);
 
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp1))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
-        Map<TopicIdPartition, FetchPartitionOffsetData> combinedLogReadResponse = delayedShareFetch.combineLogReadResponseForOnComplete(topicPartitionData);
+        Map<TopicIdPartition, FetchPartitionOffsetData> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
-        assertEquals(combinedLogReadResponse.get(tp0), logReadResponseFromTryComplete.get(tp0));
+        assertEquals(combinedLogReadResponse.get(tp0), logReadResponse.get(tp0));
 
-        // Case 2 - logReadResponseFromTryComplete contains tp0 and tp1.
-        logReadResponseFromTryComplete = new HashMap<>();
-        logReadResponseFromTryComplete.put(tp0, mock(FetchPartitionOffsetData.class));
-        logReadResponseFromTryComplete.put(tp1, mock(FetchPartitionOffsetData.class));
-        delayedShareFetch.logReadResponseFromTryComplete(logReadResponseFromTryComplete);
-        combinedLogReadResponse = delayedShareFetch.combineLogReadResponseForOnComplete(topicPartitionData);
+        // Case 2 - logReadResponse contains tp0 and tp1.
+        logReadResponse = new HashMap<>();
+        logReadResponse.put(tp0, mock(FetchPartitionOffsetData.class));
+        logReadResponse.put(tp1, mock(FetchPartitionOffsetData.class));
+        delayedShareFetch.updateLogReadResponse(logReadResponse);
+        combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
-        assertEquals(combinedLogReadResponse.get(tp0), logReadResponseFromTryComplete.get(tp0));
-        assertEquals(combinedLogReadResponse.get(tp1), logReadResponseFromTryComplete.get(tp1));
+        assertEquals(combinedLogReadResponse.get(tp0), logReadResponse.get(tp0));
+        assertEquals(combinedLogReadResponse.get(tp1), logReadResponse.get(tp1));
     }
 
     @Test

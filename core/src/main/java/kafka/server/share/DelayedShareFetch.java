@@ -60,7 +60,7 @@ public class DelayedShareFetch extends DelayedOperation {
     private final ReplicaManager replicaManager;
 
     private Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionDataFromTryComplete;
-    private Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponseFromTryComplete;
+    private Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponse;
     private final SharePartitionManager sharePartitionManager;
 
     DelayedShareFetch(
@@ -110,10 +110,10 @@ public class DelayedShareFetch extends DelayedOperation {
 
         try {
             Map<TopicIdPartition, FetchPartitionOffsetData> responseData;
-            if (logReadResponseFromTryComplete == null || logReadResponseFromTryComplete.isEmpty())
+            if (logReadResponse == null || logReadResponse.isEmpty())
                 responseData = readFromLog(topicPartitionData);
             else
-                responseData = combineLogReadResponseForOnComplete(topicPartitionData);
+                responseData = combineLogReadResponse(topicPartitionData);
             Map<TopicIdPartition, ShareFetchResponseData.PartitionData> result =
                 ShareFetchUtils.processFetchResponse(shareFetchData, responseData, sharePartitionManager, replicaManager);
             shareFetchData.future().complete(result);
@@ -148,14 +148,14 @@ public class DelayedShareFetch extends DelayedOperation {
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = acquirablePartitions();
 
         if (!topicPartitionData.isEmpty()) {
-            MaybeUpdateFetchOffsetMetadataResult maybeUpdateFetchOffsetMetadataResult =
+            FetchOffsetMetadataUpdateResult fetchOffsetMetadataUpdateResult =
                 maybeUpdateFetchOffsetMetadataForTopicPartitions(topicPartitionData);
             if (isMinBytesSatisfied(topicPartitionData)) {
                 topicPartitionDataFromTryComplete = topicPartitionData;
-                if (maybeUpdateFetchOffsetMetadataResult.isFetchOffsetMetadataUpdated
-                    && maybeUpdateFetchOffsetMetadataResult.replicaManagerReadResponse != null
-                    && !maybeUpdateFetchOffsetMetadataResult.replicaManagerReadResponse.isEmpty())
-                    logReadResponseFromTryComplete = maybeUpdateFetchOffsetMetadataResult.replicaManagerReadResponse;
+                if (fetchOffsetMetadataUpdateResult.isFetchOffsetMetadataUpdated
+                    && fetchOffsetMetadataUpdateResult.replicaManagerReadResponse != null
+                    && !fetchOffsetMetadataUpdateResult.replicaManagerReadResponse.isEmpty())
+                    logReadResponse = fetchOffsetMetadataUpdateResult.replicaManagerReadResponse;
                 return forceComplete();
             }
             log.debug("minBytes is not satisfied for the share fetch request for group {}, member {}, " +
@@ -213,9 +213,9 @@ public class DelayedShareFetch extends DelayedOperation {
 
     // In case, fetch offset metadata doesn't exist for any topic partition in the list of topic partitions, we do a
     // replicaManager.readFromLog to populate the offset metadata.
-    private MaybeUpdateFetchOffsetMetadataResult maybeUpdateFetchOffsetMetadataForTopicPartitions(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
+    private FetchOffsetMetadataUpdateResult maybeUpdateFetchOffsetMetadataForTopicPartitions(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         boolean isFetchOffsetMetadataUpdated = false;
-        Map<TopicIdPartition, FetchRequest.PartitionData> missingFetchOffsetMetadataTopicPartitions = new LinkedHashMap<>();
+        Map<TopicIdPartition, FetchRequest.PartitionData> missingFetchOffsetMetadataTopicPartitions = null;
         Map<TopicIdPartition, FetchPartitionOffsetData> replicaManagerReadResponseData;
         for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
@@ -224,12 +224,15 @@ public class DelayedShareFetch extends DelayedOperation {
                 log.debug("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), topicIdPartition);
                 continue;
             }
-            if (sharePartition.latestFetchOffsetMetadata().isEmpty())
+            if (sharePartition.latestFetchOffsetMetadata().isEmpty()) {
+                if (missingFetchOffsetMetadataTopicPartitions == null)
+                    missingFetchOffsetMetadataTopicPartitions = new LinkedHashMap<>();
                 missingFetchOffsetMetadataTopicPartitions.put(topicIdPartition, entry.getValue());
+            }
         }
 
-        if (missingFetchOffsetMetadataTopicPartitions.isEmpty()) {
-            return new MaybeUpdateFetchOffsetMetadataResult(false, null);
+        if (missingFetchOffsetMetadataTopicPartitions == null || missingFetchOffsetMetadataTopicPartitions.isEmpty()) {
+            return new FetchOffsetMetadataUpdateResult(false, null);
         }
         // We fetch data from replica manager corresponding to the topic partitions that have missing fetch offset metadata.
         replicaManagerReadResponseData = readFromLog(missingFetchOffsetMetadataTopicPartitions);
@@ -250,7 +253,7 @@ public class DelayedShareFetch extends DelayedOperation {
             sharePartition.updateLatestFetchOffsetMetadata(fetchPartitionOffsetData.logOffsetMetadata());
             isFetchOffsetMetadataUpdated = true;
         }
-        return new MaybeUpdateFetchOffsetMetadataResult(isFetchOffsetMetadataUpdated, replicaManagerReadResponseData);
+        return new FetchOffsetMetadataUpdateResult(isFetchOffsetMetadataUpdated, replicaManagerReadResponseData);
     }
 
     private boolean isMinBytesSatisfied(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
@@ -337,24 +340,24 @@ public class DelayedShareFetch extends DelayedOperation {
     }
 
     // Visible for testing.
-    Map<TopicIdPartition, FetchPartitionOffsetData> combineLogReadResponseForOnComplete(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
+    Map<TopicIdPartition, FetchPartitionOffsetData> combineLogReadResponse(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         Map<TopicIdPartition, FetchRequest.PartitionData> missingLogReadTopicPartitions = new LinkedHashMap<>();
         topicPartitionData.forEach((topicIdPartition, partitionData) -> {
-            if (!logReadResponseFromTryComplete.containsKey(topicIdPartition)) {
+            if (!logReadResponse.containsKey(topicIdPartition)) {
                 missingLogReadTopicPartitions.put(topicIdPartition, partitionData);
             }
         });
         if (missingLogReadTopicPartitions.isEmpty()) {
-            return logReadResponseFromTryComplete;
+            return logReadResponse;
         }
         Map<TopicIdPartition, FetchPartitionOffsetData> missingTopicPartitionsLogReadResponse = readFromLog(missingLogReadTopicPartitions);
-        missingTopicPartitionsLogReadResponse.putAll(logReadResponseFromTryComplete);
+        missingTopicPartitionsLogReadResponse.putAll(logReadResponse);
         return missingTopicPartitionsLogReadResponse;
     }
 
     // Visible for testing. Only used for testing purposes.
-    void logReadResponseFromTryComplete(Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponse) {
-        logReadResponseFromTryComplete = logReadResponse;
+    void updateLogReadResponse(Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponse) {
+        this.logReadResponse = logReadResponse;
     }
 
     // Visible for testing.
@@ -369,11 +372,11 @@ public class DelayedShareFetch extends DelayedOperation {
         });
     }
 
-    static final class MaybeUpdateFetchOffsetMetadataResult {
+    static final class FetchOffsetMetadataUpdateResult {
         private final boolean isFetchOffsetMetadataUpdated;
         private final Map<TopicIdPartition, FetchPartitionOffsetData> replicaManagerReadResponse;
 
-        MaybeUpdateFetchOffsetMetadataResult(boolean isFetchOffsetMetadataUpdated, Map<TopicIdPartition, FetchPartitionOffsetData> replicaManagerReadResponse) {
+        FetchOffsetMetadataUpdateResult(boolean isFetchOffsetMetadataUpdated, Map<TopicIdPartition, FetchPartitionOffsetData> replicaManagerReadResponse) {
             this.isFetchOffsetMetadataUpdated = isFetchOffsetMetadataUpdated;
             this.replicaManagerReadResponse = replicaManagerReadResponse;
         }
