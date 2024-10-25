@@ -91,7 +91,7 @@ public class ShareFetchUtils {
                     partitionData.setErrorMessage(Errors.NONE.message());
                 }
             } else {
-                ShareAcquiredRecords shareAcquiredRecords = sharePartition.acquire(shareFetchData.memberId(), shareFetchData.maxFetchRecords() - acquiredRecordsCount, fetchPartitionOffsetData);
+                ShareAcquiredRecords shareAcquiredRecords = sharePartition.acquire(shareFetchData.memberId(), shareFetchData.maxFetchRecords() - acquiredRecordsCount, fetchPartitionOffsetData.fetchPartitionData());
                 log.trace("Acquired records for topicIdPartition: {} with share fetch data: {}, records: {}",
                     topicIdPartition, shareFetchData, shareAcquiredRecords);
                 // Maybe, in the future, check if no records are acquired, and we want to retry

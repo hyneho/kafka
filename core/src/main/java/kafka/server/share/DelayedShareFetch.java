@@ -110,9 +110,11 @@ public class DelayedShareFetch extends DelayedOperation {
 
         try {
             Map<TopicIdPartition, FetchPartitionOffsetData> responseData;
-            if (logReadResponse == null || logReadResponse.isEmpty())
+            if (logReadResponse == null)
                 responseData = readFromLog(topicPartitionData);
             else
+                // There can't be a case when we have a non-empty logReadResponse, and we have a fresh topicPartitionData
+                // using tryComplete because purgatory ensures that 2 tryCompletes calls do not happen at the same time.
                 responseData = combineLogReadResponse(topicPartitionData);
             Map<TopicIdPartition, ShareFetchResponseData.PartitionData> result =
                 ShareFetchUtils.processFetchResponse(shareFetchData, responseData, sharePartitionManager, replicaManager);
@@ -148,8 +150,7 @@ public class DelayedShareFetch extends DelayedOperation {
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = acquirablePartitions();
 
         if (!topicPartitionData.isEmpty()) {
-            FetchOffsetMetadataUpdateResult fetchOffsetMetadataUpdateResult =
-                maybeUpdateFetchOffsetMetadataForTopicPartitions(topicPartitionData);
+            FetchOffsetMetadataUpdateResult fetchOffsetMetadataUpdateResult = maybeUpdateFetchOffsetMetadataForTopicPartitions(topicPartitionData);
             if (isMinBytesSatisfied(topicPartitionData)) {
                 topicPartitionDataFromTryComplete = topicPartitionData;
                 if (fetchOffsetMetadataUpdateResult.isFetchOffsetMetadataUpdated
@@ -211,12 +212,10 @@ public class DelayedShareFetch extends DelayedOperation {
         return topicPartitionData;
     }
 
-    // In case, fetch offset metadata doesn't exist for any topic partition in the list of topic partitions, we do a
+    // In case, fetch offset metadata doesn't exist for one or more topic partitions, we do a
     // replicaManager.readFromLog to populate the offset metadata.
     private FetchOffsetMetadataUpdateResult maybeUpdateFetchOffsetMetadataForTopicPartitions(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
-        boolean isFetchOffsetMetadataUpdated = false;
         Map<TopicIdPartition, FetchRequest.PartitionData> missingFetchOffsetMetadataTopicPartitions = null;
-        Map<TopicIdPartition, FetchPartitionOffsetData> replicaManagerReadResponseData;
         for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
             SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
@@ -230,13 +229,18 @@ public class DelayedShareFetch extends DelayedOperation {
                 missingFetchOffsetMetadataTopicPartitions.put(topicIdPartition, entry.getValue());
             }
         }
-
         if (missingFetchOffsetMetadataTopicPartitions == null || missingFetchOffsetMetadataTopicPartitions.isEmpty()) {
             return new FetchOffsetMetadataUpdateResult(false, null);
         }
         // We fetch data from replica manager corresponding to the topic partitions that have missing fetch offset metadata.
-        replicaManagerReadResponseData = readFromLog(missingFetchOffsetMetadataTopicPartitions);
+        Map<TopicIdPartition, FetchPartitionOffsetData> replicaManagerReadResponseData = readFromLog(missingFetchOffsetMetadataTopicPartitions);
+        return updateFetchOffsetMetadataForMissingTopicPartitions(missingFetchOffsetMetadataTopicPartitions, replicaManagerReadResponseData);
+    }
 
+    private FetchOffsetMetadataUpdateResult updateFetchOffsetMetadataForMissingTopicPartitions(
+        Map<TopicIdPartition, FetchRequest.PartitionData> missingFetchOffsetMetadataTopicPartitions,
+        Map<TopicIdPartition, FetchPartitionOffsetData> replicaManagerReadResponseData) {
+        boolean isFetchOffsetMetadataUpdated = false;
         for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : missingFetchOffsetMetadataTopicPartitions.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
             SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
@@ -244,7 +248,7 @@ public class DelayedShareFetch extends DelayedOperation {
                 log.debug("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), topicIdPartition);
                 continue;
             }
-            FetchPartitionOffsetData fetchPartitionOffsetData = replicaManagerReadResponseData.get(topicIdPartition);
+            FetchPartitionOffsetData fetchPartitionOffsetData = replicaManagerReadResponseData.getOrDefault(topicIdPartition, null);
             if (fetchPartitionOffsetData == null) {
                 log.debug("Replica manager read log result {} does not contain topic partition {}",
                     replicaManagerReadResponseData, topicIdPartition);
@@ -262,18 +266,7 @@ public class DelayedShareFetch extends DelayedOperation {
             for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
                 TopicIdPartition topicIdPartition = entry.getKey();
                 FetchRequest.PartitionData partitionData = entry.getValue();
-                Partition partition = replicaManager.getPartitionOrException(topicIdPartition.topicPartition());
-                LogOffsetSnapshot offsetSnapshot = partition.fetchOffsetSnapshot(Optional.empty(), true);
-                // The FetchIsolation type that we use for share fetch is FetchIsolation.HIGH_WATERMARK. In the future, we can
-                // extend it other FetchIsolation types.
-                FetchIsolation isolationType = shareFetchData.fetchParams().isolation;
-                LogOffsetMetadata endOffsetMetadata;
-                if (isolationType == FetchIsolation.LOG_END)
-                    endOffsetMetadata = offsetSnapshot.logEndOffset;
-                else if (isolationType == FetchIsolation.HIGH_WATERMARK)
-                    endOffsetMetadata = offsetSnapshot.highWatermark;
-                else
-                    endOffsetMetadata = offsetSnapshot.lastStableOffset;
+                LogOffsetMetadata endOffsetMetadata = endOffsetMetadataForTopicPartition(topicIdPartition);
 
                 if (endOffsetMetadata == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
                     continue;
@@ -316,6 +309,21 @@ public class DelayedShareFetch extends DelayedOperation {
         }
     }
 
+    private LogOffsetMetadata endOffsetMetadataForTopicPartition(TopicIdPartition topicIdPartition) {
+        Partition partition = replicaManager.getPartitionOrException(topicIdPartition.topicPartition());
+        LogOffsetSnapshot offsetSnapshot = partition.fetchOffsetSnapshot(Optional.empty(), true);
+        // The FetchIsolation type that we use for share fetch is FetchIsolation.HIGH_WATERMARK. In the future, we can
+        // extend it other FetchIsolation types.
+        FetchIsolation isolationType = shareFetchData.fetchParams().isolation;
+        if (isolationType == FetchIsolation.LOG_END)
+            return offsetSnapshot.logEndOffset;
+        else if (isolationType == FetchIsolation.HIGH_WATERMARK)
+            return offsetSnapshot.highWatermark;
+        else
+            return offsetSnapshot.lastStableOffset;
+
+    }
+
     private Map<TopicIdPartition, FetchPartitionOffsetData> readFromLog(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         Seq<Tuple2<TopicIdPartition, LogReadResult>> responseLogResult = replicaManager.readFromLog(
             shareFetchData.fetchParams(),
@@ -341,13 +349,18 @@ public class DelayedShareFetch extends DelayedOperation {
 
     // Visible for testing.
     Map<TopicIdPartition, FetchPartitionOffsetData> combineLogReadResponse(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
-        Map<TopicIdPartition, FetchRequest.PartitionData> missingLogReadTopicPartitions = new LinkedHashMap<>();
-        topicPartitionData.forEach((topicIdPartition, partitionData) -> {
+        Map<TopicIdPartition, FetchRequest.PartitionData> missingLogReadTopicPartitions = null;
+        for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
+            TopicIdPartition topicIdPartition = entry.getKey();
+            FetchRequest.PartitionData partitionData = entry.getValue();
             if (!logReadResponse.containsKey(topicIdPartition)) {
+                if (missingLogReadTopicPartitions == null) {
+                    missingLogReadTopicPartitions = new LinkedHashMap<>();
+                }
                 missingLogReadTopicPartitions.put(topicIdPartition, partitionData);
             }
-        });
-        if (missingLogReadTopicPartitions.isEmpty()) {
+        }
+        if (missingLogReadTopicPartitions == null) {
             return logReadResponse;
         }
         Map<TopicIdPartition, FetchPartitionOffsetData> missingTopicPartitionsLogReadResponse = readFromLog(missingLogReadTopicPartitions);

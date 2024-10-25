@@ -20,6 +20,10 @@ package org.apache.kafka.server.share.fetch;
 import org.apache.kafka.server.storage.log.FetchPartitionData;
 import org.apache.kafka.storage.internals.log.LogOffsetMetadata;
 
+/**
+ * The FetchPartitionOffsetData class is used to store the fetched partition data and fetched offset metadata
+ * from replica manager log read result.
+ */
 public class FetchPartitionOffsetData {
     private final FetchPartitionData fetchPartitionData;
     private final LogOffsetMetadata logOffsetMetadata;
