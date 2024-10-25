@@ -771,7 +771,6 @@ subprojects {
     scalaCompileOptions.additionalParameters += ["-Xfatal-warnings"]
 
     scalaCompileOptions.additionalParameters += ["-release", String.valueOf(minJavaVersion)]
-    options.compilerArgs += ["--release", String.valueOf(minJavaVersion)]
 
     configureJavaCompiler(name, options)
 
