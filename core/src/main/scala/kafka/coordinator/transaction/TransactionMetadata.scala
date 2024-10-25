@@ -353,7 +353,7 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       } else {
         (producerId, producerEpoch, lastProducerEpoch)
       }
-    prepareTransitionTo(newState, updatedProducerId, RecordBatch.NO_PRODUCER_ID, updatedProducerEpoch, lastProducerEpoch, txnTimeoutMs, Set.empty[TopicPartition],
+    prepareTransitionTo(newState, updatedProducerId, RecordBatch.NO_PRODUCER_ID, updatedProducerEpoch, updatedLastProducerEpoch, txnTimeoutMs, Set.empty[TopicPartition],
       txnStartTimestamp, updateTimestamp, clientTransactionVersion)
   }
 
