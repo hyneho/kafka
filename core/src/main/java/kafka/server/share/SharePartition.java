@@ -1540,7 +1540,10 @@ public class SharePartition {
     protected void updateLatestFetchOffsetMetadata(LogOffsetMetadata fetchOffsetMetadata) {
         lock.writeLock().lock();
         try {
-            latestFetchOffsetMetadata = Optional.of(fetchOffsetMetadata);
+            if (fetchOffsetMetadata != null)
+                latestFetchOffsetMetadata = Optional.of(fetchOffsetMetadata);
+            else
+                latestFetchOffsetMetadata = Optional.empty();
         } finally {
             lock.writeLock().unlock();
         }
@@ -1608,6 +1611,8 @@ public class SharePartition {
                 maybeUpdateCachedStateAndOffsets();
                 future.complete(null);
             });
+            // Since our end offset changes on acknowledge/release acquired records on session close, we reset the latest fetch offset metadata.
+            updateLatestFetchOffsetMetadata(null);
         } finally {
             lock.writeLock().unlock();
         }
@@ -1919,6 +1924,8 @@ public class SharePartition {
                     // there is a pending share fetch request for the share-partition and complete it.
                     DelayedShareFetchKey delayedShareFetchKey = new DelayedShareFetchGroupKey(groupId, topicIdPartition.topicId(), topicIdPartition.partition());
                     replicaManager.completeDelayedShareFetchRequest(delayedShareFetchKey);
+                    // Since our end offset changes on acknowledge/release acquired records on session close, we reset the latest fetch offset metadata.
+                    updateLatestFetchOffsetMetadata(null);
                 });
             }
         } finally {
