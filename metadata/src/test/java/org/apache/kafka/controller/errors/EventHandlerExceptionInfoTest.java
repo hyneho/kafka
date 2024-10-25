@@ -24,8 +24,8 @@ import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnknownServerException;
 import org.apache.kafka.raft.errors.NotLeaderException;
-
 import org.apache.kafka.server.mutable.BoundedListTooLongException;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
