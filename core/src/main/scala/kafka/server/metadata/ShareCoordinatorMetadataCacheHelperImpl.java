@@ -18,6 +18,7 @@
 package kafka.server.metadata;
 
 import kafka.server.MetadataCache;
+
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.message.MetadataResponseData;
 import org.apache.kafka.common.network.ListenerName;
