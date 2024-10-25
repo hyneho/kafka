@@ -155,6 +155,8 @@ public class DelayedShareFetch extends DelayedOperation {
         // tryComplete is invoked by multiple threads and state has yet not updated. Hence, we need to check
         // the forceComplete response as well.
         if (isCompleted()) {
+            log.trace("Share fetch request for group {}, member {} is already completed",
+                shareFetchData.groupId(), shareFetchData.memberId());
             return true;
         }
 
@@ -169,9 +171,6 @@ public class DelayedShareFetch extends DelayedOperation {
             }
             return result;
         }
-        log.trace("Can't acquire records for any partition in the share fetch request for group {}, member {}, " +
-                "topic partitions {}", shareFetchData.groupId(),
-                shareFetchData.memberId(), shareFetchData.partitionMaxBytes().keySet());
         return false;
     }
 
