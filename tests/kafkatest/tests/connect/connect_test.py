@@ -20,7 +20,6 @@ from ducktape.mark import matrix, parametrize
 from ducktape.cluster.remoteaccount import RemoteCommandError
 from ducktape.errors import TimeoutError
 
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.connect import ConnectServiceBase, ConnectStandaloneService, ErrorTolerance
 from kafkatest.services.console_consumer import ConsoleConsumer
@@ -57,13 +56,10 @@ class ConnectStandaloneFileTest(Test):
 
     def __init__(self, test_context):
         super(ConnectStandaloneFileTest, self).__init__(test_context)
-        self.num_zk = 1
         self.num_brokers = 1
         self.topics = {
             'test' : { 'partitions': 1, 'replication-factor': 1 }
         }
-
-        self.zk = ZookeeperService(test_context, self.num_zk) if quorum.for_test(test_context) == quorum.zk else None
 
     @cluster(num_nodes=5)
     @parametrize(converter="org.apache.kafka.connect.json.JsonConverter", schemas=True)
@@ -87,9 +83,9 @@ class ConnectStandaloneFileTest(Test):
             self.override_value_converter = converter
         self.schemas = schemas
 
-        self.kafka = KafkaService(self.test_context, self.num_brokers, self.zk,
+        self.kafka = KafkaService(self.test_context, self.num_brokers,
                                   security_protocol=security_protocol, interbroker_security_protocol=security_protocol,
-                                  topics=self.topics, controller_num_nodes_override=self.num_zk)
+                                  topics=self.topics, controller_num_nodes_override=1)
 
         self.source = ConnectStandaloneService(self.test_context, self.kafka, [self.INPUT_FILE, self.OFFSETS_FILE],
                                                include_filestream_connectors=True)
@@ -98,8 +94,6 @@ class ConnectStandaloneFileTest(Test):
         self.consumer_validator = ConsoleConsumer(self.test_context, 1, self.kafka, self.TOPIC_TEST,
                                                   consumer_timeout_ms=10000)
 
-        if self.zk:
-            self.zk.start()
         self.kafka.start()
 
         self.source.set_configs(lambda node: self.render("connect-standalone.properties", node=node), [self.render("connect-file-source.properties")])
@@ -143,7 +137,7 @@ class ConnectStandaloneFileTest(Test):
     @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.isolated_kraft)
     @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.isolated_kraft)
     def test_skip_and_log_to_dlq(self, error_tolerance, metadata_quorum):
-        self.kafka = KafkaService(self.test_context, self.num_brokers, self.zk, topics=self.topics)
+        self.kafka = KafkaService(self.test_context, self.num_brokers, topics=self.topics)
 
         # set config props
         self.override_error_tolerance_props = error_tolerance
@@ -173,8 +167,6 @@ class ConnectStandaloneFileTest(Test):
         self.sink = ConnectStandaloneService(self.test_context, self.kafka, [self.OUTPUT_FILE, self.OFFSETS_FILE],
                                              include_filestream_connectors=True)
 
-        if self.zk:
-            self.zk.start()
         self.kafka.start()
 
         self.override_key_converter = "org.apache.kafka.connect.storage.StringConverter"

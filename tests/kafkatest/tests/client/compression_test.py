@@ -17,7 +17,6 @@ from ducktape.mark import matrix
 from ducktape.utils.util import wait_until
 from ducktape.mark.resource import cluster
 
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.console_consumer import ConsoleConsumer

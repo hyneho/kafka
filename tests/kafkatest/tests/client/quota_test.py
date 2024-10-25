@@ -17,7 +17,6 @@ from ducktape.tests.test import Test
 from ducktape.mark import matrix, parametrize
 from ducktape.mark.resource import cluster
 
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService
 from kafkatest.services.performance import ProducerPerformanceService
 from kafkatest.services.console_consumer import ConsoleConsumer

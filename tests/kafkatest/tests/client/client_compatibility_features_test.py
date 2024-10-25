@@ -23,7 +23,6 @@ from ducktape.mark import matrix, parametrize
 from ducktape.mark.resource import cluster
 from ducktape.tests.test import TestContext
 
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService, quorum
 from ducktape.tests.test import Test
 from kafkatest.version import DEV_BRANCH, LATEST_1_0, LATEST_1_1, \
