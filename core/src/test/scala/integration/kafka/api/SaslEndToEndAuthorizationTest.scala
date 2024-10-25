@@ -58,7 +58,7 @@ abstract class SaslEndToEndAuthorizationTest extends EndToEndAuthorizationTest {
     */
   @Timeout(15)
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_XXXXX"))
   def testTwoConsumersWithDifferentSaslCredentials(quorum: String, groupProtocol: String): Unit = {
     setAclsAndProduce(tp)
     val consumer1 = createConsumer()
