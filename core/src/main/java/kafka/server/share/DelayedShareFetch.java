@@ -149,27 +149,16 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public boolean tryComplete() {
-        // There can be multiple threads which might invoke tryComplete for same share fetch request
-        // hence check if delay share fetch request is already completed. If yes, return true.
-        // However, this check alone cannot guarantee that request is really completed. It is possible that
-        // tryComplete is invoked by multiple threads and state has yet not updated. Hence, we need to check
-        // the forceComplete response as well.
-        if (isCompleted()) {
-            log.trace("Share fetch request for group {}, member {} is already completed",
-                shareFetchData.groupId(), shareFetchData.memberId());
-            return true;
-        }
-
         topicPartitionDataFromTryComplete = acquirablePartitions();
 
         if (!topicPartitionDataFromTryComplete.isEmpty()) {
-            boolean result = forceComplete();
+            boolean completedByMe = forceComplete();
             // If invocation of forceComplete is not successful, then that means the request is already completed
             // hence release the acquired locks.
-            if (!result) {
+            if (!completedByMe) {
                 releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
             }
-            return result;
+            return completedByMe;
         }
         return false;
     }
