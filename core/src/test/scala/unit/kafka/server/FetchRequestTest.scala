@@ -196,13 +196,13 @@ class FetchRequestTest extends BaseFetchRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testLastFetchedEpochValidation(quorum: String): Unit = {
     checkLastFetchedEpochValidation(ApiKeys.FETCH.latestVersion())
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testLastFetchedEpochValidationV12(quorum: String): Unit = {
     checkLastFetchedEpochValidation(12)
   }

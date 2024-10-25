@@ -73,7 +73,7 @@ import org.apache.kafka.test.{TestSslUtils, TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Disabled, Test, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.MethodSource
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.nowarn
@@ -185,9 +185,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     closeSasl()
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testConfigDescribeUsingAdminClient(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testConfigDescribeUsingAdminClient(quorum: String, groupProtocol: String): Unit = {
 
     def verifyConfig(configName: String, configEntry: ConfigEntry, isSensitive: Boolean, isReadOnly: Boolean,
                      expectedProps: Properties): Unit = {
@@ -285,9 +285,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     assertEquals(List((CleanerConfig.LOG_CLEANER_THREADS_PROP, ConfigSource.DEFAULT_CONFIG)), synonymsList(logCleanerThreads))
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testUpdatesUsingConfigProvider(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testUpdatesUsingConfigProvider(quorum: String, groupProtocol: String): Unit = {
     val PollingIntervalVal = f"$${file:polling.interval:interval}"
     val PollingIntervalUpdateVal = f"$${file:polling.interval:updinterval}"
     val SslTruststoreTypeVal = f"$${file:ssl.truststore.type:storetype}"
@@ -358,9 +358,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testKeyStoreAlter(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testKeyStoreAlter(quorum: String, groupProtocol: String): Unit = {
     val topic2 = "testtopic2"
     TestUtils.createTopicWithAdmin(adminClients.head, topic2, servers, controllerServers, numPartitions, replicationFactor = numServers)
 
@@ -427,9 +427,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     stopAndVerifyProduceConsume(producerThread, consumerThread)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testTrustStoreAlter(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testTrustStoreAlter(quorum: String, groupProtocol: String): Unit = {
     val producerBuilder = ProducerBuilder().listenerName(SecureInternal).securityProtocol(SecurityProtocol.SSL)
 
     // Producer with new keystore should fail to connect before truststore update
@@ -532,9 +532,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testLogCleanerConfig(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testLogCleanerConfig(quorum: String, groupProtocol: String): Unit = {
     val (producerThread, consumerThread) = startProduceConsume(retries = 0)
 
     verifyThreads("kafka-log-cleaner-thread-", countPerBroker = 1)
@@ -585,9 +585,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     verifyThreads("kafka-log-cleaner-thread-", countPerBroker = 2)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testConsecutiveConfigChange(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testConsecutiveConfigChange(quorum: String, groupProtocol: String): Unit = {
     val topic2 = "testtopic2"
     val topicProps = new Properties
     topicProps.put(ServerLogConfigs.MIN_IN_SYNC_REPLICAS_CONFIG, "2")
@@ -1188,9 +1188,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     assertTrue(partitions.exists(_.leader == null), "Did not find partitions with no leader")
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testReconfigureRemovedListener(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testReconfigureRemovedListener(quorum: String, groupProtocol: String): Unit = {
     val client = adminClients.head
     val broker = servers.head
     assertEquals(2, broker.config.dynamicConfig.reconfigurables.asScala.count(r => r.isInstanceOf[DataPlaneAcceptor]))
@@ -1268,9 +1268,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testTransactionVerificationEnable(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testTransactionVerificationEnable(quorum: String, groupProtocol: String): Unit = {
     def verifyConfiguration(enabled: Boolean): Unit = {
       servers.foreach { server =>
         TestUtils.waitUntilTrue(() => server.logManager.producerStateManagerConfig.transactionVerificationEnabled == enabled, "Configuration was not updated.")

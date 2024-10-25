@@ -57,7 +57,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   val nMessages = 2
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testMetricsReporterAfterDeletingTopic(quorum: String): Unit = {
     val topic = "test-topic-metric"
     createTopic(topic)
@@ -67,7 +67,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testBrokerTopicMetricsUnregisteredAfterDeletingTopic(quorum: String): Unit = {
     val topic = "test-broker-topic-metric"
     createTopic(topic, 2)
@@ -82,7 +82,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testClusterIdMetric(quorum: String): Unit = {
     // Check if clusterId metric exists.
     val metrics = KafkaYammerMetrics.defaultRegistry.allMetrics
@@ -90,7 +90,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testBrokerStateMetric(quorum: String): Unit = {
     // Check if BrokerState metric exists.
     val metrics = KafkaYammerMetrics.defaultRegistry.allMetrics
@@ -98,7 +98,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testYammerMetricsCountMetric(quorum: String): Unit = {
     // Check if yammer-metrics-count metric exists.
     val metrics = KafkaYammerMetrics.defaultRegistry.allMetrics
@@ -106,7 +106,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testLinuxIoMetrics(quorum: String): Unit = {
     // Check if linux-disk-{read,write}-bytes metrics either do or do not exist depending on whether we are or are not
     // able to collect those metrics on the platform where this test is running.
@@ -118,7 +118,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testJMXFilter(quorum: String): Unit = {
     // Check if cluster id metrics is not exposed in JMX
     assertTrue(ManagementFactory.getPlatformMBeanServer
@@ -128,7 +128,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testUpdateJMXFilter(quorum: String): Unit = {
     // verify previously exposed metrics are removed and existing matching metrics are added
     brokers.foreach(broker => broker.kafkaYammerMetrics.reconfigure(
@@ -141,7 +141,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testGeneralBrokerTopicMetricsAreGreedilyRegistered(quorum: String): Unit = {
     val topic = "test-broker-topic-metric"
     createTopic(topic, 2)
@@ -157,7 +157,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testWindowsStyleTagNames(quorum: String): Unit = {
     val path = "C:\\windows-path\\kafka-logs"
     val tags = Map("dir" -> path)
@@ -167,7 +167,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testBrokerTopicMetricsBytesInOut(quorum: String): Unit = {
     val topic = "test-bytes-in-out"
     val replicationBytesIn = BrokerTopicMetrics.REPLICATION_BYTES_IN_PER_SEC
@@ -267,7 +267,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
    * and testZooKeeperSessionStateMetric in ZooKeeperClientTest test the metrics behaviour.
    */
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testSessionExpireListenerMetrics(quorum: String): Unit = {
     val metrics = KafkaYammerMetrics.defaultRegistry.allMetrics
     val expectedNumMetrics = if (isKRaftTest()) 0 else 1
