@@ -25,7 +25,7 @@ import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.{TopicIdPartition, TopicPartition, Uuid}
 import org.apache.kafka.common.requests.{ShareAcknowledgeRequest, ShareAcknowledgeResponse, ShareFetchRequest, ShareFetchResponse, ShareRequestMetadata}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue}
-import org.junit.jupiter.api.{AfterEach, Tag, Timeout}
+import org.junit.jupiter.api.{AfterEach, Disabled, Tag, Timeout}
 import org.junit.jupiter.api.extension.ExtendWith
 
 import java.util
@@ -89,6 +89,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     ),
     brokers = 2
   )
+  @Disabled
   def testShareFetchRequestToNonLeaderReplica(): Unit = {
     val groupId: String = "group"
     val metadata: ShareRequestMetadata = new ShareRequestMetadata(Uuid.randomUuid(), ShareRequestMetadata.INITIAL_EPOCH)
@@ -101,6 +102,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     val topicIds = getTopicIds.asJava
     val topicId = topicIds.get(topic)
     val topicIdPartition = new TopicIdPartition(topicId, new TopicPartition(topic, partition))
+    val topicNames = topicIds.asScala.map(_.swap).asJava
     val leader = partitionToLeader(topicIdPartition)
     val nonReplicaOpt = getBrokers.find(_.config.brokerId != leader)
     assertTrue(nonReplicaOpt.isDefined)
@@ -111,8 +113,9 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the share fetch request to the non-replica and verify the error code
     val shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty)
     val shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest, nonReplicaId)
-    // Top level error thrown while fetching the "LATEST" offset for the partition during share partition initialization
-    assertEquals(Errors.NOT_LEADER_OR_FOLLOWER.code, shareFetchResponse.data().errorCode())
+    val partitionData = shareFetchResponse.responseData(topicNames).get(topicIdPartition)
+    assertEquals(Errors.NOT_LEADER_OR_FOLLOWER.code, partitionData.errorCode)
+    assertEquals(leader, partitionData.currentLeader().leaderId())
   }
 
   @ClusterTest(

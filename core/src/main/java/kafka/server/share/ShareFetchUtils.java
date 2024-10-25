@@ -49,7 +49,6 @@ public class ShareFetchUtils {
      * Process the replica manager fetch response to create share fetch response. The response is created
      * by acquiring records from the share partition.
      */
-    // Visible for testing
     static Map<TopicIdPartition, ShareFetchResponseData.PartitionData> processFetchResponse(
             ShareFetchData shareFetchData,
             Map<TopicIdPartition, FetchPartitionData> responseData,

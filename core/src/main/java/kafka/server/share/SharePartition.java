@@ -319,7 +319,6 @@ public class SharePartition {
      * @return The method returns a future which is completed when the share partition is initialized
      *         or completes with an exception if the share partition is in non-initializable state.
      */
-    @SuppressWarnings("CyclomaticComplexity")
     public CompletableFuture<Void> maybeInitialize() {
         log.debug("Maybe initialize share partition: {}-{}", groupId, topicIdPartition);
         CompletableFuture<Void> future = new CompletableFuture<>();
@@ -388,7 +387,7 @@ public class SharePartition {
                 }
 
                 try {
-                    setStartOffsetDuringInitialization(partitionData);
+                    startOffset = updateStartOffsetDuringInitialization(partitionData.startOffset());
                 } catch (Exception e) {
                     completeInitializationWithException(future, e);
                     return;
@@ -1977,27 +1976,24 @@ public class SharePartition {
         }
     }
 
-    private void setStartOffsetDuringInitialization(PartitionAllData partitionData) throws Exception {
+    private long updateStartOffsetDuringInitialization(long partitionDataStartOffset) throws Exception {
         // Set the state epoch and end offset from the persisted state.
-        if (partitionData.startOffset() != PartitionFactory.UNINITIALIZED_START_OFFSET) {
-            startOffset = partitionData.startOffset();
-        } else {
-            GroupConfig.ShareGroupAutoOffsetReset offsetResetStrategy;
-            if (groupConfigManager.groupConfig(groupId).isPresent()) {
-                offsetResetStrategy = groupConfigManager.groupConfig(groupId).get().shareAutoOffsetReset();
-                if (offsetResetStrategy == GroupConfig.ShareGroupAutoOffsetReset.NONE) {
-                    offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
-                }
-            } else {
+        if (partitionDataStartOffset != PartitionFactory.UNINITIALIZED_START_OFFSET) {
+            return partitionDataStartOffset;
+        }
+        GroupConfig.ShareGroupAutoOffsetReset offsetResetStrategy;
+        if (groupConfigManager.groupConfig(groupId).isPresent()) {
+            offsetResetStrategy = groupConfigManager.groupConfig(groupId).get().shareAutoOffsetReset();
+            if (offsetResetStrategy == GroupConfig.ShareGroupAutoOffsetReset.NONE) {
                 offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
             }
-
-            if (offsetResetStrategy == GroupConfig.ShareGroupAutoOffsetReset.EARLIEST) {
-                startOffset = offsetForEarliestTimestamp(topicIdPartition, replicaManager);
-            } else {
-                startOffset = offsetForLatestTimestamp(topicIdPartition, replicaManager);
-            }
+        } else {
+            offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
         }
+
+        if (offsetResetStrategy == GroupConfig.ShareGroupAutoOffsetReset.EARLIEST)
+            return offsetForEarliestTimestamp(topicIdPartition, replicaManager);
+        return offsetForLatestTimestamp(topicIdPartition, replicaManager);
     }
 
     // Visible for testing. Should only be used for testing purposes.

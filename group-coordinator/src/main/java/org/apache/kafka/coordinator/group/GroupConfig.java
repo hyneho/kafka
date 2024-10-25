@@ -204,6 +204,11 @@ public class GroupConfig extends AbstractConfig {
             throw new InvalidConfigurationException(SHARE_AUTO_OFFSET_RESET_CONFIG + " must be " +
                 ShareGroupAutoOffsetReset.LATEST + " or " + ShareGroupAutoOffsetReset.EARLIEST);
         }
+        if (ShareGroupAutoOffsetReset.valueOf(shareAutoOffsetReset.toUpperCase(Locale.ROOT)) != ShareGroupAutoOffsetReset.LATEST &&
+            ShareGroupAutoOffsetReset.valueOf(shareAutoOffsetReset.toUpperCase(Locale.ROOT)) != ShareGroupAutoOffsetReset.EARLIEST) {
+            throw new InvalidConfigurationException(SHARE_AUTO_OFFSET_RESET_CONFIG + " must be " +
+                ShareGroupAutoOffsetReset.LATEST + " or " + ShareGroupAutoOffsetReset.EARLIEST);
+        }
     }
 
     /**
