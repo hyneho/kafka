@@ -27,6 +27,7 @@ import org.junit.jupiter.params.provider.MethodSource
 
 import java.util
 import java.util.{Collections, Optional, Properties}
+import scala.annotation.nowarn
 import scala.jdk.CollectionConverters._
 
 class ConsumerWithLegacyMessageFormatIntegrationTest extends AbstractConsumerTest {
@@ -38,6 +39,7 @@ class ConsumerWithLegacyMessageFormatIntegrationTest extends AbstractConsumerTes
       properties.put(ReplicationConfigs.INTER_BROKER_PROTOCOL_VERSION_CONFIG, "2.8")
   }
 
+  @nowarn("cat=deprecation")
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testOffsetsForTimes(quorum: String, groupProtocol: String): Unit = {
@@ -114,6 +116,7 @@ class ConsumerWithLegacyMessageFormatIntegrationTest extends AbstractConsumerTes
     assertNull(timestampOffsets.get(new TopicPartition(topic3, 1)))
   }
 
+  @nowarn("cat=deprecation")
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testEarliestOrLatestOffsets(quorum: String, groupProtocol: String): Unit = {
