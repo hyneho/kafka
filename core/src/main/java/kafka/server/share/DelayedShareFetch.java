@@ -85,9 +85,9 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public void onComplete() {
-        log.trace("Completing the delayed share fetch request for group {}, member {}, " +
-                        "topic partitions {}", shareFetchData.groupId(),
-            shareFetchData.memberId(), shareFetchData.partitionMaxBytes().keySet());
+        log.trace("Completing the delayed share fetch request for group {}, member {}, "
+            + "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
+            topicPartitionDataFromTryComplete.keySet());
 
         if (shareFetchData.future().isDone())
             return;
@@ -106,7 +106,7 @@ public class DelayedShareFetch extends DelayedOperation {
             return;
         }
         log.trace("Fetchable share partitions data: {} with groupId: {} fetch params: {}",
-                topicPartitionData, shareFetchData.groupId(), shareFetchData.fetchParams());
+            topicPartitionData, shareFetchData.groupId(), shareFetchData.fetchParams());
 
         try {
             Map<TopicIdPartition, FetchPartitionOffsetData> responseData;
@@ -143,10 +143,6 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public boolean tryComplete() {
-        log.trace("Try to complete the delayed share fetch request for group {}, member {}, topic partitions {}",
-            shareFetchData.groupId(), shareFetchData.memberId(),
-            shareFetchData.partitionMaxBytes().keySet());
-
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = acquirablePartitions();
 
         if (!topicPartitionData.isEmpty()) {
@@ -157,7 +153,13 @@ public class DelayedShareFetch extends DelayedOperation {
                     && fetchOffsetMetadataUpdateResult.replicaManagerReadResponse != null
                     && !fetchOffsetMetadataUpdateResult.replicaManagerReadResponse.isEmpty())
                     logReadResponse = fetchOffsetMetadataUpdateResult.replicaManagerReadResponse;
-                return forceComplete();
+                boolean completedByMe = forceComplete();
+                // If invocation of forceComplete is not successful, then that means the request is already completed
+                // hence release the acquired locks.
+                if (!completedByMe) {
+                    releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
+                }
+                return completedByMe;
             }
             log.debug("minBytes is not satisfied for the share fetch request for group {}, member {}, " +
                 "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
@@ -190,22 +192,28 @@ public class DelayedShareFetch extends DelayedOperation {
             // Add the share partition to the list of partitions to be fetched only if we can
             // acquire the fetch lock on it.
             if (sharePartition.maybeAcquireFetchLock()) {
-                // If the share partition is already at capacity, we should not attempt to fetch.
-                if (sharePartition.canAcquireRecords()) {
-                    topicPartitionData.put(
+                try {
+                    // If the share partition is already at capacity, we should not attempt to fetch.
+                    if (sharePartition.canAcquireRecords()) {
+                        topicPartitionData.put(
                             topicIdPartition,
                             new FetchRequest.PartitionData(
-                                    topicIdPartition.topicId(),
-                                    sharePartition.nextFetchOffset(),
-                                    0,
-                                    partitionMaxBytes,
-                                    Optional.empty()
+                                topicIdPartition.topicId(),
+                                sharePartition.nextFetchOffset(),
+                                0,
+                                partitionMaxBytes,
+                                Optional.empty()
                             )
-                    );
-                } else {
-                    sharePartition.releaseFetchLock();
-                    log.trace("Record lock partition limit exceeded for SharePartition {}, " +
+                        );
+                    } else {
+                        sharePartition.releaseFetchLock();
+                        log.trace("Record lock partition limit exceeded for SharePartition {}, " +
                             "cannot acquire more records", sharePartition);
+                    }
+                } catch (Exception e) {
+                    log.error("Error checking condition for SharePartition: {}", sharePartition, e);
+                    // Release the lock, if error occurred.
+                    sharePartition.releaseFetchLock();
                 }
             }
         });
