@@ -152,7 +152,7 @@ class ReassignPartitionsTest(ProduceConsumeValidateTest):
     )
     def test_reassign_partitions(self, bounce_brokers, reassign_from_offset_zero, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         """Reassign partitions tests.
-        Setup: 1 zk, 4 kafka nodes, 1 topic with partitions=20, replication-factor=3,
+        Setup: 4 kafka nodes, 1 topic with partitions=20, replication-factor=3,
         and min.insync.replicas=3
 
             - Produce messages in the background

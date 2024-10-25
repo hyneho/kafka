@@ -20,7 +20,6 @@ from ducktape.tests.test import Test
 from ducktape.mark.resource import cluster
 
 from kafkatest.services.kafka import config_property
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.log_compaction_tester import LogCompactionTester
 
@@ -31,28 +30,20 @@ class LogCompactionTest(Test):
 
     def __init__(self, test_context):
         super(LogCompactionTest, self).__init__(test_context)
-        self.num_zk = 1
         self.num_brokers = 1
 
-        self.zk = ZookeeperService(test_context, self.num_zk) if quorum.for_test(test_context) == quorum.zk else None
         self.kafka = None
         self.compaction_verifier = None
-
-    def setUp(self):
-        if self.zk:
-            self.zk.start()
 
     def start_kafka(self, security_protocol, interbroker_security_protocol):
         self.kafka = KafkaService(
             self.test_context,
             num_nodes = self.num_brokers,
-            zk = self.zk,
             security_protocol=security_protocol,
             interbroker_security_protocol=interbroker_security_protocol,
             server_prop_overrides=[
                 [config_property.LOG_SEGMENT_BYTES, LogCompactionTest.LOG_SEGMENT_BYTES],
-            ],
-            controller_num_nodes_override=self.num_zk)
+            ])
         self.kafka.start()
 
     def start_test_log_compaction_tool(self, security_protocol):

@@ -20,7 +20,6 @@ from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.kafka import TopicPartition
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.verifiable_consumer import VerifiableConsumer
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.utils import validate_delivery
 
 class EndToEndTest(Test):
@@ -41,9 +40,6 @@ class EndToEndTest(Test):
         self.records_consumed = []
         self.last_consumed_offsets = {}
         
-    def create_zookeeper_if_necessary(self, num_nodes=1, **kwargs):
-        self.zk = ZookeeperService(self.test_context, num_nodes=num_nodes, **kwargs) if quorum.for_test(self.test_context) == quorum.zk else None
-
     def create_kafka(self, num_nodes=1, **kwargs):
         group_metadata_config = {
             "partitions": num_nodes,
@@ -59,8 +55,7 @@ class EndToEndTest(Test):
         if self.topic:
             topics[self.topic] = self.topic_config
 
-        self.kafka = KafkaService(self.test_context, num_nodes=num_nodes,
-                                  zk=self.zk, topics=topics, **kwargs)
+        self.kafka = KafkaService(self.test_context, num_nodes=num_nodes, topics=topics, **kwargs)
 
     def create_consumer(self, num_nodes=1, group_id="test_group", **kwargs):
         self.consumer = VerifiableConsumer(self.test_context,

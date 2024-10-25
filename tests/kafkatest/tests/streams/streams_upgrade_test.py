@@ -143,13 +143,9 @@ class StreamsUpgradeTest(Test):
                        'configs': {"min.insync.replicas": self.isr} }
         }
 
-        # Setup phase
-        self.zk = ZookeeperService(self.test_context, num_nodes=1)
-        self.zk.start()
-
         # number of nodes needs to be >= 3 for the smoke test
         self.kafka = KafkaService(self.test_context, num_nodes=self.num_kafka_nodes,
-                                  zk=self.zk, version=KafkaVersion(from_version), topics=self.topics)
+                                  version=KafkaVersion(from_version), topics=self.topics)
         self.kafka.start()
 
         # allow some time for topics to be created
@@ -305,10 +301,7 @@ class StreamsUpgradeTest(Test):
         self.stop_and_await()
 
     def set_up_services(self):
-        self.zk = ZookeeperService(self.test_context, num_nodes=1)
-        self.zk.start()
-
-        self.kafka = KafkaService(self.test_context, num_nodes=1, zk=self.zk, topics=self.topics)
+        self.kafka = KafkaService(self.test_context, num_nodes=1, topics=self.topics)
         self.kafka.start()
 
         self.driver = StreamsSmokeTestDriverService(self.test_context, self.kafka)

@@ -33,28 +33,22 @@ class ReplicaVerificationToolTest(Test):
     """
     def __init__(self, test_context):
         super(ReplicaVerificationToolTest, self).__init__(test_context)
-        self.num_zk = 1
         self.num_brokers = 2
         self.messages_received_count = 0
         self.topics = {
             TOPIC: {'partitions': 1, 'replication-factor': 2}
         }
 
-        self.zk = ZookeeperService(test_context, self.num_zk) if quorum.for_test(test_context) == quorum.zk else None
         self.kafka = None
         self.producer = None
         self.replica_verifier = None
 
-    def setUp(self):
-        if self.zk:
-            self.zk.start()
-
     def start_kafka(self, security_protocol, interbroker_security_protocol):
         self.kafka = KafkaService(
             self.test_context, self.num_brokers,
-            self.zk, security_protocol=security_protocol,
+            security_protocol=security_protocol,
             interbroker_security_protocol=interbroker_security_protocol, topics=self.topics,
-            controller_num_nodes_override=self.num_zk)
+            controller_num_nodes_override=1)
         self.kafka.start()
 
     def start_replica_verification_tool(self, security_protocol):
