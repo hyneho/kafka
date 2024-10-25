@@ -24,8 +24,8 @@ import org.apache.kafka.common.requests.AllocateProducerIdsRequest;
 import org.apache.kafka.common.requests.AllocateProducerIdsResponse;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.server.common.ControllerRequestCompletionHandler;
-import org.apache.kafka.server.common.ProducerIdsBlock;
 import org.apache.kafka.server.common.NodeToControllerChannelManager;
+import org.apache.kafka.server.common.ProducerIdsBlock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
