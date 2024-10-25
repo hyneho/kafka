@@ -105,6 +105,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -127,6 +128,7 @@ import static org.apache.kafka.clients.consumer.CooperativeStickyAssignor.COOPER
 import static org.apache.kafka.clients.consumer.internals.AbstractStickyAssignor.DEFAULT_GENERATION;
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
+import static org.apache.kafka.common.utils.Utils.sleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -701,18 +703,6 @@ public abstract class ConsumerCoordinatorTest {
         consumerClient.pollNoWakeup();
         assertTrue(asyncCallbackInvoked.get());
         assertEquals(coordinator.inFlightAsyncCommits.get(), 0);
-    }
-
-    @Test
-    public void testReuseRequest() {
-        client.prepareResponse(groupCoordinatorResponse(node, Errors.NONE));
-        coordinator.ensureCoordinatorReady(time.timer(Long.MAX_VALUE));
-
-        Set<TopicPartition> supersetPartition = Set.of(t1p, t2p);
-        Set<TopicPartition> subsetPartition = Set.of(t1p);
-        coordinator.fetchCommittedOffsets(supersetPartition, time.timer(Duration.ZERO));
-        coordinator.fetchCommittedOffsets(subsetPartition, time.timer(Duration.ZERO));
-        assertEquals(1, client.inFlightRequestCount());
     }
 
     @Test
@@ -3125,6 +3115,42 @@ public abstract class ConsumerCoordinatorTest {
         assertTrue(subscriptions.awaitingValidation(t1p));
         assertEquals(subscriptions.position(t1p).offset, 100L);
         assertNull(subscriptions.validPosition(t1p));
+    }
+
+    @Test
+    public void testReuseRequest() {
+        client.prepareResponse(groupCoordinatorResponse(node, Errors.NONE));
+        coordinator.ensureCoordinatorReady(time.timer(Long.MAX_VALUE));
+
+        long offset = 500L;
+        String metadata = "blahblah";
+        Optional<Integer> leaderEpoch = Optional.of(15);
+        OffsetFetchResponse.PartitionData data = new OffsetFetchResponse.PartitionData(offset, leaderEpoch,
+                metadata, Errors.NONE);
+
+        CountDownLatch counter = new CountDownLatch(1);
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        service.execute(() -> {
+            Map<TopicPartition, PartitionData> response = new HashMap<>();
+            response.put(t1p, data);
+            response.put(t2p, data);
+            try {
+                counter.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            sleep(1);
+            client.respond(offsetFetchResponse(Errors.NONE, response));
+        });
+
+        Set<TopicPartition> supersetPartition = Set.of(t1p, t2p);
+        Set<TopicPartition> subsetPartition = Set.of(t1p);
+        Map<TopicPartition, OffsetAndMetadata> supersetFetchedOffsets = coordinator.fetchCommittedOffsets(supersetPartition, time.timer(Duration.ZERO));
+        counter.countDown();
+        Map<TopicPartition, OffsetAndMetadata> subsetFetchedOffsets = coordinator.fetchCommittedOffsets(subsetPartition, time.timer(Duration.ofMillis(3)));
+        assertEquals(1, client.receivedCounter());
+//        assertEquals();
+        System.err.println("kkk " + supersetFetchedOffsets + " llll " + subsetFetchedOffsets);
     }
 
     @Test
