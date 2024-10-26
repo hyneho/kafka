@@ -64,6 +64,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -74,8 +75,9 @@ public class DelayedShareFetchTest {
     private static final int MAX_WAIT_MS = 5000;
     private static final int MAX_FETCH_RECORDS = 100;
     private static final FetchParams FETCH_PARAMS = new FetchParams(ApiKeys.SHARE_FETCH.latestVersion(),
-        FetchRequest.ORDINARY_CONSUMER_ID, -1, 500, 1, 1024 * 1024, FetchIsolation.HIGH_WATERMARK,
+        FetchRequest.ORDINARY_CONSUMER_ID, -1, MAX_WAIT_MS, 1, 1024 * 1024, FetchIsolation.HIGH_WATERMARK,
         Optional.empty(), true);
+
     private Timer mockTimer;
 
     @BeforeEach
@@ -383,6 +385,57 @@ public class DelayedShareFetchTest {
         assertFalse(delayedShareFetch1.isCompleted());
         Mockito.verify(replicaManager, times(1)).addToActionQueue(any());
         Mockito.verify(replicaManager, times(0)).tryCompleteActions();
+    }
+
+    @Test
+    public void testLocksReleasedForCompletedFetch() {
+        String groupId = "grp";
+        TopicIdPartition tp0 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0));
+
+        SharePartition sp0 = mock(SharePartition.class);
+        when(sp0.maybeAcquireFetchLock()).thenReturn(true);
+        when(sp0.canAcquireRecords()).thenReturn(true);
+
+        SharePartitionManager sharePartitionManager1 = mock(SharePartitionManager.class);
+        when(sharePartitionManager1.sharePartition(groupId, tp0)).thenReturn(sp0);
+
+        ShareFetchData shareFetchData = new ShareFetchData(FETCH_PARAMS, groupId, Uuid.randomUuid().toString(),
+            new CompletableFuture<>(), Map.of(tp0, PARTITION_MAX_BYTES), MAX_FETCH_RECORDS);
+
+        DelayedShareFetch delayedShareFetch = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
+            .withShareFetchData(shareFetchData)
+            .withSharePartitionManager(sharePartitionManager1)
+            .build();
+
+        DelayedShareFetch spy = spy(delayedShareFetch);
+        doReturn(false).when(spy).forceComplete();
+
+        assertFalse(spy.tryComplete());
+        Mockito.verify(sp0, times(1)).releaseFetchLock();
+    }
+
+    @Test
+    public void testLocksReleasedAcquireException() {
+        String groupId = "grp";
+        TopicIdPartition tp0 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0));
+
+        SharePartition sp0 = mock(SharePartition.class);
+        when(sp0.maybeAcquireFetchLock()).thenReturn(true);
+        when(sp0.canAcquireRecords()).thenThrow(new RuntimeException("Acquire exception"));
+
+        SharePartitionManager sharePartitionManager1 = mock(SharePartitionManager.class);
+        when(sharePartitionManager1.sharePartition(groupId, tp0)).thenReturn(sp0);
+
+        ShareFetchData shareFetchData = new ShareFetchData(FETCH_PARAMS, groupId, Uuid.randomUuid().toString(),
+            new CompletableFuture<>(), Map.of(tp0, PARTITION_MAX_BYTES), MAX_FETCH_RECORDS);
+
+        DelayedShareFetch delayedShareFetch = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
+            .withShareFetchData(shareFetchData)
+            .withSharePartitionManager(sharePartitionManager1)
+            .build();
+
+        assertFalse(delayedShareFetch.tryComplete());
+        Mockito.verify(sp0, times(1)).releaseFetchLock();
     }
 
     static class DelayedShareFetchBuilder {
