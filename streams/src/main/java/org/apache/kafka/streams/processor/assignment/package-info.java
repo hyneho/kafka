@@ -16,6 +16,6 @@
  */
 
 /**
- * Provides classes and interfaces are used to manage and assign tasks within Kafka Streams applications.
+ * Provides classes and interfaces used to manage and assign tasks within Kafka Streams applications.
  */
 package org.apache.kafka.streams.processor.assignment;

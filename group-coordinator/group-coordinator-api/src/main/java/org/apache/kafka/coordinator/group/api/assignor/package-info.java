@@ -16,6 +16,6 @@
  */
 
 /**
- * Provide the core functionality and metadata management for consumer group partition assignment.
+ * Provides the core functionality and metadata management for consumer group partition assignment.
  */
 package org.apache.kafka.coordinator.group.api.assignor;
