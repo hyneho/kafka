@@ -104,4 +104,13 @@ public final class StructSpec {
     boolean hasKeys() {
         return hasKeys;
     }
+
+    public boolean allExplicitDefaults() {
+        for (FieldSpec field : fields) {
+            if (!field.hasExplicitDefault) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

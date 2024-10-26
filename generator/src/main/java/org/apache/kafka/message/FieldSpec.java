@@ -60,6 +60,8 @@ public final class FieldSpec {
 
     private final boolean zeroCopy;
 
+    public final boolean hasExplicitDefault;
+
     @JsonCreator
     public FieldSpec(@JsonProperty("name") String name,
                      @JsonProperty("versions") String versions,
@@ -97,7 +99,9 @@ public final class FieldSpec {
                 throw new RuntimeException("Type " + this.type + " cannot be nullable.");
             }
         }
-        this.fieldDefault = fieldDefault == null ? "" : fieldDefault;
+
+        this.hasExplicitDefault = (fieldDefault != null);
+        this.fieldDefault = this.hasExplicitDefault ? fieldDefault : "";
         this.ignorable = ignorable;
         this.entityType = (entityType == null) ? EntityType.UNKNOWN : entityType;
         this.entityType.verifyTypeMatches(name, this.type);
@@ -612,7 +616,23 @@ public final class FieldSpec {
                         fieldPrefix, camelCaseName(), fieldPrefix, camelCaseName());
                 }
             }
-        } else if (type().isString() || type().isStruct() || type() instanceof FieldType.UUIDFieldType) {
+        } else if (type().isStruct()) {
+            if (fieldDefault.equals("null")) {
+                buffer.printf("if (%s%s != null) {%n", fieldPrefix, camelCaseName());
+            } else if (nullableVersions.empty()) {
+                StructSpec struct = structRegistry.findStruct(this);
+                if (tag.isPresent() && !struct.allExplicitDefaults()) {
+                    buffer.printf("{%n");
+                } else {
+                    buffer.printf("if (!%s%s.equals(%s)) {%n",
+                            fieldPrefix, camelCaseName(), fieldDefault);
+                }
+            } else {
+                buffer.printf("if (%s%s == null || !%s%s.equals(%s)) {%n",
+                        fieldPrefix, camelCaseName(), fieldPrefix, camelCaseName(),
+                        fieldDefault);
+            }
+        } else if (type().isString() || type() instanceof FieldType.UUIDFieldType) {
             if (fieldDefault.equals("null")) {
                 buffer.printf("if (%s%s != null) {%n", fieldPrefix, camelCaseName());
             } else if (nullableVersions.empty()) {
