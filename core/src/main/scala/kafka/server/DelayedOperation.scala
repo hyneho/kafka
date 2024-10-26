@@ -121,7 +121,7 @@ abstract class DelayedOperation(delayMs: Long,
    */
   private[server] def safeTryComplete(): Boolean = inLock(lock) {
     if (isCompleted)
-      true
+      false
     else
       tryComplete()
   }
