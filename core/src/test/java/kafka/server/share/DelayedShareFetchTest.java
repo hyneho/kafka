@@ -602,23 +602,6 @@ public class DelayedShareFetchTest {
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any(), any());
     }
 
-    static void mockTopicIdPartitionToReturnDataEqualToMinBytes(ReplicaManager replicaManager, TopicIdPartition topicIdPartition, int minBytes) {
-        LogOffsetMetadata hwmOffsetMetadata = new LogOffsetMetadata(1, 1, minBytes);
-        LogOffsetSnapshot endOffsetSnapshot = new LogOffsetSnapshot(1, mock(LogOffsetMetadata.class),
-            hwmOffsetMetadata, mock(LogOffsetMetadata.class));
-        Partition partition = mock(Partition.class);
-        when(partition.fetchOffsetSnapshot(any(), anyBoolean())).thenReturn(endOffsetSnapshot);
-        when(replicaManager.getPartitionOrException(topicIdPartition.topicPartition())).thenReturn(partition);
-    }
-
-    private void mockTopicIdPartitionFetchBytes(ReplicaManager replicaManager, TopicIdPartition topicIdPartition, LogOffsetMetadata hwmOffsetMetadata) {
-        LogOffsetSnapshot endOffsetSnapshot = new LogOffsetSnapshot(1, mock(LogOffsetMetadata.class),
-            hwmOffsetMetadata, mock(LogOffsetMetadata.class));
-        Partition partition = mock(Partition.class);
-        when(partition.fetchOffsetSnapshot(any(), anyBoolean())).thenReturn(endOffsetSnapshot);
-        when(replicaManager.getPartitionOrException(topicIdPartition.topicPartition())).thenReturn(partition);
-    }
-
     @Test
     public void testLocksReleasedForCompletedFetch() {
         String groupId = "grp";
@@ -631,12 +614,16 @@ public class DelayedShareFetchTest {
         SharePartitionManager sharePartitionManager1 = mock(SharePartitionManager.class);
         when(sharePartitionManager1.sharePartition(groupId, tp0)).thenReturn(sp0);
 
+        ReplicaManager replicaManager = mock(ReplicaManager.class);
+        doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp0))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
+
         ShareFetchData shareFetchData = new ShareFetchData(FETCH_PARAMS, groupId, Uuid.randomUuid().toString(),
             new CompletableFuture<>(), Map.of(tp0, PARTITION_MAX_BYTES), MAX_FETCH_RECORDS);
 
         DelayedShareFetch delayedShareFetch = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetchData)
             .withSharePartitionManager(sharePartitionManager1)
+            .withReplicaManager(replicaManager)
             .build();
 
         DelayedShareFetch spy = spy(delayedShareFetch);
@@ -668,6 +655,23 @@ public class DelayedShareFetchTest {
 
         assertFalse(delayedShareFetch.tryComplete());
         Mockito.verify(sp0, times(1)).releaseFetchLock();
+    }
+
+    static void mockTopicIdPartitionToReturnDataEqualToMinBytes(ReplicaManager replicaManager, TopicIdPartition topicIdPartition, int minBytes) {
+        LogOffsetMetadata hwmOffsetMetadata = new LogOffsetMetadata(1, 1, minBytes);
+        LogOffsetSnapshot endOffsetSnapshot = new LogOffsetSnapshot(1, mock(LogOffsetMetadata.class),
+            hwmOffsetMetadata, mock(LogOffsetMetadata.class));
+        Partition partition = mock(Partition.class);
+        when(partition.fetchOffsetSnapshot(any(), anyBoolean())).thenReturn(endOffsetSnapshot);
+        when(replicaManager.getPartitionOrException(topicIdPartition.topicPartition())).thenReturn(partition);
+    }
+
+    private void mockTopicIdPartitionFetchBytes(ReplicaManager replicaManager, TopicIdPartition topicIdPartition, LogOffsetMetadata hwmOffsetMetadata) {
+        LogOffsetSnapshot endOffsetSnapshot = new LogOffsetSnapshot(1, mock(LogOffsetMetadata.class),
+            hwmOffsetMetadata, mock(LogOffsetMetadata.class));
+        Partition partition = mock(Partition.class);
+        when(partition.fetchOffsetSnapshot(any(), anyBoolean())).thenReturn(endOffsetSnapshot);
+        when(replicaManager.getPartitionOrException(topicIdPartition.topicPartition())).thenReturn(partition);
     }
 
     static class DelayedShareFetchBuilder {
