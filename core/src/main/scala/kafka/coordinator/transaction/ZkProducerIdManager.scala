@@ -84,7 +84,7 @@ class ZkProducerIdManager(brokerId: Int, zkClient: KafkaZkClient) extends Produc
     }
   }
 
-  def generateProducerId(): java.lang.Long = {
+  def generateProducerId(): Long = {
     this synchronized {
       // grab a new block of producerIds if this block has been exhausted
       if (nextProducerId > currentProducerIdBlock.lastProducerId) {
