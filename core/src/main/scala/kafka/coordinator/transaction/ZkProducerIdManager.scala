@@ -99,7 +99,4 @@ class ZkProducerIdManager(brokerId: Int, zkClient: KafkaZkClient) extends Produc
       nextProducerId - 1
     }
   }
-
-  override def shutdown(): Unit = {
-  }
 }

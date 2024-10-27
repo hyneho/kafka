@@ -106,11 +106,6 @@ public class RPCProducerIdManager implements ProducerIdManager {
         throw Errors.COORDINATOR_LOAD_IN_PROGRESS.exception("Producer ID block is full. Waiting for next block");
     }
 
-    @Override
-    public void shutdown() {
-        
-    }
-
     private void maybeRequestNextBlock() {
         var retryTimestamp = backoffDeadlineMs.get();
         if (retryTimestamp == NO_RETRY || time.milliseconds() >= retryTimestamp) {

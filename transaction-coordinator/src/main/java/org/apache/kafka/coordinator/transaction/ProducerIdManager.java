@@ -33,8 +33,6 @@ public interface ProducerIdManager {
 
     long generateProducerId() throws Exception;
 
-    void shutdown();
-
     static ProducerIdManager rpc(int brokerId,
                                  Time time,
                                  Supplier<Long> brokerEpochSupplier,
