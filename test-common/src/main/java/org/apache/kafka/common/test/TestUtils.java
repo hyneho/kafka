@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.common.test;
 
-import kafka.log.UnifiedLog;
 import kafka.server.KafkaBroker;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -34,7 +33,6 @@ import org.apache.kafka.common.record.SimpleRecord;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Utils;
-import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpointFile;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,19 +41,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import scala.jdk.javaapi.CollectionConverters;
 import scala.jdk.javaapi.OptionConverters;
 
 import static java.lang.String.format;
@@ -211,124 +204,45 @@ public class TestUtils {
             RecordBatch.NO_PARTITION_LEADER_EPOCH);
     }
 
-    public static <B extends KafkaBroker> void verifyTopicDeletion(String topic,
-                                                                   int numPartitions,
-                                                                   Collection<B> brokers) throws Exception {
-        List<TopicPartition> topicPartitions = IntStream.range(0, numPartitions)
-            .mapToObj(partition -> new TopicPartition(topic, partition))
-            .collect(Collectors.toList());
-
-        // Ensure that the topic-partition has been deleted from all brokers' replica managers
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                topicPartitions.stream().allMatch(tp -> broker.replicaManager().onlinePartition(tp).isEmpty())),
-            "Replica manager's should have deleted all of this topic's partitions");
-
-        // Ensure that logs from all replicas are deleted
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                topicPartitions.stream().allMatch(tp -> broker.logManager().getLog(tp, false).isEmpty())),
-            "Replica logs not deleted after delete topic is complete");
-
-        // Ensure that the topic is removed from all cleaner offsets
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                topicPartitions.stream().allMatch(tp -> {
-                    List<File> liveLogDirs = CollectionConverters.asJava(broker.logManager().liveLogDirs());
-                    return liveLogDirs.stream().allMatch(logDir -> {
-                        OffsetCheckpointFile checkpointFile;
-                        try {
-                            checkpointFile = new OffsetCheckpointFile(new File(logDir, "cleaner-offset-checkpoint"), null);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                        return !checkpointFile.read().containsKey(tp);
-                    });
-                })),
-            "Cleaner offset for deleted partition should have been removed");
-
-        // Ensure that the topic directories are soft-deleted
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                CollectionConverters.asJava(broker.config().logDirs()).stream().allMatch(logDir ->
-                    topicPartitions.stream().noneMatch(tp ->
-                        new File(logDir, tp.topic() + "-" + tp.partition()).exists()))),
-            "Failed to soft-delete the data to a delete directory");
-
-        // Ensure that the topic directories are hard-deleted
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-            CollectionConverters.asJava(broker.config().logDirs()).stream().allMatch(logDir ->
-                topicPartitions.stream().allMatch(tp ->
-                    Arrays.stream(Objects.requireNonNull(new File(logDir).list())).noneMatch(partitionDirectoryName ->
-                        partitionDirectoryName.startsWith(tp.topic() + "-" + tp.partition()) &&
-                            partitionDirectoryName.endsWith(UnifiedLog.DeleteDirSuffix())))
-            )
-        ), "Failed to hard-delete the delete directory");
-    }
-
     public static int waitUntilLeaderIsElectedOrChangedWithAdmin(Admin admin,
                                                                  String topic,
                                                                  int partitionNumber,
-                                                                 long timeoutMs,
-                                                                 Optional<Integer> oldLeaderOpt,
-                                                                 Optional<Integer> newLeaderOpt) throws Exception {
-        if (oldLeaderOpt.isPresent() && newLeaderOpt.isPresent()) {
-            throw new IllegalArgumentException("Can't define both the old and the new leader");
-        }
+                                                                 long timeoutMs) throws Exception {
+        GetPartitionLeader getPartitionLeader = (t, p) -> Optional.ofNullable(getLeaderFromAdmin(admin, t, p));
+        return doWaitUntilLeaderIsElectedOrChanged(getPartitionLeader, topic, partitionNumber, timeoutMs);
+    }
 
-        GetPartitionLeader getPartitionLeader = (t, p) -> {
-            TopicDescription topicDescription = admin.describeTopics(Collections.singletonList(t)).allTopicNames().get().get(t);
-            return topicDescription.partitions().stream()
-                    .filter(partitionInfo -> partitionInfo.partition() == p)
-                    .findFirst()
-                    .map(partitionInfo -> partitionInfo.leader().id() == Node.noNode().id() ? null : partitionInfo.leader().id());
-        };
-
-        return doWaitUntilLeaderIsElectedOrChanged(getPartitionLeader, topic, partitionNumber, timeoutMs, oldLeaderOpt, newLeaderOpt);
+    private static Integer getLeaderFromAdmin(Admin admin, String topic, int partition) throws Exception {
+        TopicDescription topicDescription = admin.describeTopics(Collections.singletonList(topic)).allTopicNames().get().get(topic);
+        return topicDescription.partitions().stream()
+            .filter(partitionInfo -> partitionInfo.partition() == partition)
+            .findFirst()
+            .map(partitionInfo -> partitionInfo.leader().id() == Node.noNode().id() ? null : partitionInfo.leader().id())
+            .orElse(null);
     }
 
     private static int doWaitUntilLeaderIsElectedOrChanged(GetPartitionLeader getPartitionLeader,
                                                            String topic,
                                                            int partition,
-                                                           long timeoutMs,
-                                                           Optional<Integer> oldLeaderOpt,
-                                                           Optional<Integer> newLeaderOpt) throws Exception {
+                                                           long timeoutMs) throws Exception {
         long startTime = System.currentTimeMillis();
         TopicPartition topicPartition = new TopicPartition(topic, partition);
+        Optional<Integer> electedLeader = Optional.empty();
 
-        log.trace("Waiting for leader to be elected or changed for partition {}, old leader is {}, new leader is {}",
-            topicPartition, oldLeaderOpt, newLeaderOpt);
-
-        Optional<Integer> leader = Optional.empty();
-        Optional<Integer> electedOrChangedLeader = Optional.empty();
-
-        while (electedOrChangedLeader.isEmpty() && System.currentTimeMillis() < startTime + timeoutMs) {
-            // Check if the leader is elected
-            leader = getPartitionLeader.getPartitionLeader(topic, partition);
+        while (electedLeader.isEmpty() && System.currentTimeMillis() < startTime + timeoutMs) {
+            Optional<Integer> leader = getPartitionLeader.getPartitionLeader(topic, partition);
             if (leader.isPresent()) {
-                int leaderPartitionId = leader.get();
-                if (newLeaderOpt.isPresent() && newLeaderOpt.get() == leaderPartitionId) {
-                    log.trace("Expected new leader {} is elected for partition {}", leaderPartitionId, topicPartition);
-                    electedOrChangedLeader = leader;
-                } else if (oldLeaderOpt.isPresent() && oldLeaderOpt.get() != leaderPartitionId) {
-                    log.trace("Leader for partition {} is changed from {} to {}", topicPartition, oldLeaderOpt.get(), leaderPartitionId);
-                    electedOrChangedLeader = leader;
-                } else if (newLeaderOpt.isEmpty() && oldLeaderOpt.isEmpty()) {
-                    log.trace("Leader {} is elected for partition {}", leaderPartitionId, topicPartition);
-                    electedOrChangedLeader = leader;
-                } else {
-                    log.trace("Current leader for partition {} is {}", topicPartition, leaderPartitionId);
-                }
+                log.trace("Leader {} is elected for partition {}", leader.get(), topicPartition);
+                electedLeader = leader;
             } else {
                 log.trace("Leader for partition {} is not elected yet", topicPartition);
             }
             Thread.sleep(Math.min(timeoutMs, 100L));
         }
 
-        Optional<Integer> finalLeader = leader;
-        return electedOrChangedLeader.orElseThrow(() -> {
-            String errorMessage;
-            errorMessage = newLeaderOpt.map(integer -> "Timing out after " + timeoutMs + " ms since expected new leader " + integer +
-                " was not elected for partition " + topicPartition + ", leader is " + finalLeader).orElseGet(() -> oldLeaderOpt.map(integer -> "Timing out after " + timeoutMs + " ms since a new leader that is different from " + integer +
-                " was not elected for partition " + topicPartition + ", leader is " + finalLeader).orElseGet(() -> "Timing out after " + timeoutMs + " ms since a leader was not elected for partition " + topicPartition));
-            return new AssertionError(errorMessage);
-        });
+        Optional<Integer> finalLeader = electedLeader;
+        return electedLeader.orElseThrow(() -> new AssertionError("Timing out after " + timeoutMs
+            + " ms since a leader was not elected for partition " + topicPartition + ", leader is " + finalLeader));
     }
 
     public static <B extends KafkaBroker> Map<TopicPartition, UpdateMetadataPartitionState> waitForAllPartitionsMetadata(
