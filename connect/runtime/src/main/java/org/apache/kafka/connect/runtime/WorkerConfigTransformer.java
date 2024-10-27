@@ -131,18 +131,12 @@ public class WorkerConfigTransformer implements AutoCloseable {
                 previousRequest.cancel();
             }
             log.info("Scheduling a restart of connector {} in {} ms", connectorName, ttl);
-            FutureCallback<ConnectorStateInfo> cb = new FutureCallback<>();
-            //TODO: Check a best way to add this error message
-            //TODO: Why callback for connector is void but for connector and tasks it's callback with connector state info?
-            //Callback<Void> cb = (error, result) -> {
-            //    if (error != null) {
-            //        log.error("Unexpected error during connector restart: ", error);
-            //    }
-            //};
-            //TODO: Check if doing this in Standalone also makes sense?
-            RestartRequest restartRequest = new RestartRequest(connectorName, false, false);
-            worker.herder().restartConnectorAndTasks(ttl, restartRequest, cb);
-            return null;
+            Callback<Void> cb = (error, result) -> {
+                if (error != null) {
+                    log.error("Unexpected error during connector restart: ", error);
+                }
+            };
+            return worker.herder().restartConnector(ttl, connectorName, cb);
         });
     }
 
