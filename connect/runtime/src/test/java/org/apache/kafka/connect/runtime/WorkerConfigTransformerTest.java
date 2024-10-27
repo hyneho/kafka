@@ -19,6 +19,7 @@ package org.apache.kafka.connect.runtime;
 import org.apache.kafka.common.config.ConfigData;
 import org.apache.kafka.common.config.provider.ConfigProvider;
 
+import org.apache.kafka.connect.util.ConnectorTaskId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,9 +46,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.STRICT_STUBS)
 public class WorkerConfigTransformerTest {
-
-    public static final String MY_KEY = "myKey";
+ public static final String MY_KEY = "myKey";
     public static final String MY_CONNECTOR = "myConnector";
+    public static final ConnectorTaskId MY_TASK = new ConnectorTaskId(MY_CONNECTOR, 0);
     public static final String TEST_KEY = "testKey";
     public static final String TEST_PATH = "testPath";
     public static final String TEST_KEY_WITH_TTL = "testKeyWithTTL";
@@ -79,12 +80,33 @@ public class WorkerConfigTransformerTest {
     }
 
     @Test
+    public void taskTestReplaceVariable() {
+        // Execution
+        Map<String, String> result = configTransformer.transform(MY_TASK, Collections.singletonMap(MY_KEY, "${test:testPath:testKey}"));
+
+        // Assertions
+        assertEquals(TEST_RESULT, result.get(MY_KEY));
+    }
+
+    @Test
     public void testReplaceVariableWithTTL() {
         // Execution
         Map<String, String> props = new HashMap<>();
         props.put(MY_KEY, "${test:testPath:testKeyWithTTL}");
         props.put(CONFIG_RELOAD_ACTION_CONFIG, CONFIG_RELOAD_ACTION_NONE);
         Map<String, String> result = configTransformer.transform(MY_CONNECTOR, props);
+
+        // Assertions
+        assertEquals(TEST_RESULT_WITH_TTL, result.get(MY_KEY));
+    }
+
+    @Test
+    public void taskTestReplaceVariableWithTTL() {
+        // Execution
+        Map<String, String> props = new HashMap<>();
+        props.put(MY_KEY, "${test:testPath:testKeyWithTTL}");
+        props.put(CONFIG_RELOAD_ACTION_CONFIG, CONFIG_RELOAD_ACTION_NONE);
+        Map<String, String> result = configTransformer.transform(MY_TASK, props);
 
         // Assertions
         assertEquals(TEST_RESULT_WITH_TTL, result.get(MY_KEY));
@@ -102,6 +124,20 @@ public class WorkerConfigTransformerTest {
         // Assertions
         assertEquals(TEST_RESULT_WITH_TTL, result.get(MY_KEY));
         verify(herder).restartConnector(eq(1L), eq(MY_CONNECTOR), notNull());
+    }
+
+    @Test
+    public void taskTestReplaceVariableWithTTLAndScheduleRestart() {
+        // Setup
+        when(worker.herder()).thenReturn(herder);
+        when(herder.restartTask(eq(1L), eq(MY_TASK), notNull())).thenReturn(requestId);
+
+        // Execution
+        Map<String, String> result = configTransformer.transform(MY_TASK, Collections.singletonMap(MY_KEY, "${test:testPath:testKeyWithTTL}"));
+
+        // Assertions
+        assertEquals(TEST_RESULT_WITH_TTL, result.get(MY_KEY));
+        verify(herder).restartTask(eq(1L), eq(MY_TASK), notNull());
     }
 
     @Test
@@ -128,8 +164,36 @@ public class WorkerConfigTransformerTest {
     }
 
     @Test
+    public void taskTestReplaceVariableWithTTLFirstCancelThenScheduleRestart() {
+        // Setup
+        when(worker.herder()).thenReturn(herder);
+        when(herder.restartTask(eq(1L), eq(MY_TASK), notNull())).thenReturn(requestId);
+        when(herder.restartTask(eq(10L), eq(MY_TASK), notNull())).thenReturn(requestId);
+
+        // Execution
+        Map<String, String> result = configTransformer.transform(MY_TASK, Collections.singletonMap(MY_KEY, "${test:testPath:testKeyWithTTL}"));
+
+        // Assertions
+        assertEquals(TEST_RESULT_WITH_TTL, result.get(MY_KEY));
+        verify(herder).restartTask(eq(1L), eq(MY_TASK), notNull());
+
+        // Execution
+        result = configTransformer.transform(MY_TASK, Collections.singletonMap(MY_KEY, "${test:testPath:testKeyWithLongerTTL}"));
+
+        // Assertions
+        assertEquals(TEST_RESULT_WITH_LONGER_TTL, result.get(MY_KEY));
+        verify(requestId, times(1)).cancel();
+        verify(herder).restartTask(eq(10L), eq(MY_TASK), notNull());
+    }
+
+    @Test
     public void testTransformNullConfiguration() {
         assertNull(configTransformer.transform(MY_CONNECTOR, null));
+    }
+
+    @Test
+    public void taskTestTransformNullConfiguration() {
+        assertNull(configTransformer.transform(MY_TASK, null));
     }
 
     public static class TestConfigProvider implements ConfigProvider {
@@ -151,6 +215,7 @@ public class WorkerConfigTransformerTest {
                 } else if (keys.contains(TEST_KEY_WITH_TTL)) {
                     return new ConfigData(Collections.singletonMap(TEST_KEY_WITH_TTL, TEST_RESULT_WITH_TTL), 1L);
                 } else if (keys.contains(TEST_KEY_WITH_LONGER_TTL)) {
+                    //What is the purpose of longer TTL?
                     return new ConfigData(Collections.singletonMap(TEST_KEY_WITH_LONGER_TTL, TEST_RESULT_WITH_LONGER_TTL), 10L);
                 }
             }

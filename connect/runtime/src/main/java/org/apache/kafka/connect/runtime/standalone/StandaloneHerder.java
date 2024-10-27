@@ -24,6 +24,7 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.NotFoundException;
 import org.apache.kafka.connect.runtime.AbstractHerder;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
+import org.apache.kafka.connect.runtime.Herder;
 import org.apache.kafka.connect.runtime.HerderConnectorContext;
 import org.apache.kafka.connect.runtime.HerderRequest;
 import org.apache.kafka.connect.runtime.RestartPlan;
@@ -344,6 +345,14 @@ public class StandaloneHerder extends AbstractHerder {
             cb.onCompletion(null, null);
         else
             cb.onCompletion(new ConnectException("Failed to start task: " + taskId), null);
+    }
+
+    @Override
+    public synchronized HerderRequest restartTask(long delayMs, ConnectorTaskId taskId, Callback<Void> cb) {
+        ScheduledFuture<?> future = requestExecutorService.schedule(
+                () -> restartTask(taskId, cb), delayMs, TimeUnit.MILLISECONDS);
+
+        return new StandaloneHerderRequest(requestSeqNum.incrementAndGet(), future);
     }
 
     @Override
