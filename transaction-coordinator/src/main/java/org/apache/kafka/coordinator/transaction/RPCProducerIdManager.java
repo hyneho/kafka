@@ -35,13 +35,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+/**
+ * RPCProducerIdManager allocates producer id blocks asynchronously and will immediately fail requests
+ * for producers to retry if it does not have an available producer id and is waiting on a new block.
+ */
 public class RPCProducerIdManager implements ProducerIdManager {
 
-    public static final int RETRY_BACKOFF_MS = 50;
+    static final int RETRY_BACKOFF_MS = 50;
     // Once we reach this percentage of PIDs consumed from the current block, trigger a fetch of the next block
-    protected static final double PID_PREFETCH_THRESHOLD = 0.90;
-    protected static final int ITERATION_LIMIT = 3;
-    protected static final long NO_RETRY = -1L;
+    private static final double PID_PREFETCH_THRESHOLD = 0.90;
+    private static final int ITERATION_LIMIT = 3;
+    private static final long NO_RETRY = -1L;
 
     private static final Logger log = LoggerFactory.getLogger(RPCProducerIdManager.class);
     private final String logPrefix;
@@ -71,17 +75,17 @@ public class RPCProducerIdManager implements ProducerIdManager {
 
 
     @Override
-    public Long generateProducerId() {
+    public long generateProducerId() {
         var iteration = 0;
         while (iteration <= ITERATION_LIMIT) {
             var claimNextId = currentProducerIdBlock.get().claimNextId();
             if (claimNextId.isPresent()) {
-                var nextProducerId = claimNextId.get();
+                long nextProducerId = claimNextId.get();
                 // Check if we need to prefetch the next block
                 var prefetchTarget = currentProducerIdBlock.get().firstProducerId() +
                         (long) (currentProducerIdBlock.get().size() * PID_PREFETCH_THRESHOLD);
                 if (nextProducerId == prefetchTarget) {
-                    maybePrefetchNextBlock();
+                    maybeRequestNextBlock();
                 }
                 return nextProducerId;
             } else {
@@ -107,20 +111,6 @@ public class RPCProducerIdManager implements ProducerIdManager {
         
     }
 
-    private void maybePrefetchNextBlock() {
-        var retryTimestamp = backoffDeadlineMs.get();
-        if (retryTimestamp == NO_RETRY || time.milliseconds() >= retryTimestamp) {
-            // Send a request only if we reached the retry deadline, or if no deadline was set.
-            if (nextProducerIdBlock.get() == null &&
-                    requestInFlight.compareAndSet(false, true)) {
-                backoffDeadlineMs.set(NO_RETRY);
-                sendRequest();
-                // Reset backoff after a successful send.
-                backoffDeadlineMs.set(NO_RETRY);
-            }
-        }
-    }
-
     private void maybeRequestNextBlock() {
         var retryTimestamp = backoffDeadlineMs.get();
         if (retryTimestamp == NO_RETRY || time.milliseconds() >= retryTimestamp) {
@@ -139,6 +129,7 @@ public class RPCProducerIdManager implements ProducerIdManager {
                 .setBrokerEpoch(brokerEpochSupplier.get())
                 .setBrokerId(brokerId);
         var request = new AllocateProducerIdsRequest.Builder(message);
+        log.debug("{} Requesting next Producer ID block", logPrefix);
         controllerChannel.sendRequest(request, new ControllerRequestCompletionHandler() {
 
             @Override
@@ -150,7 +141,8 @@ public class RPCProducerIdManager implements ProducerIdManager {
 
             @Override
             public void onTimeout() {
-                handleTimeout();
+                log.warn("{} Timed out when requesting AllocateProducerIds from the controller.", logPrefix);
+                requestInFlight.set(false);
             }
         });
     }
@@ -191,10 +183,5 @@ public class RPCProducerIdManager implements ProducerIdManager {
             return true;
         }
         return false;
-    }
-
-    private void handleTimeout() {
-        log.warn("{} Timed out when requesting AllocateProducerIds from the controller.", logPrefix);
-        requestInFlight.set(false);
     }
 }

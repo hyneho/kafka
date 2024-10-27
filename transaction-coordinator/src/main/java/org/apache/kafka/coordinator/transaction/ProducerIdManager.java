@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  */
 public interface ProducerIdManager {
 
-    Long generateProducerId() throws Exception;
+    long generateProducerId() throws Exception;
 
     void shutdown();
 
