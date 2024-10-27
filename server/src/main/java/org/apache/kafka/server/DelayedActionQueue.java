@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * we add those actions to this queue and then complete them at the end of KafkaApis.handle() or DelayedJoin.onExpiration.
  */
 public class DelayedActionQueue implements ActionQueue {
-    private static final Logger logger = LoggerFactory.getLogger(DelayedActionQueue.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(DelayedActionQueue.class);
     private final ConcurrentLinkedQueue<Runnable> queue = new ConcurrentLinkedQueue<>();
 
     @Override
@@ -44,7 +44,7 @@ public class DelayedActionQueue implements ActionQueue {
                 if (action == null) return;
                 action.run();
             } catch (Throwable e) {
-                logger.error("failed to complete delayed actions", e);
+                LOGGER.error("failed to complete delayed actions", e);
             }
         }
     }
