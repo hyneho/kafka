@@ -790,6 +790,12 @@ public class SharePartition {
         } finally {
             lock.writeLock().unlock();
         }
+
+        if (!stateBatches.isEmpty()) {
+            // The next fetch offset will change on release of acquired records on session close, hence we update latestFetchOffsetMetadata
+            // for the share partition.
+            updateLatestFetchOffsetMetadata(null);
+        }
         return future;
     }
 
@@ -1532,7 +1538,6 @@ public class SharePartition {
         return Optional.empty();
     }
 
-    // The caller of this method should ensure that the share partition fetch lock is acquired prior invoking this method.
     protected void updateLatestFetchOffsetMetadata(LogOffsetMetadata fetchOffsetMetadata) {
         lock.writeLock().lock();
         try {
@@ -1922,6 +1927,9 @@ public class SharePartition {
 
         // Skip null check for stateBatches, it should always be initialized if reached here.
         if (!stateBatches.isEmpty()) {
+            // The next fetch offset changes on acquisition lock timeout, hence we update latestFetchOffsetMetadata for the
+            // share partition.
+            updateLatestFetchOffsetMetadata(null);
             // If we have an acquisition lock timeout for a share-partition, then we should check if
             // there is a pending share fetch request for the share-partition and complete it.
             DelayedShareFetchKey delayedShareFetchKey = new DelayedShareFetchGroupKey(groupId, topicIdPartition.topicId(), topicIdPartition.partition());

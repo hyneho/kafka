@@ -116,8 +116,13 @@ public class DelayedShareFetch extends DelayedOperation {
                 // There can't be a case when we have a non-empty logReadResponse, and we have a fresh topicPartitionData
                 // using tryComplete because purgatory ensures that 2 tryCompletes calls do not happen at the same time.
                 responseData = combineLogReadResponse(topicPartitionData);
+
+            Map<TopicIdPartition, FetchPartitionData> fetchPartitionsData = new LinkedHashMap<>();
+            for (Map.Entry<TopicIdPartition, FetchPartitionOffsetData> entry : responseData.entrySet())
+                fetchPartitionsData.put(entry.getKey(), entry.getValue().fetchPartitionData());
+
             Map<TopicIdPartition, ShareFetchResponseData.PartitionData> result =
-                ShareFetchUtils.processFetchResponse(shareFetchData, responseData, sharePartitionManager, replicaManager);
+                ShareFetchUtils.processFetchResponse(shareFetchData, fetchPartitionsData, sharePartitionManager, replicaManager);
             shareFetchData.future().complete(result);
         } catch (Exception e) {
             log.error("Error processing delayed share fetch request", e);
