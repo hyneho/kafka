@@ -814,7 +814,6 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
     info("Shutting down.")
     isActive.set(false)
     scheduler.shutdown()
-    producerIdManager.shutdown()
     txnManager.shutdown()
     txnMarkerChannelManager.shutdown()
     info("Shutdown complete.")
