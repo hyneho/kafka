@@ -23,7 +23,6 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -128,5 +127,12 @@ public class ProducerConfigTest {
         configs.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, saslSslLowerCase);
         final ProducerConfig producerConfig = new ProducerConfig(configs);
         assertEquals(saslSslLowerCase, producerConfig.originals().get(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG));
+    }
+
+    @Test
+    public void testToHtml() {
+        String html = ProducerConfig.configDef().toHtml(4, config -> "producerconfigs_" + config);
+        String expectedConfig = "<h4><a id=\"linger.ms\"></a><a id=\"producerconfigs_linger.ms\" href=\"#producerconfigs_linger.ms\">linger.ms</a></h4>";
+        assertTrue(html.contains(expectedConfig), "Could not find `" + expectedConfig + "` in:\n" + html);
     }
 }

@@ -31,7 +31,6 @@ import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.utils.Utils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -647,9 +646,4 @@ public class ProducerConfig extends AbstractConfig {
     public static ConfigDef configDef() {
         return new ConfigDef(CONFIG);
     }
-
-    public static void main(String[] args) {
-        System.out.println(CONFIG.toHtml(4, config -> "producerconfigs_" + config));
-    }
-
 }
