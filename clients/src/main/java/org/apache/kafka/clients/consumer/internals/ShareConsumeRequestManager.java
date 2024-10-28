@@ -1244,7 +1244,7 @@ public class ShareConsumeRequestManager implements RequestManager, MemberStateLi
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             IdAndPartition that = (IdAndPartition) o;
-            return topicId == that.topicId &&
+            return Objects.equals(topicId, that.topicId) &&
                     partitionIndex == that.partitionIndex;
         }
     }
