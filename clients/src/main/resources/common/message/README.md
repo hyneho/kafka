@@ -139,6 +139,23 @@ breaking compatibility.
 
 Note that tagged fields can only be added to "flexible" message versions.
 
+**Default Value Handling for Tagged Fields**
+
+In Kafka's serialization mechanism, when a tagged field is present, it may be omitted 
+from the serialized message if all of its associated fields are equal to their default 
+values. This behavior helps to optimize message size by avoiding the transmission of 
+redundant data.
+
+* Explicit Defaults: If a tagged field has explicit default values declared for all of 
+  its subfields, it will not be serialized if these fields match their default values.
+* Implicit Defaults: If a tagged field does not declare explicit defaults for all of its 
+  subfields, the fields without explicit defaults are treated according to the defined schema. 
+  This can potentially result in the serialization of the tagged field, even when its subfields 
+  contain values that would typically be considered as defaults.
+
+As of version 3.9.0, this behavior has been clarified, and further enhancements to the API design 
+may be proposed to improve the handling of default values in nested tagged fields.
+
 Flexible Versions
 -----------------
 Kafka serialization has been improved over time to be more flexible and
