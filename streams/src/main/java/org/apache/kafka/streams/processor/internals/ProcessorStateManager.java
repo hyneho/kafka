@@ -228,14 +228,13 @@ public class ProcessorStateManager implements StateManager {
      * they're assigned to a thread. When the task is assigned to a thread, the initialization of this StateManager is
      * completed in {@link #assignToStreamThread(LogContext, ChangelogRegister, Collection)}.
      */
-    ProcessorStateManager(final TaskId taskId,
-                          final TaskType taskType,
-                          final boolean eosEnabled,
-                          final LogContext logContext,
-                          final StateDirectory stateDirectory,
-                          final Map<String, String> storeToChangelogTopic,
-                          final boolean stateUpdaterEnabled) {
-        this(taskId, taskType, eosEnabled, logContext, stateDirectory, null, storeToChangelogTopic, new HashSet<>(0), stateUpdaterEnabled);
+    static ProcessorStateManager createStartupTaskStateManager(final TaskId taskId,
+                                                               final boolean eosEnabled,
+                                                               final LogContext logContext,
+                                                               final StateDirectory stateDirectory,
+                                                               final Map<String, String> storeToChangelogTopic,
+                                                               final boolean stateUpdaterEnabled) {
+        return new ProcessorStateManager(taskId, TaskType.STANDBY, eosEnabled, logContext, stateDirectory, null, storeToChangelogTopic, new HashSet<>(0), stateUpdaterEnabled);
     }
 
     /**

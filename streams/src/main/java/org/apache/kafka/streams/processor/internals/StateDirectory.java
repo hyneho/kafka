@@ -215,9 +215,8 @@ public class StateDirectory implements AutoCloseable {
                 // because it's possible that the topology has changed since that data was written, and is now stateless
                 // this therefore prevents us from creating unnecessary Tasks just because of some left-over state
                 if (subTopology.hasStateWithChangelogs()) {
-                    final ProcessorStateManager stateManager = new ProcessorStateManager(
+                    final ProcessorStateManager stateManager = ProcessorStateManager.createStartupTaskStateManager(
                         id,
-                        Task.TaskType.STANDBY,
                         eosEnabled,
                         logContext,
                         this,
