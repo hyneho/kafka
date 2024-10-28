@@ -23,8 +23,10 @@ import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.FencedStateEpochException;
+import org.apache.kafka.common.errors.GroupIdNotFoundException;
 import org.apache.kafka.common.errors.LeaderNotAvailableException;
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.message.ShareAcknowledgeResponseData;
 import org.apache.kafka.common.message.ShareFetchResponseData.PartitionData;
 import org.apache.kafka.common.metrics.Metrics;
@@ -569,49 +571,65 @@ public class SharePartitionManager implements AutoCloseable {
             return;
         }
 
-        try {
-            shareFetchData.partitionMaxBytes().keySet().forEach(topicIdPartition -> {
-                SharePartitionKey sharePartitionKey = sharePartitionKey(
-                    shareFetchData.groupId(),
-                    topicIdPartition
-                );
-                SharePartition sharePartition = getOrCreateSharePartition(sharePartitionKey);
+        // Initialize lazily, if required.
+        Map<TopicIdPartition, Throwable> erroneous = null;
+        Set<DelayedShareFetchKey> delayedShareFetchWatchKeys = new HashSet<>();
+        for (TopicIdPartition topicIdPartition : shareFetchData.partitionMaxBytes().keySet()) {
+            SharePartitionKey sharePartitionKey = sharePartitionKey(
+                shareFetchData.groupId(),
+                topicIdPartition
+            );
 
-                // The share partition is initialized asynchronously, so we need to wait for it to be initialized.
-                // But if the share partition is already initialized, then the future will be completed immediately.
-                // Hence, it's safe to call the maybeInitialize method and then wait for the future to be completed.
-                // TopicPartitionData list will be populated only if the share partition is already initialized.
-                sharePartition.maybeInitialize().whenComplete((result, throwable) -> {
-                    if (throwable != null) {
-                        maybeCompleteInitializationWithException(sharePartitionKey, shareFetchData.future(), topicIdPartition, throwable);
-                    }
-                });
+            SharePartition sharePartition;
+            try {
+                sharePartition = getOrCreateSharePartition(sharePartitionKey);
+            } catch (Exception e) {
+                // Complete the whole fetch request with an exception if there is an error processing.
+                // The exception currently can be thrown only if there is an error while initializing
+                // the share partition. But skip the processing for other share partitions in the request
+                // as this situation is not expected.
+                log.error("Error processing share fetch request", e);
+                if (erroneous == null) {
+                    erroneous = new HashMap<>();
+                }
+                erroneous.put(topicIdPartition, e);
+                // Continue iteration for other partitions in the request.
+                continue;
+            }
+
+            // We add a key corresponding to each share partition in the request in the group so that when there are
+            // acknowledgements/acquisition lock timeout etc., we have a way to perform checkAndComplete for all
+            // such requests which are delayed because of lack of data to acquire for the share partition.
+            delayedShareFetchWatchKeys.add(new DelayedShareFetchGroupKey(shareFetchData.groupId(), topicIdPartition.topicId(), topicIdPartition.partition()));
+            // We add a key corresponding to each topic partition in the request so that when the HWM is updated
+            // for any topic partition, we have a way to perform checkAndComplete for all such requests which are
+            // delayed because of lack of data to acquire for the topic partition.
+            delayedShareFetchWatchKeys.add(new DelayedShareFetchPartitionKey(topicIdPartition.topicId(), topicIdPartition.partition()));
+            // The share partition is initialized asynchronously, so we need to wait for it to be initialized.
+            // But if the share partition is already initialized, then the future will be completed immediately.
+            // Hence, it's safe to call the maybeInitialize method and then wait for the future to be completed.
+            // TopicPartitionData list will be populated only if the share partition is already initialized.
+            sharePartition.maybeInitialize().whenComplete((result, throwable) -> {
+                if (throwable != null) {
+                    // TODO: Complete error handling for initialization. We have to record the error
+                    //  for respective share partition as completing the full request might result in
+                    //  some acquired records to not being sent: https://issues.apache.org/jira/browse/KAFKA-17510
+                    maybeCompleteInitializationWithException(sharePartitionKey, shareFetchData.future(), throwable);
+                }
             });
-
-            Set<DelayedShareFetchKey> delayedShareFetchWatchKeys = new HashSet<>();
-            shareFetchData.partitionMaxBytes().keySet().forEach(
-                topicIdPartition -> {
-                    // We add a key corresponding to each share partition in the request in the group so that when there are
-                    // acknowledgements/acquisition lock timeout etc, we have a way to perform checkAndComplete for all
-                    // such requests which are delayed because of lack of data to acquire for the share partition.
-                    delayedShareFetchWatchKeys.add(new DelayedShareFetchGroupKey(shareFetchData.groupId(), topicIdPartition.topicId(), topicIdPartition.partition()));
-                    // We add a key corresponding to each topic partition in the request so that when the HWM is updated
-                    // for any topic partition, we have a way to perform checkAndComplete for all such requests which are
-                    // delayed because of lack of data to acquire for the topic partition.
-                    delayedShareFetchWatchKeys.add(new DelayedShareFetchPartitionKey(topicIdPartition.topicId(), topicIdPartition.partition()));
-                });
-
-            // Add the share fetch to the delayed share fetch purgatory to process the fetch request.
-            addDelayedShareFetch(new DelayedShareFetch(shareFetchData, replicaManager, this),
-                delayedShareFetchWatchKeys);
-        } catch (Exception e) {
-            // Complete the whole fetch request with an exception if there is an error processing.
-            // The exception currently can be thrown only if there is an error while initializing
-            // the share partition. But skip the processing for other share partitions in the request
-            // as this situation is not expected.
-            log.error("Error processing share fetch request", e);
-            maybeCompleteShareFetchWithException(shareFetchData.future(), shareFetchData.partitionMaxBytes().keySet(), e);
         }
+
+        // If all the partitions in the request errored out, then complete the fetch request with an exception.
+        if (erroneous != null && erroneous.size() == shareFetchData.partitionMaxBytes().size()) {
+            completeShareFetchWithException(shareFetchData.future(), erroneous);
+            // Do not proceed with share fetch processing as all the partitions errored out.
+            return;
+        }
+
+        // TODO: If there exists some erroneous partitions then they will not be part of response.
+
+        // Add the share fetch to the delayed share fetch purgatory to process the fetch request.
+        addDelayedShareFetch(new DelayedShareFetch(shareFetchData, replicaManager, this), delayedShareFetchWatchKeys);
     }
 
     private SharePartition getOrCreateSharePartition(SharePartitionKey sharePartitionKey) {
@@ -640,7 +658,6 @@ public class SharePartitionManager implements AutoCloseable {
     private void maybeCompleteInitializationWithException(
             SharePartitionKey sharePartitionKey,
             CompletableFuture<Map<TopicIdPartition, PartitionData>> future,
-            TopicIdPartition topicIdPartition,
             Throwable throwable) {
         if (throwable instanceof LeaderNotAvailableException) {
             log.debug("The share partition with key {} is not initialized yet", sharePartitionKey);
@@ -656,29 +673,38 @@ public class SharePartitionManager implements AutoCloseable {
         // The server should not be in this state, so log the error on broker and surface the same
         // to the client. The broker should not be in this state, investigate the root cause of the error.
         log.error("Error initializing share partition with key {}", sharePartitionKey, throwable);
-        maybeCompleteShareFetchWithException(future, Collections.singletonList(topicIdPartition), throwable);
+        maybeCompleteShareFetchWithException(future, Collections.singletonList(sharePartitionKey.topicIdPartition()), throwable);
     }
 
     private void handleFencedSharePartitionException(
         SharePartitionKey sharePartitionKey,
         Throwable throwable
     ) {
-        if (throwable instanceof NotLeaderOrFollowerException || throwable instanceof FencedStateEpochException) {
+        if (throwable instanceof NotLeaderOrFollowerException || throwable instanceof FencedStateEpochException ||
+            throwable instanceof GroupIdNotFoundException || throwable instanceof UnknownTopicOrPartitionException) {
             log.info("The share partition with key {} is fenced: {}", sharePartitionKey, throwable.getMessage());
             // The share partition is fenced hence remove the partition from map and let the client retry.
             // But surface the error to the client so client might take some action i.e. re-fetch
             // the metadata and retry the fetch on new leader.
-            partitionCacheMap.remove(sharePartitionKey);
+            SharePartition sharePartition = partitionCacheMap.remove(sharePartitionKey);
+            if (sharePartition != null) {
+                sharePartition.markFenced();
+            }
         }
     }
 
     private void maybeCompleteShareFetchWithException(CompletableFuture<Map<TopicIdPartition, PartitionData>> future,
         Collection<TopicIdPartition> topicIdPartitions, Throwable throwable) {
         if (!future.isDone()) {
-            Errors error = Errors.forException(throwable);
             future.complete(topicIdPartitions.stream().collect(Collectors.toMap(
-                tp -> tp, tp -> new PartitionData().setErrorCode(error.code()).setErrorMessage(error.message()))));
+                tp -> tp, tp -> new PartitionData().setErrorCode(Errors.forException(throwable).code()).setErrorMessage(throwable.getMessage()))));
         }
+    }
+
+    private void completeShareFetchWithException(CompletableFuture<Map<TopicIdPartition, PartitionData>> future,
+        Map<TopicIdPartition, Throwable> erroneous) {
+        future.complete(erroneous.entrySet().stream().collect(Collectors.toMap(
+            Map.Entry::getKey, entry -> new PartitionData().setErrorCode(Errors.forException(entry.getValue()).code()).setErrorMessage(entry.getValue().getMessage()))));
     }
 
     private SharePartitionKey sharePartitionKey(String groupId, TopicIdPartition topicIdPartition) {

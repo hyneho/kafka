@@ -100,7 +100,8 @@ public class FetchParams {
                 && minBytes == that.minBytes
                 && maxBytes == that.maxBytes
                 && isolation.equals(that.isolation)
-                && clientMetadata.equals(that.clientMetadata);
+                && clientMetadata.equals(that.clientMetadata)
+                && shareFetchRequest == that.shareFetchRequest;
     }
 
     @Override
@@ -113,6 +114,7 @@ public class FetchParams {
         result = 31 * result + maxBytes;
         result = 31 * result + isolation.hashCode();
         result = 31 * result + clientMetadata.hashCode();
+        result = 31 * result + Boolean.hashCode(shareFetchRequest);
         return result;
     }
 
