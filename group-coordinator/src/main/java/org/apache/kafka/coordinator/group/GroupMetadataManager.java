@@ -2318,7 +2318,7 @@ public class GroupMetadataManager {
         ShareGroupHeartbeatResponseData response = new ShareGroupHeartbeatResponseData()
             .setMemberId(updatedMember.memberId())
             .setMemberEpoch(updatedMember.memberEpoch())
-            .setHeartbeatIntervalMs(shareGroupHeartbeatIntervalMs);
+            .setHeartbeatIntervalMs(shareGroupHeartbeatIntervalMs(groupId));
 
         // The assignment is only provided in the following cases:
         // 1. The member just joined or rejoined to group (epoch equals to zero);
@@ -3034,7 +3034,7 @@ public class GroupMetadataManager {
         String groupId,
         String memberId
     ) {
-        scheduleShareGroupSessionTimeout(groupId, memberId, shareGroupSessionTimeoutMs);
+        scheduleShareGroupSessionTimeout(groupId, memberId, shareGroupSessionTimeoutMs(groupId));
     }
 
     /**
@@ -4461,7 +4461,7 @@ public class GroupMetadataManager {
                     groupInstanceId + " for pending member with memberId=" + memberId);
             }
 
-            log.debug("Pending dynamic member with id {} joins group {} in {} state. Adding to the group now.",
+            log.info("Pending dynamic member with id {} joins group {} in {} state. Adding to the group now.",
                 memberId, group.groupId(), group.currentState());
 
             return addMemberThenRebalanceOrCompleteJoin(
@@ -6205,7 +6205,7 @@ public class GroupMetadataManager {
 
 
     /**
-     * Get the session timeout of the provided group.
+     * Get the session timeout of the provided consumer group.
      */
     private int consumerGroupSessionTimeoutMs(String groupId) {
         Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
@@ -6214,12 +6214,30 @@ public class GroupMetadataManager {
     }
 
     /**
-     * Get the heartbeat interval of the provided group.
+     * Get the heartbeat interval of the provided consumer group.
      */
     private int consumerGroupHeartbeatIntervalMs(String groupId) {
         Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
         return groupConfig.map(GroupConfig::consumerHeartbeatIntervalMs)
             .orElse(consumerGroupHeartbeatIntervalMs);
+    }
+
+    /**
+     * Get the session timeout of the provided share group.
+     */
+    private int shareGroupSessionTimeoutMs(String groupId) {
+        Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
+        return groupConfig.map(GroupConfig::shareSessionTimeoutMs)
+            .orElse(shareGroupSessionTimeoutMs);
+    }
+
+    /**
+     * Get the heartbeat interval of the provided share group.
+     */
+    private int shareGroupHeartbeatIntervalMs(String groupId) {
+        Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
+        return groupConfig.map(GroupConfig::shareHeartbeatIntervalMs)
+            .orElse(shareGroupHeartbeatIntervalMs);
     }
 
     /**
