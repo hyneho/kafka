@@ -71,7 +71,7 @@ public class WorkerConfigTransformerTest {
     }
 
     @Test
-    public void testReplaceVariable() {
+    public void connectorTestReplaceVariable() {
         // Execution
         Map<String, String> result = configTransformer.transform(MY_CONNECTOR, Collections.singletonMap(MY_KEY, "${test:testPath:testKey}"));
 
@@ -89,7 +89,7 @@ public class WorkerConfigTransformerTest {
     }
 
     @Test
-    public void testReplaceVariableWithTTL() {
+    public void connectorTestReplaceVariableWithTTL() {
         // Execution
         Map<String, String> props = new HashMap<>();
         props.put(MY_KEY, "${test:testPath:testKeyWithTTL}");
@@ -113,7 +113,7 @@ public class WorkerConfigTransformerTest {
     }
 
     @Test
-    public void testReplaceVariableWithTTLAndScheduleRestart() {
+    public void connectorTestReplaceVariableWithTTLAndScheduleRestart() {
         // Setup
         when(worker.herder()).thenReturn(herder);
         when(herder.restartConnector(eq(1L), eq(MY_CONNECTOR), notNull())).thenReturn(requestId);
@@ -141,7 +141,7 @@ public class WorkerConfigTransformerTest {
     }
 
     @Test
-    public void testReplaceVariableWithTTLFirstCancelThenScheduleRestart() {
+    public void connectorTestReplaceVariableWithTTLFirstCancelThenScheduleRestart() {
         // Setup
         when(worker.herder()).thenReturn(herder);
         when(herder.restartConnector(eq(1L), eq(MY_CONNECTOR), notNull())).thenReturn(requestId);
@@ -187,7 +187,7 @@ public class WorkerConfigTransformerTest {
     }
 
     @Test
-    public void testTransformNullConfiguration() {
+    public void connectorTestTransformNullConfiguration() {
         assertNull(configTransformer.transform(MY_CONNECTOR, null));
     }
 
