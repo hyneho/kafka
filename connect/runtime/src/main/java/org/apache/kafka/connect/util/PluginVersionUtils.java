@@ -201,9 +201,10 @@ public class PluginVersionUtils {
             if (plugins == null) {
                 return Collections.emptyList();
             }
-            if (!parsedConfig.containsKey(classOrAliasConfig)) {
+            if (parsedConfig.get(classOrAliasConfig) == null) {
                 return Collections.emptyList();
             }
+
             Class classOrAlias = (Class) parsedConfig.get(classOrAliasConfig);
             return plugins().apply(classOrAlias.getName())
                     .stream().map(PluginDesc::version).distinct().collect(Collectors.toList());

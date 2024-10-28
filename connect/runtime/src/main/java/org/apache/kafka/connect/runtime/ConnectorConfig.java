@@ -353,7 +353,6 @@ public class ConnectorConfig extends AbstractConfig {
      *
      * Deprecated: This is kept for ease of testing, Use {@link #transformationStages(Plugins)} instead.
      */
-    @Deprecated
     public <R extends ConnectRecord<R>> List<TransformationStage<R>> transformationStages() {
         final List<String> transformAliases = getList(TRANSFORMS_CONFIG);
 
@@ -565,7 +564,7 @@ public class ConnectorConfig extends AbstractConfig {
                             validateProps(prefix);
                             // The value will be null if the class couldn't be found; no point in performing follow-up validation
                             if (value != null) {
-                                getConfigDefFromPlugin(typeConfig, ((Class<?>) value).getName(), versionConfig, plugins);
+                                getConfigDefFromPlugin(typeConfig, ((Class<?>) value).getName(), null, plugins);
                             }
                         },
                         () -> "valid configs for " + alias + " " + aliasKind.toLowerCase(Locale.ENGLISH));
@@ -626,7 +625,7 @@ public class ConnectorConfig extends AbstractConfig {
          * named in the {@code ...type} parameter of the {@code props}.
          */
         protected Stream<Map.Entry<String, ConfigDef.ConfigKey>> configDefsForClass(String typeConfig, String versionConfig, Plugins plugins) {
-            return getConfigDefFromPlugin(typeConfig, props.get(typeConfig), versionConfig, plugins)
+            return getConfigDefFromPlugin(typeConfig, props.get(typeConfig), props.get(versionConfig), plugins)
                     .configKeys().entrySet().stream();
         }
 
