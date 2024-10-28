@@ -68,6 +68,19 @@ public class RoundRobinPartitioner implements Partitioner {
         return counter.getAndIncrement();
     }
 
+    @SuppressWarnings("deprecation")
+    @Override
+    public void onNewBatch(String topic, Cluster cluster, int prevPartition) {
+        topicCounterMap.compute(topic, (k, counter) -> {
+            if (counter != null) {
+                // On new batches, partition() will be called again, effectively incrementing the counter twice
+                // To avoid skipping partitions, decrement once
+                counter.decrementAndGet();
+            }
+            return counter;
+        });
+    }
+
     public void close() {}
 
 }
