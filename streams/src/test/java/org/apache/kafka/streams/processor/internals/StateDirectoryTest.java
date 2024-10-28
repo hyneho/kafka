@@ -827,7 +827,7 @@ public class StateDirectoryTest {
     @Test
     public void shouldNotInitializeStandbyTasksWhenNoLocalState() {
         final TaskId taskId = new TaskId(0, 0);
-        initializeTasksForLocalState(new TaskId(0, 0), false);
+        initializeStartupTasks(new TaskId(0, 0), false);
         assertFalse(directory.hasStartupTasks());
         assertNull(directory.removeStartupTask(taskId));
         assertFalse(directory.hasStartupTasks());
@@ -836,7 +836,7 @@ public class StateDirectoryTest {
     @Test
     public void shouldInitializeStandbyTasksForLocalState() {
         final TaskId taskId = new TaskId(0, 0);
-        initializeTasksForLocalState(new TaskId(0, 0), true);
+        initializeStartupTasks(new TaskId(0, 0), true);
         assertTrue(directory.hasStartupTasks());
         assertNotNull(directory.removeStartupTask(taskId));
         assertFalse(directory.hasStartupTasks());
@@ -846,7 +846,7 @@ public class StateDirectoryTest {
     @Test
     public void shouldNotAssignStartupTasksWeDontHave() {
         final TaskId taskId = new TaskId(0, 0);
-        initializeTasksForLocalState(taskId, false);
+        initializeStartupTasks(taskId, false);
         final Task task = directory.removeStartupTask(taskId);
         assertNull(task);
     }
@@ -870,7 +870,7 @@ public class StateDirectoryTest {
     public void shouldAssignStartupTaskToStreamThread() throws InterruptedException {
         final TaskId taskId = new TaskId(0, 0);
 
-        initializeTasksForLocalState(taskId, true);
+        initializeStartupTasks(taskId, true);
 
         // main thread owns the newly initialized tasks
         assertThat(directory.lockOwner(taskId), is(Thread.currentThread()));
@@ -892,7 +892,7 @@ public class StateDirectoryTest {
     @Test
     public void shouldUnlockStartupTasksOnClose() {
         final TaskId taskId = new TaskId(0, 0);
-        initializeTasksForLocalState(taskId, true);
+        initializeStartupTasks(taskId, true);
 
         assertEquals(Thread.currentThread(), directory.lockOwner(taskId));
         directory.closeStartupTasks();
@@ -901,7 +901,7 @@ public class StateDirectoryTest {
 
     @Test
     public void shouldCloseStartupTasksOnDirectoryClose() {
-        final StateStore store = initializeTasksForLocalState(new TaskId(0, 0), true);
+        final StateStore store = initializeStartupTasks(new TaskId(0, 0), true);
 
         assertTrue(directory.hasStartupTasks());
         assertTrue(store.isOpen());
@@ -918,7 +918,7 @@ public class StateDirectoryTest {
         // which can't be mocked
         time.setCurrentTimeMs(System.currentTimeMillis());
 
-        final StateStore store = initializeTasksForLocalState(new TaskId(0, 0), true);
+        final StateStore store = initializeStartupTasks(new TaskId(0, 0), true);
 
         assertTrue(directory.hasStartupTasks());
         assertTrue(store.isOpen());
@@ -931,7 +931,7 @@ public class StateDirectoryTest {
         assertTrue(store.isOpen());
     }
 
-    private StateStore initializeTasksForLocalState(final TaskId taskId, final boolean createTaskDir) {
+    private StateStore initializeStartupTasks(final TaskId taskId, final boolean createTaskDir) {
         directory.initializeProcessId();
         final TopologyMetadata metadata = Mockito.mock(TopologyMetadata.class);
         final TopologyConfig topologyConfig = new TopologyConfig(config);
@@ -957,7 +957,7 @@ public class StateDirectoryTest {
         Mockito.when(metadata.buildSubtopology(ArgumentMatchers.any())).thenReturn(processorTopology);
         Mockito.when(metadata.taskConfig(ArgumentMatchers.any())).thenReturn(topologyConfig.getTaskConfig());
 
-        directory.initializeTasksForLocalState(metadata, new StreamsMetricsImpl(new Metrics(), "test", time), new LogContext("test"));
+        directory.initializeStartupTasks(metadata, new StreamsMetricsImpl(new Metrics(), "test", time), new LogContext("test"));
 
         return store;
     }

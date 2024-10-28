@@ -196,9 +196,9 @@ public class StateDirectory implements AutoCloseable {
         return stateDirLock != null;
     }
 
-    public void initializeTasksForLocalState(final TopologyMetadata topologyMetadata,
-                                             final StreamsMetricsImpl streamsMetrics,
-                                             final LogContext logContext) {
+    public void initializeStartupTasks(final TopologyMetadata topologyMetadata,
+                                       final StreamsMetricsImpl streamsMetrics,
+                                       final LogContext logContext) {
         final List<TaskDirectory> nonEmptyTaskDirectories = listNonEmptyTaskDirectories();
         if (hasPersistentStores && !nonEmptyTaskDirectories.isEmpty()) {
             final ThreadCache dummyCache = new ThreadCache(logContext, 0, streamsMetrics);

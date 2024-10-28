@@ -373,9 +373,9 @@ public class KafkaStreamsTest {
             try (final KafkaStreams streams = new KafkaStreams(getBuilderWithSource().build(), props, supplier, time)) {
                 assertEquals(1, constructed.constructed().size());
                 final StateDirectory stateDirectory = constructed.constructed().get(0);
-                verify(stateDirectory, times(0)).initializeTasksForLocalState(any(), any(), any());
+                verify(stateDirectory, times(0)).initializeStartupTasks(any(), any(), any());
                 streams.start();
-                verify(stateDirectory, times(1)).initializeTasksForLocalState(any(), any(), any());
+                verify(stateDirectory, times(1)).initializeStartupTasks(any(), any(), any());
             }
         }
     }
