@@ -1655,26 +1655,16 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     /**
      * This method signals the background thread to {@link CreateFetchRequestsEvent create fetch requests} for the
-     * prefetch case, i.e. right before {@link #poll(Duration)} exits.
+     * pre-fetch case, i.e. right before {@link #poll(Duration)} exits. In the pre-fetch case, the application thread
+     * will not wait for confirmation of the request creation before continuing.
      *
      * <p/>
      *
-     * This method takes the following steps to maintain compatibility with the {@link ClassicKafkaConsumer}
-     * {@code sendFetches()} method that appears at the end of {@link ClassicKafkaConsumer#poll(Duration)}:
+     * At the point this method is called, {@link KafkaConsumer#poll(Duration)} has data ready to return to the user,
+     * which means the consumed position was already updated. In order to prevent potential gaps in records, this
+     * method is designed to suppress all exceptions.
      *
-     * <ul>
-     *     <li>
-     *         The method will wait for confirmation of the request creation before continuing.
-     *     </li>
-     *     <li>
-     *         The method will suppress exceptions encountered during request creation. It is important that if
-     *         records were found in {@link #poll(Duration)}, they are returned to the user since the consumed
-     *         position was already updated.
-     *     </li>
-     * </ul>
-     *
-     * @param timer Timer used to bound how long the consumer waits for the requests to be created, which in practice
-     *              is used to avoid using {@link Long#MAX_VALUE} to wait "forever"
+     * @param timer Provides an upper bound for the event and its {@link CompletableFuture future}
      */
     private void sendPrefetches(Timer timer) {
         try {
