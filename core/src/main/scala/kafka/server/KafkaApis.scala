@@ -2476,20 +2476,25 @@ class KafkaApis(val requestChannel: RequestChannel,
           }
         }
 
-        replicaManager.appendRecords(
-          timeout = config.requestTimeoutMs.toLong,
-          requiredAcks = -1,
-          internalTopicsAllowed = true,
-          origin = AppendOrigin.COORDINATOR,
-          entriesPerPartition = controlRecords,
-          requestLocal = requestLocal,
-          responseCallback = errors => {
-            errors.foreachEntry { (tp, partitionResponse) =>
-              markerResults.put(tp, partitionResponse.error)
+        // If all the markers for consumer offsets partitions for the producer ID are written with the new group
+        // coordinator, we should avoid calling the replica manager appendRecords. Otherwise, maybeComplete() will be
+        // called more times than the markers and cause sending the response prematurely.
+        if (!controlRecords.isEmpty) {
+          replicaManager.appendRecords(
+            timeout = config.requestTimeoutMs.toLong,
+            requiredAcks = -1,
+            internalTopicsAllowed = true,
+            origin = AppendOrigin.COORDINATOR,
+            entriesPerPartition = controlRecords,
+            requestLocal = requestLocal,
+            responseCallback = errors => {
+              errors.foreachEntry { (tp, partitionResponse) =>
+                markerResults.put(tp, partitionResponse.error)
+              }
+              maybeComplete()
             }
-            maybeComplete()
-          }
-        )
+          )
+        }
       }
     }
 
