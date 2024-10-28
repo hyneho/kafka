@@ -22,7 +22,7 @@ import org.apache.kafka.common.security.oauthbearer.internals.OAuthBearerSaslSer
 import java.security.Provider;
 import java.security.Security;
 
-public final class OAuthBearerSaslServerProvider extends Provider {
+public class OAuthBearerSaslServerProvider extends Provider {
     private static final long serialVersionUID = 1L;
 
     private OAuthBearerSaslServerProvider() {

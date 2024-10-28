@@ -141,7 +141,7 @@ public final class Worker {
 
     private static final Logger log = LoggerFactory.getLogger(Worker.class);
 
-    protected Herder herder;
+    Herder herder;
     private final ExecutorService executor;
     private final Time time;
     private final String workerId;
@@ -221,7 +221,7 @@ public final class Worker {
         return workerConfigTransformer;
     }
 
-    protected Herder herder() {
+    Herder herder() {
         return herder;
     }
 

@@ -247,9 +247,7 @@ public class MockAdminClient extends AdminClient {
         Map<String, String> defaultGroupConfigs
     ) {
         this.brokers = brokers;
-        if (!brokers.contains(controller))
-            throw new IllegalArgumentException("The controller node must be in the list of brokers");
-        this.controller = controller;
+        controller(controller);
         this.clusterId = clusterId;
         this.defaultPartitions = defaultPartitions;
         this.defaultReplicationFactor = defaultReplicationFactor;
@@ -270,6 +268,12 @@ public class MockAdminClient extends AdminClient {
         this.featureLevels = new HashMap<>(featureLevels);
         this.minSupportedFeatureLevels = new HashMap<>(minSupportedFeatureLevels);
         this.maxSupportedFeatureLevels = new HashMap<>(maxSupportedFeatureLevels);
+    }
+
+    public final synchronized void controller(Node controller) {
+        if (!brokers.contains(controller))
+            throw new IllegalArgumentException("The controller node must be in the list of brokers");
+        this.controller = controller;
     }
 
     public void addTopic(boolean internal,
