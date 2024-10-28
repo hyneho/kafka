@@ -38,6 +38,7 @@ import org.apache.kafka.common.record.FileRecords;
 import org.apache.kafka.common.record.MemoryRecords;
 import org.apache.kafka.common.record.MemoryRecordsBuilder;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.common.requests.ListOffsetsRequest;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.coordinator.group.GroupConfig;
@@ -229,12 +230,19 @@ public class SharePartitionTest {
         assertTrue(result.isDone());
         assertFalse(result.isCompletedExceptionally());
 
+        // replicaManager.fetchOffsetForTimestamp should be called with "ListOffsetsRequest.EARLIEST_TIMESTAMP"
+        Mockito.verify(replicaManager).fetchOffsetForTimestamp(
+            Mockito.any(TopicPartition.class),
+            Mockito.eq(ListOffsetsRequest.EARLIEST_TIMESTAMP),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.anyBoolean()
+        );
+
         assertEquals(SharePartitionState.ACTIVE, sharePartition.partitionState());
-        assertTrue(sharePartition.cachedState().isEmpty());
         assertEquals(0, sharePartition.startOffset());
         assertEquals(0, sharePartition.endOffset());
         assertEquals(PartitionFactory.DEFAULT_STATE_EPOCH, sharePartition.stateEpoch());
-        assertEquals(0, sharePartition.nextFetchOffset());
     }
 
     @Test
@@ -272,12 +280,19 @@ public class SharePartitionTest {
         assertTrue(result.isDone());
         assertFalse(result.isCompletedExceptionally());
 
+        // replicaManager.fetchOffsetForTimestamp should be called with "ListOffsetsRequest.LATEST_TIMESTAMP"
+        Mockito.verify(replicaManager).fetchOffsetForTimestamp(
+            Mockito.any(TopicPartition.class),
+            Mockito.eq(ListOffsetsRequest.LATEST_TIMESTAMP),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.anyBoolean()
+        );
+
         assertEquals(SharePartitionState.ACTIVE, sharePartition.partitionState());
-        assertTrue(sharePartition.cachedState().isEmpty());
         assertEquals(15, sharePartition.startOffset());
         assertEquals(15, sharePartition.endOffset());
         assertEquals(PartitionFactory.DEFAULT_STATE_EPOCH, sharePartition.stateEpoch());
-        assertEquals(15, sharePartition.nextFetchOffset());
     }
 
     @Test
@@ -315,12 +330,19 @@ public class SharePartitionTest {
         assertTrue(result.isDone());
         assertFalse(result.isCompletedExceptionally());
 
+        // replicaManager.fetchOffsetForTimestamp should be called with "ListOffsetsRequest.LATEST_TIMESTAMP"
+        Mockito.verify(replicaManager).fetchOffsetForTimestamp(
+            Mockito.any(TopicPartition.class),
+            Mockito.eq(ListOffsetsRequest.LATEST_TIMESTAMP),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.anyBoolean()
+        );
+
         assertEquals(SharePartitionState.ACTIVE, sharePartition.partitionState());
-        assertTrue(sharePartition.cachedState().isEmpty());
         assertEquals(15, sharePartition.startOffset());
         assertEquals(15, sharePartition.endOffset());
         assertEquals(PartitionFactory.DEFAULT_STATE_EPOCH, sharePartition.stateEpoch());
-        assertEquals(15, sharePartition.nextFetchOffset());
     }
 
     @Test
@@ -356,12 +378,19 @@ public class SharePartitionTest {
         assertTrue(result.isDone());
         assertFalse(result.isCompletedExceptionally());
 
+        // replicaManager.fetchOffsetForTimestamp should be called with "ListOffsetsRequest.LATEST_TIMESTAMP"
+        Mockito.verify(replicaManager).fetchOffsetForTimestamp(
+            Mockito.any(TopicPartition.class),
+            Mockito.eq(ListOffsetsRequest.LATEST_TIMESTAMP),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.anyBoolean()
+        );
+
         assertEquals(SharePartitionState.ACTIVE, sharePartition.partitionState());
-        assertTrue(sharePartition.cachedState().isEmpty());
         assertEquals(15, sharePartition.startOffset());
         assertEquals(15, sharePartition.endOffset());
         assertEquals(PartitionFactory.DEFAULT_STATE_EPOCH, sharePartition.stateEpoch());
-        assertEquals(15, sharePartition.nextFetchOffset());
     }
 
     @Test
