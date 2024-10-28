@@ -16,7 +16,6 @@
  */
 package kafka.server
 
-import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.test.api.ClusterInstance
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterTest, ClusterTestDefaults, Type}
 import org.apache.kafka.common.test.api.ClusterTestExtensions
@@ -37,7 +36,6 @@ class DeleteGroupsRequestTest(cluster: ClusterInstance) extends GroupCoordinator
     )
   )
   def testDeleteGroupsWithNewConsumerGroupProtocolAndNewGroupCoordinator(): Unit = {
-    // TODO fix
     testDeleteGroups(true)
   }
 
@@ -84,8 +82,7 @@ class DeleteGroupsRequestTest(cluster: ClusterInstance) extends GroupCoordinator
     // We test DeleteGroups on empty and non-empty groups. Here we create the non-empty group.
     joinConsumerGroup(
       groupId = "grp-non-empty",
-      useNewProtocol = useNewProtocol,
-      memberId = Uuid.randomUuid.toString
+      useNewProtocol = useNewProtocol
     )
 
     for (version <- ApiKeys.DELETE_GROUPS.oldestVersion() to ApiKeys.DELETE_GROUPS.latestVersion(isUnstableApiEnabled)) {
@@ -93,8 +90,7 @@ class DeleteGroupsRequestTest(cluster: ClusterInstance) extends GroupCoordinator
       // a session long enough for the duration of the test.
       val (memberId, memberEpoch) = joinConsumerGroup(
         groupId = "grp",
-        useNewProtocol = useNewProtocol,
-        memberId = Uuid.randomUuid.toString
+        useNewProtocol = useNewProtocol
       )
 
       // The member leaves the group so that grp is empty and ready to be deleted.

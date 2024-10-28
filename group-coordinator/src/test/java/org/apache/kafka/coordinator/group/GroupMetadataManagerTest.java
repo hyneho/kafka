@@ -115,7 +115,6 @@ import java.util.stream.Stream;
 import static org.apache.kafka.common.message.JoinGroupRequestData.JoinGroupRequestProtocol;
 import static org.apache.kafka.common.message.JoinGroupRequestData.JoinGroupRequestProtocolCollection;
 import static org.apache.kafka.common.protocol.Errors.NOT_COORDINATOR;
-import static org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION;
 import static org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH;
 import static org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.LEAVE_GROUP_STATIC_MEMBER_EPOCH;
 import static org.apache.kafka.common.requests.JoinGroupRequest.UNKNOWN_MEMBER_ID;
@@ -294,16 +293,16 @@ public class GroupMetadataManagerTest {
         ));
 
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result = context.consumerGroupHeartbeat(
-                // The consumer generates its own Member ID starting from version 1 of the ConsumerGroupHeartbeat RPC.
-                // Therefore, this test case is specific to earlier versions of the RPC.
-                new ConsumerGroupHeartbeatRequestData()
-                    .setGroupId("group-foo")
-                    .setMemberEpoch(0)
-                    .setServerAssignor("range")
-                    .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
-                    .setTopicPartitions(Collections.emptyList()),
-                (short) (CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION - 1)
+            // The consumer generates its own Member ID starting from version 1 of the ConsumerGroupHeartbeat RPC.
+            // Therefore, this test case is specific to earlier versions of the RPC.
+            new ConsumerGroupHeartbeatRequestData()
+                .setGroupId("group-foo")
+                .setMemberEpoch(0)
+                .setServerAssignor("range")
+                .setRebalanceTimeoutMs(5000)
+                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setTopicPartitions(Collections.emptyList()),
+            (short) 0
         );
 
         // Verify that a member id was generated for the new member.
@@ -10198,15 +10197,15 @@ public class GroupMetadataManagerTest {
         String newMemberId = Uuid.randomUuid().toString();
         assertNotEquals(newMemberId, memberId, "The consumer should generate a new memberId since the process has been terminated and restarted.");
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result = context.consumerGroupHeartbeat(
-                new ConsumerGroupHeartbeatRequestData()
-                    .setGroupId(groupId)
-                    .setMemberId(newMemberId)
-                    .setInstanceId(instanceId)
-                    .setRebalanceTimeoutMs(5000)
-                    .setServerAssignor(NoOpPartitionAssignor.NAME)
-                    .setSubscribedTopicNames(Collections.singletonList(fooTopicName))
-                    .setTopicPartitions(Collections.emptyList()),
-                ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion()
+            new ConsumerGroupHeartbeatRequestData()
+                .setGroupId(groupId)
+                .setMemberId(newMemberId)
+                .setInstanceId(instanceId)
+                .setRebalanceTimeoutMs(5000)
+                .setServerAssignor(NoOpPartitionAssignor.NAME)
+                .setSubscribedTopicNames(Collections.singletonList(fooTopicName))
+                .setTopicPartitions(Collections.emptyList()),
+            ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion()
         );
 
         ConsumerGroupMember expectedClassicMember = new ConsumerGroupMember.Builder(memberId)
@@ -10230,9 +10229,9 @@ public class GroupMetadataManagerTest {
         // for the entire lifetime of the process until termination.
         String serverReturnedMemberId = result.response().memberId();
         assertEquals(
-                newMemberId,
-                serverReturnedMemberId,
-                "Server should not generate a new memberId since the consumer has already generated its own."
+            newMemberId,
+            serverReturnedMemberId,
+            "Server should not generate a new memberId since the consumer has already generated its own."
         );
 
         ConsumerGroupMember expectedReplacingConsumerMember = new ConsumerGroupMember.Builder(serverReturnedMemberId)
@@ -10256,44 +10255,40 @@ public class GroupMetadataManagerTest {
             .build();
 
         List<CoordinatorRecord> expectedRecords = Arrays.asList(
-                // The existing classic group tombstone.
-                GroupCoordinatorRecordHelpers.newGroupMetadataTombstoneRecord(groupId),
+            // The existing classic group tombstone.
+            GroupCoordinatorRecordHelpers.newGroupMetadataTombstoneRecord(groupId),
 
-                // Create the new consumer group with the static member.
-                GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedClassicMember),
-                GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 0),
-                GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId,
-                        expectedClassicMember.assignedPartitions()),
-                GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochRecord(groupId, 0),
-                GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedClassicMember),
+            // Create the new consumer group with the static member.
+            GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedClassicMember),
+            GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 0),
+            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId, expectedClassicMember.assignedPartitions()),
+            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochRecord(groupId, 0),
+            GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedClassicMember),
 
-                // Remove the static member because the rejoining member replaces it.
-                GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId),
-                GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId),
-                GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId),
+            // Remove the static member because the rejoining member replaces it.
+            GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId),
+            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId),
+            GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId),
 
-                // Create the new static member.
-                GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedReplacingConsumerMember),
-                GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, serverReturnedMemberId,
-                        mkAssignment(mkTopicAssignment(fooTopicId, 0))),
-                GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedReplacingConsumerMember),
+            // Create the new static member.
+            GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedReplacingConsumerMember),
+            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, serverReturnedMemberId, mkAssignment(mkTopicAssignment(fooTopicId, 0))),
+            GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedReplacingConsumerMember),
 
-                // The static member rejoins the new consumer group.
-                GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedFinalConsumerMember),
+            // The static member rejoins the new consumer group.
+            GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedFinalConsumerMember),
 
-                // The subscription metadata hasn't been updated during the conversion, so a new one is computed.
-                GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId,
-                        Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 1))),
+            // The subscription metadata hasn't been updated during the conversion, so a new one is computed.
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 1))),
 
-                // Newly joining static member bumps the group epoch. A new target assignment is computed.
-                GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 1),
-                GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, serverReturnedMemberId,
-                        mkAssignment(mkTopicAssignment(fooTopicId, 0))),
-                GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochRecord(groupId, 1),
+            // Newly joining static member bumps the group epoch. A new target assignment is computed.
+            GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 1),
+            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, serverReturnedMemberId, mkAssignment(mkTopicAssignment(fooTopicId, 0))),
+            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochRecord(groupId, 1),
 
-                // The newly created static member takes the assignment from the existing member.
-                // Bump its member epoch and transition to STABLE.
-                GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedFinalConsumerMember)
+            // The newly created static member takes the assignment from the existing member.
+            // Bump its member epoch and transition to STABLE.
+            GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedFinalConsumerMember)
         );
 
         assertRecordsEquals(expectedRecords, result.records());
@@ -10395,15 +10390,15 @@ public class GroupMetadataManagerTest {
 
         // The member 1 with the classic protocol upgrades, heartbeating with new protocol.
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result = context.consumerGroupHeartbeat(
-                new ConsumerGroupHeartbeatRequestData()
-                    .setGroupId(groupId)
-                    .setMemberId(memberId1)
-                    .setInstanceId(instanceId1)
-                    .setRebalanceTimeoutMs(5000)
-                    .setServerAssignor(NoOpPartitionAssignor.NAME)
-                    .setSubscribedTopicNames(new ArrayList<>(member1.subscribedTopicNames()))
-                    .setTopicPartitions(Collections.emptyList()),
-                ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion()
+            new ConsumerGroupHeartbeatRequestData()
+                .setGroupId(groupId)
+                .setMemberId(memberId1)
+                .setInstanceId(instanceId1)
+                .setRebalanceTimeoutMs(5000)
+                .setServerAssignor(NoOpPartitionAssignor.NAME)
+                .setSubscribedTopicNames(new ArrayList<>(member1.subscribedTopicNames()))
+                .setTopicPartitions(Collections.emptyList()),
+            ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion()
         );
 
 
@@ -10411,9 +10406,9 @@ public class GroupMetadataManagerTest {
         // for its entire lifetime until the process terminates.
         String serverReturnedMemberId = result.response().memberId();
         assertEquals(
-                memberId1,
-                serverReturnedMemberId,
-                "Server should not generate a new memberId since the consumer has already generated its own."
+            memberId1,
+            serverReturnedMemberId,
+            "Server should not generate a new memberId since the consumer has already generated its own."
         );
 
         ConsumerGroupMember expectedReplacingConsumerMember = new ConsumerGroupMember.Builder(serverReturnedMemberId)

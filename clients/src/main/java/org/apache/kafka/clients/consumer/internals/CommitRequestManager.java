@@ -940,21 +940,21 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
 
         public NetworkClientDelegate.UnsentRequest toUnsentRequest() {
 
-            OffsetFetchRequest.Builder builder;
-            // Building request without passing member ID/epoch to leave the logic to choose
-            // default values when not present on the request builder.
-            builder = memberInfo.memberEpoch.map(epoch -> new OffsetFetchRequest.Builder(
-                            groupId,
-                            memberInfo.memberId,
-                            epoch,
-                            true,
-                            new ArrayList<>(this.requestedPartitions),
-                            throwOnFetchStableOffsetUnsupported))
-                    .orElseGet(() -> new OffsetFetchRequest.Builder(
-                            groupId,
-                            true,
-                            new ArrayList<>(this.requestedPartitions),
-                            throwOnFetchStableOffsetUnsupported));
+            OffsetFetchRequest.Builder builder = memberInfo.memberEpoch.
+                map(epoch -> new OffsetFetchRequest.Builder(
+                    groupId,
+                    memberInfo.memberId,
+                    epoch,
+                    true,
+                    new ArrayList<>(this.requestedPartitions),
+                    throwOnFetchStableOffsetUnsupported))
+                // Building request without passing member ID/epoch to leave the logic to choose
+                // default values when not present on the request builder.
+                .orElseGet(() -> new OffsetFetchRequest.Builder(
+                    groupId,
+                    true,
+                    new ArrayList<>(this.requestedPartitions),
+                    throwOnFetchStableOffsetUnsupported));
             return buildRequestWithResponseHandling(builder);
         }
 

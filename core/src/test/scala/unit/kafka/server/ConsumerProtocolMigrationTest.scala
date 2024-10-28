@@ -24,7 +24,6 @@ import org.apache.kafka.common.test.api.ClusterInstance
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterTest, ClusterTestDefaults, Type}
 import org.apache.kafka.common.test.api.ClusterTestExtensions
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
-import org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION
 import org.apache.kafka.coordinator.group.{Group, GroupCoordinatorConfig}
 import org.apache.kafka.coordinator.group.classic.ClassicGroupState
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState
@@ -243,54 +242,51 @@ class ConsumerProtocolMigrationTest(cluster: ClusterInstance) extends GroupCoord
       assignment = assignment(List(0, 1, 2))
     )
 
-    for (version <- ApiKeys.CONSUMER_GROUP_HEARTBEAT.oldestVersion() to ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion(isUnstableApiEnabled)) {
-      // The joining request with a consumer group member 2 is accepted.
-      val memberId2 = consumerGroupHeartbeat(
-        groupId = groupId,
-        memberId = if (version < CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION) "" else Uuid.randomUuid.toString,
-        rebalanceTimeoutMs = 5 * 60 * 1000,
-        subscribedTopicNames = List("foo"),
-        topicPartitions = List.empty,
-        expectedError = Errors.NONE,
-        version = version.toShort
-      ).memberId
+    // The joining request with a consumer group member 2 is accepted.
+    val memberId2 = consumerGroupHeartbeat(
+      groupId = groupId,
+      memberId = Uuid.randomUuid.toString,
+      rebalanceTimeoutMs = 5 * 60 * 1000,
+      subscribedTopicNames = List("foo"),
+      topicPartitions = List.empty,
+      expectedError = Errors.NONE
+    ).memberId
 
-      // The group has become a consumer group.
-      assertEquals(
-        List(
-          new ListGroupsResponseData.ListedGroup()
-            .setGroupId(groupId)
-            .setProtocolType("consumer")
-            .setGroupState(ConsumerGroupState.RECONCILING.toString)
-            .setGroupType(Group.GroupType.CONSUMER.toString)
-        ),
-        listGroups(
-          statesFilter = List.empty,
-          typesFilter = List(Group.GroupType.CONSUMER.toString)
-        )
+    // The group has become a consumer group.
+    assertEquals(
+      List(
+        new ListGroupsResponseData.ListedGroup()
+          .setGroupId(groupId)
+          .setProtocolType("consumer")
+          .setGroupState(ConsumerGroupState.RECONCILING.toString)
+          .setGroupType(Group.GroupType.CONSUMER.toString)
+      ),
+      listGroups(
+        statesFilter = List.empty,
+        typesFilter = List(Group.GroupType.CONSUMER.toString)
       )
+    )
 
-      // Downgrade the group by leaving member 2.
-      leaveGroupWithNewProtocol(
-        groupId = groupId,
-        memberId = memberId2
-      )
+    // Downgrade the group by leaving member 2.
+    leaveGroupWithNewProtocol(
+      groupId = groupId,
+      memberId = memberId2
+    )
 
-      // The group is still a consumer group.
-      assertEquals(
-        List(
-          new ListGroupsResponseData.ListedGroup()
-            .setGroupId(groupId)
-            .setProtocolType("consumer")
-            .setGroupState(ConsumerGroupState.ASSIGNING.toString)
-            .setGroupType(Group.GroupType.CONSUMER.toString)
-        ),
-        listGroups(
-          statesFilter = List.empty,
-          typesFilter = List(Group.GroupType.CONSUMER.toString)
-        )
+    // The group is still a consumer group.
+    assertEquals(
+      List(
+        new ListGroupsResponseData.ListedGroup()
+          .setGroupId(groupId)
+          .setProtocolType("consumer")
+          .setGroupState(ConsumerGroupState.ASSIGNING.toString)
+          .setGroupType(Group.GroupType.CONSUMER.toString)
+      ),
+      listGroups(
+        statesFilter = List.empty,
+        typesFilter = List(Group.GroupType.CONSUMER.toString)
       )
-    }
+    )
   }
 
   @ClusterTest(
@@ -424,18 +420,15 @@ class ConsumerProtocolMigrationTest(cluster: ClusterInstance) extends GroupCoord
       assignment = assignment(List(0, 1, 2))
     )
 
-    for (version <- ApiKeys.CONSUMER_GROUP_HEARTBEAT.oldestVersion() to ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion(isUnstableApiEnabled)) {
-      // The consumerGroupHeartbeat request is rejected.
-      consumerGroupHeartbeat(
-        groupId = groupId,
-        memberId = if (version < CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION) "" else Uuid.randomUuid.toString,
-        rebalanceTimeoutMs = 5 * 60 * 1000,
-        subscribedTopicNames = List("foo"),
-        topicPartitions = List.empty,
-        expectedError = Errors.GROUP_ID_NOT_FOUND,
-        version = version.toShort
-      )
-    }
+    // The consumerGroupHeartbeat request is rejected.
+    consumerGroupHeartbeat(
+      groupId = groupId,
+      memberId = Uuid.randomUuid.toString,
+      rebalanceTimeoutMs = 5 * 60 * 1000,
+      subscribedTopicNames = List("foo"),
+      topicPartitions = List.empty,
+      expectedError = Errors.GROUP_ID_NOT_FOUND
+    )
   }
 
   @ClusterTest(

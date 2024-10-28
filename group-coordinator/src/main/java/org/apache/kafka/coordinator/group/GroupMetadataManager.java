@@ -1299,14 +1299,13 @@ public class GroupMetadataManager {
      * @throws UnsupportedAssignorException if the assignor is not supported.
      */
     private void throwIfConsumerGroupHeartbeatRequestIsInvalid(
-            ConsumerGroupHeartbeatRequestData request,
-            short apiVersion
+        ConsumerGroupHeartbeatRequestData request,
+        short apiVersion
     ) throws InvalidRequestException, UnsupportedAssignorException {
         if (apiVersion >= CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION ||
             request.memberEpoch() > 0 ||
             request.memberEpoch() == LEAVE_GROUP_MEMBER_EPOCH
         ) {
-            throwIfNull(request.memberId(), "MemberId can't be null.");
             throwIfEmptyString(request.memberId(), "MemberId can't be empty.");
         }
 
@@ -1348,7 +1347,6 @@ public class GroupMetadataManager {
     private void throwIfShareGroupHeartbeatRequestIsInvalid(
         ShareGroupHeartbeatRequestData request
     ) throws InvalidRequestException, UnsupportedAssignorException {
-        throwIfNull(request.memberId(), "MemberId can't be null.");
         throwIfEmptyString(request.memberId(), "MemberId can't be empty.");
         throwIfEmptyString(request.groupId(), "GroupId can't be empty.");
         throwIfEmptyString(request.rackId(), "RackId can't be empty.");

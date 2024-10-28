@@ -474,11 +474,11 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     (consumerGroupHeartbeatResponseData.memberId, consumerGroupHeartbeatResponseData.memberEpoch)
   }
 
-  protected def joinConsumerGroup(groupId: String, useNewProtocol: Boolean, memberId: String = ""): (String, Int) = {
+  protected def joinConsumerGroup(groupId: String, useNewProtocol: Boolean): (String, Int) = {
     if (useNewProtocol) {
       // Note that we heartbeat only once to join the group and assume
       // that the test will complete within the session timeout.
-      joinConsumerGroupWithNewProtocol(groupId, memberId)
+      joinConsumerGroupWithNewProtocol(groupId, Uuid.randomUuid().toString)
     } else {
       // Note that we don't heartbeat and assume that the test will
       // complete within the session timeout.

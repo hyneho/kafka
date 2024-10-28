@@ -16,10 +16,6 @@
  */
 package kafka.server
 
-import org.apache.kafka.common.test.api.ClusterInstance
-import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterFeature, ClusterTest, Type}
-import org.apache.kafka.common.test.api.ClusterTestExtensions
-import org.apache.kafka.common.test.api.RaftClusterInvocationContext.RaftClusterInstance
 import kafka.utils.TestUtils
 import org.apache.kafka.clients.admin.AlterConfigOp.OpType
 import org.apache.kafka.clients.admin.{AlterConfigOp, ConfigEntry}
@@ -28,6 +24,8 @@ import org.apache.kafka.common.config.ConfigResource
 import org.apache.kafka.common.message.{ConsumerGroupHeartbeatRequestData, ConsumerGroupHeartbeatResponseData}
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.requests.{ConsumerGroupHeartbeatRequest, ConsumerGroupHeartbeatResponse}
+import org.apache.kafka.common.test.api.RaftClusterInvocationContext.RaftClusterInstance
+import org.apache.kafka.common.test.api._
 import org.apache.kafka.coordinator.group.{GroupConfig, GroupCoordinatorConfig}
 import org.apache.kafka.server.common.Features
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotEquals, assertNotNull}
@@ -37,56 +35,68 @@ import scala.collection.Map
 import scala.jdk.CollectionConverters._
 
 @ExtendWith(value = Array(classOf[ClusterTestExtensions]))
+@ClusterTestDefaults(
+    types = Array(Type.KRAFT),
+    serverProperties = Array(
+      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
+      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1")
+    )
+)
 class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
-  @ClusterTest(
-    types = Array(Type.KRAFT),
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, value = "classic"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1")
+  @ClusterTests(value = Array(
+      new ClusterTest(
+          serverProperties = Array(new ClusterConfigProperty(key = GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, value = "classic")),
+          tags = Array("0")
+      ),
+      new ClusterTest(
+          serverProperties = Array(new ClusterConfigProperty(key = GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, value = "classic")),
+          tags = Array("1")
+      )
     )
   )
-  def testConsumerGroupHeartbeatIsInaccessibleWhenDisabledByStaticConfig(): Unit = {
+  def testConsumerGroupHeartbeatIsInaccessibleWhenDisabledByStaticConfig(cluster: ClusterInstance): Unit = {
+    val apiVersion = cluster.config().tags().get(0).toShort
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData(),
       true
-    ).build()
+    ).build(apiVersion)
 
     val consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
     val expectedResponse = new ConsumerGroupHeartbeatResponseData().setErrorCode(Errors.UNSUPPORTED_VERSION.code)
     assertEquals(expectedResponse, consumerGroupHeartbeatResponse.data)
   }
 
-  @ClusterTest(
-    types = Array(Type.KRAFT),
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1")
-    ),
-    features = Array(
-      new ClusterFeature(feature = Features.GROUP_VERSION, version = 0)
+  @ClusterTests(value = Array(
+      new ClusterTest(
+        features = Array(new ClusterFeature(feature = Features.GROUP_VERSION, version = 0)),
+        tags = Array("0")
+      ),
+      new ClusterTest(
+        features = Array(new ClusterFeature(feature = Features.GROUP_VERSION, version = 0)),
+        tags = Array("1")
+      )
     )
   )
-  def testConsumerGroupHeartbeatIsInaccessibleWhenFeatureFlagNotEnabled(): Unit = {
+  def testConsumerGroupHeartbeatIsInaccessibleWhenFeatureFlagNotEnabled(cluster: ClusterInstance): Unit = {
+    val apiVersion = cluster.config().tags().get(0).toShort
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData(),
       true
-    ).build()
+    ).build(apiVersion)
 
     val consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
     val expectedResponse = new ConsumerGroupHeartbeatResponseData().setErrorCode(Errors.UNSUPPORTED_VERSION.code)
     assertEquals(expectedResponse, consumerGroupHeartbeatResponse.data)
   }
 
-  @ClusterTest(
-    types = Array(Type.KRAFT),
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1")
+  @ClusterTests(value = Array(
+    new ClusterTest(tags = Array("0")),
+    new ClusterTest(tags = Array("1"))
     )
   )
-  def testConsumerGroupHeartbeatIsAccessibleWhenNewGroupCoordinatorIsEnabled(): Unit = {
+  def testConsumerGroupHeartbeatIsAccessibleWhenNewGroupCoordinatorIsEnabled(cluster: ClusterInstance): Unit = {
+    val apiVersion = cluster.config().tags().get(0).toShort
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
     val admin = cluster.createAdminClient()
 
@@ -103,13 +113,13 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData()
         .setGroupId("grp")
-        .setMemberId(Uuid.randomUuid.toString)
+        .setMemberId(setMemberIdBasedOnVersion(apiVersion))
         .setMemberEpoch(0)
         .setRebalanceTimeoutMs(5 * 60 * 1000)
         .setSubscribedTopicNames(List("foo").asJava)
         .setTopicPartitions(List.empty.asJava),
       true
-    ).build()
+    ).build(apiVersion)
 
     // Send the request until receiving a successful response. There is a delay
     // here because the group coordinator is loaded in the background.
@@ -138,7 +148,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         .setMemberId(consumerGroupHeartbeatResponse.data.memberId)
         .setMemberEpoch(consumerGroupHeartbeatResponse.data.memberEpoch),
       true
-    ).build()
+    ).build(apiVersion)
 
     // This is the expected assignment.
     val expectedAssignment = new ConsumerGroupHeartbeatResponseData.Assignment()
@@ -165,7 +175,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         .setMemberId(consumerGroupHeartbeatResponse.data.memberId)
         .setMemberEpoch(-1),
       true
-    ).build()
+    ).build(apiVersion)
 
     consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
 
@@ -173,14 +183,13 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     assertEquals(-1, consumerGroupHeartbeatResponse.data.memberEpoch)
   }
 
-  @ClusterTest(
-    types = Array(Type.KRAFT),
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1")
+  @ClusterTests(value = Array(
+      new ClusterTest(tags = Array("0")),
+      new ClusterTest(tags = Array("1"))
     )
   )
-  def testRejoiningStaticMemberGetsAssignmentsBackWhenNewGroupCoordinatorIsEnabled(): Unit = {
+  def testRejoiningStaticMemberGetsAssignmentsBackWhenNewGroupCoordinatorIsEnabled(cluster: ClusterInstance): Unit = {
+    val apiVersion = cluster.config().tags().get(0).toShort
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
     val admin = cluster.createAdminClient()
     val instanceId = "instanceId"
@@ -197,14 +206,14 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData()
         .setGroupId("grp")
-        .setMemberId(Uuid.randomUuid.toString)
+        .setMemberId(setMemberIdBasedOnVersion(apiVersion))
         .setInstanceId(instanceId)
         .setMemberEpoch(0)
         .setRebalanceTimeoutMs(5 * 60 * 1000)
         .setSubscribedTopicNames(List("foo").asJava)
         .setTopicPartitions(List.empty.asJava),
       true
-    ).build()
+    ).build(apiVersion)
 
     // Send the request until receiving a successful response. There is a delay
     // here because the group coordinator is loaded in the background.
@@ -234,7 +243,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         .setMemberId(consumerGroupHeartbeatResponse.data.memberId)
         .setMemberEpoch(consumerGroupHeartbeatResponse.data.memberEpoch),
       true
-    ).build()
+    ).build(apiVersion)
 
     // This is the expected assignment.
     val expectedAssignment = new ConsumerGroupHeartbeatResponseData.Assignment()
@@ -265,7 +274,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         .setMemberId(consumerGroupHeartbeatResponse.data.memberId)
         .setMemberEpoch(-2),
       true
-    ).build()
+    ).build(apiVersion)
 
     consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
 
@@ -276,14 +285,14 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData()
         .setGroupId("grp")
-        .setMemberId(Uuid.randomUuid.toString)
+        .setMemberId(setMemberIdBasedOnVersion(apiVersion))
         .setInstanceId(instanceId)
         .setMemberEpoch(0)
         .setRebalanceTimeoutMs(5 * 60 * 1000)
         .setSubscribedTopicNames(List("foo").asJava)
         .setTopicPartitions(List.empty.asJava),
       true
-    ).build()
+    ).build(apiVersion)
 
     consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
 
@@ -295,16 +304,25 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     assertNotEquals(oldMemberId, consumerGroupHeartbeatResponse.data.memberId)
   }
 
-  @ClusterTest(
-    types = Array(Type.KRAFT),
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_SESSION_TIMEOUT_MS_CONFIG, value = "5001"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_MIN_SESSION_TIMEOUT_MS_CONFIG, value = "5001")
+  @ClusterTests(value = Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_SESSION_TIMEOUT_MS_CONFIG, value = "5001"),
+          new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_MIN_SESSION_TIMEOUT_MS_CONFIG, value = "5001")
+        ),
+        tags = Array("0")
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_SESSION_TIMEOUT_MS_CONFIG, value = "5001"),
+          new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_MIN_SESSION_TIMEOUT_MS_CONFIG, value = "5001")
+        ),
+        tags = Array("1")
+      )
     )
   )
-  def testStaticMemberRemovedAfterSessionTimeoutExpiryWhenNewGroupCoordinatorIsEnabled(): Unit = {
+  def testStaticMemberRemovedAfterSessionTimeoutExpiryWhenNewGroupCoordinatorIsEnabled(cluster: ClusterInstance): Unit = {
+    val apiVersion = cluster.config().tags().get(0).toShort
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
     val admin = cluster.createAdminClient()
     val instanceId = "instanceId"
@@ -322,14 +340,14 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData()
         .setGroupId("grp")
-        .setMemberId(Uuid.randomUuid.toString)
+        .setMemberId(setMemberIdBasedOnVersion(apiVersion))
         .setInstanceId(instanceId)
         .setMemberEpoch(0)
         .setRebalanceTimeoutMs(5 * 60 * 1000)
         .setSubscribedTopicNames(List("foo").asJava)
         .setTopicPartitions(List.empty.asJava),
       true
-    ).build()
+    ).build(apiVersion)
 
     // Send the request until receiving a successful response. There is a delay
     // here because the group coordinator is loaded in the background.
@@ -359,7 +377,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         .setMemberId(consumerGroupHeartbeatResponse.data.memberId)
         .setMemberEpoch(consumerGroupHeartbeatResponse.data.memberEpoch),
       true
-    ).build()
+    ).build(apiVersion)
 
     // This is the expected assignment.
     val expectedAssignment = new ConsumerGroupHeartbeatResponseData.Assignment()
@@ -383,14 +401,14 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData()
         .setGroupId("grp")
-        .setMemberId(Uuid.randomUuid.toString)
+        .setMemberId(setMemberIdBasedOnVersion(apiVersion))
         .setInstanceId(instanceId)
         .setMemberEpoch(0)
         .setRebalanceTimeoutMs(5 * 60 * 1000)
         .setSubscribedTopicNames(List("foo").asJava)
         .setTopicPartitions(List.empty.asJava),
       true
-    ).build()
+    ).build(apiVersion)
 
     // Validating that trying to join with an in-use instanceId would throw an UnreleasedInstanceIdException.
     consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
@@ -410,15 +428,19 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     assertEquals(expectedAssignment, consumerGroupHeartbeatResponse.data.assignment)
   }
 
-  @ClusterTest(
-    types = Array(Type.KRAFT),
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG, value = "5000")
+  @ClusterTests(value = Array(
+      new ClusterTest(
+        serverProperties = Array(new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG, value = "5000")),
+        tags = Array("0")
+      ),
+      new ClusterTest(
+        serverProperties = Array(new ClusterConfigProperty(key = GroupCoordinatorConfig.CONSUMER_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG, value = "5000")),
+        tags = Array("1")
+      )
     )
   )
-  def testUpdateConsumerGroupHeartbeatConfigSuccessful(): Unit = {
+  def testUpdateConsumerGroupHeartbeatConfigSuccessful(cluster: ClusterInstance): Unit = {
+    val apiVersion = cluster.config().tags().get(0).toShort
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
     val admin = cluster.createAdminClient()
     val newHeartbeatIntervalMs = 10000
@@ -438,14 +460,14 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData()
         .setGroupId(consumerGroupId)
-        .setMemberId(Uuid.randomUuid.toString)
+        .setMemberId(setMemberIdBasedOnVersion(apiVersion))
         .setInstanceId(instanceId)
         .setMemberEpoch(0)
         .setRebalanceTimeoutMs(5 * 60 * 1000)
         .setSubscribedTopicNames(List("foo").asJava)
         .setTopicPartitions(List.empty.asJava),
       true
-    ).build()
+    ).build(apiVersion)
 
     // Send the request until receiving a successful response. There is a delay
     // here because the group coordinator is loaded in the background.
@@ -476,7 +498,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         .setMemberId(consumerGroupHeartbeatResponse.data.memberId)
         .setMemberEpoch(consumerGroupHeartbeatResponse.data.memberEpoch),
       true
-    ).build()
+    ).build(apiVersion)
 
     // Verify the response. The heartbeat interval was updated.
     TestUtils.waitUntilTrue(() => {
@@ -493,4 +515,10 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       cluster.clientListener()
     )
   }
+
+  private def setMemberIdBasedOnVersion(apiVersion: Short): String =
+    if (apiVersion < ConsumerGroupHeartbeatRequest.CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION)
+      ""
+    else
+      Uuid.randomUuid.toString
 }
