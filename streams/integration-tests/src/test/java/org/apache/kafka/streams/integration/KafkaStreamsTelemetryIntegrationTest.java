@@ -148,6 +148,7 @@ public class KafkaStreamsTelemetryIntegrationTest {
     @DisplayName("End-to-end test validating metrics pushed to broker")
     public void shouldPushMetricsToBroker() throws Exception {
         streamsApplicationProperties  = props(true);
+        streamsApplicationProperties.put(StreamsConfig.METRICS_RECORDING_LEVEL_CONFIG, "TRACE");
         final Topology topology = simpleTopology();
         subscribeForStreamsMetrics();
         try (final KafkaStreams streams = new KafkaStreams(topology, streamsApplicationProperties)) {
@@ -160,12 +161,19 @@ public class KafkaStreamsTelemetryIntegrationTest {
                     .findFirst().orElseThrow();
             assertNotNull(adminInstanceId);
             assertNotNull(mainConsumerInstanceId);
+            LOG.info("Main consumer instance id {}", mainConsumerInstanceId);
 
             TestUtils.waitForCondition(() -> !TelemetryPlugin.SUBSCRIBED_METRICS.get(mainConsumerInstanceId).isEmpty(),
                     30_000,
                     "Never received subscribed metrics");
-            final List<String> actualTaskMetrics = TelemetryPlugin.SUBSCRIBED_METRICS.get(mainConsumerInstanceId).stream().filter(metricName -> metricName.startsWith("org.apache.kafka.stream.task")).collect(Collectors.toList());
-            assertEquals(EXPECTED_MAIN_CONSUMER_TASK_METRICS, actualTaskMetrics);
+            final List<String> expectedMetrics = streams.metrics().values().stream().map(Metric::metricName)
+                    .filter(metricName -> metricName.tags().containsKey("thread-id")).map(mn -> {
+                        final String name = mn.name().replace('-', '.');
+                        final String group = mn.group().replace("-metrics", "").replace('-', '.');
+                        return "org.apache.kafka." + group + "." + name;
+                    }).sorted().collect(Collectors.toList());
+            final List<String> actualTaskMetrics = new ArrayList<>(TelemetryPlugin.SUBSCRIBED_METRICS.get(mainConsumerInstanceId));
+            assertEquals(expectedMetrics, actualTaskMetrics);
 
             TestUtils.waitForCondition(() -> !TelemetryPlugin.SUBSCRIBED_METRICS.get(adminInstanceId).isEmpty(),
                     30_000,
@@ -491,26 +499,4 @@ public class KafkaStreamsTelemetryIntegrationTest {
             }
         }
     }
-
-    private static final List<String> EXPECTED_MAIN_CONSUMER_TASK_METRICS = Arrays.asList(
-            "org.apache.kafka.stream.task.active.buffer.count",
-            "org.apache.kafka.stream.task.active.process.ratio",
-            "org.apache.kafka.stream.task.dropped.records.rate",
-            "org.apache.kafka.stream.task.dropped.records.total",
-            "org.apache.kafka.stream.task.enforced.processing.rate",
-            "org.apache.kafka.stream.task.enforced.processing.total",
-            "org.apache.kafka.stream.task.process.latency.avg",
-            "org.apache.kafka.stream.task.process.latency.max",
-            "org.apache.kafka.stream.task.process.rate",
-            "org.apache.kafka.stream.task.process.total",
-            "org.apache.kafka.stream.task.punctuate.latency.avg",
-            "org.apache.kafka.stream.task.punctuate.latency.max",
-            "org.apache.kafka.stream.task.punctuate.rate",
-            "org.apache.kafka.stream.task.punctuate.total",
-            "org.apache.kafka.stream.task.record.lateness.avg",
-            "org.apache.kafka.stream.task.record.lateness.max",
-            "org.apache.kafka.stream.task.restore.rate",
-            "org.apache.kafka.stream.task.restore.remaining.records.total",
-            "org.apache.kafka.stream.task.restore.total"
-    );
 }
