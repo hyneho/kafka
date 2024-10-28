@@ -269,6 +269,10 @@ public class Plugins {
         };
     }
 
+    public String defaultVersion(String classOrAlias) {
+        return delegatingLoader.defaultVersion(classOrAlias);
+    }
+
     public DelegatingClassLoader delegatingLoader() {
         return delegatingLoader;
     }
@@ -469,6 +473,8 @@ public class Plugins {
         }
         return plugin;
     }
+
+
 
     /**
      * Load an internal converter, used by the worker for (de)serializing data in internal topics.
