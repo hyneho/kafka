@@ -22,8 +22,6 @@ import org.apache.kafka.common.config.ConfigTransformerResult;
 import org.apache.kafka.common.config.provider.ConfigProvider;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.runtime.Herder.ConfigReloadAction;
-import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
-import org.apache.kafka.connect.util.FutureCallback;
 import org.apache.kafka.connect.util.Callback;
 import org.apache.kafka.connect.util.ConnectorTaskId;
 
