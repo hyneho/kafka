@@ -1310,7 +1310,7 @@ public class DistributedHerder extends AbstractHerder implements Runnable {
 
     @Override
     public void restartTask(ConnectorTaskId id, Callback<Void> cb) {
-        restartTask(0,id,cb);
+        restartTask(0, id, cb);
     }
 
     // A task on this worker requires a round of zombie fencing
