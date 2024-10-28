@@ -938,18 +938,17 @@ public class ReplicationControlManager {
                 BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP, ids.size());
         for (Uuid id : ids) {
             try {
-                log.info("Starting deletion of topic with ID {}.", id);
+                log.trace("Starting deletion of topic with ID {}.", id);
                 deleteTopic(context, id, records);
                 results.put(id, ApiError.NONE);
-                log.info("Successfully deleted topic with ID {}.", id);
             } catch (ApiException e) {
-                log.error("Failed to delete topic with ID {} due to API exception.", id, e);
                 results.put(id, ApiError.fromThrowable(e));
             } catch (Exception e) {
                 log.error("Unexpected deleteTopics error for {}", id, e);
                 results.put(id, ApiError.fromThrowable(e));
             }
         }
+        log.info("DeleteTopics result(s): {}", results);
         return ControllerResult.atomicOf(records, results);
     }
 
@@ -959,10 +958,10 @@ public class ReplicationControlManager {
             throw new UnknownTopicIdException(UNKNOWN_TOPIC_ID.message());
         }
         int numPartitions = topic.parts.size();
-        log.info("Deleting topic {} with ID {} and {} partitions", topic.name, id, numPartitions);
+        log.trace("Deleting topic {} with ID {} and {} partitions", topic.name, id, numPartitions);
         try {
             context.applyPartitionChangeQuota(numPartitions); // check controller mutation quota
-            log.info("Applied partition change quota for topic {} with ID {}", topic.name, id);
+            log.trace("Applied partition change quota for topic {} with ID {}", topic.name, id);
         } catch (ThrottlingQuotaExceededException e) {
             // log a message and rethrow the exception
             log.debug("Topic deletion of {} partitions not allowed because quota is violated. Delay time: {}",
@@ -971,7 +970,6 @@ public class ReplicationControlManager {
         }
         records.add(new ApiMessageAndVersion(new RemoveTopicRecord().
             setTopicId(id), (short) 0));
-        log.info("Successfully added RemoveTopicRecord for topic {} with ID {}", topic.name, id);
     }
 
     // VisibleForTesting
