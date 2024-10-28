@@ -3840,7 +3840,7 @@ In the replica description 0@controller-0:1234:3Db5QLSqSZieL3rJBUUegA, 0 is the 
   running something like the following:<p>
 
 <pre><code class="language-bash">
-  $ ./bin/kafka-features.sh --bootstrap-controller localhost:9093 describe
+  $ bin/kafka-features.sh --bootstrap-controller localhost:9093 describe
 </code></pre><p>
 
   If the <code>kraft.version</code> field is level 0 or absent, you are using a static quorum. If
@@ -3870,6 +3870,11 @@ Feature: metadata.version       SupportedMinVersion: 3.0-IV1    SupportedMaxVers
   If you would like the formatting process to fail if a dynamic quorum cannot be achieved, format your
   controllers using the <code>--feature kraft.version=1</code>. (Note that you should not supply
   this flag when formatting brokers -- only when formatting controllers.)<p>
+
+<pre><code class="language-bash">
+  $ bin/kafka-storage.sh format -t KAFKA_CLUSTER_ID --feature kraft.version=1 -c controller_static.properties
+  Cannot set kraft.version to 1 unless KIP-853 configuration is present. Try removing the --feature flag for kraft.version.
+</code></pre><p>
 
   In a future release, it will be possible to convert clusters using a static controller quorum to
   use a dynamic controller quorum. However, this is not currently possible.<p>
