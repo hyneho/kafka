@@ -226,7 +226,7 @@ public class LocalLog {
         RecordVersion oldRecordVersion = oldConfig.recordVersion();
         RecordVersion newRecordVersion = newConfig.recordVersion();
         if (newRecordVersion.precedes(oldRecordVersion)) {
-            logger.warn("Record format version has been downgraded from " + oldRecordVersion + " to " + newRecordVersion + ".");
+            logger.warn("Record format version has been downgraded from {} to {}.", oldRecordVersion, newRecordVersion);
         }
     }
 
@@ -367,7 +367,12 @@ public class LocalLog {
             () -> "Error while deleting all segments for $topicPartition in dir ${dir.getParent}",
             () -> {
                 List<LogSegment> deletableSegments = new ArrayList<>(segments.values());
-                removeAndDeleteSegments(segments.values(), false, new LogDeletion(logger));
+                removeAndDeleteSegments(
+                        segments.values(),
+                        false,
+                        toDelete -> logger.info("Deleting segments as the log has been deleted: {}", toDelete.stream()
+                            .map(LogSegment::toString)
+                            .collect(Collectors.joining(", "))));
                 isMemoryMappedBufferClosed = true;
                 return deletableSegments;
             }
@@ -471,8 +476,8 @@ public class LocalLog {
         return maybeHandleIOException(
                 () -> "Exception while reading from " + topicPartition + " in dir " + dir.getParent(),
                 () -> {
-                    logger.trace("Reading maximum $maxLength bytes at offset " + startOffset + " from log with " +
-                            "total length " + segments.sizeInBytes() + " bytes");
+                    logger.trace("Reading maximum $maxLength bytes at offset {} from log with total length {} bytes",
+                            startOffset, segments.sizeInBytes());
 
                     LogOffsetMetadata endOffsetMetadata = nextOffsetMetadata;
                     long endOffset = endOffsetMetadata.messageOffset;
@@ -482,49 +487,45 @@ public class LocalLog {
                         throw new OffsetOutOfRangeException("Received request for offset " + startOffset + " for partition " + topicPartition + ", " +
                                 "but we only have log segments upto " + endOffset + ".");
                     }
-                    if (startOffset == maxOffsetMetadata.messageOffset) {
-                        return emptyFetchDataInfo(maxOffsetMetadata, includeAbortedTxns);
-                    } else if (startOffset > maxOffsetMetadata.messageOffset) {
-                        return emptyFetchDataInfo(convertToOffsetMetadataOrThrow(startOffset), includeAbortedTxns);
-                    } else {
-                        // Do the read on the segment with a base offset less than the target offset
-                        // but if that segment doesn't contain any messages with an offset greater than that
-                        // continue to read from successive segments until we get some messages or we reach the end of the log
-                        FetchDataInfo fetchDataInfo = null;
-                        while (fetchDataInfo == null && segmentOpt.isPresent()) {
-                            LogSegment segment = segmentOpt.get();
-                            long baseOffset = segment.baseOffset();
+                    if (startOffset == maxOffsetMetadata.messageOffset) return emptyFetchDataInfo(maxOffsetMetadata, includeAbortedTxns);
+                    if (startOffset > maxOffsetMetadata.messageOffset) return emptyFetchDataInfo(convertToOffsetMetadataOrThrow(startOffset), includeAbortedTxns);
 
-                            // 1. If `maxOffsetMetadata#segmentBaseOffset < segment#baseOffset`, then return maxPosition as empty.
-                            // 2. Use the max-offset position if it is on this segment; otherwise, the segment size is the limit.
-                            // 3. When maxOffsetMetadata is message-offset-only, then we don't know the relativePositionInSegment so
-                            //    return maxPosition as empty to avoid reading beyond the max-offset
-                            Optional<Long> maxPositionOpt;
-                            if (segment.baseOffset() < maxOffsetMetadata.segmentBaseOffset)
-                                maxPositionOpt = Optional.of((long) segment.size());
-                            else if (segment.baseOffset() == maxOffsetMetadata.segmentBaseOffset && !maxOffsetMetadata.messageOffsetOnly())
-                                maxPositionOpt = Optional.of((long) maxOffsetMetadata.relativePositionInSegment);
-                            else
-                                maxPositionOpt = Optional.empty();
+                    // Do the read on the segment with a base offset less than the target offset
+                    // but if that segment doesn't contain any messages with an offset greater than that
+                    // continue to read from successive segments until we get some messages or we reach the end of the log
+                    FetchDataInfo fetchDataInfo = null;
+                    while (fetchDataInfo == null && segmentOpt.isPresent()) {
+                        LogSegment segment = segmentOpt.get();
+                        long baseOffset = segment.baseOffset();
 
-                            fetchDataInfo = segment.read(startOffset, maxLength, maxPositionOpt, minOneMessage);
-                            if (fetchDataInfo != null) {
-                                if (includeAbortedTxns) {
-                                    fetchDataInfo = addAbortedTransactions(startOffset, segment, fetchDataInfo);
-                                }
-                            } else {
-                                segmentOpt = segments.higherSegment(baseOffset);
-                            }
-                        }
+                        // 1. If `maxOffsetMetadata#segmentBaseOffset < segment#baseOffset`, then return maxPosition as empty.
+                        // 2. Use the max-offset position if it is on this segment; otherwise, the segment size is the limit.
+                        // 3. When maxOffsetMetadata is message-offset-only, then we don't know the relativePositionInSegment so
+                        //    return maxPosition as empty to avoid reading beyond the max-offset
+                        Optional<Long> maxPositionOpt;
+                        if (segment.baseOffset() < maxOffsetMetadata.segmentBaseOffset)
+                            maxPositionOpt = Optional.of((long) segment.size());
+                        else if (segment.baseOffset() == maxOffsetMetadata.segmentBaseOffset && !maxOffsetMetadata.messageOffsetOnly())
+                            maxPositionOpt = Optional.of((long) maxOffsetMetadata.relativePositionInSegment);
+                        else
+                            maxPositionOpt = Optional.empty();
 
+                        fetchDataInfo = segment.read(startOffset, maxLength, maxPositionOpt, minOneMessage);
                         if (fetchDataInfo != null) {
-                            return fetchDataInfo;
+                            if (includeAbortedTxns) {
+                                fetchDataInfo = addAbortedTransactions(startOffset, segment, fetchDataInfo);
+                            }
                         } else {
-                            // okay we are beyond the end of the last segment with no data fetched although the start offset is in range,
-                            // this can happen when all messages with offset larger than start offsets have been deleted.
-                            // In this case, we will return the empty set with log end offset metadata
-                            return new FetchDataInfo(nextOffsetMetadata, MemoryRecords.EMPTY);
+                            segmentOpt = segments.higherSegment(baseOffset);
                         }
+                    }
+                    if (fetchDataInfo != null) {
+                        return fetchDataInfo;
+                    } else {
+                        // okay we are beyond the end of the last segment with no data fetched although the start offset is in range,
+                        // this can happen when all messages with offset larger than start offsets have been deleted.
+                        // In this case, we will return the empty set with log end offset metadata
+                        return new FetchDataInfo(nextOffsetMetadata, MemoryRecords.EMPTY);
                     }
                 }
         );
@@ -585,13 +586,13 @@ public class LocalLog {
      *
      * @return The newly rolled segment
      */
-    public LogSegment roll(Optional<Long> expectedNextOffset) {
+    public LogSegment roll(Long expectedNextOffset) {
         return maybeHandleIOException(
             () -> "Error while rolling log segment for " + topicPartition + " in dir " + dir.getParent(),
             () -> {
                 long start = time.hiResClockMs();
                 checkIfMemoryMappedBufferClosed();
-                long newOffset = Math.max(expectedNextOffset.orElse(0L), logEndOffset());
+                long newOffset = Math.max(expectedNextOffset, logEndOffset());
                 File logFile = LogFileUtils.logFile(dir, newOffset, "");
                 LogSegment activeSegment = segments.activeSegment();
                 if (segments.contains(newOffset)) {
@@ -599,13 +600,18 @@ public class LocalLog {
                     if (activeSegment.baseOffset() == newOffset && activeSegment.size() == 0) {
                         // We have seen this happen (see KAFKA-6388) after shouldRoll() returns true for an
                         // active segment of size zero because of one of the indexes is "full" (due to _maxEntries == 0).
-                        logger.warn("Trying to roll a new log segment with start offset " + newOffset +
-                                "=max(provided offset = " + expectedNextOffset + ", LEO = " + logEndOffset() + ") while it already " +
-                                "exists and is active with size 0. Size of time index: " + activeSegment.timeIndex().entries() +
-                                ", size of offset index: " + activeSegment.offsetIndex().entries() + ".");
-                        LogSegment newSegment = createAndDeleteSegment(newOffset, activeSegment, true, new LogRoll(logger));
+                        logger.warn("Trying to roll a new log segment with start offset {}=max(provided offset = {}, LEO = {}) " +
+                                    "while it already exists and is active with size 0. Size of time index: {}, size of offset index: {}.",
+                                newOffset, expectedNextOffset, logEndOffset(), activeSegment.timeIndex().entries(), activeSegment.offsetIndex().entries());
+                        LogSegment newSegment = createAndDeleteSegment(
+                                newOffset,
+                                activeSegment,
+                                true,
+                                toDelete -> logger.info("Deleting segments as part of log roll: {}", toDelete.stream()
+                                    .map(LogSegment::toString)
+                                    .collect(Collectors.joining(", "))));
                         updateLogEndOffset(nextOffsetMetadata.messageOffset);
-                        logger.info("Rolled new log segment at offset " + newOffset + " in " + (time.hiResClockMs() - start) + " ms.");
+                        logger.info("Rolled new log segment at offset {} in {} ms.", newOffset, time.hiResClockMs() - start);
                         return newSegment;
                     } else {
                         throw new KafkaException("Trying to roll a new log segment for topic partition " + topicPartition + " with start offset " + newOffset +
@@ -622,7 +628,7 @@ public class LocalLog {
                     File txnIdxFile = LogFileUtils.transactionIndexFile(dir, newOffset);
                     for (File file : Arrays.asList(logFile, offsetIdxFile, timeIdxFile, txnIdxFile)) {
                         if (file.exists()) {
-                            logger.warn("Newly rolled segment file " + file.getAbsolutePath() + " already exists; deleting it first");
+                            logger.warn("Newly rolled segment file {} already exists; deleting it first", file.getAbsolutePath());
                             Files.delete(file.toPath());
                         }
                     }
@@ -641,7 +647,7 @@ public class LocalLog {
                 // We need to update the segment base offset and append position data of the metadata when log rolls.
                 // The next offset should not change.
                 updateLogEndOffset(nextOffsetMetadata.messageOffset);
-                logger.info("Rolled new log segment at offset " + newOffset + " in " + (time.hiResClockMs() - start) + " ms.");
+                logger.info("Rolled new log segment at offset {} in {} ms.", newOffset, time.hiResClockMs() - start);
                 return newSegment;
             }
         );
@@ -657,7 +663,7 @@ public class LocalLog {
         return maybeHandleIOException(
             () -> "Error while truncating the entire log for " + topicPartition + " in dir " + dir.getParent(),
             () -> {
-                logger.debug("Truncate and start at offset " + newOffset);
+                logger.debug("Truncate and start at offset {}", newOffset);
                 checkIfMemoryMappedBufferClosed();
                 List<LogSegment> segmentsToDelete = new ArrayList<>(segments.values());
 

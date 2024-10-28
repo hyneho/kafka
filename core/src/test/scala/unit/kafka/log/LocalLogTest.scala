@@ -22,7 +22,7 @@ import java.nio.channels.ClosedChannelException
 import java.nio.charset.StandardCharsets
 import java.util
 import java.util.regex.Pattern
-import java.util.{Collections, Optional}
+import java.util.Collections
 import kafka.server.KafkaConfig
 import kafka.utils.TestUtils
 import org.apache.kafka.common.compress.Compression
@@ -121,7 +121,7 @@ class LocalLogTest {
   def testLogDeleteSegmentsSuccess(): Unit = {
     val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
     appendRecords(List(record))
-    log.roll(Optional.empty)
+    log.roll(0L)
     assertEquals(2, log.segments.numberOfSegments)
     assertFalse(logDir.listFiles.isEmpty)
     val segmentsBeforeDelete = new util.ArrayList(log.segments.values)
@@ -135,7 +135,7 @@ class LocalLogTest {
   @Test
   def testRollEmptyActiveSegment(): Unit = {
     val oldActiveSegment = log.segments.activeSegment
-    log.roll(Optional.empty)
+    log.roll(0L)
     assertEquals(1, log.segments.numberOfSegments)
     assertNotEquals(oldActiveSegment, log.segments.activeSegment)
     assertFalse(logDir.listFiles.isEmpty)
@@ -146,7 +146,7 @@ class LocalLogTest {
   def testLogDeleteDirSuccessWhenEmptyAndFailureWhenNonEmpty(): Unit ={
     val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
     appendRecords(List(record))
-    log.roll(Optional.empty)
+    log.roll(0L)
     assertEquals(2, log.segments.numberOfSegments)
     assertFalse(logDir.listFiles.isEmpty)
 
@@ -172,7 +172,7 @@ class LocalLogTest {
   def testLogDirRenameToNewDir(): Unit = {
     val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
     appendRecords(List(record))
-    log.roll(Optional.empty)
+    log.roll(0L)
     assertEquals(2, log.segments.numberOfSegments)
     val newLogDir = TestUtils.randomPartitionLogDir(tmpDir)
     assertTrue(log.renameDir(newLogDir.getName))
@@ -198,7 +198,7 @@ class LocalLogTest {
     val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
     appendRecords(List(record))
     mockTime.sleep(1)
-    val newSegment = log.roll(Optional.empty)
+    val newSegment = log.roll(0L)
     log.flush(newSegment.baseOffset)
     log.markFlushed(newSegment.baseOffset)
     assertEquals(1L, log.recoveryPoint)
@@ -263,7 +263,7 @@ class LocalLogTest {
     for (offset <- 0 to 8) {
       val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
       appendRecords(List(record), initialOffset = offset)
-      log.roll(Optional.empty)
+      log.roll(0L)
     }
 
     assertEquals(10L, log.segments.numberOfSegments)
@@ -302,7 +302,7 @@ class LocalLogTest {
     for (offset <- 0 to 8) {
       val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
       appendRecords(List(record), initialOffset = offset)
-      log.roll(Optional.empty)
+      log.roll(0L)
     }
 
     assertEquals(10L, log.segments.numberOfSegments)
@@ -354,7 +354,7 @@ class LocalLogTest {
     for (offset <- 0 to 7) {
       appendRecords(List(record), initialOffset = offset)
       if (offset % 2 != 0)
-        log.roll(Optional.empty)
+        log.roll(0L)
     }
     for (offset <- 8 to 12) {
       val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
@@ -379,7 +379,7 @@ class LocalLogTest {
     for (offset <- 0 to 4) {
       appendRecords(List(record), initialOffset = offset)
       if (offset % 2 != 0)
-        log.roll(Optional.empty)
+        log.roll(0L)
     }
     assertEquals(3, log.segments.numberOfSegments)
 
@@ -416,7 +416,7 @@ class LocalLogTest {
       val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
       appendRecords(List(record), initialOffset = offset)
       if (offset % 3 == 2)
-        log.roll(Optional.empty)
+        log.roll(0L)
     }
     assertEquals(5, log.segments.numberOfSegments)
     assertEquals(12L, log.logEndOffset)
@@ -444,7 +444,7 @@ class LocalLogTest {
     for (i <- 0 until 5) {
       val keyValues = Seq(KeyValue(i.toString, i.toString))
       appendRecords(kvsToRecords(keyValues), initialOffset = i)
-      log.roll(Optional.empty)
+      log.roll(0L)
     }
 
     def nonActiveBaseOffsetsFrom(startOffset: Long): Seq[Long] = {
@@ -598,7 +598,7 @@ class LocalLogTest {
     assertEquals(1, log.segments.numberOfSegments, "Log begins with a single empty segment.")
 
     // roll active segment with the same base offset of size zero should recreate the segment
-    log.roll(Optional.of(0L))
+    log.roll(0L)
     assertEquals(1, log.segments.numberOfSegments, "Expect 1 segment after roll() empty segment with base offset.")
 
     // should be able to append records to active segment
@@ -614,7 +614,7 @@ class LocalLogTest {
     assertEquals(keyValues1 ++ keyValues2, recordsToKvs(readResult.records.records.asScala))
 
     // roll so that active segment is empty
-    log.roll(Optional.empty)
+    log.roll(0L)
     assertEquals(2L, log.segments.activeSegment.baseOffset, "Expect base offset of active segment to be LEO")
     assertEquals(2, log.segments.numberOfSegments, "Expect two segments.")
     assertEquals(2L, log.logEndOffset)
@@ -626,7 +626,7 @@ class LocalLogTest {
 
     // roll active segment with the same base offset of size zero should recreate the segment
     {
-      val newSegment = log.roll(Optional.empty)
+      val newSegment = log.roll(0L)
       assertEquals(0L, newSegment.baseOffset)
       assertEquals(1, log.segments.numberOfSegments)
       assertEquals(0L, log.logEndOffset)
@@ -635,7 +635,7 @@ class LocalLogTest {
     appendRecords(List(KeyValue("k1", "v1").toRecord()))
 
     {
-      val newSegment = log.roll(Optional.empty)
+      val newSegment = log.roll(0L)
       assertEquals(1L, newSegment.baseOffset)
       assertEquals(2, log.segments.numberOfSegments)
       assertEquals(1L, log.logEndOffset)
@@ -644,7 +644,7 @@ class LocalLogTest {
     appendRecords(List(KeyValue("k2", "v2").toRecord()), initialOffset = 1L)
 
     {
-      val newSegment = log.roll(Optional.of(1L))
+      val newSegment = log.roll(1L)
       assertEquals(2L, newSegment.baseOffset)
       assertEquals(3, log.segments.numberOfSegments)
       assertEquals(2L, log.logEndOffset)
@@ -661,7 +661,7 @@ class LocalLogTest {
     assertEquals(3, log.logEndOffset, "Expect two records in the log")
 
     // roll to create an empty active segment
-    log.roll(Optional.empty)
+    log.roll(0L)
     assertEquals(3L, log.segments.activeSegment.baseOffset)
 
     // intentionally setup the logEndOffset to introduce an error later
@@ -669,7 +669,7 @@ class LocalLogTest {
 
     // expect an error because of attempt to roll to a new offset (1L) that's lower than the
     // base offset (3L) of the active segment
-    assertThrows(classOf[KafkaException], () => log.roll(Optional.empty))
+    assertThrows(classOf[KafkaException], () => log.roll(0L))
   }
 
   @Test
@@ -679,7 +679,7 @@ class LocalLogTest {
     val record = new SimpleRecord(mockTime.milliseconds, "a".getBytes)
     appendRecords(List(record))
     mockTime.sleep(1)
-    val newSegment = log.roll(Optional.empty)
+    val newSegment = log.roll(0L)
 
     // simulate the directory is renamed concurrently
     doReturn(new File("__NON_EXISTENT__"), Nil: _*).when(spyLog).dir
