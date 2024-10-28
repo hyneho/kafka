@@ -819,7 +819,6 @@ public class GroupCoordinatorRecordHelpersTest {
         String regex = "foo.*";
         List<String> matchingTopics = Arrays.asList("topic1", "topic2");
         int metadataVersion  = 1;
-        int memberCount = 10;
 
 
         CoordinatorRecord expectedRecord = new CoordinatorRecord(
@@ -832,7 +831,6 @@ public class GroupCoordinatorRecordHelpersTest {
             new ApiMessageAndVersion(
                 new ConsumerGroupRegexValue()
                     .setMatchingTopicsNames(matchingTopics)
-                    .setMemberCount(memberCount)
                     .setMetadataVersion(metadataVersion),
                 (short) 0));
 
@@ -843,7 +841,6 @@ public class GroupCoordinatorRecordHelpersTest {
         ConsumerGroupRegex.Resolution expectedResolution = new ConsumerGroupRegex.Resolution.Builder()
             .withMatchingTopics(new HashSet<>(matchingTopics))
             .withMetadataVersion(metadataVersion)
-            .withMemberCount(memberCount)
             .build();
         assertRecordEquals(expectedRecord, newConsumerGroupRegexRecord(
             expectedKey,

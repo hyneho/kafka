@@ -651,6 +651,49 @@ public class ConsumerGroupTest {
             .setSubscribedTopicNames(Collections.singletonList("zar"))
             .build();
 
+        verifySubscriptionMetadata(image, member1, member2, member3, fooTopicId, barTopicId, zarTopicId);
+    }
+
+    @Test
+    public void testUpdateSubscriptionMetadataWithTopicsFromRegex() {
+        Uuid fooTopicId = Uuid.randomUuid();
+        Uuid barTopicId = Uuid.randomUuid();
+        Uuid zarTopicId = Uuid.randomUuid();
+
+        MetadataImage image = new MetadataImageBuilder()
+            .addTopic(fooTopicId, "foo", 1)
+            .addTopic(barTopicId, "bar", 2)
+            .addTopic(zarTopicId, "zar", 3)
+            .addRacks()
+            .build();
+
+        ConsumerGroupMember member1 = new ConsumerGroupMember.Builder("member1")
+            .setSubscribedTopicRegex("f.*")
+            .build();
+        ConsumerGroupMember member2 = new ConsumerGroupMember.Builder("member2")
+            .setSubscribedTopicRegex("b.*")
+            .build();
+        ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
+            .setSubscribedTopicRegex("z.*")
+            .build();
+
+        // Mock regex resolution retrieved from group and updated in member
+        member1.setSubscribedTopicNamesFromRegex(Collections.singleton("foo"));
+        member2.setSubscribedTopicNamesFromRegex(Collections.singleton("bar"));
+        member3.setSubscribedTopicNamesFromRegex(Collections.singleton("zar"));
+
+        verifySubscriptionMetadata(image, member1, member2, member3, fooTopicId, barTopicId, zarTopicId);
+    }
+
+    private void verifySubscriptionMetadata(
+        MetadataImage image,
+        ConsumerGroupMember member1,
+        ConsumerGroupMember member2,
+        ConsumerGroupMember member3,
+        Uuid fooTopicId,
+        Uuid barTopicId,
+        Uuid zarTopicId
+    ) {
         ConsumerGroup consumerGroup = createConsumerGroup("group-foo");
 
         // It should be empty by default.

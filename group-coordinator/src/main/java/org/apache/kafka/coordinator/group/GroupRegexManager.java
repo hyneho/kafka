@@ -17,7 +17,6 @@
 
 package org.apache.kafka.coordinator.group;
 
-import org.apache.kafka.common.errors.InvalidRegularExpression;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorResult;
@@ -25,11 +24,8 @@ import org.apache.kafka.coordinator.common.runtime.CoordinatorTimer;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupRegex.RegexKey;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupRegex.Resolution;
 import org.apache.kafka.image.MetadataImage;
-import org.apache.kafka.timeline.SnapshotRegistry;
-import org.apache.kafka.timeline.TimelineHashMap;
 
 import com.google.re2j.Pattern;
-import com.google.re2j.PatternSyntaxException;
 
 import org.slf4j.Logger;
 
@@ -44,13 +40,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * The GroupRegexManager maintains regular expressions used in pattern-based subscription for all consumer groups,
- * resolved using RE2J. It's responsible for:
- * 1) Validating regular expressions.
- * 2) Providing the resolution of a regular expression if available.
- * 3) Evaluating regular expressions to find the matching topics (performed in a separate thread)
- * 4) Re-evaluating regular expressions periodically to keep them up-to-date as topics are created/deleted.
+ * The GroupRegexManager is responsible for evaluating regular expressions used in pattern-based subscription,
+ * for all consumer groups. It runs the computation asynchronously in an eval thread,
+ * and writes a record to persist the results when ready.
+ * It evaluates regular expressions in these scenarios:
+ * 1) Evaluates single regular expression on demand.
+ * 2) Re-evaluates all regular expressions for a group on demand (to keep them up-to-date as topics are created/deleted)
  */
+// TODO: refactor as generic executor with callback to perform an operation (ie. write) when the computation (ie.
+//  eval) completes.
 public class GroupRegexManager {
 
     /**
@@ -62,11 +60,6 @@ public class GroupRegexManager {
      * Queue containing regular expressions that need to be evaluated.
      */
     private final UniqueBlockingQueue<RegexKey> evalQueue;
-
-    /**
-     * The classic and consumer groups keyed by their name.
-     */
-    private final TimelineHashMap<RegexKey, Resolution> resolvedRegexes;
 
     /**
      * The metadata image.
@@ -92,18 +85,12 @@ public class GroupRegexManager {
     public static class Builder {
 
         private LogContext logContext;
-        private SnapshotRegistry snapshotRegistry = null;
         private CoordinatorTimer<Void, CoordinatorRecord> timer;
 
         private MetadataImage metadataImage;
 
         GroupRegexManager.Builder withLogContext(LogContext logContext) {
             this.logContext = logContext;
-            return this;
-        }
-
-        GroupRegexManager.Builder withSnapshotRegistry(SnapshotRegistry snapshotRegistry) {
-            this.snapshotRegistry = snapshotRegistry;
             return this;
         }
 
@@ -119,17 +106,15 @@ public class GroupRegexManager {
 
         GroupRegexManager build() {
             if (logContext == null) logContext = new LogContext();
-            if (snapshotRegistry == null) snapshotRegistry = new SnapshotRegistry(logContext);
             if (metadataImage == null) metadataImage = MetadataImage.EMPTY;
             if (timer == null)
                 throw new IllegalArgumentException("Timer must be set.");
-            return new GroupRegexManager(logContext, snapshotRegistry, timer, metadataImage);
+            return new GroupRegexManager(logContext, timer, metadataImage);
         }
     }
 
     private GroupRegexManager(
         LogContext logContext,
-        SnapshotRegistry snapshotRegistry,
         CoordinatorTimer<Void, CoordinatorRecord> timer,
         MetadataImage metadataImage
     ) {
@@ -137,7 +122,6 @@ public class GroupRegexManager {
         this.timer = timer;
         this.metadataImage = metadataImage;
         this.evalQueue = new UniqueBlockingQueue<>(logContext);
-        this.resolvedRegexes = new TimelineHashMap<>(snapshotRegistry, 0);
         this.runAsyncEval = true;
         this.executorService = Executors.newSingleThreadExecutor(r -> {
             final Thread thread = new Thread(r,  "coordinatorRegexEvalThread");
@@ -147,31 +131,15 @@ public class GroupRegexManager {
         this.executorService.submit(this::evalRequestedRegexes);
     }
 
-
     /**
-     * @return The compiled pattern for the given regular expression. Null if regex is null or empty.
-     * throws PatternSyntaxException If the regex is not valid.
-     */
-    public Pattern validateRegex(String regex) {
-        if (regex == null || regex.isEmpty()) return null;
-        return Pattern.compile(regex);
-    }
-
-    /**
-     * Request asynchronous eval of the regex against the list of topics from metadata, only if it's a valid
-     * regular expression that is not revolved yet.
+     * Request asynchronous eval of the regex against the list of topics from metadata.
      *
      * @param groupId The group ID.
      * @param regex   The regular expression evaluate.
-     * @throws InvalidRegularExpression If the regex is not a valid RE2J regular expression.
      */
-    void maybeRequestEval(String groupId, Pattern regex) {
-        if (!isResolved(groupId, regex)) {
-            RegexKey key = buildKey(groupId, regex);
-            addToEvalQueue(key);
-        } else {
-            log.debug("Regex {} is already resolved for group {}", regex, groupId);
-        }
+    void requestEval(String groupId, Pattern regex) {
+        RegexKey key = buildKey(groupId, regex);
+        addToEvalQueue(key);
     }
 
     /**
@@ -184,28 +152,11 @@ public class GroupRegexManager {
     }
 
     /**
-     * Decrement the number of subscribers to the regular expression. If the number of subscribers becomes 0, remove
-     * the regular expression so that it's not maintained anymore.
-     */
-    public void removeRegexSubscriber(String groupId, Pattern pattern) {
-        RegexKey regexKey = buildKey(groupId, pattern);
-        if (!this.resolvedRegexes.containsKey(regexKey)) {
-            return;
-        }
-
-        Resolution resolution = this.resolvedRegexes.get(regexKey);
-        if (resolution.decrementMemberCount() == 0) {
-            this.resolvedRegexes.remove(regexKey);
-            writeTombstoneForUnusedRegex(regexKey, resolution);
-        }
-    }
-
-    /**
      * Request eval of all regular expressions against the latest metadata. This ensures that list of matching
      * topics for all regular expressions reflect changes as topics are created/deleted.
      */
     public void refreshAll() {
-        // TODO: implement refresh to clear all resolved regexes and request re-eval for them.
+        // TODO: implement refresh to clear all resolved regexes and request re-eval incrementally
     }
 
     /**
@@ -241,11 +192,8 @@ public class GroupRegexManager {
     private Resolution maybeEvalRegex(
         RegexKey groupRegexKey
     ) {
-        String groupId = groupRegexKey.groupId();
         Pattern pattern = groupRegexKey.pattern();
-        if (isResolved(groupId, pattern)) {
-            return null;
-        }
+        // TODO: abort if at this point the requested regex is not needed anymore (ie. HB removing pattern subscription)
         long start = System.currentTimeMillis();
         Set<String> allTopics = this.metadataImage.topics().topicsByName().keySet();
 
@@ -282,11 +230,17 @@ public class GroupRegexManager {
         );
     }
 
-    private void writeTombstoneForUnusedRegex(RegexKey key, Resolution resolution) {
+    /**
+     * Trigger write operation to persist a tombstone record
+     * to delete the resolution of a regex that is not used anymore.
+     *
+     * @param key Regex key containing the group ID and pattern.
+     */
+    private void writeTombstoneForUnusedRegex(RegexKey key) {
         // TODO: piggybacking on the timer.schedule as initial approach but consider skipping it and trigger write
         //  operation directly.
         timer.schedule(
-            regexEvalAttemptKey(key.groupId(), key.pattern().toString(), resolution.metadataVersion()),
+            regexRemoveAttemptKey(key.groupId(), key.pattern().toString()),
             0,
             TimeUnit.MILLISECONDS,
             false,
@@ -327,6 +281,14 @@ public class GroupRegexManager {
         return "regex-eval-" + groupId + "-" + regex + "-" + metadataVersion;
     }
 
+    /**
+     * @return String identifying an operation to remove a regex resolution.
+     * To be used when writing regex tombstone records.
+     */
+    public static String regexRemoveAttemptKey(String groupId, String regex) {
+        return "regex-removal-" + groupId + "-" + regex;
+    }
+
     public void onNewMetadataImage(MetadataImage metadataImage) {
         this.metadataImage = metadataImage;
     }
@@ -354,46 +316,16 @@ public class GroupRegexManager {
     }
 
     /**
-     * @return True if the given regular expression has been already resolved.
+     * Remove the regex resolution by writing a tombstone record.
+     * This will ensure that the regex is not refreshed periodically
+     * when not in use anymore.
      */
-    public boolean isResolved(
+    public void removeRegex(
         String groupId,
         Pattern pattern
     ) {
         RegexKey key = buildKey(groupId, pattern);
-        return this.resolvedRegexes.containsKey(key);
-    }
-
-    public Resolution resolution(String groupId, String regex) {
-        try {
-            RegexKey key = buildKey(groupId, Pattern.compile(regex));
-            return this.resolvedRegexes.get(key);
-        } catch (PatternSyntaxException e) {
-            return null;
-        }
-    }
-
-    /**
-     * Remove regex resolution. This will ensure that the regex is not refreshed periodically when not needed anymore.
-     *
-     * @return True if the regular expression was deleted. False if it didn't exist.
-     */
-    public boolean removeRegex(
-        String groupId,
-        String regex
-    ) {
-        Pattern pattern;
-        try {
-            pattern = Pattern.compile(regex);
-        } catch (PatternSyntaxException e) {
-            // This is not expected given that only valid regular expressions are evaluated, persisted then
-            // deleted (when not in use), so logging and ignore.
-            log.error("Ignoring attempt to delete invalid regex {} for group id {}", regex, groupId);
-            return false;
-        }
-
-        RegexKey key = buildKey(groupId, pattern);
-        return this.resolvedRegexes.remove(key) != null;
+        writeTombstoneForUnusedRegex(key);
     }
 
     /**
@@ -427,6 +359,4 @@ public class GroupRegexManager {
             return t;
         }
     }
-
-
 }

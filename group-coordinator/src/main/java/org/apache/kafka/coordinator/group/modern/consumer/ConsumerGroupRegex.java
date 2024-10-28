@@ -95,20 +95,13 @@ public class ConsumerGroupRegex {
     public static class Resolution {
         private final Set<String> matchingTopics;
         private final int metadataVersion;
-        private int memberCount;
 
         public static class Builder {
             private Set<String> matchingTopics = new HashSet<>();
             private int metadataVersion;
-            private int memberCount;
 
             public Builder withMetadataVersion(int metadataVersion) {
                 this.metadataVersion = metadataVersion;
-                return this;
-            }
-
-            public Builder withMemberCount(int memberCount) {
-                this.memberCount = memberCount;
                 return this;
             }
 
@@ -118,15 +111,12 @@ public class ConsumerGroupRegex {
             }
 
             public Resolution build() {
-                Resolution result = new Resolution(this.matchingTopics, this.metadataVersion);
-                result.memberCount = this.memberCount;
-                return result;
+                return new Resolution(this.matchingTopics, this.metadataVersion);
             }
 
             public Builder updateWith(ConsumerGroupRegexValue value) {
                 this.matchingTopics = new HashSet<>(value.matchingTopicsNames());
                 this.metadataVersion = value.metadataVersion();
-                this.memberCount = value.memberCount();
                 return this;
             }
         }
@@ -150,23 +140,6 @@ public class ConsumerGroupRegex {
          */
         public int metadataVersion() {
             return this.metadataVersion;
-        }
-
-        /**
-         * @return Number of members subscribed to this regular expression.
-         */
-        public int memberCount() {
-            return this.memberCount;
-        }
-
-        /**
-         * Decrement the number of members subscribed to the regex by one.
-         *
-         * @return The decremented member count.
-         */
-        public int decrementMemberCount() {
-            this.memberCount--;
-            return this.memberCount;
         }
 
         @Override

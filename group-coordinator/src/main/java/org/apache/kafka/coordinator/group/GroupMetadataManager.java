@@ -1430,18 +1430,18 @@ public class GroupMetadataManager {
     }
 
     /**
-     * Validate the given regular expression.
+     * Validate the given regular expression and save the compiled pattern in the consumer group to be reused.
      *
      * @return The compiled pattern for the regular expression if it's a valid one. Null of the regular expression is
      * null or empty.
      * @throws PatternSyntaxException If the given regular expression is not valid.
      */
-    private Pattern throwIfInvalidRegularExpression(String subscribedTopicRegex) {
+    private Pattern throwIfInvalidRegularExpression(ConsumerGroup group, String subscribedTopicRegex) {
         if (subscribedTopicRegex == null || subscribedTopicRegex.isEmpty()) {
             return null;
         }
         try {
-            return groupRegexManager.validateRegex(subscribedTopicRegex);
+            return group.pattern(subscribedTopicRegex);
         } catch (PatternSyntaxException e) {
             log.error("Invalid regular expression {}", subscribedTopicRegex, e);
             throw new InvalidRegularExpression(
@@ -1784,8 +1784,8 @@ public class GroupMetadataManager {
         boolean createIfNotExists = memberEpoch == 0;
         final ConsumerGroup group = getOrMaybeCreateConsumerGroup(groupId, createIfNotExists, records);
         throwIfConsumerGroupIsFull(group, memberId);
-        Pattern subscribedTopicPattern = throwIfInvalidRegularExpression(subscribedTopicRegex);
-        group.maybeUpdateRegexPatternMap(subscribedTopicRegex, subscribedTopicPattern);
+
+        Pattern subscribedTopicPattern = throwIfInvalidRegularExpression(group, subscribedTopicRegex);
 
         // Get or create the member.
         if (memberId.isEmpty()) memberId = Uuid.randomUuid().toString();
@@ -1853,11 +1853,6 @@ public class GroupMetadataManager {
             // 1) The member has updated its subscriptions;
             // 2) The refresh deadline has been reached.
             Map<String, Integer> subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
-            Map<String, Integer> subscribedTopicFromRegexCount = group.computeSubscribedTopicNamesFromRegex(member, updatedMember);
-
-            // Extend topic names map to include topics from regex
-            subscribedTopicFromRegexCount.forEach((topicName, count) -> subscribedTopicNamesMap.merge(topicName, count, Integer::sum));
-
             subscriptionMetadata = group.computeSubscriptionMetadata(
                 subscribedTopicNamesMap,
                 metadataImage.topics(),
@@ -1951,8 +1946,9 @@ public class GroupMetadataManager {
     /**
      * Check if the member is using a regular expression already resolved.
      * If so, update the member subscribed topics to include the matching topics.
+     * Visible for testing.
      */
-    private void maybeUpdateSubscribedTopicNamesFromRegex(
+    void maybeUpdateSubscribedTopicNamesFromRegex(
         ConsumerGroup group,
         ConsumerGroupMember updatedMember,
         Pattern pattern
@@ -2488,9 +2484,12 @@ public class GroupMetadataManager {
                     groupId, memberId, updatedMember.subscribedTopicRegex().get());
 
                 if (updatedMember.subscribedTopicRegex().isPresent()) {
-                    groupRegexManager.maybeRequestEval(groupId, group.pattern(updatedMember.subscribedTopicRegex().get()));
+                    if (!group.isResolved(updatedMember.subscribedTopicRegex().get())) {
+                        groupRegexManager.requestEval(groupId, group.pattern(updatedMember.subscribedTopicRegex().get()));
+                    }
                 } else {
-                    groupRegexManager.removeRegexSubscriber(groupId, group.pattern(member.subscribedTopicRegex().get()));
+                    // TODO: remove regex resolution by writing a tombstone if this was the last member using the regex
+                    groupRegexManager.removeRegex(groupId, group.pattern(member.subscribedTopicRegex().get()));
                 }
 
                 return true;
@@ -3696,7 +3695,7 @@ public class GroupMetadataManager {
             return;
         }
 
-        Pattern pattern = Pattern.compile(regex);
+        Pattern pattern = group.pattern(regex);
         if (value != null) {
             group.updateRegex(
                 pattern,

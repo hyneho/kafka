@@ -465,7 +465,7 @@ public abstract class ModernGroup<T extends ModernGroupMember> implements Group 
      * @param oldMember             The old member.
      * @param newMember             The new member.
      */
-    protected static void maybeUpdateSubscribedTopicNames(
+    protected void maybeUpdateSubscribedTopicNames(
         Map<String, Integer> subscribedTopicCount,
         ModernGroupMember oldMember,
         ModernGroupMember newMember

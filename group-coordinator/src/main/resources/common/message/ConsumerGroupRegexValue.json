@@ -22,8 +22,6 @@
     { "name": "MatchingTopicsNames", "type": "[]string", "versions": "0+",
       "about": "The list of topic names that match the regular expression." },
     { "name": "MetadataVersion", "type": "int32", "versions": "0+",
-      "about": "The version of the metadata used to evaluate the regular expression." },
-    { "name": "MemberCount", "type": "int32", "versions": "0+",
-      "about": "The number of members subscribed to the regular expression." }
+      "about": "The version of the metadata used to evaluate the regular expression." }
   ]
 }

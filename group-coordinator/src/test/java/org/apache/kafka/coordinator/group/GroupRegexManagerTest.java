@@ -64,7 +64,7 @@ public class GroupRegexManagerTest {
         GroupRegexManager regexManager = spy(createRegexManager(logContext, timer, metadataImage));
         when(metadataImage.topics()).thenReturn(TOPICS_IMAGE);
         assertEquals(0, regexManager.awaitingEval(groupId).size());
-        assertDoesNotThrow(() -> regexManager.maybeRequestEval(groupId, pattern));
+        assertDoesNotThrow(() -> regexManager.requestEval(groupId, pattern));
 
         RegexKey expectedRegexKey = new RegexKey.Builder()
             .withGroupId(groupId)
@@ -79,7 +79,7 @@ public class GroupRegexManagerTest {
         Pattern pattern = Pattern.compile("^t.*");
         GroupRegexManager regexManager = spy(createRegexManager(logContext, timer, metadataImage));
         when(metadataImage.topics()).thenReturn(TOPICS_IMAGE);
-        assertDoesNotThrow(() -> regexManager.maybeRequestEval(groupId, pattern));
+        assertDoesNotThrow(() -> regexManager.requestEval(groupId, pattern));
         RegexKey expectedRegexKey = new RegexKey.Builder()
             .withGroupId(groupId)
             .withPattern(pattern)

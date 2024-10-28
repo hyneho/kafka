@@ -202,7 +202,6 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
 
             groupRegexManager = new GroupRegexManager.Builder()
                 .withLogContext(logContext)
-                .withSnapshotRegistry(snapshotRegistry)
                 .withTimer(timer)
                 .build();
 

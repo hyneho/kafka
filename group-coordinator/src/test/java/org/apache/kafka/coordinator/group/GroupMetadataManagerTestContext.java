@@ -92,8 +92,6 @@ import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.timeline.SnapshotRegistry;
 
-import com.google.re2j.Pattern;
-
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -759,15 +757,6 @@ public class GroupMetadataManagerTestContext {
         MockCoordinatorTimer.ScheduledTimeout<Void, CoordinatorRecord> timeout =
             timer.timeout(consumerGroupSyncKey(groupId, memberId));
         assertNull(timeout);
-    }
-
-    public void assertRegexEvalRequested(
-        String groupId,
-        Pattern regex
-    ) {
-        assertTrue(
-            groupRegexManager.awaitingEval(groupId).contains(regex) ||
-                groupRegexManager.isResolved(groupId, regex));
     }
 
     ClassicGroup createClassicGroup(String groupId) {

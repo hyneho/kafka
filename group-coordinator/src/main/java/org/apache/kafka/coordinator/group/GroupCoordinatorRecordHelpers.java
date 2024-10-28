@@ -911,8 +911,7 @@ public class GroupCoordinatorRecordHelpers {
             new ApiMessageAndVersion(
                 new ConsumerGroupRegexValue()
                     .setMatchingTopicsNames(topicNames)
-                    .setMetadataVersion(resolution.metadataVersion())
-                    .setMemberCount(resolution.memberCount()),
+                    .setMetadataVersion(resolution.metadataVersion()),
                 (short) 0
             )
         );
