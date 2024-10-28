@@ -548,7 +548,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                 interbroker_security_protocol_to_use=SecurityConfig.PLAINTEXT
 
             self._security_config = SecurityConfig(self.context, security_protocol_to_use, interbroker_security_protocol_to_use,
-                                                   zk_sasl=self.zk.zk_sasl if self.quorum_info.using_zk else False, zk_tls=self.zk_client_secure,
+                                                   zk_sasl=False, zk_tls=self.zk_client_secure,
                                                    client_sasl_mechanism=self.client_sasl_mechanism,
                                                    interbroker_sasl_mechanism=self.interbroker_sasl_mechanism,
                                                    listener_security_config=self.listener_security_config,
