@@ -584,7 +584,7 @@ public class ConnectorConfig extends AbstractConfig {
                         getConfigDefFromPlugin(typeConfig, props.get(typeConfig), (String) value, plugins);
                     }
                 };
-                newDef.define(versionConfig, Type.STRING, null, versionValidator, Importance.HIGH,
+                newDef.define(versionConfig, Type.STRING, plugins.defaultVersion(props.get(typeConfig)), versionValidator, Importance.HIGH,
                         "Version of the '" + alias + "' " + aliasKind.toLowerCase(Locale.ENGLISH) + ".", group, orderInGroup++, Width.LONG,
                         baseClass.getSimpleName() + " version for " + alias,
                         Collections.emptyList(), versionRecommender(typeConfig));
