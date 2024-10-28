@@ -18,8 +18,8 @@ package org.apache.kafka.connect.runtime;
 
 import org.apache.kafka.common.config.ConfigData;
 import org.apache.kafka.common.config.provider.ConfigProvider;
-
 import org.apache.kafka.connect.util.ConnectorTaskId;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.STRICT_STUBS)
 public class WorkerConfigTransformerTest {
- public static final String MY_KEY = "myKey";
+    public static final String MY_KEY = "myKey";
     public static final String MY_CONNECTOR = "myConnector";
     public static final ConnectorTaskId MY_TASK = new ConnectorTaskId(MY_CONNECTOR, 0);
     public static final String TEST_KEY = "testKey";
