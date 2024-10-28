@@ -79,7 +79,7 @@ public class ConsumerGroupMemberTest {
         assertEquals("client-id", member.clientId());
         assertEquals("hostname", member.clientHost());
         assertEquals(mkSet("bar", "foo"), member.subscribedTopicNames());
-        assertEquals("regex", member.subscribedTopicRegex());
+        assertEquals("regex", member.subscribedTopicRegex().get());
         assertEquals("range", member.serverAssignorName().get());
         assertEquals(mkAssignment(mkTopicAssignment(topicId1, 1, 2, 3)), member.assignedPartitions());
         assertEquals(mkAssignment(mkTopicAssignment(topicId2, 4, 5, 6)), member.partitionsPendingRevocation());
@@ -186,7 +186,7 @@ public class ConsumerGroupMemberTest {
         assertEquals("new-rack-id", updatedMember.rackId());
         // Names are sorted.
         assertEquals(mkSet("zar"), updatedMember.subscribedTopicNames());
-        assertEquals("new-regex", updatedMember.subscribedTopicRegex());
+        assertEquals("new-regex", updatedMember.subscribedTopicRegex().get());
         assertEquals("new-assignor", updatedMember.serverAssignorName().get());
     }
 
@@ -213,7 +213,7 @@ public class ConsumerGroupMemberTest {
         assertEquals("client-id", member.clientId());
         assertEquals("host-id", member.clientHost());
         assertEquals(mkSet("bar", "foo"), member.subscribedTopicNames());
-        assertEquals("regex", member.subscribedTopicRegex());
+        assertEquals("regex", member.subscribedTopicRegex().get());
         assertEquals("range", member.serverAssignorName().get());
         assertEquals(
             new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
@@ -341,6 +341,7 @@ public class ConsumerGroupMemberTest {
                 .setPartitions(Arrays.asList(0, 1, 2))));
         ConsumerGroupMember member = new ConsumerGroupMember.Builder(memberId.toString())
             .updateWith(record)
+            .setSubscribedTopicRegex("")
             .build();
 
         ConsumerGroupDescribeResponseData.Member expected = new ConsumerGroupDescribeResponseData.Member()

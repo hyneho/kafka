@@ -27,6 +27,7 @@ import org.apache.kafka.common.errors.GroupIdNotFoundException;
 import org.apache.kafka.common.errors.GroupMaxSizeReachedException;
 import org.apache.kafka.common.errors.IllegalGenerationException;
 import org.apache.kafka.common.errors.InconsistentGroupProtocolException;
+import org.apache.kafka.common.errors.InvalidRegularExpression;
 import org.apache.kafka.common.errors.InvalidRequestException;
 import org.apache.kafka.common.errors.RebalanceInProgressException;
 import org.apache.kafka.common.errors.UnknownMemberIdException;
@@ -109,7 +110,6 @@ import org.apache.kafka.coordinator.group.modern.TargetAssignmentBuilder;
 import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
-import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupRegex;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupRegex.Resolution;
 import org.apache.kafka.coordinator.group.modern.consumer.CurrentAssignmentBuilder;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroup;
@@ -121,6 +121,9 @@ import org.apache.kafka.image.TopicImage;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineHashSet;
+
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 import org.slf4j.Logger;
 
@@ -1427,6 +1430,27 @@ public class GroupMetadataManager {
     }
 
     /**
+     * Validate the given regular expression.
+     *
+     * @return The compiled pattern for the regular expression if it's a valid one. Null of the regular expression is
+     * null or empty.
+     * @throws PatternSyntaxException If the given regular expression is not valid.
+     */
+    private Pattern throwIfInvalidRegularExpression(String subscribedTopicRegex) {
+        if (subscribedTopicRegex == null || subscribedTopicRegex.isEmpty()) {
+            return null;
+        }
+        try {
+            return groupRegexManager.validateRegex(subscribedTopicRegex);
+        } catch (PatternSyntaxException e) {
+            log.error("Invalid regular expression {}", subscribedTopicRegex, e);
+            throw new InvalidRegularExpression(
+                String.format("SubscribedTopicsPattern %s is not a valid regular expression.", subscribedTopicRegex)
+            );
+        }
+    }
+
+    /**
      * Checks whether the share group can accept a new member or not based on the
      * max group size defined.
      *
@@ -1756,14 +1780,12 @@ public class GroupMetadataManager {
         final long currentTimeMs = time.milliseconds();
         final List<CoordinatorRecord> records = new ArrayList<>();
 
-        if (subscribedTopicRegex != null) {
-            groupRegexManager.validateAndRequestEval(groupId, subscribedTopicRegex);
-        }
-
         // Get or create the consumer group.
         boolean createIfNotExists = memberEpoch == 0;
         final ConsumerGroup group = getOrMaybeCreateConsumerGroup(groupId, createIfNotExists, records);
         throwIfConsumerGroupIsFull(group, memberId);
+        Pattern subscribedTopicPattern = throwIfInvalidRegularExpression(subscribedTopicRegex);
+        group.maybeUpdateRegexPatternMap(subscribedTopicRegex, subscribedTopicPattern);
 
         // Get or create the member.
         if (memberId.isEmpty()) memberId = Uuid.randomUuid().toString();
@@ -1807,8 +1829,12 @@ public class GroupMetadataManager {
             .setClassicMemberMetadata(null)
             .build();
 
+        // If the member is using a known regex, set the matching topics in the member as subscribedTopicsFromRegex.
+        // Provide the pattern already compiled while validating the regex to avoid compiling it again.
+        maybeUpdateSubscribedTopicNamesFromRegex(group, updatedMember, subscribedTopicPattern);
+
         boolean bumpGroupEpoch = hasMemberSubscriptionChanged(
-            groupId,
+            group,
             member,
             updatedMember,
             records
@@ -1816,14 +1842,22 @@ public class GroupMetadataManager {
 
         int groupEpoch = group.groupEpoch();
         Map<String, TopicMetadata> subscriptionMetadata = group.subscriptionMetadata();
-        Map<String, Integer> subscribedTopicNamesMap = group.subscribedTopicNames();
         SubscriptionType subscriptionType = group.subscriptionType();
+
+        if (group.hasMetadataExpired(currentTimeMs)) {
+            groupRegexManager.refreshAll();
+        }
 
         if (bumpGroupEpoch || group.hasMetadataExpired(currentTimeMs)) {
             // The subscription metadata is updated in two cases:
             // 1) The member has updated its subscriptions;
             // 2) The refresh deadline has been reached.
-            subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
+            Map<String, Integer> subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
+            Map<String, Integer> subscribedTopicFromRegexCount = group.computeSubscribedTopicNamesFromRegex(member, updatedMember);
+
+            // Extend topic names map to include topics from regex
+            subscribedTopicFromRegexCount.forEach((topicName, count) -> subscribedTopicNamesMap.merge(topicName, count, Integer::sum));
+
             subscriptionMetadata = group.computeSubscriptionMetadata(
                 subscribedTopicNamesMap,
                 metadataImage.topics(),
@@ -1912,6 +1946,26 @@ public class GroupMetadataManager {
         }
 
         return new CoordinatorResult<>(records, response);
+    }
+
+    /**
+     * Check if the member is using a regular expression already resolved.
+     * If so, update the member subscribed topics to include the matching topics.
+     */
+    private void maybeUpdateSubscribedTopicNamesFromRegex(
+        ConsumerGroup group,
+        ConsumerGroupMember updatedMember,
+        Pattern pattern
+    ) {
+        if (updatedMember.subscribedTopicRegex().isPresent() && pattern != null) {
+            Resolution resolution = group.resolution(pattern);
+            if (resolution != null && !resolution.matchingTopics().equals(updatedMember.subscribedTopicNamesFromRegex())) {
+                log.debug("[GroupId {}] Regex {} used by member {} is already resolved. " +
+                        "Updating subscribed topics in member to include matching topics.",
+                    group.groupId(), updatedMember.subscribedTopicRegex(), updatedMember.memberId());
+                updatedMember.setSubscribedTopicNamesFromRegex(resolution.matchingTopics());
+            }
+        }
     }
 
     /**
@@ -2006,7 +2060,7 @@ public class GroupMetadataManager {
             .build();
 
         boolean bumpGroupEpoch = hasMemberSubscriptionChanged(
-            groupId,
+            group,
             member,
             updatedMember,
             records
@@ -2403,9 +2457,9 @@ public class GroupMetadataManager {
     /**
      * Creates the member subscription record if the updatedMember is different from
      * the old member. Returns true if the subscribedTopicNames/subscribedTopicRegex
-     * has changed.
+     * has changed, or if the set of topics matching the regex has changed.
      *
-     * @param groupId       The group id.
+     * @param group         The consumer group.
      * @param member        The old member.
      * @param updatedMember The updated member.
      * @param records       The list to accumulate any new records.
@@ -2413,12 +2467,13 @@ public class GroupMetadataManager {
      *         subscribedTopicNames/subscribedTopicRegex from the old member.
      */
     private boolean hasMemberSubscriptionChanged(
-        String groupId,
+        ConsumerGroup group,
         ConsumerGroupMember member,
         ConsumerGroupMember updatedMember,
         List<CoordinatorRecord> records
     ) {
         String memberId = updatedMember.memberId();
+        String groupId = group.groupId();
         if (!updatedMember.equals(member)) {
             records.add(newConsumerGroupMemberSubscriptionRecord(groupId, updatedMember));
 
@@ -2430,7 +2485,22 @@ public class GroupMetadataManager {
 
             if (!updatedMember.subscribedTopicRegex().equals(member.subscribedTopicRegex())) {
                 log.debug("[GroupId {}] Member {} updated its subscribed regex to: {}.",
-                    groupId, memberId, updatedMember.subscribedTopicRegex());
+                    groupId, memberId, updatedMember.subscribedTopicRegex().get());
+
+                if (updatedMember.subscribedTopicRegex().isPresent()) {
+                    groupRegexManager.maybeRequestEval(groupId, group.pattern(updatedMember.subscribedTopicRegex().get()));
+                } else {
+                    groupRegexManager.removeRegexSubscriber(groupId, group.pattern(member.subscribedTopicRegex().get()));
+                }
+
+                return true;
+            }
+
+            if (updatedMember.subscribedTopicNamesFromRegex() != null &&
+                !updatedMember.subscribedTopicNamesFromRegex().equals(member.subscribedTopicNamesFromRegex())
+            ) {
+                log.debug("[GroupId {}] Member {} updated its subscribed topics from regex : {}.",
+                    group.groupId(), member.memberId(), member.subscribedTopicRegex());
                 return true;
             }
         }
@@ -3617,45 +3687,28 @@ public class GroupMetadataManager {
         String groupId = key.groupId();
         String regex = key.regex();
 
+        ConsumerGroup group;
         try {
-            getOrMaybeCreatePersistedConsumerGroup(groupId, value != null);
+            group = getOrMaybeCreatePersistedConsumerGroup(groupId, value != null);
         } catch (GroupIdNotFoundException ex) {
             // If the group does not exist anymore do not load regex.
             // TODO: validate if this could be a case: group does exist anymore but regex record being replayed.
             return;
         }
 
+        Pattern pattern = Pattern.compile(regex);
         if (value != null) {
-            updateGroupRegex(
-                new ConsumerGroupRegex.RegexKey.Builder().updateWith(key).build(),
-                new Resolution.Builder().updateWith(value).build()
+            group.updateRegex(
+                pattern,
+                new Resolution.Builder()
+                    .updateWith(value)
+                    .build()
             );
+            log.debug("[GroupId {}] Loaded resolution for regex {}", groupId, regex);
+
         } else {
-            removeGroupRegex(groupId, regex);
-        }
-    }
-
-    /**
-     * Update the given regex resolution in the GroupRegexManager
-     * so it becomes available for use as needed from heartbeats.
-     */
-    private void updateGroupRegex(
-        ConsumerGroupRegex.RegexKey key,
-        Resolution resolution
-    ) {
-        groupRegexManager.updateRegex(key, resolution);
-    }
-
-    /**
-     * Remove the given regex, and it's resolution, from the GroupRegexManager
-     * so that it's not maintained anymore as topics metadata changes.
-     */
-    private void removeGroupRegex(
-        String groupId,
-        String regex
-    ) {
-        if (groupRegexManager.removeRegex(groupId, regex)) {
-            log.debug("Removed regular expression {} from group {}", regex, groupId);
+            group.removeRegex(pattern);
+            log.debug("[GroupId {}] Removed resolution for regex {} after last member unsubscribed.", groupId, regex);
         }
     }
 

@@ -44,6 +44,8 @@ import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineInteger;
 import org.apache.kafka.timeline.TimelineObject;
 
+import com.google.re2j.Pattern;
+
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
@@ -124,6 +126,16 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     private final TimelineHashMap<String, Integer> classicProtocolMembersSupportedProtocols;
 
     /**
+     * Map of regular expressions used to their compiled pattern.
+     */
+    private final TimelineHashMap<String, Pattern> regexToPattern;
+
+    /**
+     * Map with the resolution of the regular expressions used by the group.
+     */
+    private final TimelineHashMap<Pattern, ConsumerGroupRegex.Resolution> resolvedRegexes;
+
+    /**
      * The current partition epoch maps each topic-partitions to their current epoch where
      * the epoch is the epoch of their owners. When a member revokes a partition, it removes
      * its epochs from this map. When a member gets a partition, it adds its epochs to this map.
@@ -143,6 +155,8 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         this.numClassicProtocolMembers = new TimelineInteger(snapshotRegistry);
         this.classicProtocolMembersSupportedProtocols = new TimelineHashMap<>(snapshotRegistry, 0);
         this.currentPartitionEpoch = new TimelineHashMap<>(snapshotRegistry, 0);
+        this.regexToPattern = new TimelineHashMap<>(snapshotRegistry, 0);
+        this.resolvedRegexes = new TimelineHashMap<>(snapshotRegistry, 0);
     }
 
     /**
@@ -298,6 +312,55 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         maybeUpdateGroupState();
         maybeUpdateNumClassicProtocolMembers(oldMember, newMember);
         maybeUpdateClassicProtocolMembersSupportedProtocols(oldMember, newMember);
+    }
+
+    /**
+     * Update the resolution of the regular expression into the map of resolved regexes.
+     *
+     * @param pattern    The regular expression.
+     * @param resolution The resolution of the regular expression, containing the list of matching topics.
+     */
+    public void updateRegex(
+        Pattern pattern,
+        ConsumerGroupRegex.Resolution resolution
+    ) {
+        if (pattern == null) {
+            throw new IllegalArgumentException("pattern cannot be null.");
+        }
+        if (resolution == null) {
+            throw new IllegalArgumentException("resolution cannot be null.");
+        }
+        this.resolvedRegexes.put(pattern, resolution);
+    }
+
+    /**
+     * Remove the resolution of the given regular expression from the map of resolved regexes.
+     */
+    public void removeRegex(Pattern pattern) {
+        this.resolvedRegexes.remove(pattern);
+    }
+
+    /**
+     * @return The resolution of the given regular expression. Null if not resolved.
+     */
+    public ConsumerGroupRegex.Resolution resolution(Pattern pattern) {
+        return resolvedRegexes.get(pattern);
+    }
+
+    /**
+     * Update the regex to pattern map with the provided regular expression and pattern.
+     */
+    public void maybeUpdateRegexPatternMap(String subscribedTopicRegex, Pattern subscribedTopicPattern) {
+        if (subscribedTopicRegex != null && subscribedTopicPattern != null) {
+            this.regexToPattern.put(subscribedTopicRegex, subscribedTopicPattern);
+        }
+    }
+
+    /**
+     * @return The compiled pattern for the regex. Null if the regex hasn't been compiled yet.
+     */
+    public Pattern pattern(String regex) {
+        return regexToPattern.get(regex);
     }
 
     /**
@@ -974,5 +1037,25 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
             }
         }
         return false;
+    }
+
+
+    public Map<String, Integer> computeSubscribedTopicNamesFromRegex(
+        ModernGroupMember oldMember,
+        ModernGroupMember newMember
+    ) {
+        Map<String, Integer> subscribedTopicCount = new HashMap<>(this.subscribedTopicNames);
+        if (oldMember != null && ((ConsumerGroupMember) oldMember).subscribedTopicNamesFromRegex() != null) {
+            ((ConsumerGroupMember) oldMember).subscribedTopicNamesFromRegex().forEach(topicName ->
+                subscribedTopicCount.compute(topicName, Utils::decValue)
+            );
+        }
+
+        if (newMember != null && ((ConsumerGroupMember) newMember).subscribedTopicNamesFromRegex() != null) {
+            ((ConsumerGroupMember) newMember).subscribedTopicNamesFromRegex().forEach(topicName ->
+                subscribedTopicCount.compute(topicName, Utils::incValue)
+            );
+        }
+        return subscribedTopicCount;
     }
 }

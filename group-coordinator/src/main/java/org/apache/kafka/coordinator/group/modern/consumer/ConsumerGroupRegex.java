@@ -17,7 +17,6 @@
 
 package org.apache.kafka.coordinator.group.modern.consumer;
 
-import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegexKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegexValue;
 
 import com.google.re2j.Pattern;
@@ -57,12 +56,6 @@ public class ConsumerGroupRegex {
                 return new RegexKey(this.groupId, this.pattern);
             }
 
-            public Builder updateWith(ConsumerGroupRegexKey key) {
-                this.groupId = key.groupId();
-                this.pattern = Pattern.compile(key.regex());
-                return this;
-            }
-
         }
 
         private RegexKey(String groupId, Pattern pattern) {
@@ -88,6 +81,11 @@ public class ConsumerGroupRegex {
         @Override
         public int hashCode() {
             return Objects.hash(pattern, groupId);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Regex %s group %s", pattern.toString(), groupId);
         }
     }
 
@@ -158,6 +156,16 @@ public class ConsumerGroupRegex {
          * @return Number of members subscribed to this regular expression.
          */
         public int memberCount() {
+            return this.memberCount;
+        }
+
+        /**
+         * Decrement the number of members subscribed to the regex by one.
+         *
+         * @return The decremented member count.
+         */
+        public int decrementMemberCount() {
+            this.memberCount--;
             return this.memberCount;
         }
 

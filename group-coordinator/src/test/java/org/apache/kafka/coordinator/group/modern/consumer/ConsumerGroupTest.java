@@ -1275,10 +1275,8 @@ public class ConsumerGroupTest {
             .setMembers(Arrays.asList(
                 new ConsumerGroupDescribeResponseData.Member()
                     .setMemberId("member1")
-                    .setSubscribedTopicNames(Collections.singletonList("foo"))
-                    .setSubscribedTopicRegex(""),
+                    .setSubscribedTopicNames(Collections.singletonList("foo")),
                 new ConsumerGroupDescribeResponseData.Member().setMemberId("member2")
-                    .setSubscribedTopicRegex("")
             ));
         ConsumerGroupDescribeResponseData.DescribedGroup actual = group.asDescribedGroup(1, "",
             new MetadataImageBuilder().build().topics());

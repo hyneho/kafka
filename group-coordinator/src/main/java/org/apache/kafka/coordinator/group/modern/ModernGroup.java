@@ -86,6 +86,9 @@ public abstract class ModernGroup<T extends ModernGroupMember> implements Group 
 
     /**
      * The metadata associated with each subscribed topic name.
+     * This will hold metadata for topics all topics the
+     * groups is subscribed to, including subscription to
+     * explicit topics and subscription via regular expression.
      */
     protected final TimelineHashMap<String, TopicMetadata> subscribedTopicMetadata;
 
@@ -462,7 +465,7 @@ public abstract class ModernGroup<T extends ModernGroupMember> implements Group 
      * @param oldMember             The old member.
      * @param newMember             The new member.
      */
-    private static void maybeUpdateSubscribedTopicNames(
+    protected static void maybeUpdateSubscribedTopicNames(
         Map<String, Integer> subscribedTopicCount,
         ModernGroupMember oldMember,
         ModernGroupMember newMember

@@ -98,7 +98,7 @@ public class GroupCoordinatorRecordHelpers {
                     .setClientId(member.clientId())
                     .setClientHost(member.clientHost())
                     .setSubscribedTopicNames(topicNames)
-                    .setSubscribedTopicRegex(member.subscribedTopicRegex())
+                    .setSubscribedTopicRegex(member.subscribedTopicRegex().orElse(null))
                     .setServerAssignor(member.serverAssignorName().orElse(null))
                     .setRebalanceTimeoutMs(member.rebalanceTimeoutMs())
                     .setClassicMemberMetadata(member.classicMemberMetadata().orElse(null)),
@@ -891,7 +891,7 @@ public class GroupCoordinatorRecordHelpers {
     /**
      * Creates a ConsumerGroupRegex record.
      *
-     * @param key   The identifier for the regular expression (groupId and the regular expression).
+     * @param key        The identifier for the regular expression (groupId and the regular expression).
      * @param resolution The result of the evaluation of the regular expression.
      * @return The record generated with the data contained in the parameters.
      */
@@ -915,6 +915,26 @@ public class GroupCoordinatorRecordHelpers {
                     .setMemberCount(resolution.memberCount()),
                 (short) 0
             )
+        );
+    }
+
+    /**
+     * Creates a ConsumerGroupRegex tombstone.
+     *
+     * @param key The identifier for the regular expression (groupId and the regular expression).
+     * @return The record.
+     */
+    public static CoordinatorRecord newConsumerGroupRegexTombstoneRecord(
+        ConsumerGroupRegex.RegexKey key
+    ) {
+        return new CoordinatorRecord(
+            new ApiMessageAndVersion(
+                new ConsumerGroupRegexKey()
+                    .setGroupId(key.groupId())
+                    .setRegex(key.pattern().toString()),
+                (short) 16
+            ),
+            null // Tombstone.
         );
     }
 

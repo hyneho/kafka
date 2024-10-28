@@ -63,7 +63,7 @@ public class ConsumerGroupMember extends ModernGroupMember {
         private String clientId = "";
         private String clientHost = "";
         private Set<String> subscribedTopicNames = Collections.emptySet();
-        private String subscribedTopicRegex = "";
+        private Optional<String> subscribedTopicRegex = Optional.empty();
         private String serverAssignorName = null;
         private Map<Uuid, Set<Integer>> assignedPartitions = Collections.emptyMap();
         private Map<Uuid, Set<Integer>> partitionsPendingRevocation = Collections.emptyMap();
@@ -168,12 +168,12 @@ public class ConsumerGroupMember extends ModernGroupMember {
         }
 
         public Builder setSubscribedTopicRegex(String subscribedTopicRegex) {
-            this.subscribedTopicRegex = subscribedTopicRegex;
+            this.subscribedTopicRegex = Optional.ofNullable(subscribedTopicRegex);
             return this;
         }
 
         public Builder maybeUpdateSubscribedTopicRegex(Optional<String> subscribedTopicRegex) {
-            this.subscribedTopicRegex = subscribedTopicRegex.orElse(this.subscribedTopicRegex);
+            subscribedTopicRegex.ifPresent(regex -> this.subscribedTopicRegex = Optional.of(regex));
             return this;
         }
 
@@ -258,7 +258,7 @@ public class ConsumerGroupMember extends ModernGroupMember {
     /**
      * The subscription pattern configured by the member.
      */
-    private final String subscribedTopicRegex;
+    private final Optional<String> subscribedTopicRegex;
 
     /**
      * The server side assignor selected by the member.
@@ -275,6 +275,11 @@ public class ConsumerGroupMember extends ModernGroupMember {
      */
     private final ConsumerGroupMemberMetadataValue.ClassicMemberMetadata classicMemberMetadata;
 
+    /**
+     * The list of subscriptions (topic names) resolved from the regular expression used by the member.
+     */
+    private Set<String> subscribedTopicNamesFromRegex;
+
     private ConsumerGroupMember(
         String memberId,
         int memberEpoch,
@@ -285,7 +290,7 @@ public class ConsumerGroupMember extends ModernGroupMember {
         String clientId,
         String clientHost,
         Set<String> subscribedTopicNames,
-        String subscribedTopicRegex,
+        Optional<String> subscribedTopicRegex,
         String serverAssignorName,
         MemberState state,
         Map<Uuid, Set<Integer>> assignedPartitions,
@@ -321,8 +326,22 @@ public class ConsumerGroupMember extends ModernGroupMember {
     /**
      * @return The regular expression based subscription.
      */
-    public String subscribedTopicRegex() {
+    public Optional<String> subscribedTopicRegex() {
         return subscribedTopicRegex;
+    }
+
+    /**
+     * @return The list of topic names the member is subscribed to via a regular expression.
+     */
+    public Set<String> subscribedTopicNamesFromRegex() {
+        return subscribedTopicNamesFromRegex;
+    }
+
+    /**
+     * Replace the set of subscribed topics names from regex.
+     */
+    public void setSubscribedTopicNamesFromRegex(Set<String> subscribedTopicNamesFromRegex) {
+        this.subscribedTopicNamesFromRegex = subscribedTopicNamesFromRegex;
     }
 
     /**
@@ -408,7 +427,7 @@ public class ConsumerGroupMember extends ModernGroupMember {
             .setInstanceId(instanceId)
             .setRackId(rackId)
             .setSubscribedTopicNames(subscribedTopicNames == null ? null : new ArrayList<>(subscribedTopicNames))
-            .setSubscribedTopicRegex(subscribedTopicRegex);
+            .setSubscribedTopicRegex(subscribedTopicRegex.orElse(null));
     }
 
     private static List<ConsumerGroupDescribeResponseData.TopicPartitions> topicPartitionsFromMap(

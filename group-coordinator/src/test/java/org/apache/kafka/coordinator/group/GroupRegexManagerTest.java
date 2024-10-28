@@ -23,6 +23,7 @@ import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorTimer;
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer;
+import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupRegex.RegexKey;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.image.TopicsImage;
 
@@ -31,7 +32,7 @@ import com.google.re2j.Pattern;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -57,30 +58,40 @@ public class GroupRegexManagerTest {
     }
 
     @Test
-    public void testValidPatternEvalRequested() {
+    public void testValidPatternEvalRequested() throws InterruptedException {
         String groupId = "group1";
-        String regex = "^t.*";
-        GroupRegexManager regexManager = spy(createPatternManager(logContext, timer, metadataImage));
+        Pattern pattern = Pattern.compile("^t.*");
+        GroupRegexManager regexManager = spy(createRegexManager(logContext, timer, metadataImage));
         when(metadataImage.topics()).thenReturn(TOPICS_IMAGE);
-        Pattern pattern = assertDoesNotThrow(() -> regexManager.validateAndRequestEval(groupId, regex));
-        verify(regexManager).maybeRequestEval(groupId, pattern);
+        assertEquals(0, regexManager.awaitingEval(groupId).size());
+        assertDoesNotThrow(() -> regexManager.maybeRequestEval(groupId, pattern));
+
+        RegexKey expectedRegexKey = new RegexKey.Builder()
+            .withGroupId(groupId)
+            .withPattern(pattern)
+            .build();
+        verify(regexManager).addToEvalQueue(expectedRegexKey);
     }
 
     @Test
     public void testNewMetadataImageDoesNotTriggerEval() {
         String groupId = "group1";
-        String regex = "^t.*";
-        GroupRegexManager regexManager = spy(createPatternManager(logContext, timer, metadataImage));
+        Pattern pattern = Pattern.compile("^t.*");
+        GroupRegexManager regexManager = spy(createRegexManager(logContext, timer, metadataImage));
         when(metadataImage.topics()).thenReturn(TOPICS_IMAGE);
-        Pattern pattern = assertDoesNotThrow(() -> regexManager.validateAndRequestEval(groupId, regex));
-        verify(regexManager).maybeRequestEval(groupId, pattern);
+        assertDoesNotThrow(() -> regexManager.maybeRequestEval(groupId, pattern));
+        RegexKey expectedRegexKey = new RegexKey.Builder()
+            .withGroupId(groupId)
+            .withPattern(pattern)
+            .build();
+        verify(regexManager).addToEvalQueue(expectedRegexKey);
         clearInvocations(regexManager);
 
         regexManager.onNewMetadataImage(metadataImage);
-        verify(regexManager, never()).maybeRequestEval(any(), any());
+        verify(regexManager, never()).addToEvalQueue(expectedRegexKey);
     }
 
-    public static GroupRegexManager createPatternManager(
+    public static GroupRegexManager createRegexManager(
         LogContext logContext,
         CoordinatorTimer<Void, CoordinatorRecord> timer,
         MetadataImage metadataImage

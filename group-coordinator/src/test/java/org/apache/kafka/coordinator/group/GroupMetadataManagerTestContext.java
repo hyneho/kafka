@@ -117,7 +117,7 @@ import static org.apache.kafka.coordinator.group.GroupMetadataManager.consumerGr
 import static org.apache.kafka.coordinator.group.GroupMetadataManager.consumerGroupRebalanceTimeoutKey;
 import static org.apache.kafka.coordinator.group.GroupMetadataManager.consumerGroupSyncKey;
 import static org.apache.kafka.coordinator.group.GroupMetadataManager.groupSessionTimeoutKey;
-import static org.apache.kafka.coordinator.group.GroupRegexManagerTest.createPatternManager;
+import static org.apache.kafka.coordinator.group.GroupRegexManagerTest.createRegexManager;
 import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.COMPLETING_REBALANCE;
 import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.DEAD;
 import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.EMPTY;
@@ -491,7 +491,7 @@ public class GroupMetadataManagerTestContext {
             if (metadataImage == null) metadataImage = MetadataImage.EMPTY;
             if (consumerGroupAssignors == null) consumerGroupAssignors = Collections.emptyList();
             if (groupConfigManager == null) groupConfigManager = createConfigManager();
-            if (groupRegexManager == null) groupRegexManager = createPatternManager(logContext, timer, metadataImage);
+            if (groupRegexManager == null) groupRegexManager = createRegexManager(logContext, timer, metadataImage);
 
             GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext(
                 time,
