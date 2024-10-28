@@ -204,7 +204,7 @@ public class ShareConsumeRequestManager implements RequestManager, MemberStateLi
 
                             forgottenTopicNames.putIfAbsent(new IdAndPartition(tip.topicId(), tip.partition()), tip.topic());
                             fetchedPartitions.add(tip);
-                            log.debug("Added fetch request for partition {} to node {}", tip, node.id());
+                            log.debug("Added fetch request for previously subscribed partition {} to node {}", tip, node.id());
                         }
                     }
                 }
@@ -213,15 +213,17 @@ public class ShareConsumeRequestManager implements RequestManager, MemberStateLi
 
         Map<Node, ShareFetchRequest.Builder> builderMap = new LinkedHashMap<>();
         for (Map.Entry<Node, ShareSessionHandler> entry : handlerMap.entrySet()) {
-            builderMap.put(entry.getKey(), entry.getValue().newShareFetchBuilder(groupId, fetchConfig));
+            ShareFetchRequest.Builder builder = entry.getValue().newShareFetchBuilder(groupId, fetchConfig);
             Node node = entry.getKey();
-            ShareFetchRequest.Builder builder = builderMap.get(entry.getKey());
+
             if (partitionsToForgetMap.containsKey(node)) {
                 if (builder.data().forgottenTopicsData() == null) {
                     builder.data().setForgottenTopicsData(new ArrayList<>());
                 }
                 builder.updateForgottenData(partitionsToForgetMap.get(node));
             }
+
+            builderMap.put(node, builder);
         }
 
         List<UnsentRequest> requests = builderMap.entrySet().stream().map(entry -> {
