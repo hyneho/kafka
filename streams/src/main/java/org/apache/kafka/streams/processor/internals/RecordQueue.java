@@ -183,7 +183,7 @@ public class RecordQueue {
     }
 
     /**
-     * Returns the leader epoch of the head record if it exists.
+     * Returns the leader epoch of the head record if it exists
      *
      * @return An Optional containing the leader epoch of the head record, or null if the queue is empty. The Optional.empty()
      * is reserved for the case  when the leader epoch is not set for head record of the queue.
