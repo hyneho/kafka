@@ -697,7 +697,7 @@ class TransactionsTest extends IntegrationTestHarness {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_XXXXX"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testBumpTransactionalEpoch(quorum: String, groupProtocol: String): Unit = {
     val producer = createTransactionalProducer("transactionalProducer",
       deliveryTimeoutMs = 5000, requestTimeoutMs = 5000)

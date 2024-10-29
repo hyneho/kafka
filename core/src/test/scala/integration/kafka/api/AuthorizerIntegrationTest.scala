@@ -920,7 +920,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testConsumeUsingAssignWithNoAccess(quorum: String, groupProtocol: String): Unit = {
     createTopicWithBrokerPrincipal(topic)
 
@@ -935,7 +935,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testSimpleConsumeWithOffsetLookupAndNoGroupAccess(quorum: String, groupProtocol: String): Unit = {
     createTopicWithBrokerPrincipal(topic)
 
@@ -975,7 +975,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testConsumeWithoutTopicDescribeAccess(quorum: String, groupProtocol: String): Unit = {
     createTopicWithBrokerPrincipal(topic)
 
@@ -1049,7 +1049,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testPatternSubscriptionWithNoTopicAccess(quorum: String, groupProtocol: String): Unit = {
     val assignSemaphore = new Semaphore(0)
     createTopicWithBrokerPrincipal(topic)
@@ -1273,7 +1273,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testCommitWithNoAccess(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     assertThrows(classOf[GroupAuthorizationException], () => consumer.commitSync(Map(tp -> new OffsetAndMetadata(5)).asJava))
@@ -1310,7 +1310,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testCommitWithNoGroupAccess(quorum: String, groupProtocol: String): Unit = {
     addAndVerifyAcls(Set(new AccessControlEntry(clientPrincipalString, WILDCARD_HOST, READ, ALLOW)), topicResource)
     val consumer = createConsumer()
@@ -1328,7 +1328,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testOffsetFetchWithNoAccess(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     consumer.assign(List(tp).asJava)
@@ -1336,7 +1336,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testOffsetFetchWithNoGroupAccess(quorum: String, groupProtocol: String): Unit = {
     createTopicWithBrokerPrincipal(topic)
     addAndVerifyAcls(Set(new AccessControlEntry(clientPrincipalString, WILDCARD_HOST, READ, ALLOW)), topicResource)
@@ -1346,7 +1346,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testOffsetFetchWithNoTopicAccess(quorum: String, groupProtocol: String): Unit = {
     addAndVerifyAcls(Set(new AccessControlEntry(clientPrincipalString, WILDCARD_HOST, READ, ALLOW)), groupResource)
     val consumer = createConsumer()
@@ -1565,14 +1565,14 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testMetadataWithNoTopicAccess(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     assertThrows(classOf[TopicAuthorizationException], () => consumer.partitionsFor(topic))
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testMetadataWithTopicDescribe(quorum: String, groupProtocol: String): Unit = {
     createTopicWithBrokerPrincipal(topic)
     addAndVerifyAcls(Set(new AccessControlEntry(clientPrincipalString, WILDCARD_HOST, DESCRIBE, ALLOW)), topicResource)
@@ -1581,14 +1581,14 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testListOffsetsWithNoTopicAccess(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     assertThrows(classOf[TopicAuthorizationException], () => consumer.endOffsets(Set(tp).asJava))
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testListOffsetsWithTopicDescribe(quorum: String, groupProtocol: String): Unit = {
     createTopicWithBrokerPrincipal(topic)
     addAndVerifyAcls(Set(new AccessControlEntry(clientPrincipalString, WILDCARD_HOST, DESCRIBE, ALLOW)), topicResource)

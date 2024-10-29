@@ -402,7 +402,7 @@ abstract class EndToEndAuthorizationTest extends IntegrationTestHarness with Sas
     * ACL set.
     */
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testNoConsumeWithoutDescribeAclViaAssign(quorum: String, groupProtocol: String): Unit = {
     noConsumeWithoutDescribeAclSetup()
     val consumer = createConsumer()
@@ -413,7 +413,7 @@ abstract class EndToEndAuthorizationTest extends IntegrationTestHarness with Sas
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testNoConsumeWithoutDescribeAclViaSubscribe(quorum: String, groupProtocol: String): Unit = {
     noConsumeWithoutDescribeAclSetup()
     val consumer = createConsumer()
@@ -495,7 +495,7 @@ abstract class EndToEndAuthorizationTest extends IntegrationTestHarness with Sas
     * ACL set.
     */
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testNoGroupAcl(quorum: String, groupProtocol: String): Unit = {
     val superuserAdminClient = createSuperuserAdminClient()
     superuserAdminClient.createAcls(List(AclTopicWrite(), AclTopicCreate(), AclTopicDescribe()).asJava).values

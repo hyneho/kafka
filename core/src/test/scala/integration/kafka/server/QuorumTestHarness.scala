@@ -542,15 +542,8 @@ object QuorumTestHarness {
     )
   }
 
-  // For tests that only work with the classic group protocol because of KAFKA-17696, we want to test the following combinations:
-  // * KRaft and the classic group protocol
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696: java.util.stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
-
-  // For tests that only work with the classic group protocol because of KAFKA-XXXXX, we want to test the following combinations:
-  // * KRaft and the classic group protocol
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_XXXXX: java.util.stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
-
-  // For tests that only work with the classic group protocol because of relying on Zookeeper, we want to test the following combinations:
+  // For tests that only work with the classic group protocol because of relying on Zookeeper, we want to test the
+  // following combinations:
   // * Zookeeper and the classic group protocol
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = {
     stream.Stream.of(

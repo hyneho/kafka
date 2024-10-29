@@ -78,7 +78,7 @@ class TransactionsBounceTest extends IntegrationTestHarness {
 
   @nowarn("cat=deprecation")
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_XXXXX"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testWithGroupId(quorum: String, groupProtocol: String): Unit = {
     testBrokerFailure((producer, groupId, consumer) =>
       producer.sendOffsetsToTransaction(TestUtils.consumerPositions(consumer).asJava, groupId))

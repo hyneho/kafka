@@ -1748,7 +1748,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
    * Test the consumer group APIs.
    */
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_XXXXX"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testConsumerGroups(quorum: String, groupProtocol: String): Unit = {
     val config = createConfig
     client = Admin.create(config)
