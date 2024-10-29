@@ -273,16 +273,14 @@ public class ShareConsumerTest {
 
         shareConsumer.subscribe(Collections.singleton(tp.topic()));
 
-        ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(100));
+        ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(5000));
         assertEquals(1, records.count());
 
         shareConsumer.subscribe(Collections.singletonList(tp2.topic()));
 
         // Waiting for heartbeat to propagate the subscription change.
-        Thread.sleep(6000);
-
-        records = shareConsumer.poll(Duration.ofMillis(500));
-        assertEquals(1, records.count());
+        TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
+                DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records from the updated subscription");
 
         producer.send(record2).get();
 
