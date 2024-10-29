@@ -14,11 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.clients.consumer.internals;
+package org.apache.kafka.clients.consumer.internals.streams;
 
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface.Assignment;
+import org.apache.kafka.clients.consumer.internals.ConsumerMembershipManager;
+import org.apache.kafka.clients.consumer.internals.ConsumerMetadata;
+import org.apache.kafka.clients.consumer.internals.CoordinatorRequestManager;
+import org.apache.kafka.clients.consumer.internals.MemberState;
+import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate;
+import org.apache.kafka.clients.consumer.internals.RequestManager;
+import org.apache.kafka.clients.consumer.internals.RequestState;
+import org.apache.kafka.clients.consumer.internals.streams.StreamsAssignmentInterface.Assignment;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler;
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.clients.consumer.internals.metrics.HeartbeatMetricsManager;
@@ -449,7 +456,7 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
 
     /**
      * Represents the state of a heartbeat request, including logic for timing, retries, and exponential backoff. The object extends
-     * {@link RequestState} to enable exponential backoff and duplicated request handling. The two fields that it holds are:
+     * {@link org.apache.kafka.clients.consumer.internals.RequestState} to enable exponential backoff and duplicated request handling. The two fields that it holds are:
      */
     static class HeartbeatRequestState extends RequestState {
 

@@ -321,11 +321,11 @@ public class NetworkClientDelegate implements AutoCloseable {
             return handler.future;
         }
 
-        FutureCompletionHandler handler() {
+        public FutureCompletionHandler handler() {
             return handler;
         }
 
-        UnsentRequest whenComplete(BiConsumer<ClientResponse, Throwable> callback) {
+        public UnsentRequest whenComplete(BiConsumer<ClientResponse, Throwable> callback) {
             handler.future().whenComplete(callback);
             return this;
         }

@@ -14,10 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.clients.consumer.internals;
+package org.apache.kafka.clients.consumer.internals.streams;
 
 import org.apache.kafka.clients.ClientResponse;
+import org.apache.kafka.clients.consumer.internals.CoordinatorRequestManager;
+import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate;
 import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate.PollResult;
+import org.apache.kafka.clients.consumer.internals.RequestManager;
 import org.apache.kafka.common.message.StreamsGroupInitializeRequestData;
 import org.apache.kafka.common.message.StreamsGroupInitializeRequestData.CopartitionGroup;
 import org.apache.kafka.common.protocol.Errors;

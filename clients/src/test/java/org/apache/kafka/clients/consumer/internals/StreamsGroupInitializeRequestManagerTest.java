@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.clients.consumer.internals;
 
+import org.apache.kafka.clients.consumer.internals.streams.StreamsAssignmentInterface;
+import org.apache.kafka.clients.consumer.internals.streams.StreamsGroupInitializeRequestManager;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.message.StreamsGroupInitializeRequestData;
 import org.apache.kafka.common.protocol.ApiKeys;

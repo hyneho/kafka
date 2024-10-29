@@ -21,7 +21,7 @@ import org.apache.kafka.common.utils.LogContext;
 
 import org.slf4j.Logger;
 
-class RequestState {
+public class RequestState {
 
     private final Logger log;
     protected final String owner;
@@ -47,13 +47,12 @@ class RequestState {
                 RETRY_BACKOFF_JITTER);
     }
 
-    // Visible for testing
-    RequestState(final LogContext logContext,
-                 final String owner,
-                 final long retryBackoffMs,
-                 final int retryBackoffExpBase,
-                 final long retryBackoffMaxMs,
-                 final double jitter) {
+    protected RequestState(final LogContext logContext,
+                           final String owner,
+                           final long retryBackoffMs,
+                           final int retryBackoffExpBase,
+                           final long retryBackoffMaxMs,
+                           final double jitter) {
         this.log = logContext.logger(RequestState.class);
         this.owner = owner;
         this.exponentialBackoff = new ExponentialBackoff(
@@ -134,7 +133,7 @@ class RequestState {
         this.numAttempts++;
     }
 
-    long remainingBackoffMs(final long currentTimeMs) {
+    public long remainingBackoffMs(final long currentTimeMs) {
         long timeSinceLastReceiveMs = currentTimeMs - this.lastReceivedMs;
         return Math.max(0, backoffMs - timeSinceLastReceiveMs);
     }

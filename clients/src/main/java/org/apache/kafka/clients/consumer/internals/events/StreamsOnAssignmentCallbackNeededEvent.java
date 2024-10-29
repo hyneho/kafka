@@ -16,7 +16,7 @@
  */
 package org.apache.kafka.clients.consumer.internals.events;
 
-import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface;
+import org.apache.kafka.clients.consumer.internals.streams.StreamsAssignmentInterface;
 
 import java.util.Objects;
 

@@ -21,7 +21,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.internals.AsyncKafkaConsumer;
-import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface;
+import org.apache.kafka.clients.consumer.internals.streams.StreamsAssignmentInterface;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;

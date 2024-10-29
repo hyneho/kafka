@@ -18,7 +18,7 @@ package org.apache.kafka.streams;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface;
+import org.apache.kafka.clients.consumer.internals.streams.StreamsAssignmentInterface;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.processor.StateStore;
