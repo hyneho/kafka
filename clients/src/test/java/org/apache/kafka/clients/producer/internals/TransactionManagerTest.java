@@ -2980,10 +2980,9 @@ public class TransactionManagerTest {
         assertEquals(0, transactionManager.sequenceNumber(tp0));
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true})
-    public void testEpochUpdateAfterBumpFromEndTxnResponseInV2(boolean transactionV2Enabled) throws InterruptedException {
-        initializeTransactionManager(Optional.of(transactionalId), transactionV2Enabled);
+    @Test
+    public void testEpochUpdateAfterBumpFromEndTxnResponseInV2() throws InterruptedException {
+        initializeTransactionManager(Optional.of(transactionalId), true);
 
         // Initialize transaction with initial producer ID and epoch.
         doInitTransactions(producerId, epoch);
@@ -3010,10 +3009,9 @@ public class TransactionManagerTest {
         assertEquals(bumpedEpoch, transactionManager.producerIdAndEpoch().epoch);
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true})
-    public void testProducerIdAndEpochUpdateAfterOverflowFromEndTxnResponseInV2(boolean transactionV2Enabled) throws InterruptedException {
-        initializeTransactionManager(Optional.of(transactionalId), transactionV2Enabled);
+    @Test
+    public void testProducerIdAndEpochUpdateAfterOverflowFromEndTxnResponseInV2() throws InterruptedException {
+        initializeTransactionManager(Optional.of(transactionalId), true);
 
         // Initialize transaction with initial producer ID and epoch.
         doInitTransactions(producerId, epoch);
@@ -3079,7 +3077,8 @@ public class TransactionManagerTest {
                 new ApiVersion()
                         .setApiKey(ApiKeys.PRODUCE.id)
                         .setMinVersion((short) 0)
-                        .setMaxVersion((short) 7))));
+                        .setMaxVersion((short) 7)
+        )));
 
         doInitTransactions();
 
