@@ -403,7 +403,7 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
         #
         # See the Java class/method VerifiableConsumer.createFromArgs() for how the command line arguments are
         # parsed and used as configuration in the runner.
-        if node.version >= V_3_7_0 and self.is_consumer_group_protocol_enabled():
+        if node.version >= V_3_7_0 and self.group_protocol:
             cmd += " --group-protocol %s" % self.group_protocol
 
             if self.group_remote_assignor:
