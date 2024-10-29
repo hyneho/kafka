@@ -17,7 +17,6 @@
 
 package kafka.server
 
-import kafka.cluster.BrokerEndPoint
 import kafka.server.QuotaFactory.QuotaManagers
 import kafka.utils.{CoreUtils, Logging, TestUtils}
 import org.apache.kafka.common.{Node, TopicIdPartition, Uuid}
@@ -31,6 +30,7 @@ import org.apache.kafka.common.record.{MemoryRecords, SimpleRecord}
 import org.apache.kafka.common.requests.LeaderAndIsrRequest
 import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.server.common.OffsetAndEpoch
+import org.apache.kafka.server.network.BrokerEndPoint
 import org.apache.kafka.server.util.{MockScheduler, MockTime}
 import org.apache.kafka.storage.internals.checkpoint.LazyOffsetCheckpoints
 import org.apache.kafka.storage.internals.log.{AppendOrigin, LogDirFailureChannel}
@@ -50,7 +50,7 @@ class LocalLeaderEndPointTest extends Logging {
   val topic = "test"
   val topicIdPartition = new TopicIdPartition(topicId, 5, topic)
   val topicPartition = topicIdPartition.topicPartition()
-  val sourceBroker: BrokerEndPoint = BrokerEndPoint(0, "localhost", 9092)
+  val sourceBroker: BrokerEndPoint = new BrokerEndPoint(0, "localhost", 9092)
   var replicaManager: ReplicaManager = _
   var endPoint: LeaderEndPoint = _
   var quotaManager: QuotaManagers = _

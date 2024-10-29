@@ -22,6 +22,7 @@ import kafka.server.QuotaFactory;
 import kafka.server.ReplicaManager;
 
 import org.apache.kafka.common.TopicIdPartition;
+import org.apache.kafka.common.message.ShareFetchResponseData;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.server.share.fetch.ShareFetchData;
 import org.apache.kafka.server.storage.log.FetchPartitionData;
@@ -78,9 +79,9 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public void onComplete() {
-        log.trace("Completing the delayed share fetch request for group {}, member {}, " +
-                        "topic partitions {}", shareFetchData.groupId(),
-            shareFetchData.memberId(), shareFetchData.partitionMaxBytes().keySet());
+        log.trace("Completing the delayed share fetch request for group {}, member {}, "
+            + "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
+            topicPartitionDataFromTryComplete.keySet());
 
         if (shareFetchData.future().isDone())
             return;
@@ -92,15 +93,16 @@ public class DelayedShareFetch extends DelayedOperation {
         // tryComplete invoked forceComplete, so we can use the data from tryComplete.
         else
             topicPartitionData = topicPartitionDataFromTryComplete;
-        try {
-            if (topicPartitionData.isEmpty()) {
-                // No locks for share partitions could be acquired, so we complete the request with an empty response.
-                shareFetchData.future().complete(Collections.emptyMap());
-                return;
-            }
-            log.trace("Fetchable share partitions data: {} with groupId: {} fetch params: {}",
-                    topicPartitionData, shareFetchData.groupId(), shareFetchData.fetchParams());
 
+        if (topicPartitionData.isEmpty()) {
+            // No locks for share partitions could be acquired, so we complete the request with an empty response.
+            shareFetchData.future().complete(Collections.emptyMap());
+            return;
+        }
+        log.trace("Fetchable share partitions data: {} with groupId: {} fetch params: {}",
+            topicPartitionData, shareFetchData.groupId(), shareFetchData.fetchParams());
+
+        try {
             Seq<Tuple2<TopicIdPartition, LogReadResult>> responseLogResult = replicaManager.readFromLog(
                 shareFetchData.fetchParams(),
                 CollectionConverters.asScala(
@@ -120,28 +122,22 @@ public class DelayedShareFetch extends DelayedOperation {
             });
 
             log.trace("Data successfully retrieved by replica manager: {}", responseData);
-            ShareFetchUtils.processFetchResponse(shareFetchData, responseData, sharePartitionManager, replicaManager)
-                .whenComplete((result, throwable) -> {
-                    if (throwable != null) {
-                        log.error("Error processing fetch response for share partitions", throwable);
-                        shareFetchData.future().completeExceptionally(throwable);
-                    } else {
-                        shareFetchData.future().complete(result);
-                    }
-                    // Releasing the lock to move ahead with the next request in queue.
-                    releasePartitionLocks(shareFetchData.groupId(), topicPartitionData.keySet());
-                    // If we have a fetch request completed for a topic-partition, we release the locks for that partition,
-                    // then we should check if there is a pending share fetch request for the topic-partition and complete it.
-                    // We add the action to delayed actions queue to avoid an infinite call stack, which could happen if
-                    // we directly call delayedShareFetchPurgatory.checkAndComplete
-                    sharePartitionManager.addPurgatoryCheckAndCompleteDelayedActionToActionQueue(result.keySet(), shareFetchData.groupId());
-                });
-
+            Map<TopicIdPartition, ShareFetchResponseData.PartitionData> result =
+                ShareFetchUtils.processFetchResponse(shareFetchData, responseData, sharePartitionManager, replicaManager);
+            shareFetchData.future().complete(result);
         } catch (Exception e) {
-            // Release the locks acquired for the partitions in the share fetch request in case there is an exception
             log.error("Error processing delayed share fetch request", e);
             shareFetchData.future().completeExceptionally(e);
+        } finally {
+            // Releasing the lock to move ahead with the next request in queue.
             releasePartitionLocks(shareFetchData.groupId(), topicPartitionData.keySet());
+            // If we have a fetch request completed for a topic-partition, we release the locks for that partition,
+            // then we should check if there is a pending share fetch request for the topic-partition and complete it.
+            // We add the action to delayed actions queue to avoid an infinite call stack, which could happen if
+            // we directly call delayedShareFetchPurgatory.checkAndComplete
+            replicaManager.addToActionQueue(() -> topicPartitionData.keySet().forEach(topicIdPartition ->
+                replicaManager.completeDelayedShareFetchRequest(
+                    new DelayedShareFetchGroupKey(shareFetchData.groupId(), topicIdPartition.topicId(), topicIdPartition.partition()))));
         }
     }
 
@@ -150,17 +146,17 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public boolean tryComplete() {
-        log.trace("Try to complete the delayed share fetch request for group {}, member {}, topic partitions {}",
-            shareFetchData.groupId(), shareFetchData.memberId(),
-            shareFetchData.partitionMaxBytes().keySet());
-
         topicPartitionDataFromTryComplete = acquirablePartitions();
 
-        if (!topicPartitionDataFromTryComplete.isEmpty())
-            return forceComplete();
-        log.info("Can't acquire records for any partition in the share fetch request for group {}, member {}, " +
-                "topic partitions {}", shareFetchData.groupId(),
-                shareFetchData.memberId(), shareFetchData.partitionMaxBytes().keySet());
+        if (!topicPartitionDataFromTryComplete.isEmpty()) {
+            boolean completedByMe = forceComplete();
+            // If invocation of forceComplete is not successful, then that means the request is already completed
+            // hence release the acquired locks.
+            if (!completedByMe) {
+                releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
+            }
+            return completedByMe;
+        }
         return false;
     }
 
@@ -183,22 +179,28 @@ public class DelayedShareFetch extends DelayedOperation {
             // Add the share partition to the list of partitions to be fetched only if we can
             // acquire the fetch lock on it.
             if (sharePartition.maybeAcquireFetchLock()) {
-                // If the share partition is already at capacity, we should not attempt to fetch.
-                if (sharePartition.canAcquireRecords()) {
-                    topicPartitionData.put(
+                try {
+                    // If the share partition is already at capacity, we should not attempt to fetch.
+                    if (sharePartition.canAcquireRecords()) {
+                        topicPartitionData.put(
                             topicIdPartition,
                             new FetchRequest.PartitionData(
-                                    topicIdPartition.topicId(),
-                                    sharePartition.nextFetchOffset(),
-                                    0,
-                                    partitionMaxBytes,
-                                    Optional.empty()
+                                topicIdPartition.topicId(),
+                                sharePartition.nextFetchOffset(),
+                                0,
+                                partitionMaxBytes,
+                                Optional.empty()
                             )
-                    );
-                } else {
-                    sharePartition.releaseFetchLock();
-                    log.trace("Record lock partition limit exceeded for SharePartition {}, " +
+                        );
+                    } else {
+                        sharePartition.releaseFetchLock();
+                        log.trace("Record lock partition limit exceeded for SharePartition {}, " +
                             "cannot acquire more records", sharePartition);
+                    }
+                } catch (Exception e) {
+                    log.error("Error checking condition for SharePartition: {}", sharePartition, e);
+                    // Release the lock, if error occurred.
+                    sharePartition.releaseFetchLock();
                 }
             }
         });
