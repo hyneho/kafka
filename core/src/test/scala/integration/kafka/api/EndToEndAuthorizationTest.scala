@@ -21,7 +21,6 @@ import com.yammer.metrics.core.Gauge
 
 import java.util.{Collections, Properties}
 import java.util.concurrent.ExecutionException
-import kafka.security.authorizer.AclAuthorizer
 import org.apache.kafka.metadata.authorizer.StandardAuthorizer
 import kafka.utils._
 import org.apache.kafka.clients.admin.Admin
@@ -57,8 +56,7 @@ import scala.jdk.CollectionConverters._
   * This test relies on a chain of test harness traits to set up. It directly
   * extends IntegrationTestHarness. IntegrationTestHarness creates producers and
   * consumers, and it extends KafkaServerTestHarness. KafkaServerTestHarness starts
-  * brokers, but first it initializes a ZooKeeper server and client, which happens
-  * in QuorumTestHarness.
+  * brokers.
   *
   * To start brokers we need to set a cluster ACL, which happens optionally in KafkaServerTestHarness.
   * The remaining ACLs to enable access to producers and consumers are set here. To set ACLs, we use AclCommand directly.
@@ -82,7 +80,6 @@ abstract class EndToEndAuthorizationTest extends IntegrationTestHarness with Sas
   val tp = new TopicPartition(topic, part)
 
   override protected lazy val trustStoreFile = Some(TestUtils.tempFile("truststore", ".jks"))
-  protected def authorizerClass: Class[_] = classOf[AclAuthorizer]
 
   val topicResource = new ResourcePattern(TOPIC, topic, LITERAL)
   val groupResource =  new ResourcePattern(GROUP, group, LITERAL)
@@ -149,21 +146,10 @@ abstract class EndToEndAuthorizationTest extends IntegrationTestHarness with Sas
     */
   @BeforeEach
   override def setUp(testInfo: TestInfo): Unit = {
-
-    if (TestInfoUtils.isKRaft(testInfo)) {
-      this.serverConfig.setProperty(StandardAuthorizer.SUPER_USERS_CONFIG, kafkaPrincipal.toString)
-      this.controllerConfig.setProperty(StandardAuthorizer.SUPER_USERS_CONFIG, kafkaPrincipal.toString + ";" + "User:ANONYMOUS")
-      this.serverConfig.setProperty(ServerConfigs.AUTHORIZER_CLASS_NAME_CONFIG, classOf[StandardAuthorizer].getName)
-      this.controllerConfig.setProperty(ServerConfigs.AUTHORIZER_CLASS_NAME_CONFIG, classOf[StandardAuthorizer].getName)
-    } else {
-      // The next two configuration parameters enable ZooKeeper secure ACLs
-      // and sets the Kafka authorizer, both necessary to enable security.
-      this.serverConfig.setProperty(ZkConfigs.ZK_ENABLE_SECURE_ACLS_CONFIG, "true")
-      this.serverConfig.setProperty(ServerConfigs.AUTHORIZER_CLASS_NAME_CONFIG, authorizerClass.getName)
-
-      // Set the specific principal that can update ACLs.
-      this.serverConfig.setProperty(AclAuthorizer.SuperUsersProp, kafkaPrincipal.toString)
-    }
+    this.serverConfig.setProperty(StandardAuthorizer.SUPER_USERS_CONFIG, kafkaPrincipal.toString)
+    this.controllerConfig.setProperty(StandardAuthorizer.SUPER_USERS_CONFIG, kafkaPrincipal.toString + ";" + "User:ANONYMOUS")
+    this.serverConfig.setProperty(ServerConfigs.AUTHORIZER_CLASS_NAME_CONFIG, classOf[StandardAuthorizer].getName)
+    this.controllerConfig.setProperty(ServerConfigs.AUTHORIZER_CLASS_NAME_CONFIG, classOf[StandardAuthorizer].getName)
 
     super.setUp(testInfo)
 

@@ -34,14 +34,10 @@ import org.apache.kafka.common.message.CreatePartitionsRequestData.CreatePartiti
 import org.apache.kafka.common.message.CreateTopicsRequestData.{CreatableTopic, CreatableTopicCollection}
 import org.apache.kafka.common.message.IncrementalAlterConfigsRequestData.{AlterConfigsResource, AlterableConfig, AlterableConfigCollection}
 import org.apache.kafka.common.message.JoinGroupRequestData.JoinGroupRequestProtocolCollection
-import org.apache.kafka.common.message.LeaderAndIsrRequestData.LeaderAndIsrPartitionState
 import org.apache.kafka.common.message.LeaveGroupRequestData.MemberIdentity
 import org.apache.kafka.common.message.ListOffsetsRequestData.{ListOffsetsPartition, ListOffsetsTopic}
 import org.apache.kafka.common.message.OffsetForLeaderEpochRequestData.{OffsetForLeaderPartition, OffsetForLeaderTopic, OffsetForLeaderTopicCollection}
-import org.apache.kafka.common.message.StopReplicaRequestData.{StopReplicaPartitionState, StopReplicaTopicState}
-import org.apache.kafka.common.message.UpdateMetadataRequestData.{UpdateMetadataBroker, UpdateMetadataEndpoint, UpdateMetadataPartitionState}
-import org.apache.kafka.common.message.{AddOffsetsToTxnRequestData, AlterPartitionReassignmentsRequestData, AlterReplicaLogDirsRequestData, ConsumerGroupDescribeRequestData, ConsumerGroupHeartbeatRequestData, ControlledShutdownRequestData, CreateAclsRequestData, CreatePartitionsRequestData, CreateTopicsRequestData, DeleteAclsRequestData, DeleteGroupsRequestData, DeleteRecordsRequestData, DeleteTopicsRequestData, DescribeClusterRequestData, DescribeConfigsRequestData, DescribeGroupsRequestData, DescribeLogDirsRequestData, DescribeProducersRequestData, DescribeTransactionsRequestData, FindCoordinatorRequestData, HeartbeatRequestData, IncrementalAlterConfigsRequestData, JoinGroupRequestData, ListPartitionReassignmentsRequestData, ListTransactionsRequestData, MetadataRequestData, OffsetCommitRequestData, ProduceRequestData, SyncGroupRequestData, WriteTxnMarkersRequestData}
-import org.apache.kafka.common.network.ListenerName
+import org.apache.kafka.common.message.{AddOffsetsToTxnRequestData, AlterPartitionReassignmentsRequestData, AlterReplicaLogDirsRequestData, ConsumerGroupDescribeRequestData, ConsumerGroupHeartbeatRequestData, CreateAclsRequestData, CreatePartitionsRequestData, CreateTopicsRequestData, DeleteAclsRequestData, DeleteGroupsRequestData, DeleteRecordsRequestData, DeleteTopicsRequestData, DescribeClusterRequestData, DescribeConfigsRequestData, DescribeGroupsRequestData, DescribeLogDirsRequestData, DescribeProducersRequestData, DescribeTransactionsRequestData, FindCoordinatorRequestData, HeartbeatRequestData, IncrementalAlterConfigsRequestData, JoinGroupRequestData, ListPartitionReassignmentsRequestData, ListTransactionsRequestData, MetadataRequestData, OffsetCommitRequestData, ProduceRequestData, SyncGroupRequestData, WriteTxnMarkersRequestData}
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.record.{MemoryRecords, RecordBatch, SimpleRecord}
 import org.apache.kafka.common.requests.OffsetFetchResponse.PartitionData
@@ -49,9 +45,9 @@ import org.apache.kafka.common.requests._
 import org.apache.kafka.common.resource.PatternType.{LITERAL, PREFIXED}
 import org.apache.kafka.common.resource.ResourceType._
 import org.apache.kafka.common.resource.{PatternType, Resource, ResourcePattern, ResourcePatternFilter, ResourceType}
-import org.apache.kafka.common.security.auth.{KafkaPrincipal, SecurityProtocol}
+import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.utils.Utils
-import org.apache.kafka.common.{ElectionType, IsolationLevel, KafkaException, Node, TopicPartition, Uuid, requests}
+import org.apache.kafka.common.{ElectionType, IsolationLevel, KafkaException, TopicPartition, Uuid, requests}
 import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.apache.kafka.security.authorizer.AclEntry
 import org.apache.kafka.security.authorizer.AclEntry.WILDCARD_HOST
@@ -63,7 +59,6 @@ import java.util.Collections.singletonList
 import org.apache.kafka.common.message.MetadataRequestData.MetadataRequestTopic
 import org.apache.kafka.common.message.WriteTxnMarkersRequestData.{WritableTxnMarker, WritableTxnMarkerTopic}
 import org.apache.kafka.coordinator.group.GroupConfig
-import org.apache.kafka.metadata.LeaderAndIsr
 import org.junit.jupiter.api.function.Executable
 
 import scala.collection.mutable
@@ -345,29 +340,6 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
           .setCoordinatorKeys(Collections.singletonList(group))).build()
   }
 
-  private def createUpdateMetadataRequest = {
-    val partitionStates = Seq(new UpdateMetadataPartitionState()
-      .setTopicName(tp.topic)
-      .setPartitionIndex(tp.partition)
-      .setControllerEpoch(Int.MaxValue)
-      .setLeader(brokerId)
-      .setLeaderEpoch(Int.MaxValue)
-      .setIsr(List(brokerId).asJava)
-      .setZkVersion(2)
-      .setReplicas(Seq(brokerId).asJava)).asJava
-    val securityProtocol = SecurityProtocol.PLAINTEXT
-    val brokers = Seq(new UpdateMetadataBroker()
-      .setId(brokerId)
-      .setEndpoints(Seq(new UpdateMetadataEndpoint()
-        .setHost("localhost")
-        .setPort(0)
-        .setSecurityProtocol(securityProtocol.id)
-        .setListener(ListenerName.forSecurityProtocol(securityProtocol).value)).asJava)).asJava
-    val version = ApiKeys.UPDATE_METADATA.latestVersion
-    new requests.UpdateMetadataRequest.Builder(version, brokerId, Int.MaxValue, Long.MaxValue, partitionStates,
-      brokers, Collections.emptyMap()).build()
-  }
-
   private def createJoinGroupRequest = {
     val protocolSet = new JoinGroupRequestProtocolCollection(
       Collections.singletonList(new JoinGroupRequestData.JoinGroupRequestProtocol()
@@ -452,43 +424,6 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
     new DeleteGroupsRequestData()
       .setGroupsNames(Collections.singletonList(group))
   ).build()
-
-  private def leaderAndIsrRequest: LeaderAndIsrRequest = {
-    new requests.LeaderAndIsrRequest.Builder(ApiKeys.LEADER_AND_ISR.latestVersion, brokerId, Int.MaxValue, Long.MaxValue,
-      Seq(new LeaderAndIsrPartitionState()
-        .setTopicName(tp.topic)
-        .setPartitionIndex(tp.partition)
-        .setControllerEpoch(Int.MaxValue)
-        .setLeader(brokerId)
-        .setLeaderEpoch(Int.MaxValue)
-        .setIsr(List(brokerId).asJava)
-        .setPartitionEpoch(2)
-        .setReplicas(Seq(brokerId).asJava)
-        .setIsNew(false)).asJava,
-      getTopicIds().asJava,
-      Set(new Node(brokerId, "localhost", 0)).asJava).build()
-  }
-
-  private def stopReplicaRequest: StopReplicaRequest = {
-    val topicStates = Seq(
-      new StopReplicaTopicState()
-        .setTopicName(tp.topic)
-        .setPartitionStates(Seq(new StopReplicaPartitionState()
-          .setPartitionIndex(tp.partition)
-          .setLeaderEpoch(LeaderAndIsr.INITIAL_LEADER_EPOCH + 2)
-          .setDeletePartition(true)).asJava)
-    ).asJava
-    new StopReplicaRequest.Builder(ApiKeys.STOP_REPLICA.latestVersion, brokerId, Int.MaxValue,
-      Long.MaxValue, false, topicStates).build()
-  }
-
-  private def controlledShutdownRequest: ControlledShutdownRequest = {
-    new ControlledShutdownRequest.Builder(
-      new ControlledShutdownRequestData()
-        .setBrokerId(brokerId)
-        .setBrokerEpoch(Long.MaxValue),
-      ApiKeys.CONTROLLED_SHUTDOWN.latestVersion).build()
-  }
 
   private def createTopicsRequest: CreateTopicsRequest = {
     new CreateTopicsRequest.Builder(new CreateTopicsRequestData().setTopics(
@@ -690,10 +625,9 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
       val resourceToAcls = requestKeysToAcls(key)
       resourceToAcls.get(topicResource).foreach { acls =>
         val describeAcls = topicDescribeAcl(topicResource)
-        val isAuthorized = if (isKRaftTest() && key.equals(ApiKeys.DELETE_TOPICS) && topicExists == false) {
+        val isAuthorized = if (key.equals(ApiKeys.DELETE_TOPICS) && !topicExists) {
           // In KRaft mode, trying to delete a topic that doesn't exist but that you do have
-          // describe permission for will give UNKNOWN_TOPIC_OR_PARTITION. In ZK mode it gives
-          // TOPIC_AUTHORIZATION_FAILED unless you have DELETE permission.
+          // describe permission for will give UNKNOWN_TOPIC_OR_PARTITION.
           true
         } else {
           describeAcls == acls
@@ -747,19 +681,11 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
       ApiKeys.DESCRIBE_PRODUCERS -> describeProducersRequest,
       ApiKeys.DESCRIBE_TRANSACTIONS -> describeTransactionsRequest,
       ApiKeys.WRITE_TXN_MARKERS -> writeTxnMarkersRequest,
+      ApiKeys.CONSUMER_GROUP_HEARTBEAT -> consumerGroupHeartbeatRequest,
+      ApiKeys.CONSUMER_GROUP_DESCRIBE -> consumerGroupDescribeRequest,
+      // Delete the topic last
+      ApiKeys.DELETE_TOPICS -> deleteTopicsRequest
     )
-    if (isKRaftTest()) {
-      requestKeyToRequest += ApiKeys.CONSUMER_GROUP_HEARTBEAT -> consumerGroupHeartbeatRequest
-      requestKeyToRequest += ApiKeys.CONSUMER_GROUP_DESCRIBE -> consumerGroupDescribeRequest
-    } else {
-      // Inter-broker APIs use an invalid broker epoch, so does not affect the test case
-      requestKeyToRequest += ApiKeys.UPDATE_METADATA -> createUpdateMetadataRequest
-      requestKeyToRequest += ApiKeys.LEADER_AND_ISR -> leaderAndIsrRequest
-      requestKeyToRequest += ApiKeys.STOP_REPLICA -> stopReplicaRequest
-      requestKeyToRequest += ApiKeys.CONTROLLED_SHUTDOWN -> controlledShutdownRequest
-    }
-    // Delete the topic last
-    requestKeyToRequest += ApiKeys.DELETE_TOPICS -> deleteTopicsRequest
 
     sendRequests(requestKeyToRequest, true)
   }
@@ -1129,7 +1055,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   def testPatternSubscriptionWithNoTopicAccess(quorum: String, groupProtocol: String): Unit = {
 =======
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testPatternSubscriptionWithNoTopicAccess(quorum: String): Unit = {
     val assignSemaphore = new Semaphore(0)
 >>>>>>> trunk

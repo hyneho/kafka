@@ -259,8 +259,7 @@ class KafkaServer(
         initialMetaPropsEnsemble.verify(Optional.of(_clusterId), verificationId, verificationFlags)
 
         /* generate brokerId */
-        config._brokerId = getOrGenerateBrokerId(initialMetaPropsEnsemble)
-        config._nodeId = config.brokerId
+        config.brokerId = getOrGenerateBrokerId(initialMetaPropsEnsemble)
         logContext = new LogContext(s"[KafkaServer id=${config.brokerId}] ")
         this.logIdent = logContext.logPrefix
 
@@ -570,7 +569,7 @@ class KafkaServer(
               .orElse(throw new ConfigException(RemoteLogManagerConfig.REMOTE_LOG_METADATA_MANAGER_LISTENER_NAME_PROP,
                 listenerName, "Should be set as a listener name within valid broker listener name list: "
                   + brokerInfo.broker.endPoints.map(_.listenerName).mkString(",")))
-              .foreach(e => rlm.onEndPointCreated(e))
+              .foreach(e => rlm.onEndPointCreated(e.toJava))
           }
           rlm.startup()
         }
