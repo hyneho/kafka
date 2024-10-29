@@ -125,6 +125,9 @@ public class DelegatingClassLoader extends URLClassLoader {
     }
 
     String defaultVersion(String classOrAlias) {
+        if (classOrAlias == null) {
+            return null;
+        }
         String fullName = aliases.getOrDefault(classOrAlias, classOrAlias);
         SortedMap<PluginDesc<?>, ClassLoader> inner = pluginLoaders.get(fullName);
         if (inner == null) {
