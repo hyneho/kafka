@@ -18,7 +18,7 @@ from ducktape.mark import matrix
 from ducktape.mark.resource import cluster
 from ducktape.tests.test import Test
 from ducktape.utils.util import wait_until
-from kafkatest.services.kafka import KafkaService
+from kafkatest.services.kafka import KafkaService, consumer_group
 from kafkatest.services.streams import StreamsBrokerCompatibilityService
 from kafkatest.services.verifiable_consumer import VerifiableConsumer
 from kafkatest.services.zookeeper import ZookeeperService
@@ -58,7 +58,8 @@ class StreamsBrokerCompatibility(Test):
                                            1,
                                            self.kafka,
                                            self.output,
-                                           "stream-broker-compatibility-verify-consumer")
+                                           "stream-broker-compatibility-verify-consumer",
+                                           group_protocol=consumer_group.classic_group_protocol)
 
     def setUp(self):
         self.zk.start()

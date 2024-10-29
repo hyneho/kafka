@@ -59,13 +59,13 @@ class ConsumerGroupCommandTest(Test):
             controller_num_nodes_override=self.num_zk)
         self.kafka.start()
 
-    def start_consumer(self, group_protocol=None):
+    def start_consumer(self, group_protocol):
         consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, num_nodes=self.num_brokers, kafka=self.kafka, topic=TOPIC,
                                         consumer_timeout_ms=None, consumer_properties=consumer_properties)
         self.consumer.start()
 
-    def setup_and_verify(self, security_protocol, group=None, group_protocol=None):
+    def setup_and_verify(self, security_protocol, group_protocol, group=None):
         self.start_kafka(security_protocol, security_protocol)
         self.start_consumer(group_protocol=group_protocol)
         consumer_node = self.consumer.nodes[0]
@@ -93,8 +93,9 @@ class ConsumerGroupCommandTest(Test):
     @cluster(num_nodes=3)
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
-        use_new_coordinator=[False]
+        metadata_quorum=[quorum.isolated_kraft],
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],
@@ -102,7 +103,7 @@ class ConsumerGroupCommandTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_list_consumer_groups(self, security_protocol='PLAINTEXT', metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=None):
+    def test_list_consumer_groups(self, security_protocol='PLAINTEXT', metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """
         Tests if ConsumerGroupCommand is listing correct consumer groups
         :return: None
@@ -112,8 +113,9 @@ class ConsumerGroupCommandTest(Test):
     @cluster(num_nodes=3)
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
-        use_new_coordinator=[False]
+        metadata_quorum=[quorum.isolated_kraft],
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],
@@ -121,7 +123,7 @@ class ConsumerGroupCommandTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_describe_consumer_group(self, security_protocol='PLAINTEXT', metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=None):
+    def test_describe_consumer_group(self, security_protocol='PLAINTEXT', metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """
         Tests if ConsumerGroupCommand is describing a consumer group correctly
         :return: None

@@ -21,7 +21,7 @@ from ducktape.mark.resource import cluster
 
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService, quorum
+from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.console_consumer import ConsoleConsumer
 
 MAX_MESSAGES = 100
@@ -86,9 +86,10 @@ class GetOffsetShellTest(Test):
         wait_until(lambda: self.producer.num_acked >= current_acked + MAX_MESSAGES, timeout_sec=10,
                    err_msg="Timeout awaiting messages to be produced and acked")
 
-    def start_consumer(self, topic):
+    def start_consumer(self, topic, group_protocol):
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, num_nodes=self.num_brokers, kafka=self.kafka, topic=topic,
-                                        consumer_timeout_ms=1000)
+                                        consumer_timeout_ms=1000, consumer_properties=consumer_properties)
         self.consumer.start()
 
     def check_message_count_sum_equals(self, message_count, **kwargs):
@@ -218,7 +219,7 @@ class GetOffsetShellTest(Test):
         self.start_producer(TOPIC_TEST_INTERNAL_FILTER)
 
         # Create consumer and poll messages to create consumer offset record
-        self.start_consumer(TOPIC_TEST_INTERNAL_FILTER)
+        self.start_consumer(TOPIC_TEST_INTERNAL_FILTER, group_protocol=consumer_group.classic_group_protocol)
         node = self.consumer.nodes[0]
         wait_until(lambda: self.consumer.alive(node), timeout_sec=20, backoff_sec=.2, err_msg="Consumer was too slow to start")
 

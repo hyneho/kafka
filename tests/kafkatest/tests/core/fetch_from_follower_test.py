@@ -71,15 +71,16 @@ class FetchFromFollowerTest(ProduceConsumeValidateTest):
 
     @cluster(num_nodes=9)
     @matrix(
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
-        use_new_coordinator=[False]
+        metadata_quorum=[quorum.isolated_kraft],
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_consumer_preferred_read_replica(self, metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=None):
+    def test_consumer_preferred_read_replica(self, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """
         This test starts up brokers with "broker.rack" and "replica.selector.class" configurations set. The replica
         selector is set to the rack-aware implementation. One of the brokers has a different rack than the other two.

@@ -21,7 +21,7 @@ from ducktape.utils.util import wait_until
 
 from kafkatest.services.performance import ProducerPerformanceService
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService
+from kafkatest.services.kafka import KafkaService, consumer_group
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest
 from kafkatest.services.verifiable_producer import VerifiableProducer
@@ -139,9 +139,8 @@ class ThrottlingTest(ProduceConsumeValidateTest):
                 time_taken))
 
     @cluster(num_nodes=10)
-    @parametrize(bounce_brokers=True)
-    @parametrize(bounce_brokers=False)
-    def test_throttled_reassignment(self, bounce_brokers):
+    @parametrize(bounce_brokers=[True, False], group_protocol=[consumer_group.classic_group_protocol])
+    def test_throttled_reassignment(self, bounce_brokers, group_protocol=consumer_group.classic_group_protocol):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol
@@ -159,6 +158,7 @@ class ThrottlingTest(ProduceConsumeValidateTest):
                                            message_validator=is_int,
                                            throughput=self.producer_throughput)
 
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context,
                                         self.num_consumers,
                                         self.kafka,
@@ -166,7 +166,8 @@ class ThrottlingTest(ProduceConsumeValidateTest):
                                         consumer_timeout_ms=60000,
                                         message_validator=is_int,
                                         from_beginning=False,
-                                        wait_until_partitions_assigned=True)
+                                        wait_until_partitions_assigned=True,
+                                        consumer_properties=consumer_properties)
 
         self.kafka.start()
         bulk_producer.run()

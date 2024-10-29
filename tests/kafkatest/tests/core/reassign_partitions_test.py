@@ -147,8 +147,9 @@ class ReassignPartitionsTest(ProduceConsumeValidateTest):
     @matrix(
         bounce_brokers=[True, False],
         reassign_from_offset_zero=[True, False],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
-        use_new_coordinator=[False]
+        metadata_quorum=[quorum.isolated_kraft],
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         bounce_brokers=[True, False],
@@ -157,7 +158,7 @@ class ReassignPartitionsTest(ProduceConsumeValidateTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_reassign_partitions(self, bounce_brokers, reassign_from_offset_zero, metadata_quorum, use_new_coordinator=False, group_protocol=None):
+    def test_reassign_partitions(self, bounce_brokers, reassign_from_offset_zero, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """Reassign partitions tests.
         Setup: 1 zk, 4 kafka nodes, 1 topic with partitions=20, replication-factor=3,
         and min.insync.replicas=3
@@ -181,11 +182,12 @@ class ReassignPartitionsTest(ProduceConsumeValidateTest):
                                            # To avoid the reassignment behavior being affected by the `BuiltInPartitioner` (due to the key not being set),
                                            # we set a key for the message to ensure both even data distribution across all partitions.
                                            repeating_keys=100)
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers,
                                         self.kafka, self.topic,
                                         consumer_timeout_ms=60000,
                                         message_validator=is_int,
-                                        consumer_properties=consumer_group.maybe_set_group_protocol(group_protocol))
+                                        consumer_properties=consumer_properties)
 
         self.enable_idempotence=True
         self.run_produce_consume_validate(core_test_action=lambda: self.reassign_partitions(bounce_brokers))

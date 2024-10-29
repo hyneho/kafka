@@ -231,7 +231,8 @@ class TransactionsTest(Test):
         check_order=[True, False],
         use_group_metadata=[True, False],
         metadata_quorum=quorum.all_kraft,
-        use_new_coordinator=[False]
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         failure_mode=["hard_bounce", "clean_bounce"],
@@ -242,7 +243,7 @@ class TransactionsTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_transactions(self, failure_mode, bounce_target, check_order, use_group_metadata, metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=None):
+    def test_transactions(self, failure_mode, bounce_target, check_order, use_group_metadata, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol

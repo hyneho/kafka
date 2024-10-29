@@ -18,7 +18,7 @@ from ducktape.mark import matrix
 from ducktape.mark.resource import cluster
 from kafkatest.services.kafka import config_property
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService, quorum
+from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest
@@ -95,7 +95,7 @@ class LogDirFailureTest(ProduceConsumeValidateTest):
     @matrix(bounce_broker=[False, True], broker_type=["leader", "follower"], security_protocol=["PLAINTEXT"], metadata_quorum=[quorum.zk])
     @cluster(num_nodes=10)
     @matrix(bounce_broker=[False, True], broker_type=["leader", "follower"], security_protocol=["PLAINTEXT"], metadata_quorum=[quorum.isolated_kraft])
-    def test_replication_with_disk_failure(self, bounce_broker, security_protocol, broker_type, metadata_quorum):
+    def test_replication_with_disk_failure(self, bounce_broker, security_protocol, broker_type, metadata_quorum, group_protocol=consumer_group.classic_group_protocol):
         """Replication tests.
         These tests verify that replication provides simple durability guarantees by checking that data acked by
         brokers is still available for consumption in the face of various failure scenarios.
@@ -121,8 +121,9 @@ class LogDirFailureTest(ProduceConsumeValidateTest):
             # Initialize producer/consumer for topic2
             self.producer = VerifiableProducer(self.test_context, self.num_producers, self.kafka, self.topic2,
                                                throughput=self.producer_throughput)
+            consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
             self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka, self.topic2, group_id="test-consumer-group-1",
-                                            consumer_timeout_ms=60000, message_validator=is_int)
+                                            consumer_timeout_ms=60000, message_validator=is_int, consumer_properties=consumer_properties)
             self.start_producer_and_consumer()
 
             # Get a replica of the partition of topic2 and make its log directory offline by changing the log dir's permission.
@@ -176,7 +177,7 @@ class LogDirFailureTest(ProduceConsumeValidateTest):
             self.producer = VerifiableProducer(self.test_context, self.num_producers, self.kafka, self.topic1,
                                                throughput=self.producer_throughput, offline_nodes=offline_nodes)
             self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka, self.topic1, group_id="test-consumer-group-2",
-                                            consumer_timeout_ms=90000, message_validator=is_int)
+                                            consumer_timeout_ms=90000, message_validator=is_int, consumer_properties=consumer_properties)
             self.consumer_start_timeout_sec = 90
             self.start_producer_and_consumer()
 

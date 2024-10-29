@@ -19,7 +19,7 @@ from ducktape.mark import matrix
 from ducktape.mark import parametrize
 from ducktape.mark.resource import cluster
 
-from kafkatest.services.kafka import quorum
+from kafkatest.services.kafka import quorum, consumer_group
 from kafkatest.tests.end_to_end import EndToEndTest
 
 import signal
@@ -176,7 +176,7 @@ class ReplicationTest(EndToEndTest):
         self.create_producer(compression_types=compression_types, enable_idempotence=enable_idempotence)
         self.producer.start()
 
-        self.create_consumer(log_level="DEBUG")
+        self.create_consumer(log_level="DEBUG", group_protocol=consumer_group.classic_group_protocol)
         self.consumer.start()
 
         self.await_startup()

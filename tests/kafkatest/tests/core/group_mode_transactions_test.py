@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService, quorum
+from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.transactional_message_copier import TransactionalMessageCopier
@@ -87,8 +87,8 @@ class GroupModeTransactionsTest(Test):
                            (self.num_seed_messages, seed_timeout_sec))
         return seed_producer.acked_by_partition
 
-    def get_messages_from_topic(self, topic, num_messages):
-        consumer = self.start_consumer(topic, group_id="verifying_consumer")
+    def get_messages_from_topic(self, topic, num_messages, group_protocol):
+        consumer = self.start_consumer(topic, group_id="verifying_consumer", group_protocol=group_protocol)
         return self.drain_consumer(consumer, num_messages)
 
     def bounce_brokers(self, clean_shutdown):
@@ -171,7 +171,8 @@ class GroupModeTransactionsTest(Test):
         except ValueError:
             raise Exception("Unexpected message format (expected a tab separated [value, partition] tuple). Message: %s" % (msg))
 
-    def start_consumer(self, topic_to_read, group_id):
+    def start_consumer(self, topic_to_read, group_id, group_protocol):
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         consumer = ConsoleConsumer(context=self.test_context,
                                    num_nodes=1,
                                    kafka=self.kafka,
@@ -180,7 +181,8 @@ class GroupModeTransactionsTest(Test):
                                    message_validator=self.valid_value_and_partition,
                                    from_beginning=True,
                                    print_partition=True,
-                                   isolation_level="read_committed")
+                                   isolation_level="read_committed",
+                                   consumer_properties=consumer_properties)
         consumer.start()
         # ensure that the consumer is up.
         wait_until(lambda: (len(consumer.messages_consumed[1]) > 0) == True,
@@ -217,7 +219,8 @@ class GroupModeTransactionsTest(Test):
 
     def copy_messages_transactionally(self, failure_mode, bounce_target,
                                       input_topic, output_topic,
-                                      num_copiers, num_messages_to_copy):
+                                      num_copiers, num_messages_to_copy,
+                                      group_protocol):
         """Copies messages transactionally from the seeded input topic to the
         output topic, either bouncing brokers or clients in a hard and soft
         way as it goes.
@@ -231,7 +234,8 @@ class GroupModeTransactionsTest(Test):
                                                 output_topic=output_topic,
                                                 num_copiers=num_copiers)
         concurrent_consumer = self.start_consumer(output_topic,
-                                                  group_id="concurrent_consumer")
+                                                  group_id="concurrent_consumer",
+                                                  group_protocol=group_protocol)
         clean_shutdown = False
         if failure_mode == "clean_bounce":
             clean_shutdown = True
@@ -287,8 +291,9 @@ class GroupModeTransactionsTest(Test):
         concurrently_consumed_message_by_partition = self.copy_messages_transactionally(
             failure_mode, bounce_target, input_topic=self.input_topic,
             output_topic=self.output_topic, num_copiers=self.num_copiers,
-            num_messages_to_copy=self.num_seed_messages)
-        output_messages_by_partition = self.get_messages_from_topic(self.output_topic, self.num_seed_messages)
+            num_messages_to_copy=self.num_seed_messages,
+            group_protocol=consumer_group.classic_group_protocol)
+        output_messages_by_partition = self.get_messages_from_topic(self.output_topic, self.num_seed_messages, consumer_group.classic_group_protocol)
 
         assert len(input_messages_by_partition) == \
                len(concurrently_consumed_message_by_partition), "The lengths of partition count doesn't match: " \
