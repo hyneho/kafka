@@ -17,10 +17,10 @@
 
 package org.apache.kafka.clients.admin;
 
+import org.apache.kafka.common.GroupType;
+
 import java.util.Objects;
 import java.util.Optional;
-
-import org.apache.kafka.common.GroupType;
 
 /**
  * A listing of a group in the cluster.
