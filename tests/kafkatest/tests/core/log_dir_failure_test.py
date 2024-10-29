@@ -95,7 +95,8 @@ class LogDirFailureTest(ProduceConsumeValidateTest):
     @matrix(bounce_broker=[False, True], broker_type=["leader", "follower"], security_protocol=["PLAINTEXT"], metadata_quorum=[quorum.zk])
     @cluster(num_nodes=10)
     @matrix(bounce_broker=[False, True], broker_type=["leader", "follower"], security_protocol=["PLAINTEXT"], metadata_quorum=[quorum.isolated_kraft])
-    def test_replication_with_disk_failure(self, bounce_broker, security_protocol, broker_type, metadata_quorum, group_protocol=consumer_group.classic_group_protocol):
+    def test_replication_with_disk_failure(self, bounce_broker, security_protocol, broker_type, metadata_quorum,
+                                           group_protocol=consumer_group.classic_group_protocol):
         """Replication tests.
         These tests verify that replication provides simple durability guarantees by checking that data acked by
         brokers is still available for consumption in the face of various failure scenarios.

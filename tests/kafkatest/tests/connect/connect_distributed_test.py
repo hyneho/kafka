@@ -177,7 +177,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         exactly_once_source=[True, False],
@@ -213,7 +213,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         connector_type=['source', 'exactly-once source', 'sink'],
@@ -251,7 +251,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         connect_protocol=['sessioned', 'compatible', 'eager'],
@@ -282,7 +282,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         connector_type=['source', 'sink'],
@@ -366,7 +366,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         connect_protocol=['sessioned', 'compatible', 'eager'],
@@ -638,7 +638,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         security_protocol=[SecurityConfig.PLAINTEXT, SecurityConfig.SASL_SSL],
@@ -689,7 +689,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         clean=[True, False],
@@ -935,7 +935,7 @@ class ConnectDistributedTest(Test):
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False],
-        group_protocol=consumer_group.classic_group_protocol
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         connect_protocol=['sessioned', 'compatible', 'eager'],

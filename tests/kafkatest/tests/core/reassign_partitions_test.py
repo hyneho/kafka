@@ -158,7 +158,8 @@ class ReassignPartitionsTest(ProduceConsumeValidateTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_reassign_partitions(self, bounce_brokers, reassign_from_offset_zero, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_reassign_partitions(self, bounce_brokers, reassign_from_offset_zero, metadata_quorum,
+                                 use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """Reassign partitions tests.
         Setup: 1 zk, 4 kafka nodes, 1 topic with partitions=20, replication-factor=3,
         and min.insync.replicas=3

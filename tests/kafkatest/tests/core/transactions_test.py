@@ -243,7 +243,9 @@ class TransactionsTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_transactions(self, failure_mode, bounce_target, check_order, use_group_metadata, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_transactions(self, failure_mode, bounce_target, check_order, use_group_metadata,
+                          metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False,
+                          group_protocol=consumer_group.classic_group_protocol):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol

@@ -204,7 +204,8 @@ class TransactionsUpgradeTest(Test):
         use_new_coordinator=[False],
         group_protocol=[consumer_group.classic_group_protocol]
     )
-    def test_transactions_upgrade(self, from_kafka_version, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_transactions_upgrade(self, from_kafka_version, metadata_quorum=quorum.isolated_kraft,
+                                  use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         fromKafkaVersion = KafkaVersion(from_kafka_version)
         self.kafka = KafkaService(self.test_context,
                                   num_nodes=self.num_brokers,

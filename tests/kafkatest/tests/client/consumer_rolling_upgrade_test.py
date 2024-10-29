@@ -58,7 +58,8 @@ class ConsumerRollingUpgradeTest(VerifiableConsumerTest):
         use_new_coordinator=[True, False],
         group_protocol=[consumer_group.classic_group_protocol]
     )
-    def rolling_update_test(self, metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def rolling_update_test(self, metadata_quorum=quorum.zk, use_new_coordinator=False,
+                            group_protocol=consumer_group.classic_group_protocol):
         """
         Verify rolling updates of partition assignment strategies works correctly. In this
         test, we use a rolling restart to change the group's assignment strategy from "range" 

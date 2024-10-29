@@ -276,7 +276,8 @@ class GroupModeTransactionsTest(Test):
     @cluster(num_nodes=10)
     @matrix(failure_mode=["hard_bounce", "clean_bounce"],
             bounce_target=["brokers", "clients"])
-    def test_transactions(self, failure_mode, bounce_target, metadata_quorum=quorum.zk):
+    def test_transactions(self, failure_mode, bounce_target, metadata_quorum=quorum.zk,
+                          group_protocol=consumer_group.classic_group_protocol):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol
@@ -292,8 +293,8 @@ class GroupModeTransactionsTest(Test):
             failure_mode, bounce_target, input_topic=self.input_topic,
             output_topic=self.output_topic, num_copiers=self.num_copiers,
             num_messages_to_copy=self.num_seed_messages,
-            group_protocol=consumer_group.classic_group_protocol)
-        output_messages_by_partition = self.get_messages_from_topic(self.output_topic, self.num_seed_messages, consumer_group.classic_group_protocol)
+            group_protocol=group_protocol)
+        output_messages_by_partition = self.get_messages_from_topic(self.output_topic, self.num_seed_messages, group_protocol)
 
         assert len(input_messages_by_partition) == \
                len(concurrently_consumed_message_by_partition), "The lengths of partition count doesn't match: " \

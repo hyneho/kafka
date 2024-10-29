@@ -85,7 +85,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_broker_rolling_bounce(self, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_broker_rolling_bounce(self, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False,
+                                   group_protocol=consumer_group.classic_group_protocol):
         """
         Verify correct consumer behavior when the brokers are consecutively restarted.
 
@@ -150,7 +151,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_consumer_bounce(self, clean_shutdown, bounce_mode, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_consumer_bounce(self, clean_shutdown, bounce_mode, metadata_quorum=quorum.isolated_kraft,
+                             use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """
         Verify correct consumer behavior when the consumers in the group are consecutively restarted.
 
@@ -210,7 +212,10 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=[consumer_group.classic_group_protocol]
     )
-    def test_static_consumer_bounce_with_eager_assignment(self, clean_shutdown, static_membership, bounce_mode, num_bounces, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_static_consumer_bounce_with_eager_assignment(self, clean_shutdown, static_membership, bounce_mode,
+                                                          num_bounces, metadata_quorum=quorum.isolated_kraft,
+                                                          use_new_coordinator=False,
+                                                          group_protocol=consumer_group.classic_group_protocol):
         """
         Verify correct static consumer behavior when the consumers in the group are restarted. In order to make 
         sure the behavior of static members are different from dynamic ones, we take both static and dynamic
@@ -285,7 +290,9 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_static_consumer_persisted_after_rejoin(self, bounce_mode, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_static_consumer_persisted_after_rejoin(self, bounce_mode, metadata_quorum=quorum.isolated_kraft,
+                                                    use_new_coordinator=False,
+                                                    group_protocol=consumer_group.classic_group_protocol):
         """
         Verify that the updated member.id(updated_member_id) caused by static member rejoin would be persisted. If not,
         after the brokers rolling bounce, the migrated group coordinator would load the stale persisted member.id and
@@ -329,7 +336,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_fencing_static_consumer(self, num_conflict_consumers, fencing_stage, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_fencing_static_consumer(self, num_conflict_consumers, fencing_stage, metadata_quorum=quorum.isolated_kraft,
+                                     use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """
         Verify correct static consumer behavior when there are conflicting consumers with same group.instance.id.
 
@@ -415,7 +423,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_consumer_failure(self, clean_shutdown, enable_autocommit, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_consumer_failure(self, clean_shutdown, enable_autocommit, metadata_quorum=quorum.isolated_kraft,
+                              use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         partition = TopicPartition(self.TOPIC, 0)
 
         consumer = self.setup_consumer(self.TOPIC, enable_autocommit=enable_autocommit, group_protocol=group_protocol)
@@ -474,7 +483,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_broker_failure(self, clean_shutdown, enable_autocommit, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_broker_failure(self, clean_shutdown, enable_autocommit, metadata_quorum=quorum.isolated_kraft,
+                            use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         partition = TopicPartition(self.TOPIC, 0)
 
         consumer = self.setup_consumer(self.TOPIC, enable_autocommit=enable_autocommit, group_protocol=group_protocol)
@@ -521,7 +531,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_group_consumption(self, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_group_consumption(self, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False,
+                               group_protocol=consumer_group.classic_group_protocol):
         """
         Verifies correct group rebalance behavior as consumers are started and stopped.
         In particular, this test verifies that the partition is readable after every
@@ -586,7 +597,9 @@ class AssignmentValidationTest(VerifiableConsumerTest):
         group_protocol=[consumer_group.consumer_group_protocol],
         group_remote_assignor=consumer_group.all_remote_assignors
     )
-    def test_valid_assignment(self, assignment_strategy=None, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol, group_remote_assignor=None):
+    def test_valid_assignment(self, assignment_strategy=None, metadata_quorum=quorum.isolated_kraft,
+                              use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol,
+                              group_remote_assignor=None):
         """
         Verify assignment strategy correctness: each partition is assigned to exactly
         one consumer instance.

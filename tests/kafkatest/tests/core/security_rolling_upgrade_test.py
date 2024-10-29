@@ -125,7 +125,8 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
 
     @cluster(num_nodes=9)
     @matrix(new_client_sasl_mechanism=[SecurityConfig.SASL_MECHANISM_PLAIN], group_protocol=[consumer_group.classic_group_protocol])
-    def test_rolling_upgrade_sasl_mechanism_phase_one(self, new_client_sasl_mechanism, group_protocol=consumer_group.classic_group_protocol):
+    def test_rolling_upgrade_sasl_mechanism_phase_one(self, new_client_sasl_mechanism,
+                                                      group_protocol=consumer_group.classic_group_protocol):
         """
         Start with a SASL/GSSAPI cluster, add new SASL mechanism, via a rolling upgrade, ensuring we could produce
         and consume throughout over SASL/GSSAPI. Finally check we can produce and consume using new mechanism.

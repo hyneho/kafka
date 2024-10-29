@@ -113,12 +113,14 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
     @cluster(num_nodes=5)
     @matrix(from_kafka_version=[str(LATEST_3_1), str(LATEST_3_2), str(LATEST_3_3), str(LATEST_3_4), str(LATEST_3_5), str(LATEST_3_6), str(LATEST_3_7), str(LATEST_3_8), str(DEV_BRANCH)],
             metadata_quorum=[combined_kraft])
-    def test_combined_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_combined_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False,
+                                   group_protocol=consumer_group.classic_group_protocol):
         self.run_upgrade(from_kafka_version, group_protocol)
 
     @cluster(num_nodes=8)
     @matrix(from_kafka_version=[str(LATEST_3_1), str(LATEST_3_2), str(LATEST_3_3), str(LATEST_3_4), str(LATEST_3_5), str(LATEST_3_6), str(LATEST_3_7), str(LATEST_3_8), str(DEV_BRANCH)],
             metadata_quorum=[isolated_kraft])
-    def test_isolated_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_isolated_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False,
+                                   group_protocol=consumer_group.classic_group_protocol):
         self.run_upgrade(from_kafka_version, group_protocol)
 

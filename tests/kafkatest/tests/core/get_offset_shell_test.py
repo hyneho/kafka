@@ -210,7 +210,8 @@ class GetOffsetShellTest(Test):
 
     @cluster(num_nodes=4)
     @matrix(metadata_quorum=quorum.all_non_upgrade)
-    def test_get_offset_shell_internal_filter(self, security_protocol='PLAINTEXT', metadata_quorum=quorum.zk):
+    def test_get_offset_shell_internal_filter(self, security_protocol='PLAINTEXT', metadata_quorum=quorum.zk,
+                                              group_protocol=consumer_group.classic_group_protocol):
         """
         Tests if GetOffsetShell handles --exclude-internal-topics flag correctly
         :return: None
@@ -219,7 +220,7 @@ class GetOffsetShellTest(Test):
         self.start_producer(TOPIC_TEST_INTERNAL_FILTER)
 
         # Create consumer and poll messages to create consumer offset record
-        self.start_consumer(TOPIC_TEST_INTERNAL_FILTER, group_protocol=consumer_group.classic_group_protocol)
+        self.start_consumer(TOPIC_TEST_INTERNAL_FILTER, group_protocol=group_protocol)
         node = self.consumer.nodes[0]
         wait_until(lambda: self.consumer.alive(node), timeout_sec=20, backoff_sec=.2, err_msg="Consumer was too slow to start")
 
