@@ -63,6 +63,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -144,11 +145,12 @@ public class KafkaStreamsTelemetryIntegrationTest {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"INFO", "DEBUG", "TRACE"})
     @DisplayName("End-to-end test validating metrics pushed to broker")
-    public void shouldPushMetricsToBroker() throws Exception {
+    public void shouldPushMetricsToBroker(final String recordingLevel) throws Exception {
         streamsApplicationProperties  = props(true);
-        streamsApplicationProperties.put(StreamsConfig.METRICS_RECORDING_LEVEL_CONFIG, "TRACE");
+        streamsApplicationProperties.put(StreamsConfig.METRICS_RECORDING_LEVEL_CONFIG, recordingLevel);
         final Topology topology = simpleTopology();
         subscribeForStreamsMetrics();
         try (final KafkaStreams streams = new KafkaStreams(topology, streamsApplicationProperties)) {
