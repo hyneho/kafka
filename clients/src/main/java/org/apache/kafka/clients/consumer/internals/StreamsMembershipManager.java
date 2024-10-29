@@ -23,7 +23,6 @@ import org.apache.kafka.clients.consumer.internals.metrics.ConsumerRebalanceMetr
 import org.apache.kafka.clients.consumer.internals.metrics.RebalanceMetricsManager;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.StreamsGroupHeartbeatResponseData;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.protocol.Errors;
@@ -36,7 +35,6 @@ import org.apache.kafka.common.utils.Time;
 import org.slf4j.Logger;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,8 +46,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Tracks state the state of a single member in relationship to a group:
+ * <p/>
+ * Responsible for:
+ * <ul>
+ *   <li>Keeping member state</li>
+ *   <li>Keeping assignment for the member</li>
+ *   <li>Computing assignment for the group if the member is required to do so</li>
+ * </ul>
+ */
 public class StreamsMembershipManager implements RequestManager {
 
+    /**
+     * A data structure to represent the current task assignment, and current target task assignment of a member in a
+     * streams group.
+     * <p/>
+     * Besides the assigned tasks, it contains a local epoch that is bumped whenever the assignment changes, to ensure
+     * that two assignments with the same tasks but different local epochs are not considered equal.
+     */
     private static class LocalAssignment {
         public static final long NONE_EPOCH = -1;
         public static final LocalAssignment NONE = new LocalAssignment(
@@ -129,11 +144,7 @@ public class StreamsMembershipManager implements RequestManager {
 
     private final SubscriptionState subscriptionState;
 
-    private final ConsumerMetadata consumerMetadata;
-
     private final BackgroundEventHandler backgroundEventHandler;
-
-    private final Map<String, Uuid> assignedTopicIdCache = new HashMap<>();
 
     private MemberState state;
 
@@ -169,7 +180,6 @@ public class StreamsMembershipManager implements RequestManager {
 
     public StreamsMembershipManager(final String groupId,
                                     final StreamsAssignmentInterface streamsAssignmentInterface,
-                                    final ConsumerMetadata metadata,
                                     final SubscriptionState subscriptionState,
                                     final LogContext logContext,
                                     final Optional<ClientTelemetryReporter> clientTelemetryReporter,
@@ -180,7 +190,6 @@ public class StreamsMembershipManager implements RequestManager {
         this.state = MemberState.UNSUBSCRIBED;
         this.groupId = groupId;
         this.streamsAssignmentInterface = streamsAssignmentInterface;
-        this.consumerMetadata = metadata;
         this.subscriptionState = subscriptionState;
         this.clientTelemetryReporter = clientTelemetryReporter;
         this.backgroundEventHandler = backgroundEventHandler;

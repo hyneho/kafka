@@ -80,9 +80,6 @@ public class StreamsMembershipManagerTest {
     private StreamsMembershipManager membershipManager;
 
     @Mock
-    private ConsumerMetadata consumerMetadata;
-
-    @Mock
     private SubscriptionState subscriptionState;
 
     @Mock
@@ -96,7 +93,6 @@ public class StreamsMembershipManagerTest {
         membershipManager = new StreamsMembershipManager(
             GROUP_ID,
             streamsAssignmentInterface,
-            consumerMetadata,
             subscriptionState,
             new LogContext("test"),
             Optional.empty(),
