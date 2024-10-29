@@ -19,12 +19,14 @@ IF [%1] EQU [] (
 	EXIT /B 1
 )
 
-echo Running with log4j 2.x - Log4j MBean registration is not supported.
-
 SetLocal
-IF ["%KAFKA_LOG4J_OPTS%"] EQU [""] (
+IF EXIST "%~dp0../../config/log4j.properties" (
     echo DEPRECATED: using log4j 1.x configuration. To use log4j 2.x configuration, run with: 'set KAFKA_LOG4J_OPTS=-Dlog4j.configurationFile=file:%~dp0../../config/log4j2.properties'
     set KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%~dp0../../config/log4j.properties
+) ELSE IF EXIST "%~dp0../../config/log4j2.properties" (
+    set KAFKA_LOG4J_OPTS=-Dlog4j2.configurationFile=%~dp0../../config/log4j2.properties
+) ELSE IF EXIST "%~dp0../../config/log4j2.xml" (
+    set KAFKA_LOG4J_OPTS=-Dlog4j2.configurationFile=%~dp0../../config/log4j2.xml
 )
 IF ["%KAFKA_HEAP_OPTS%"] EQU [""] (
     set KAFKA_HEAP_OPTS=-Xmx512M -Xms512M

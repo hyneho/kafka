@@ -21,9 +21,15 @@ then
 fi
 base_dir=$(dirname $0)
 
-if [ "x$KAFKA_LOG4J_OPTS" = "x" ]; then
-    echo "DEPRECATED: using log4j 1.x configuration. To use log4j 2.x configuration, run with: 'export KAFKA_LOG4J_OPTS=\"-Dlog4j.configurationFile=file:$base_dir/../config/log4j2.properties\"'"
+if [ -f "$base_dir/../config/log4j.properties" ]; then
+    echo DEPRECATED: Using Log4j 1.x configuration file \$KAFKA_HOME/config/log4j.properties >&2
+    echo To use a Log4j 2.x configuration, create a \$KAFKA_HOME/config/log4j2.xml file and remove the Log4j 1.x configration. >&2
+    echo See https://logging.apache.org/log4j/2.x/migrate-from-log4j1.html#Log4j2ConfigurationFormat for details about Log4j configuration file migration. >&2
     export KAFKA_LOG4J_OPTS="-Dlog4j.configuration=file:$base_dir/../config/log4j.properties"
+elif [ -f "$base_dir/../config/log4j2.properties" ]; then
+    export KAFKA_LOG4J_OPTS="-Dlog4j2.configurationFile=$base_dir/../config/log4j2.properties"
+elif [ -f "$base_dir/../config/log4j2.xml" ]; then
+    export KAFKA_LOG4J_OPTS="-Dlog4j2.configurationFile=$base_dir/../config/log4j2.xml"
 fi
 
 if [ "x$KAFKA_HEAP_OPTS" = "x" ]; then

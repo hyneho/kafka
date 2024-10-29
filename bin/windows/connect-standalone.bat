@@ -26,9 +26,13 @@ set BASE_DIR=%CD%
 popd
 
 rem Log4j settings
-IF ["%KAFKA_LOG4J_OPTS%"] EQU [""] (
+IF EXIST "%BASE_DIR%/config/connect-log4j.properties" (
     echo DEPRECATED: using log4j 1.x configuration. To use log4j 2.x configuration, run with: 'set KAFKA_LOG4J_OPTS=-Dlog4j.configurationFile=file:%BASE_DIR%/config/connect-log4j2.properties'
-	set KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%BASE_DIR%/config/connect-log4j.properties
+    set KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%BASE_DIR%/config/connect-log4j.properties
+) ELSE IF EXIST "%BASE_DIR%/config/connect-log4j2.properties" (
+    set KAFKA_LOG4J_OPTS=-Dlog4j2.configurationFile=%BASE_DIR%/config/connect-log4j2.properties
+) ELSE IF EXIST "%BASE_DIR%/config/connect-log4j2.xml" (
+    set KAFKA_LOG4J_OPTS=-Dlog4j2.configurationFile=%BASE_DIR%/config/connect-log4j2.xml
 )
 
 "%~dp0kafka-run-class.bat" org.apache.kafka.connect.cli.ConnectStandalone %*
