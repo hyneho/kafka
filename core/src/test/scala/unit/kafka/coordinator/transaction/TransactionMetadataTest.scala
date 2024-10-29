@@ -414,7 +414,7 @@ class TransactionMetadataTest {
       topicPartitions = mutable.Set.empty,
       txnStartTimestamp = time.milliseconds(),
       txnLastUpdateTimestamp = time.milliseconds(),
-      clientTransactionVersion = TV_0)
+      clientTransactionVersion = TV_2)
 
     var transitMetadata = txnMetadata.prepareAbortOrCommit(PrepareCommit, TV_2, RecordBatch.NO_PRODUCER_ID, time.milliseconds() - 1)
     txnMetadata.completeTransitionTo(transitMetadata)
@@ -446,7 +446,7 @@ class TransactionMetadataTest {
       topicPartitions = mutable.Set.empty,
       txnStartTimestamp = time.milliseconds(),
       txnLastUpdateTimestamp = time.milliseconds(),
-      clientTransactionVersion = TV_0)
+      clientTransactionVersion = TV_2)
     assertTrue(txnMetadata.isProducerEpochExhausted)
 
     val newProducerId = 9893L
