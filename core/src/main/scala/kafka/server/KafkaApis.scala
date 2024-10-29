@@ -2499,8 +2499,8 @@ class KafkaApis(val requestChannel: RequestChannel,
           entriesPerPartition = controlRecords,
           requestLocal = requestLocal,
           responseCallback = errors => {
-            errors.foreachEntry { (tp, partitionResponse) =>
-              markerResults.put(tp.topicPartition(), partitionResponse.error)
+            errors.foreachEntry { (topicIdPartition, partitionResponse) =>
+              markerResults.put(topicIdPartition.topicPartition(), partitionResponse.error)
             }
             maybeComplete()
           }

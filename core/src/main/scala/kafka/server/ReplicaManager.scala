@@ -915,7 +915,7 @@ class ReplicaManager(val config: KafkaConfig,
             hasCustomErrorMessage = customException.isDefined
           )
       }
-      val entriesWithoutErrorsPerPartition = entriesPerPartition.filter { case (key, _) => !errorResults.exists(_._1.topicPartition() == key.topicPartition()) }
+      val entriesWithoutErrorsPerPartition = entriesPerPartition.filter { case (key, _) => !errorResults.contains(key) }
 
       val preAppendPartitionResponses = buildProducePartitionStatus(errorResults).map { case (k, status) => k -> status.responseStatus }
 
@@ -1439,15 +1439,15 @@ class ReplicaManager(val config: KafkaConfig,
                                verificationGuards: Map[TopicPartition, VerificationGuard]):
   Map[TopicOptionalIdPartition, LogAppendResult] = {
     val traceEnabled = isTraceEnabled
-    def processFailedRecord(topicPartition: TopicPartition, t: Throwable) = {
-      val logStartOffset = onlinePartition(topicPartition).map(_.logStartOffset).getOrElse(-1L)
-      brokerTopicStats.topicStats(topicPartition.topic).failedProduceRequestRate.mark()
+    def processFailedRecord(topicIdPartition: TopicIdPartition, t: Throwable) = {
+      val logStartOffset = onlinePartition(topicIdPartition.topicPartition()).map(_.logStartOffset).getOrElse(-1L)
+      brokerTopicStats.topicStats(topicIdPartition.topic).failedProduceRequestRate.mark()
       brokerTopicStats.allTopicsStats.failedProduceRequestRate.mark()
       t match {
         case _: InvalidProducerEpochException =>
-          info(s"Error processing append operation on partition $topicPartition", t)
+          info(s"Error processing append operation on partition $topicIdPartition", t)
         case _ =>
-          error(s"Error processing append operation on partition $topicPartition", t)
+          error(s"Error processing append operation on partition $topicIdPartition", t)
       }
 
       logStartOffset
@@ -1498,12 +1498,12 @@ class ReplicaManager(val config: KafkaConfig,
                    _: KafkaStorageException) =>
             (new TopicOptionalIdPartition(Optional.empty(), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.UNKNOWN_LOG_APPEND_INFO, Some(e), hasCustomErrorMessage = false))
           case rve: RecordValidationException =>
-            val logStartOffset = processFailedRecord(topicIdPartition.topicPartition(), rve.invalidException)
+            val logStartOffset = processFailedRecord(topicIdPartition, rve.invalidException)
             val recordErrors = rve.recordErrors
             (new TopicOptionalIdPartition(Optional.empty(), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithAdditionalInfo(logStartOffset, recordErrors),
               Some(rve.invalidException), hasCustomErrorMessage = true))
           case t: Throwable =>
-            val logStartOffset = processFailedRecord(topicIdPartition.topicPartition(), t)
+            val logStartOffset = processFailedRecord(topicIdPartition, t)
             (new TopicOptionalIdPartition(Optional.empty(), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithLogStartOffset(logStartOffset),
               Some(t), hasCustomErrorMessage = false))
         }

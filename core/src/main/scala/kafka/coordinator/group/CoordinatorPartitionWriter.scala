@@ -140,12 +140,13 @@ class CoordinatorPartitionWriter(
     records: MemoryRecords
   ): Long = {
     var appendResults: Map[TopicIdPartition, PartitionResponse] = Map.empty
+    val topicIdPartition = replicaManager.topicIdPartition(tp)
     replicaManager.appendRecords(
       timeout = 0L,
       requiredAcks = 1,
       internalTopicsAllowed = true,
       origin = AppendOrigin.COORDINATOR,
-      entriesPerPartition = Map(replicaManager.topicIdPartition(tp) -> records),
+      entriesPerPartition = Map(topicIdPartition -> records),
       responseCallback = results => appendResults = results,
       requestLocal = RequestLocal.noCaching,
       verificationGuards = Map(tp -> verificationGuard),
@@ -155,7 +156,7 @@ class CoordinatorPartitionWriter(
       actionQueue = directActionQueue
     )
 
-    val partitionResult = appendResults.getOrElse(replicaManager.topicIdPartition(tp),
+    val partitionResult = appendResults.getOrElse(topicIdPartition,
       throw new IllegalStateException(s"Append status $appendResults should have partition $tp."))
 
     if (partitionResult.error != Errors.NONE) {
