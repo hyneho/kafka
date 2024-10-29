@@ -120,7 +120,6 @@ class DefaultAutoTopicCreationManager(
     requestContext: RequestContext
   ): Unit = {
 
-    // Set default values for numPartitions and replicationFactor if they are not provided
     for ((_, creatableTopic) <- topics) {
       if (creatableTopic.numPartitions() == -1) {
         creatableTopic
@@ -192,8 +191,8 @@ class DefaultAutoTopicCreationManager(
   }
 
   private def sendCreateTopicRequest(
-                                      creatableTopics: Map[String, CreatableTopic],
-                                      requestContext: Option[RequestContext]
+    creatableTopics: Map[String, CreatableTopic],
+    requestContext: Option[RequestContext]
   ): Seq[MetadataResponseTopic] = {
     val topicsToCreate = new CreateTopicsRequestData.CreatableTopicCollection(creatableTopics.size)
     topicsToCreate.addAll(creatableTopics.values.asJavaCollection)

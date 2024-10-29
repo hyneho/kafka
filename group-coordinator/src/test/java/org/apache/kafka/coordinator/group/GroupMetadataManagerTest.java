@@ -532,7 +532,7 @@ public class GroupMetadataManagerTest {
         CoordinatorResult<StreamsGroupInitializeResult, CoordinatorRecord> result = context.streamsGroupInitialize(initialize);
 
         assertNotNull(result.response());
-        StreamsGroupInitializeResponseData response = result.response().data();
+        StreamsGroupInitializeResponseData response = result.response().responseData();
         assertEquals(Errors.NONE.code(), response.errorCode());
         List<CoordinatorRecord> coordinatorRecords = result.records();
         assertEquals(5, coordinatorRecords.size());
@@ -650,7 +650,7 @@ public class GroupMetadataManagerTest {
         CoordinatorResult<StreamsGroupInitializeResult, CoordinatorRecord> result = context.streamsGroupInitialize(initialize);
 
         assertNotNull(result.response());
-        StreamsGroupInitializeResponseData response = result.response().data();
+        StreamsGroupInitializeResponseData response = result.response().responseData();
         assertEquals(Errors.NONE.code(), response.errorCode());
         assertTrue(result.records().isEmpty());
     }
@@ -694,7 +694,7 @@ public class GroupMetadataManagerTest {
         CoordinatorResult<StreamsGroupInitializeResult, CoordinatorRecord> result = context.streamsGroupInitialize(initialize);
 
         assertNotNull(result.response());
-        StreamsGroupInitializeResponseData response = result.response().data();
+        StreamsGroupInitializeResponseData response = result.response().responseData();
         assertEquals(Errors.NONE.code(), response.errorCode());
         assertTrue(result.records().isEmpty());
     }

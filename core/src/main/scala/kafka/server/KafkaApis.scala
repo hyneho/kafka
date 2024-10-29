@@ -3950,7 +3950,7 @@ class KafkaApis(val requestChannel: RequestChannel,
             // TODO: Once we move this code to the heartbeat, we should indicate which topics are being created. We should also find a way to propagate failures to the client
             autoTopicCreationManager.createStreamsInternalTopics(response.creatableTopics().asScala, requestContext);
           }
-          requestHelper.sendMaybeThrottle(request, new StreamsGroupInitializeResponse(response.data()))
+          requestHelper.sendMaybeThrottle(request, new StreamsGroupInitializeResponse(response.responseData()))
         }
       }
     }

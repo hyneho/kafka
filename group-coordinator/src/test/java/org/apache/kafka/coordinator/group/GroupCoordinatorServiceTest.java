@@ -379,7 +379,7 @@ public class GroupCoordinatorServiceTest {
             new StreamsGroupInitializeResponseData()
                 .setErrorCode(expectedErrorCode)
                 .setErrorMessage(expectedErrorMessage),
-            future.get(5, TimeUnit.SECONDS).data()
+            future.get(5, TimeUnit.SECONDS).responseData()
         );
     }
 

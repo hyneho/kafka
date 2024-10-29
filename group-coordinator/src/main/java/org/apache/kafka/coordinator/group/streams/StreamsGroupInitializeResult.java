@@ -38,7 +38,7 @@ public class StreamsGroupInitializeResult {
         this.creatableTopics = Collections.emptyMap();
     }
 
-    public StreamsGroupInitializeResponseData data() {
+    public StreamsGroupInitializeResponseData responseData() {
         return data;
     }
 
