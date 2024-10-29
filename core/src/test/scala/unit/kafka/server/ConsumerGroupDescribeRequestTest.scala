@@ -149,7 +149,6 @@ class ConsumerGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCo
               .setMemberEpoch(grp1Member1Response.memberEpoch)
               .setClientId(clientId)
               .setClientHost(clientHost)
-              .setSubscribedTopicRegex("")
               .setSubscribedTopicNames(List("bar").asJava)
           ).asJava),
         new DescribedGroup()
@@ -165,7 +164,6 @@ class ConsumerGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCo
               .setMemberEpoch(grp2Member2Response.memberEpoch)
               .setClientId(clientId)
               .setClientHost(clientHost)
-              .setSubscribedTopicRegex("")
               .setSubscribedTopicNames(List("foo").asJava)
               .setAssignment(new Assignment())
               .setTargetAssignment(new Assignment()
@@ -180,7 +178,6 @@ class ConsumerGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCo
               .setMemberEpoch(grp2Member1Response.memberEpoch)
               .setClientId(clientId)
               .setClientHost(clientHost)
-              .setSubscribedTopicRegex("")
               .setSubscribedTopicNames(List("foo").asJava)
               .setAssignment(new Assignment()
                 .setTopicPartitions(List(
