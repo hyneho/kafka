@@ -23,6 +23,7 @@ import org.apache.kafka.clients.admin.ListGroupsResult;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.utils.Exit;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
