@@ -153,9 +153,6 @@ redundant data.
   This can potentially result in the serialization of the tagged field, even when its subfields 
   contain values that would typically be considered as defaults.
 
-As of version 3.9.0, this behavior has been clarified, and further enhancements to the API design 
-may be proposed to improve the handling of default values in nested tagged fields.
-
 Flexible Versions
 -----------------
 Kafka serialization has been improved over time to be more flexible and
