@@ -120,16 +120,7 @@ class TransactionMarkerChannelManagerTest {
     mockCache()
 
     // Adjust txn metadata based on the transaction version.
-    // When using TV2, the epoch is bumped in the prepareAbort/prepareCommit
-    // phase of the end txn request.
-    // This should be reflected in the metadata before prepareComplete is called.
-    if (isTransactionV2Enabled) {
-      txnMetadata2.clientTransactionVersion = TransactionVersion.TV_2
-      txnMetadata2.producerEpoch = (producerEpoch + 1).toShort
-      txnMetadata2.lastProducerEpoch = producerEpoch
-    } else {
-      txnMetadata2.clientTransactionVersion = TransactionVersion.TV_1
-    }
+    adjustTransactionMetadataForVersion(isTransactionV2Enabled, txnMetadata2)
 
     val expectedTransition = txnMetadata2.prepareComplete(time.milliseconds())
 
@@ -439,16 +430,7 @@ class TransactionMarkerChannelManagerTest {
     mockCache()
 
     // Adjust txn metadata based on the transaction version.
-    // When using TV2, the epoch is bumped in the prepareAbort/prepareCommit
-    // phase of the end txn request.
-    // This should be reflected in the metadata before prepareComplete is called.
-    if (isTransactionV2Enabled) {
-      txnMetadata2.clientTransactionVersion = TransactionVersion.TV_2
-      txnMetadata2.producerEpoch = (producerEpoch + 1).toShort
-      txnMetadata2.lastProducerEpoch = producerEpoch
-    } else {
-      txnMetadata2.clientTransactionVersion = TransactionVersion.TV_1
-    }
+    adjustTransactionMetadataForVersion(isTransactionV2Enabled, txnMetadata2)
 
     when(metadataCache.getPartitionLeaderEndpoint(
       ArgumentMatchers.eq(partition1.topic),
@@ -558,16 +540,7 @@ class TransactionMarkerChannelManagerTest {
     mockCache()
 
     // Adjust txn metadata based on the transaction version.
-    // When using TV2, the epoch is bumped in the prepareAbort/prepareCommit
-    // phase of the end txn request.
-    // This should be reflected in the metadata before prepareComplete is called.
-    if (isTransactionV2Enabled) {
-      txnMetadata2.clientTransactionVersion = TransactionVersion.TV_2
-      txnMetadata2.producerEpoch = (producerEpoch + 1).toShort
-      txnMetadata2.lastProducerEpoch = producerEpoch
-    } else {
-      txnMetadata2.clientTransactionVersion = TransactionVersion.TV_1
-    }
+    adjustTransactionMetadataForVersion(isTransactionV2Enabled, txnMetadata2)
 
     when(metadataCache.getPartitionLeaderEndpoint(
       ArgumentMatchers.eq(partition1.topic),
@@ -640,5 +613,29 @@ class TransactionMarkerChannelManagerTest {
     assertEquals(1, metrics.count { case (k, _) =>
       k.getMBeanName == "kafka.coordinator.transaction:type=TransactionMarkerChannelManager,name=LogAppendRetryQueueSize"
     })
+  }
+
+  /**
+   * Adjusts the transaction metadata based on the transaction version.
+   * When transaction V2 is enabled, the producer epoch is incremented
+   * by 1 after every prepareCommit/prepareAbort.
+   *
+   * Use this method to adjust the transaction metadata before
+   * prepareComplete is called with TV2.
+   *
+   * @param isTransactionV2Enabled    Whether Transaction Version 2 (TV2) is enabled.
+   * @param txnMetadata               The transaction metadata to be adjusted.
+   */
+  private def adjustTransactionMetadataForVersion(
+    isTransactionV2Enabled: Boolean,
+    txnMetadata: TransactionMetadata
+  ): Unit = {
+    if (isTransactionV2Enabled) {
+      txnMetadata.clientTransactionVersion = TransactionVersion.TV_2
+      txnMetadata.producerEpoch = (producerEpoch + 1).toShort
+      txnMetadata.lastProducerEpoch = producerEpoch
+    } else {
+      txnMetadata.clientTransactionVersion = TransactionVersion.TV_1
+    }
   }
 }

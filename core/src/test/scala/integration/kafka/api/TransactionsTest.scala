@@ -794,9 +794,9 @@ class TransactionsTest extends IntegrationTestHarness {
       producer.beginTransaction()
       producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "2", "2", willBeCommitted = false))
 
-      killBroker(partitionLeader)
+      killBroker(partitionLeader) // kill the partition leader to prevent the batch from being submitted
       val failedFuture = producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(testTopic, 0, "3", "3", willBeCommitted = false))
-      Thread.sleep(6000)
+      Thread.sleep(6000) // Wait for the record to time out
       restartDeadBrokers()
 
       org.apache.kafka.test.TestUtils.assertFutureThrows(failedFuture, classOf[TimeoutException])
@@ -805,15 +805,15 @@ class TransactionsTest extends IntegrationTestHarness {
       // Get producer epoch after abortTransaction and verify it has increased.
       producerStateEntry =
         brokers(partitionLeader).logManager.getLog(new TopicPartition(testTopic, 0)).get.producerStateManager.activeProducers.get(producerId)
-      if (producerStateEntry != null) {
-        val currentProducerEpoch = producerStateEntry.producerEpoch
-        assertTrue(currentProducerEpoch > previousProducerEpoch,
-          s"Producer epoch after abortTransaction ($currentProducerEpoch) should be greater than after first commit ($previousProducerEpoch)")
-        // Update previousProducerEpoch
-        previousProducerEpoch = currentProducerEpoch
-      } else {
-        fail("Producer state entry should not be null after abortTransaction")
-      }
+      // Assert that producerStateEntry is not null
+      assertNotNull(producerStateEntry, "Producer state entry should not be null after abortTransaction")
+
+      val currentProducerEpoch = producerStateEntry.producerEpoch
+      assertTrue(currentProducerEpoch > previousProducerEpoch,
+        s"Producer epoch after abortTransaction ($currentProducerEpoch) should be greater than after first commit ($previousProducerEpoch)"
+      )
+      // Update previousProducerEpoch
+      previousProducerEpoch = currentProducerEpoch
 
       // Third transaction: commit
       producer.beginTransaction()
@@ -832,17 +832,9 @@ class TransactionsTest extends IntegrationTestHarness {
         }
       }, "Timed out waiting for producer epoch to be incremented after second commit", 10000)
 
-      // Get producer epoch after second commit and verify it has increased
-      val logAfterCommit = brokers(partitionLeader).logManager.getLog(new TopicPartition(testTopic, 0)).get
-      producerStateEntry = logAfterCommit.producerStateManager.activeProducers.get(producerId)
-      if (producerStateEntry != null) {
-        val currentProducerEpoch = producerStateEntry.producerEpoch
-        assertTrue(currentProducerEpoch > previousProducerEpoch,
-          s"Producer epoch after second commit ($currentProducerEpoch) should be greater than after abortTransaction ($previousProducerEpoch)")
-        previousProducerEpoch = currentProducerEpoch
-      } else {
-        fail("Producer state entry should not be null after second commit")
-      }
+      // Now that we've verified that the producer epoch has increased,
+      // update the previous producer epoch.
+      previousProducerEpoch = currentProducerEpoch
 
       consumer.subscribe(List(topic1, topic2, testTopic).asJava)
 
