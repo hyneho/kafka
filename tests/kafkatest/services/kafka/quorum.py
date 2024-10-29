@@ -21,7 +21,7 @@ isolated_kraft = 'ISOLATED_KRAFT' # isolated Controllers in KRaft mode, used dur
 # How we will parameterize tests that exercise all quorum styles
 #   [“ZK”, “ISOLATED_KRAFT”, "COMBINED_KRAFT"] during the KIP-500 bridge release(s)
 #   [“ISOLATED_KRAFT”, "COMBINED_KRAFT”] after the KIP-500 bridge release(s)
-all = [zk, isolated_kraft, combined_kraft]
+all = [isolated_kraft, combined_kraft]
 # How we will parameterize tests that exercise all KRaft quorum styles
 all_kraft = [isolated_kraft, combined_kraft]
 # How we will parameterize tests that are unrelated to upgrades:
