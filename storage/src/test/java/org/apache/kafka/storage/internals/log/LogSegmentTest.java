@@ -103,6 +103,16 @@ public class LogSegmentTest {
             Compression.NONE, TimestampType.CREATE_TIME, simpleRecords.toArray(new SimpleRecord[0]));
     }
 
+    private MemoryRecords recordsOneBatch(long offset, String... records) {
+        List<SimpleRecord> simpleRecords = new ArrayList<>();
+        for (String s : records) {
+            simpleRecords.add(new SimpleRecord(offset * 10, s.getBytes()));
+        }
+        return MemoryRecords.withRecords(
+                RecordBatch.MAGIC_VALUE_V2, offset,
+                Compression.NONE, TimestampType.CREATE_TIME, simpleRecords.toArray(new SimpleRecord[0]));
+    }
+
     @BeforeEach
     public void setup() {
         logDir = TestUtils.tempDirectory();
@@ -161,6 +171,21 @@ public class LogSegmentTest {
             seg.append(53, RecordBatch.NO_TIMESTAMP, -1L, ms);
             Records read = seg.read(41, 300).records;
             checkEquals(ms.records().iterator(), read.records().iterator());
+        }
+    }
+
+    /**
+     * Reading from an offset is in the middle of a batch should return a
+     * LogOffsetMetadata offset that points to the batch's base offset
+     */
+    @Test
+    public void testReadFromMiddleOfBatch() throws IOException {
+        long batchBaseOffset = 50;
+        try (LogSegment seg = createSegment(40)) {
+            MemoryRecords ms = recordsOneBatch(batchBaseOffset, "hello", "there", "little", "bee");
+            seg.append(53, RecordBatch.NO_TIMESTAMP, -1L, ms);
+            FetchDataInfo readInfo = seg.read(52, 300);
+            assertEquals(batchBaseOffset, readInfo.fetchOffsetMetadata.messageOffset);
         }
     }
 
