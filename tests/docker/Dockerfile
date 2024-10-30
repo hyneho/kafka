@@ -20,9 +20,9 @@ ARG os_version=ubuntu:latest
 FROM $os_version AS build-native-image
 
 ARG jdk_11_version=11.0.2-linux-x64
-ARG java_11_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_11_version}.tar.gz
+ARG jdk_11_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_11_version}.tar.gz
 ARG jdk_version=17-linux-x64
-ARG java_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_version}.tar.gz
+ARG jdk_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_version}.tar.gz
 
 RUN apt-get update && \
     apt-get install -y curl \
@@ -31,12 +31,12 @@ RUN apt-get update && \
 WORKDIR /opt
 ENV java_base_dir=/opt/jdk
 
-RUN curl -L -o ${jdk_11_version}.tar.gz ${java_11_url} && \
+RUN curl -L -o ${jdk_11_version}.tar.gz ${jdk_11_url} && \
     mkdir -p ${java_base_dir}/11 && \
     tar -xzf ${jdk_11_version}.tar.gz -C ${java_base_dir}/11 --strip-components=1 && \
     rm ${jdk_11_version}.tar.gz
 
-RUN curl -L -o ${jdk_version}.tar.gz ${java_url} && \
+RUN curl -L -o ${jdk_version}.tar.gz ${jdk_url} && \
     mkdir -p ${java_base_dir}/17 && \
     tar -xzf ${jdk_version}.tar.gz -C ${java_base_dir}/17 --strip-components=1 && \
     rm ${jdk_version}.tar.gz 
