@@ -91,8 +91,8 @@ public class ClusterControlManager {
         private long sessionTimeoutNs = DEFAULT_SESSION_TIMEOUT_NS;
         private ReplicaPlacer replicaPlacer = null;
         private FeatureControlManager featureControl = null;
-        private boolean zkMigrationEnabled = false;
         private BrokerUncleanShutdownHandler brokerUncleanShutdownHandler = null;
+        private String interBrokerListenerName = "PLAINTEXT";
 
         Builder setLogContext(LogContext logContext) {
             this.logContext = logContext;
@@ -129,13 +129,13 @@ public class ClusterControlManager {
             return this;
         }
 
-        Builder setZkMigrationEnabled(boolean zkMigrationEnabled) {
-            this.zkMigrationEnabled = zkMigrationEnabled;
+        Builder setBrokerUncleanShutdownHandler(BrokerUncleanShutdownHandler brokerUncleanShutdownHandler) {
+            this.brokerUncleanShutdownHandler = brokerUncleanShutdownHandler;
             return this;
         }
 
-        Builder setBrokerUncleanShutdownHandler(BrokerUncleanShutdownHandler brokerUncleanShutdownHandler) {
-            this.brokerUncleanShutdownHandler = brokerUncleanShutdownHandler;
+        Builder setInterBrokerListenerName(String interBrokerListenerName) {
+            this.interBrokerListenerName = interBrokerListenerName;
             return this;
         }
 
@@ -165,8 +165,8 @@ public class ClusterControlManager {
                 sessionTimeoutNs,
                 replicaPlacer,
                 featureControl,
-                zkMigrationEnabled,
-                brokerUncleanShutdownHandler
+                brokerUncleanShutdownHandler,
+                interBrokerListenerName
             );
         }
     }
@@ -240,7 +240,7 @@ public class ClusterControlManager {
     /**
      * The broker heartbeat manager, or null if this controller is on standby.
      */
-    private BrokerHeartbeatManager heartbeatManager;
+    private volatile BrokerHeartbeatManager heartbeatManager;
 
     /**
      * A future which is completed as soon as we have the given number of brokers
@@ -253,12 +253,12 @@ public class ClusterControlManager {
      */
     private final FeatureControlManager featureControl;
 
-    /**
-     * True if migration from ZK is enabled.
-     */
-    private final boolean zkMigrationEnabled;
-
     private final BrokerUncleanShutdownHandler brokerUncleanShutdownHandler;
+
+    /**
+     * The statically configured inter-broker listener name.
+     */
+    private final String interBrokerListenerName;
 
     /**
      * Maps controller IDs to controller registrations.
@@ -278,8 +278,8 @@ public class ClusterControlManager {
         long sessionTimeoutNs,
         ReplicaPlacer replicaPlacer,
         FeatureControlManager featureControl,
-        boolean zkMigrationEnabled,
-        BrokerUncleanShutdownHandler brokerUncleanShutdownHandler
+        BrokerUncleanShutdownHandler brokerUncleanShutdownHandler,
+        String interBrokerListenerName
     ) {
         this.logContext = logContext;
         this.clusterId = clusterId;
@@ -292,10 +292,10 @@ public class ClusterControlManager {
         this.heartbeatManager = null;
         this.readyBrokersFuture = Optional.empty();
         this.featureControl = featureControl;
-        this.zkMigrationEnabled = zkMigrationEnabled;
         this.controllerRegistrations = new TimelineHashMap<>(snapshotRegistry, 0);
         this.directoryToBroker = new TimelineHashMap<>(snapshotRegistry, 0);
         this.brokerUncleanShutdownHandler = brokerUncleanShutdownHandler;
+        this.interBrokerListenerName = interBrokerListenerName;
     }
 
     ReplicaPlacer replicaPlacer() {
@@ -335,10 +335,6 @@ public class ClusterControlManager {
             .collect(Collectors.toSet());
     }
 
-    boolean zkRegistrationAllowed() {
-        return zkMigrationEnabled && featureControl.metadataVersion().isMigrationSupported();
-    }
-
     /**
      * Process an incoming broker registration request.
      */
@@ -360,7 +356,7 @@ public class ClusterControlManager {
         Uuid prevIncarnationId = null;
         if (existing != null) {
             prevIncarnationId = existing.incarnationId();
-            if (heartbeatManager.hasValidSession(brokerId)) {
+            if (heartbeatManager.hasValidSession(brokerId, existing.epoch())) {
                 if (!request.incarnationId().equals(prevIncarnationId)) {
                     throw new DuplicateBrokerRegistrationException("Another broker is " +
                         "registered with that broker id.");
@@ -368,13 +364,8 @@ public class ClusterControlManager {
             }
         }
 
-        if (request.isMigratingZkBroker() && !zkRegistrationAllowed()) {
+        if (request.isMigratingZkBroker()) {
             throw new BrokerIdNotRegisteredException("Controller does not support registering ZK brokers.");
-        }
-
-        if (!request.isMigratingZkBroker() && featureControl.inPreMigrationMode()) {
-            throw new BrokerIdNotRegisteredException("Controller is in pre-migration mode and cannot register KRaft " +
-                "brokers until the metadata migration is complete.");
         }
 
         if (featureControl.metadataVersion().isDirectoryAssignmentSupported()) {
@@ -489,7 +480,7 @@ public class ClusterControlManager {
         records.add(new ApiMessageAndVersion(new RegisterControllerRecord().
             setControllerId(request.controllerId()).
             setIncarnationId(request.incarnationId()).
-            setZkMigrationReady(request.zkMigrationReady()).
+            setZkMigrationReady(false).
             setEndPoints(listenerInfo.toControllerRegistrationRecord()).
             setFeatures(features),
                 (short) 0));
@@ -518,6 +509,22 @@ public class ClusterControlManager {
                 setName(feature.name()).
                 setMinSupportedVersion(feature.minSupportedVersion()).
                 setMaxSupportedVersion(feature.maxSupportedVersion());
+    }
+
+    /**
+     * Track an incoming broker heartbeat. Unlike most functions, this one is not called from the main
+     * controller thread, so it can only access local, volatile and atomic data.
+     *
+     * @param brokerId      The broker id to track.
+     * @param brokerEpoch   The broker epoch to track.
+     *
+     * @returns             True only if the ClusterControlManager is active.
+     */
+    boolean trackBrokerHeartbeat(int brokerId, long brokerEpoch) {
+        BrokerHeartbeatManager manager = heartbeatManager;
+        if (manager == null) return false;
+        manager.tracker().updateContactTime(new BrokerIdAndEpoch(brokerId, brokerEpoch));
+        return true;
     }
 
     public OptionalLong registerBrokerRecordOffset(int brokerId) {
@@ -724,6 +731,9 @@ public class ClusterControlManager {
     }
 
     BrokerHeartbeatManager heartbeatManager() {
+        // We throw RuntimeException here rather than NotControllerException because all the callers
+        // have already verified that we are active. For example, ControllerWriteEvent.run verifies
+        // that we are the current active controller before running any event-specific code.
         if (heartbeatManager == null) {
             throw new RuntimeException("ClusterControlManager is not active.");
         }

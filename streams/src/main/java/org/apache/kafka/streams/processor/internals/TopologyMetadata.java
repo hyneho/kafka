@@ -533,7 +533,7 @@ public class TopologyMetadata {
 
     public String storeForChangelogTopic(final String topicName) {
         for (final InternalTopologyBuilder builder : builders.values()) {
-            final String store = builder.getStoreForChangelogTopic(topicName);
+            final String store = builder.storeForChangelogTopic(topicName);
             if (store != null) {
                 return store;
             }
@@ -614,6 +614,7 @@ public class TopologyMetadata {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public Collection<NamedTopology> allNamedTopologies() {
         return builders.values()
             .stream()
