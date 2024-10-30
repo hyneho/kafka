@@ -212,6 +212,7 @@ jobs:
           name: test-catalog
           path: test-catalog
       - name: Update Test Catalog
+        # Git user.name and user.email come from https://github.com/actions/checkout?tab=readme-ov-file#push-a-commit-using-the-built-in-token
         run: |
           pwd
           ls -R
