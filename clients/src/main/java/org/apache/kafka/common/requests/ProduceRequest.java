@@ -38,12 +38,7 @@ import java.util.stream.Collectors;
 
 import static org.apache.kafka.common.requests.ProduceResponse.INVALID_OFFSET;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public class ProduceRequest extends AbstractRequest {
-    public static final Logger log = LoggerFactory.getLogger(ProduceRequest.class);
-
     private static ProduceRequestParser produceRequestParser = ProduceRequestParserFactory.getProduceRequestParser();
 
     public static Builder forMagic(byte magic, ProduceRequestData data) {

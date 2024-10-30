@@ -60,6 +60,8 @@ public class ProduceResponse extends AbstractResponse {
     public static final long INVALID_OFFSET = -1L;
     private final ProduceResponseData data;
 
+    private static ProduceResponseParser produceResponseParser = ProduceResponseParserFactory.getProduceResponseParser();
+
     public ProduceResponse(ProduceResponseData produceResponseData) {
         super(ApiKeys.PRODUCE);
         this.data = produceResponseData;
@@ -296,7 +298,7 @@ public class ProduceResponse extends AbstractResponse {
     }
 
     public static ProduceResponse parse(ByteBuffer buffer, short version) {
-        return new ProduceResponse(new ProduceResponseData(new ByteBufferAccessor(buffer), version));
+        return produceResponseParser.parse(buffer, version);
     }
 
     @Override
