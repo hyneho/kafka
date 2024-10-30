@@ -704,7 +704,10 @@ public class SharePartitionManager implements AutoCloseable {
     private void completeShareFetchWithException(CompletableFuture<Map<TopicIdPartition, PartitionData>> future,
         Map<TopicIdPartition, Throwable> erroneous) {
         future.complete(erroneous.entrySet().stream().collect(Collectors.toMap(
-            Map.Entry::getKey, entry -> new PartitionData().setErrorCode(Errors.forException(entry.getValue()).code()).setErrorMessage(entry.getValue().getMessage()))));
+            Map.Entry::getKey, entry -> {
+                Throwable t = entry.getValue();
+                return new PartitionData().setErrorCode(Errors.forException(t).code()).setErrorMessage(t.getMessage());
+            })));
     }
 
     private SharePartitionKey sharePartitionKey(String groupId, TopicIdPartition topicIdPartition) {
