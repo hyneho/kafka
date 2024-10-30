@@ -401,6 +401,8 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
      *                          may be null, in which case no validation will be performed under the assumption that the
      *                          connector will use inherit the converter settings from the worker. Some errors encountered
      *                          during validation may be {@link ConfigValue#addErrorMessage(String) added} to this object
+     * @param pluginVersionValue the {@link ConfigValue} for the converter version property in the connector config;
+     *
      * @param pluginInterface the interface for the plugin type
      *                        (e.g., {@code org.apache.kafka.connect.storage.Converter.class});
      *                        may not be null
@@ -458,7 +460,12 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         String stageDescription = "instantiating the connector's " + pluginName + " for validation";
         try (TemporaryStage stage = reportStage.apply(stageDescription)) {
             VersionRange range = PluginVersionUtils.connectorVersionRequirement(pluginVersion);
-            pluginInstance = (T) plugins().newPlugin(pluginClass, range);
+            // utils.newInstance is done when no version is provided to preserve older behaviour prior to multi-versioning support
+            // utils.newInstance will try and load the class from the current classloader (which is the connector classloader) before
+            // delegating plugin loading mechanism of the worker, while plugins().newPlugin will always use the worker's plugin loading mechanism
+            // in cases where the converter is packaged with the connector package and no version is provided , utils.newInstance
+            // will choose the converter from the connector, while plugins().newPlugin will choose the latest converter version found while plugin loading.
+            pluginInstance = range == null ? Utils.newInstance(pluginClass, pluginInterface): (T) plugins().newPlugin(pluginClass, range);
         } catch (VersionedPluginLoadingException e) {
             log.error("Failed to load {} class {} with version {}: {}", pluginName, pluginClass, pluginVersion, e);
             pluginVersionValue.addErrorMessage(e.getMessage());
