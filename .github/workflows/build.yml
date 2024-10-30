@@ -131,7 +131,6 @@ jobs:
           TIMEOUT_MINUTES: 180  # 3 hours
         run: |
           set +e
-          exit
           ./.github/scripts/thread-dump.sh &
           timeout ${TIMEOUT_MINUTES}m ./gradlew --build-cache --continue --no-scan \
           -PtestLoggingEvents=started,passed,skipped,failed \
