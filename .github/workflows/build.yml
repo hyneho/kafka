@@ -208,7 +208,6 @@ jobs:
         run: |
           rm -rf test-catalog
       - name: Download Test Catalog
-        id: download-test-catalog
         uses: actions/download-artifact@v4
         with:
           name: test-catalog
