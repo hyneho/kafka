@@ -33,6 +33,7 @@ import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest;
 import org.apache.kafka.common.requests.ConsumerGroupHeartbeatResponse;
+import org.apache.kafka.common.telemetry.internals.ClientTelemetryProvider;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
@@ -156,10 +157,15 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
             commitRequestManager,
             metadata,
             logContext,
-            clientTelemetryReporter,
             backgroundEventHandler,
             time,
             new ConsumerRebalanceMetricsManager(metrics));
+
+        // Update the group member ID label in the client telemetry reporter.
+        // According to KIP-1082, the consumer will generate the member ID as the incarnation ID of the process.
+        // Therefore, we can update the group member ID during initialization.
+        clientTelemetryReporter.ifPresent(reporter -> reporter.updateMetricsLabels(
+            Map.of(ClientTelemetryProvider.GROUP_MEMBER_ID, memberId)));
     }
 
     // Visible for testing
@@ -171,7 +177,6 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
                               CommitRequestManager commitRequestManager,
                               ConsumerMetadata metadata,
                               LogContext logContext,
-                              Optional<ClientTelemetryReporter> clientTelemetryReporter,
                               BackgroundEventHandler backgroundEventHandler,
                               Time time,
                               RebalanceMetricsManager metricsManager) {
@@ -179,7 +184,6 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
             subscriptions,
             metadata,
             logContext.logger(ConsumerMembershipManager.class),
-            clientTelemetryReporter,
             time,
             metricsManager);
         this.groupInstanceId = groupInstanceId;

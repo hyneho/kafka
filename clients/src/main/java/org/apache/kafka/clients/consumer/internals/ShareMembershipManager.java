@@ -24,6 +24,7 @@ import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ShareGroupHeartbeatRequest;
 import org.apache.kafka.common.requests.ShareGroupHeartbeatResponse;
+import org.apache.kafka.common.telemetry.internals.ClientTelemetryProvider;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
@@ -92,9 +93,15 @@ public class ShareMembershipManager extends AbstractMembershipManager<ShareGroup
                 rackId,
                 subscriptions,
                 metadata,
-                clientTelemetryReporter,
                 time,
                 new ShareRebalanceMetricsManager(metrics));
+
+
+        // Update the group member ID label in the client telemetry reporter.
+        // According to KIP-1082, the consumer will generate the member ID as the incarnation ID of the process.
+        // Therefore, we can update the group member ID during initialization.
+        clientTelemetryReporter.ifPresent(reporter -> reporter.updateMetricsLabels(
+            Map.of(ClientTelemetryProvider.GROUP_MEMBER_ID, memberId)));
     }
 
     // Visible for testing
@@ -103,14 +110,12 @@ public class ShareMembershipManager extends AbstractMembershipManager<ShareGroup
                            String rackId,
                            SubscriptionState subscriptions,
                            ConsumerMetadata metadata,
-                           Optional<ClientTelemetryReporter> clientTelemetryReporter,
                            Time time,
                            ShareRebalanceMetricsManager metricsManager) {
         super(groupId,
                 subscriptions,
                 metadata,
                 logContext.logger(ShareMembershipManager.class),
-                clientTelemetryReporter,
                 time,
                 metricsManager);
         this.rackId = rackId;

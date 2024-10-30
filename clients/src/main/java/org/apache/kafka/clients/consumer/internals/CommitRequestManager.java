@@ -1288,11 +1288,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
 
     static class MemberInfo {
         String memberId = "";
-        Optional<Integer> memberEpoch;
-
-        MemberInfo() {
-            this.memberEpoch = Optional.empty();
-        }
+        Optional<Integer> memberEpoch = Optional.empty();
 
         @Override
         public String toString() {

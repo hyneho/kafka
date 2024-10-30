@@ -24,8 +24,6 @@ import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.requests.AbstractResponse;
-import org.apache.kafka.common.telemetry.internals.ClientTelemetryProvider;
-import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
 import org.apache.kafka.common.utils.Time;
 
 import org.slf4j.Logger;
@@ -167,18 +165,11 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     private Optional<CompletableFuture<Void>> leaveGroupInProgress = Optional.empty();
 
     /**
-     * Registered listeners that will be notified whenever the memberID/epoch gets updated (valid
-     * values received from the broker, or values cleared due to member leaving the group, getting
-     * fenced or failing).
+     * Registered listeners that will be notified whenever the member epoch gets updated
+     * (valid values received from the broker, or values cleared due to member leaving
+     * the group, getting fenced or failing).
      */
     private final List<MemberStateListener> stateUpdatesListeners;
-
-    /**
-     * Optional client telemetry reporter which sends client telemetry data to the broker. This
-     * will be empty if the client telemetry feature is not enabled. This is provided to update
-     * the group member id label when the consumer initializes.
-     */
-    protected final Optional<ClientTelemetryReporter> clientTelemetryReporter;
 
     /**
      * Future that will complete when a stale member completes releasing its assignment after
@@ -212,7 +203,6 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
                               SubscriptionState subscriptions,
                               ConsumerMetadata metadata,
                               Logger log,
-                              Optional<ClientTelemetryReporter> clientTelemetryReporter,
                               Time time,
                               RebalanceMetricsManager metricsManager) {
         this.groupId = groupId;
@@ -224,15 +214,8 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         this.currentAssignment = LocalAssignment.NONE;
         this.log = log;
         this.stateUpdatesListeners = new ArrayList<>();
-        this.clientTelemetryReporter = clientTelemetryReporter;
         this.time = time;
         this.metricsManager = metricsManager;
-
-        // Update the group member ID label in the client telemetry reporter.
-        // According to KIP-1082, the consumer will generate the member ID as the incarnation ID of the process.
-        // Therefore, we can update the group member ID during initialization.
-        clientTelemetryReporter.ifPresent(reporter -> reporter.updateMetricsLabels(
-            Collections.singletonMap(ClientTelemetryProvider.GROUP_MEMBER_ID, memberId)));
     }
 
     /**
@@ -254,7 +237,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             metricsManager.recordRebalanceStarted(time.milliseconds());
         }
 
-        log.info("Member {} with epoch {} transitioned from {} to {}.", memberIdInfoForLog(), memberEpoch, state, nextState);
+        log.info("Member {} with epoch {} transitioned from {} to {}.", memberId, memberEpoch, state, nextState);
         this.state = nextState;
     }
 
@@ -308,7 +291,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         // operation once the request completes, regardless of the response.
         if (state == MemberState.UNSUBSCRIBED && maybeCompleteLeaveInProgress()) {
             log.warn("Member {} with epoch {} received a failed response to the heartbeat to " +
-                "leave the group and completed the leave operation. ", memberIdInfoForLog(), memberEpoch);
+                "leave the group and completed the leave operation. ", memberId, memberEpoch);
         }
     }
 
@@ -387,7 +370,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         if (state == MemberState.PREPARE_LEAVING) {
             log.info("Member {} with epoch {} got fenced but it is already preparing to leave " +
                     "the group, so it will stop sending heartbeat and won't attempt to send the " +
-                    "leave request or rejoin.", memberIdInfoForLog(), memberEpoch);
+                    "leave request or rejoin.", memberId, memberEpoch);
             // Briefly transition to LEAVING to ensure all required actions are applied even
             // though there is no need to send a leave group heartbeat (ex. clear epoch and
             // notify epoch listeners). Then transition to UNSUBSCRIBED, ensuring that the member
@@ -401,20 +384,20 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
 
         if (state == MemberState.LEAVING) {
             log.debug("Member {} with epoch {} got fenced before sending leave group heartbeat. " +
-                    "It will not send the leave request and won't attempt to rejoin.", memberIdInfoForLog(), memberEpoch);
+                    "It will not send the leave request and won't attempt to rejoin.", memberId, memberEpoch);
             transitionTo(MemberState.UNSUBSCRIBED);
             maybeCompleteLeaveInProgress();
             return;
         }
         if (state == MemberState.UNSUBSCRIBED) {
             log.debug("Member {} with epoch {} got fenced but it already left the group, so it " +
-                    "won't attempt to rejoin.", memberIdInfoForLog(), memberEpoch);
+                    "won't attempt to rejoin.", memberId, memberEpoch);
             return;
         }
         transitionTo(MemberState.FENCED);
         resetEpoch();
         log.debug("Member {} with epoch {} transitioned to {} state. It will release its " +
-                "assignment and rejoin the group.", memberIdInfoForLog(), memberEpoch, MemberState.FENCED);
+                "assignment and rejoin the group.", memberId, memberEpoch, MemberState.FENCED);
 
         // Release assignment
         CompletableFuture<Void> callbackResult = signalPartitionsLost(subscriptions.assignedPartitions());
@@ -441,19 +424,19 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     public void transitionToFatal() {
         MemberState previousState = state;
         transitionTo(MemberState.FATAL);
-        log.error("Member {} with epoch {} transitioned to fatal state", memberIdInfoForLog(), memberEpoch);
-        notifyEpochChange(Optional.empty(), memberId);
+        log.error("Member {} with epoch {} transitioned to fatal state", memberId, memberEpoch);
+        notifyEpochChange(Optional.empty());
 
         if (previousState == MemberState.UNSUBSCRIBED) {
             log.debug("Member {} with epoch {} got fatal error from the broker but it already " +
-                    "left the group, so onPartitionsLost callback won't be triggered.", memberIdInfoForLog(), memberEpoch);
+                    "left the group, so onPartitionsLost callback won't be triggered.", memberId, memberEpoch);
             return;
         }
 
         if (previousState == MemberState.LEAVING || previousState == MemberState.PREPARE_LEAVING) {
             log.info("Member {} with epoch {} was leaving the group with state {} when it got a " +
                 "fatal error from the broker. It will discard the ongoing leave and remain in " +
-                "fatal state.", memberIdInfoForLog(), memberEpoch, previousState);
+                "fatal state.", memberId, memberEpoch, previousState);
             maybeCompleteLeaveInProgress();
             return;
         }
@@ -467,11 +450,6 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             }
             clearAssignment();
         });
-    }
-
-    // Visible for testing
-    String memberIdInfoForLog() {
-        return (memberId == null || memberId.isEmpty()) ? "<no ID>" : memberId;
     }
 
     /**
@@ -563,7 +541,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         if (state == MemberState.PREPARE_LEAVING || state == MemberState.LEAVING) {
             // Member already leaving. No-op and return existing leave group future that will
             // complete when the ongoing leave operation completes.
-            log.debug("Leave group operation already in progress for member {}", memberIdInfoForLog());
+            log.debug("Leave group operation already in progress for member {}", memberId);
             return leaveGroupInProgress.get();
         }
 
@@ -575,10 +553,10 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         callbackResult.whenComplete((result, error) -> {
             if (error != null) {
                 log.error("Member {} callback to release assignment failed. It will proceed " +
-                    "to clear its assignment and send a leave group heartbeat", memberIdInfoForLog(), error);
+                    "to clear its assignment and send a leave group heartbeat", memberId, error);
             } else {
                 log.info("Member {} completed callback to release assignment. It will proceed " +
-                    "to clear its assignment and send a leave group heartbeat", memberIdInfoForLog());
+                    "to clear its assignment and send a leave group heartbeat", memberId);
             }
 
             // Clear the subscription, no matter if the callback execution failed or succeeded.
@@ -608,12 +586,12 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     public void transitionToSendingLeaveGroup(boolean dueToExpiredPollTimer) {
         if (state == MemberState.FATAL) {
             log.warn("Member {} with epoch {} won't send leave group request because it is in " +
-                    "FATAL state", memberIdInfoForLog(), memberEpoch);
+                    "FATAL state", memberId, memberEpoch);
             return;
         }
         if (state == MemberState.UNSUBSCRIBED) {
             log.warn("Member {} won't send leave group request because it is already out of the group.",
-                memberIdInfoForLog());
+                memberId);
             return;
         }
 
@@ -634,7 +612,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      * This also includes the member ID in the notification. If the member fails or leaves
      * the group, this will be invoked with empty epoch.
      */
-    void notifyEpochChange(Optional<Integer> epoch, String memberId) {
+    void notifyEpochChange(Optional<Integer> epoch) {
         stateUpdatesListeners.forEach(stateListener -> stateListener.onMemberEpochUpdated(epoch, memberId));
     }
 
@@ -660,17 +638,17 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             } else {
                 log.debug("Member {} with epoch {} transitioned to {} after a heartbeat was sent " +
                         "to ack a previous reconciliation. New assignments are ready to " +
-                        "be reconciled.", memberIdInfoForLog(), memberEpoch, MemberState.RECONCILING);
+                        "be reconciled.", memberId, memberEpoch, MemberState.RECONCILING);
                 transitionTo(MemberState.RECONCILING);
             }
         } else if (state == MemberState.LEAVING) {
             if (isPollTimerExpired) {
                 log.debug("Member {} with epoch {} generated the heartbeat to leave due to expired poll timer. It will " +
                     "remain stale (no heartbeat) until it rejoins the group on the next consumer " +
-                    "poll.", memberIdInfoForLog(), memberEpoch);
+                    "poll.", memberId, memberEpoch);
                 transitionToStale();
             } else {
-                log.debug("Member {} with epoch {} generated the heartbeat to leave the group.", memberIdInfoForLog(), memberEpoch);
+                log.debug("Member {} with epoch {} generated the heartbeat to leave the group.", memberId, memberEpoch);
                 transitionTo(MemberState.UNSUBSCRIBED);
             }
         }
@@ -685,7 +663,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         if (state == MemberState.LEAVING) {
             log.warn("Heartbeat to leave group cannot be sent (most probably due to coordinator " +
                     "not known/available). Member {} with epoch {} will transition to {}.",
-                memberIdInfoForLog(), memberEpoch, MemberState.UNSUBSCRIBED);
+                memberId, memberEpoch, MemberState.UNSUBSCRIBED);
             transitionTo(MemberState.UNSUBSCRIBED);
             maybeCompleteLeaveInProgress();
         }
@@ -728,7 +706,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         isPollTimerExpired = false;
         if (state == MemberState.STALE) {
             log.debug("Expired poll timer has been reset so stale member {} will rejoin the group " +
-                "when it completes releasing its previous assignment.", memberIdInfoForLog());
+                "when it completes releasing its previous assignment.", memberId);
             staleMemberAssignmentRelease.whenComplete((__, error) -> transitionToJoining());
         }
     }
@@ -752,7 +730,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             clearAssignment();
             log.debug("Member {} sent leave group heartbeat and released its assignment. It will remain " +
                 "in {} state until the poll timer is reset, and it will then rejoin the group",
-                memberIdInfoForLog(), MemberState.STALE);
+                memberId, MemberState.STALE);
         });
     }
 
@@ -820,7 +798,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
                         "\tAdded partitions (assigned - owned):       {}\n" +
                         "\tRevoked partitions (owned - assigned):     {}\n",
                 resolvedAssignment.localEpoch,
-                memberIdInfoForLog(),
+                memberId,
                 assignedTopicPartitions,
                 ownedPartitions,
                 addedPartitions,
@@ -1103,7 +1081,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         if (state == MemberState.FATAL) {
             String errorMsg = String.format("Member %s with epoch %s received a fatal error " +
                 "while waiting for a revocation commit to complete. Will abort revocation " +
-                "without triggering user callback.", memberIdInfoForLog(), memberEpoch);
+                "without triggering user callback.", memberId, memberEpoch);
             log.debug(errorMsg);
             revocationResult.completeExceptionally(new KafkaException(errorMsg));
             return revocationResult;
@@ -1247,9 +1225,9 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         // at startup, and it will remain unchanged for its entire lifetime.
         if (newEpochReceived) {
             if (memberEpoch > 0) {
-                notifyEpochChange(Optional.of(memberEpoch), memberId);
+                notifyEpochChange(Optional.of(memberEpoch));
             } else {
-                notifyEpochChange(Optional.empty(), memberId);
+                notifyEpochChange(Optional.empty());
             }
         }
     }

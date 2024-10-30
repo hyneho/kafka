@@ -112,16 +112,14 @@ public class ShareMembershipManagerTest {
 
     private ShareMembershipManager createMembershipManager() {
         ShareMembershipManager manager = spy(new ShareMembershipManager(
-            logContext, GROUP_ID, RACK_ID, subscriptionState, metadata,
-            Optional.empty(), time, rebalanceMetricsManager));
+            logContext, GROUP_ID, RACK_ID, subscriptionState, metadata, time, rebalanceMetricsManager));
         assertMemberIdIsGenerated(manager.memberId());
         return manager;
     }
 
     private ShareMembershipManager createMembershipManagerJoiningGroup() {
         ShareMembershipManager manager = spy(new ShareMembershipManager(
-                logContext, GROUP_ID, RACK_ID, subscriptionState, metadata,
-                Optional.empty(), time, rebalanceMetricsManager));
+                logContext, GROUP_ID, RACK_ID, subscriptionState, metadata, time, rebalanceMetricsManager));
         assertMemberIdIsGenerated(manager.memberId());
         manager.transitionToJoining();
         return manager;
@@ -131,8 +129,7 @@ public class ShareMembershipManagerTest {
     public void testMembershipManagerRegistersForClusterMetadataUpdatesOnFirstJoin() {
         // First join should register to get metadata updates
         ShareMembershipManager manager = new ShareMembershipManager(
-                logContext, GROUP_ID, RACK_ID, subscriptionState, metadata,
-                Optional.empty(), time, rebalanceMetricsManager);
+                logContext, GROUP_ID, RACK_ID, subscriptionState, metadata, time, rebalanceMetricsManager);
         manager.transitionToJoining();
         clearInvocations(metadata);
 
@@ -200,8 +197,7 @@ public class ShareMembershipManagerTest {
     @Test
     public void testTransitionToFailedWhenTryingToJoin() {
         ShareMembershipManager membershipManager = new ShareMembershipManager(
-                logContext, GROUP_ID, RACK_ID, subscriptionState, metadata,
-                Optional.empty(), time, rebalanceMetricsManager);
+                logContext, GROUP_ID, RACK_ID, subscriptionState, metadata, time, rebalanceMetricsManager);
         assertEquals(MemberState.UNSUBSCRIBED, membershipManager.state());
         membershipManager.transitionToJoining();
 

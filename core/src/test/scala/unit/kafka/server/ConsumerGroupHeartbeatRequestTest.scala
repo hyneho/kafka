@@ -492,7 +492,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     TestUtils.waitUntilTrue(() => {
       consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
       consumerGroupHeartbeatResponse.data.errorCode == Errors.INVALID_REQUEST.code
-    }, msg = s"Static member could not join the group successfully. Last response $consumerGroupHeartbeatResponse.")
+    }, msg = "Should fail due to invalid member id.")
   }
 
   @ClusterTest
@@ -522,7 +522,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     TestUtils.waitUntilTrue(() => {
       consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
       consumerGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-    }, msg = s"Static member could not join the group successfully. Last response $consumerGroupHeartbeatResponse.")
+    }, msg = s"Could not join the group successfully. Last response $consumerGroupHeartbeatResponse.")
 
     val memberId = consumerGroupHeartbeatResponse.data().memberId()
     assertNotNull(memberId)

@@ -136,7 +136,7 @@ public class ConsumerMembershipManagerTest {
     private ConsumerMembershipManager createMembershipManager(String groupInstanceId) {
         ConsumerMembershipManager manager = spy(new ConsumerMembershipManager(
             GROUP_ID, Optional.ofNullable(groupInstanceId), REBALANCE_TIMEOUT, Optional.empty(),
-            subscriptionState, commitRequestManager, metadata, LOG_CONTEXT, Optional.empty(),
+            subscriptionState, commitRequestManager, metadata, LOG_CONTEXT,
             backgroundEventHandler, time, rebalanceMetricsManager));
         assertMemberIdIsGenerated(manager.memberId());
         return manager;
@@ -147,8 +147,7 @@ public class ConsumerMembershipManagerTest {
         ConsumerMembershipManager manager = spy(new ConsumerMembershipManager(
                 GROUP_ID, Optional.ofNullable(groupInstanceId), REBALANCE_TIMEOUT,
                 Optional.ofNullable(serverAssignor), subscriptionState, commitRequestManager,
-                metadata, LOG_CONTEXT, Optional.empty(), backgroundEventHandler, time,
-                rebalanceMetricsManager));
+                metadata, LOG_CONTEXT, backgroundEventHandler, time, rebalanceMetricsManager));
         assertMemberIdIsGenerated(manager.memberId());
         manager.transitionToJoining();
         return manager;
@@ -226,8 +225,8 @@ public class ConsumerMembershipManagerTest {
     public void testTransitionToFailedWhenTryingToJoin() {
         ConsumerMembershipManager membershipManager = new ConsumerMembershipManager(
                 GROUP_ID, Optional.empty(), REBALANCE_TIMEOUT, Optional.empty(),
-                subscriptionState, commitRequestManager, metadata, LOG_CONTEXT, Optional.empty(),
-                backgroundEventHandler, time, rebalanceMetricsManager);
+                subscriptionState, commitRequestManager, metadata, LOG_CONTEXT,
+            backgroundEventHandler, time, rebalanceMetricsManager);
         assertEquals(MemberState.UNSUBSCRIBED, membershipManager.state());
         membershipManager.transitionToJoining();
 
@@ -347,7 +346,7 @@ public class ConsumerMembershipManagerTest {
         completeCallback(callbackEvent, membershipManager);
         assertEquals(MemberState.UNSUBSCRIBED, membershipManager.state());
         assertEquals(ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH, membershipManager.memberEpoch());
-        verify(membershipManager).notifyEpochChange(Optional.empty(), membershipManager.memberId);
+        verify(membershipManager).notifyEpochChange(Optional.empty());
         assertTrue(membershipManager.shouldSkipHeartbeat());
     }
 
@@ -2368,15 +2367,6 @@ public class ConsumerMembershipManagerTest {
         assertEquals(120d, getMetricValue(metrics, rebalanceMetricsManager.failedRebalanceRate));
         assertEquals(1d, getMetricValue(metrics, rebalanceMetricsManager.failedRebalanceTotal));
         assertEquals(-1d, getMetricValue(metrics, rebalanceMetricsManager.lastRebalanceSecondsAgo));
-    }
-
-    @Test
-    public void testMemberIdInfoForLogs() {
-        ConsumerMembershipManager membershipManager = createMembershipManagerJoiningGroup(null, null);
-        assertFalse(membershipManager.memberIdInfoForLog().isEmpty());
-
-        membershipManager = createMemberInStableState(null);
-        assertEquals(membershipManager.memberId(), membershipManager.memberIdInfoForLog());
     }
 
     private Object getMetricValue(Metrics metrics, MetricName name) {
