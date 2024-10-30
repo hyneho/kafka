@@ -24,13 +24,12 @@ ARG java_url_1=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_versi
 ARG jdk_version_2=17-linux-x64
 ARG java_url_2=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_version_2}.tar.gz
 
-ENV java_base_dir=/opt/jdk
-
 RUN apt-get update && \
     apt-get install -y curl \
     && rm -rf /var/lib/apt/lists/* 
 
 WORKDIR /opt
+ENV java_base_dir=/opt/jdk
 
 RUN curl -L -o ${jdk_version_1}.tar.gz ${java_url_1} && \
     mkdir -p ${java_base_dir}/11 && \
