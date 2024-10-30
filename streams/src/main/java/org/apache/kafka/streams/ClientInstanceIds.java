@@ -36,18 +36,11 @@ public interface ClientInstanceIds {
     Uuid adminInstanceId();
 
     /**
-     * Returns the {@code client instance id} of the consumers.
+     * Returns the {@code client instance id} of the internal clients.
      *
      * @return a map from thread key to {@code client instance id}
      */
     @SuppressWarnings("unused")
-    Map<String, Uuid> consumerInstanceIds();
+    Map<String, Uuid> clientInstanceIds();
 
-    /**
-     * Returns the {@code client instance id} of the producers.
-     *
-     * @return a map from thread key to {@code client instance id}
-     */
-    @SuppressWarnings("unused")
-    Map<String, Uuid> producerInstanceIds();
 }
