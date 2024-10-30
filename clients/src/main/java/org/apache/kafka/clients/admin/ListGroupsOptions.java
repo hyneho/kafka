@@ -21,7 +21,6 @@ import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.annotation.InterfaceStability;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -39,7 +38,7 @@ public class ListGroupsOptions extends AbstractOptions<ListGroupsOptions> {
      * Otherwise, all groups are returned.
      */
     public ListGroupsOptions withTypes(Set<GroupType> types) {
-        this.types = (types == null || types.isEmpty()) ? Collections.emptySet() : new HashSet<>(types);
+        this.types = (types == null || types.isEmpty()) ? Set.of() : Set.copyOf(types);
         return this;
     }
 

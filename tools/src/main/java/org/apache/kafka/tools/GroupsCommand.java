@@ -193,6 +193,7 @@ public class GroupsCommand {
             bootstrapServerOpt = parser.accepts("bootstrap-server", "REQUIRED: The Kafka server to connect to.")
                     .withRequiredArg()
                     .describedAs("server to connect to")
+                    .required()
                     .ofType(String.class);
             commandConfigOpt = parser.accepts("command-config", "Property file containing configs to be passed to Admin Client.")
                     .withRequiredArg()
@@ -279,10 +280,6 @@ public class GroupsCommand {
             long actions = Stream.of(listOpt).filter(options::has).count();
             if (actions != 1)
                 CommandLineUtils.printUsageAndExit(parser, "Command must include exactly one action: --list.");
-
-            // check required args
-            if (!has(bootstrapServerOpt))
-                throw new IllegalArgumentException("--bootstrap-server must be specified.");
 
             if (has(groupTypeOpt)) {
                 if (groupType().isEmpty()) {

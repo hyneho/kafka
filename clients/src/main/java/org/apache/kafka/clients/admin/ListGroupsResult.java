@@ -23,6 +23,8 @@ import org.apache.kafka.common.internals.KafkaFutureImpl;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * The result of the {@link Admin#listGroups()} call.
@@ -49,13 +51,15 @@ public class ListGroupsResult {
                     curValid.add((GroupListing) resultObject);
                 }
             }
-            if (!curErrors.isEmpty()) {
-                all.completeExceptionally(curErrors.get(0));
+            List<GroupListing> validResult = Collections.unmodifiableList(curValid);
+            List<Throwable> errorsResult = Collections.unmodifiableList(curErrors);
+            if (!errorsResult.isEmpty()) {
+                all.completeExceptionally(errorsResult.get(0));
             } else {
-                all.complete(curValid);
+                all.complete(validResult);
             }
-            valid.complete(curValid);
-            errors.complete(curErrors);
+            valid.complete(validResult);
+            errors.complete(errorsResult);
             return null;
         });
     }

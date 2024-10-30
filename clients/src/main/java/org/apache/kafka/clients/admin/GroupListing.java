@@ -86,15 +86,9 @@ public class GroupListing {
             ')';
     }
 
-    protected String toStringBase() {
-        return "groupId='" + groupId + '\'' +
-            ", type=" + type +
-            ", protocol=" + protocol;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(groupId, type);
+        return Objects.hash(groupId, type, protocol);
     }
 
     @Override
