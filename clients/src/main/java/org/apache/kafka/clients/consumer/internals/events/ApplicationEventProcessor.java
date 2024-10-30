@@ -300,8 +300,8 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     /**
-     * Process event that re-evaluate the subscribed regular expression using the latest topics from metadata.
-     * Only if metadata changed, this will make the consumer send the updated subscription on the next poll.
+     * Process event that re-evaluates the subscribed regular expression using the latest topics from metadata, only if metadata changed.
+     * This will make the consumer send the updated subscription on the next poll.
      */
     private void process(final UpdatePatternSubscriptionEvent event) {
         if (this.metadataVersionSnapshot < metadata.updateVersion()) {
