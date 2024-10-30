@@ -22,13 +22,14 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Width;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.protocol.types.Field;
 import org.apache.kafka.common.utils.Utils;
+import org.apache.kafka.connect.components.Versioned;
 import org.apache.kafka.connect.connector.ConnectRecord;
+import org.apache.kafka.connect.connector.Connector;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.runtime.errors.ToleranceType;
-import org.apache.kafka.connect.runtime.isolation.PluginDesc;
-import org.apache.kafka.connect.runtime.isolation.PluginUtils;
-import org.apache.kafka.connect.runtime.isolation.Plugins;
+import org.apache.kafka.connect.runtime.isolation.*;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.HeaderConverter;
 import org.apache.kafka.connect.transforms.Transformation;
@@ -37,17 +38,12 @@ import org.apache.kafka.connect.util.ConcreteSubClassValidator;
 import org.apache.kafka.connect.util.InstantiableClassValidator;
 
 import org.apache.kafka.connect.util.PluginVersionUtils;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static org.apache.kafka.common.config.ConfigDef.NonEmptyStringWithoutControlChars.nonEmptyStringWithoutControlChars;
@@ -219,14 +215,14 @@ public class ConnectorConfig extends AbstractConfig {
     public static final String CONNECTOR_CLIENT_PRODUCER_OVERRIDES_PREFIX = "producer.override.";
     public static final String CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX = "consumer.override.";
     public static final String CONNECTOR_CLIENT_ADMIN_OVERRIDES_PREFIX = "admin.override.";
-    public static final String PREDICATES_PREFIX = "predicates.";
-    private static int orderInGroup = 0;
-    private static int orderInErrorGroup = 0;
+        public static final String PREDICATES_PREFIX = "predicates.";
+        private static int orderInGroup = 0;
+        private static int orderInErrorGroup = 0;
 
 
-    private final EnrichedConnectorConfig enrichedConfig;
+        private final ConnectorConfig.EnrichedConnectorConfig enrichedConfig;
 
-    private static class EnrichedConnectorConfig extends AbstractConfig {
+        private static class EnrichedConnectorConfig extends AbstractConfig {
         EnrichedConnectorConfig(ConfigDef configDef, Map<String, String> props) {
             super(configDef, props);
         }
@@ -297,7 +293,11 @@ public class ConnectorConfig extends AbstractConfig {
     }
 
     public ConnectorConfig(Plugins plugins, ConfigDef configDef, Map<String, String> props) {
-        super(configDef, props);
+        this(plugins, configDef, props, Collections.emptyMap());
+    }
+
+    public ConnectorConfig(Plugins plugins, ConfigDef configDef, Map<String, String> props, Map<String, String> workerProps) {
+        super(updateDefaults(configDef, plugins, props, workerProps), props);
         enrichedConfig = new EnrichedConnectorConfig(
                 enrich(plugins, configDef, props, true),
                 props
@@ -454,6 +454,131 @@ public class ConnectorConfig extends AbstractConfig {
             }
         }.enrich(newDef);
         return newDef;
+    }
+
+    public static ConfigDef updateDefaults(ConfigDef configDef, Plugins plugins, Map<String, String> connProps, Map<String, String> workerProps) {
+        updateAllConverterDefaults(configDef, plugins, connProps, workerProps);
+        updateConnectorVersionDefaults(configDef, plugins, connProps.get(CONNECTOR_CLASS_CONFIG));
+        return configDef;
+    }
+
+    public static void updateConnectorVersionDefaults(ConfigDef configDef, Plugins plugins, String connectorClass) {
+        // if provided connector version is null, the latest version is used
+        updateVersionKeyDefault(configDef, ConnectorConfig.CONNECTOR_VERSION, plugins.latestVersion(connectorClass));
+    }
+
+    public static void updateAllConverterDefaults(ConfigDef configDef, Plugins plugins,
+                                                        Map<String, String> connProps, Map<String, String> workerProps) {
+        updateKeyConverterDefault(configDef, plugins, connProps, workerProps);
+        updateValueConverterDefault(configDef, plugins, connProps, workerProps);
+        updateHeaderConverterDefault(configDef, plugins, connProps, workerProps);
+    }
+
+    public static void updateKeyConverterDefault(ConfigDef configDef, Plugins plugins,
+                                                        Map<String, String> connProps, Map<String, String> workerProps) {
+        updateConverterDefaults(
+                configDef, plugins,
+                KEY_CONVERTER_CLASS_CONFIG, WorkerConfig.KEY_CONVERTER_CLASS_CONFIG,
+                KEY_CONVERTER_VERSION_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION, connProps, workerProps
+        );
+    }
+
+    public static void updateValueConverterDefault(ConfigDef configDef, Plugins plugins,
+                                                          Map<String, String> connProps, Map<String, String> workerProps) {
+        updateConverterDefaults(
+                configDef, plugins,
+                VALUE_CONVERTER_CLASS_CONFIG, WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG,
+                VALUE_CONVERTER_VERSION_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION, connProps, workerProps
+        );
+    }
+
+    public static void updateHeaderConverterDefault(ConfigDef configDef, Plugins plugins,
+                                                           Map<String, String> connProps, Map<String, String> workerProps) {
+        updateConverterDefaults(
+                configDef, plugins,
+                HEADER_CONVERTER_CLASS_CONFIG, WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG,
+                HEADER_CONVERTER_VERSION_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION, connProps, workerProps
+        );
+    }
+
+    private static void updateConverterDefaults(
+            ConfigDef configDef,
+            Plugins plugins,
+            String connectorConverterConfig,
+            String workerConverterConfig,
+            String connectorConverterVersionConfig,
+            String workerConverterVersionConfig,
+            Map<String, String> connectorProps,
+            Map<String, String> workerProps
+    ) {
+        /*
+        for converters which version is used depends on a several factors with multi-versioning support
+        A. If the converter class is provided as part of the connector properties
+            1. if the version is not provided,
+                - if the converter is packaged with the connector then, the packaged version is used
+                - if the converter is not packaged with the connector, the latest version is used
+            2. if the version is provided, the provided version is used
+        B. If the converter class is not provided as part of the connector properties, but provided as part of the worker properties
+            1. if the version is not provided, the latest version is used
+            2. if the version is provided, the provided version is used
+        C. If the converter class is not provided as part of the connector properties and not provided as part of the worker properties,
+        the converter to use is unknown hence no default version can be determined (null)
+        */
+        final String connectorConverter = connectorProps.get(connectorConverterConfig);
+        final String workerConverter = workerProps.get(workerConverterConfig);
+        final String connectorClass = connectorProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
+        if (connectorConverter == null && workerConverter == null) {
+            return;
+        }
+        if (connectorClass == null) {
+            return;
+        }
+        // update the default of connector converter based on if the worker converter is provided
+        if (workerConverter != null) {
+            updateVersionKeyDefault(configDef, connectorConverterConfig, workerProps.get(workerConverterVersionConfig));
+        }
+
+        // get te  connector classloader to load the converter
+        final ClassLoader connectorLoader;
+        try {
+            VersionRange range = VersionRange.createFromVersionSpec(connectorProps.get(CONNECTOR_VERSION));
+            connectorLoader = plugins.connectorLoader(connectorClass, range);
+        } catch (InvalidVersionSpecificationException | ClassNotFoundException | VersionedPluginLoadingException e) {
+            // these errors should be captured in other places, so we can ignore them here
+            log.error("Failed to determine connector loader for {}", connectorClass, e);
+            return;
+        }
+
+        String version = null;
+        if (connectorConverter != null) {
+            try(LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
+                // this will load using the connector classloader, and then delegate to delegating classloader if not found
+                Converter converter = Utils.newInstance(connectorConverter, Converter.class);
+                if (converter instanceof Versioned) {
+                    version = ((Versioned) converter).version();
+                }
+            } catch (ClassNotFoundException e) {
+                log.error("Failed to determine default version of converter {}", connectorConverter, e);
+            }
+        } else {
+            version = workerProps.get(workerConverterVersionConfig);
+            if (version == null) {
+                version = plugins.latestVersion(workerConverter);
+            }
+        }
+        if (version != null) {
+            updateVersionKeyDefault(configDef, connectorConverterVersionConfig, version);
+        }
+    }
+
+    private static void updateVersionKeyDefault(ConfigDef configDef, String versionConfigKey, String versionDefault) {
+        ConfigDef.ConfigKey key = configDef.configKeys().get(versionConfigKey);
+        if (key == null) {
+            return;
+        }
+        configDef.configKeys().put(versionConfigKey, new ConfigDef.ConfigKey(
+                versionConfigKey, key.type, versionDefault, key.validator, key.importance, key.documentation, key.group, key.orderInGroup, key.width, key.displayName, key.dependents, key.recommender, false
+        ));
     }
 
     /**

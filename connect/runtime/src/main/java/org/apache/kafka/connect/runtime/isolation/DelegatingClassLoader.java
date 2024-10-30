@@ -150,7 +150,7 @@ public class DelegatingClassLoader extends URLClassLoader {
             if (range.hasRestrictions()) {
                 List<ArtifactVersion> versions = loaders.keySet().stream().map(PluginDesc::encodedVersion).collect(Collectors.toList());
                 version = range.matchVersion(versions);
-                if (version == null) {
+                if (version ==  null) {
                     List<String> availableVersions = loaders.keySet().stream().map(PluginDesc::version).collect(Collectors.toList());
                     throw new VersionedPluginLoadingException(String.format(
                         "Plugin loader for %s not found that matches the version range %s, available versions: %s",
