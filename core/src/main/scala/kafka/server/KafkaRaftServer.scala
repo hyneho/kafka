@@ -20,7 +20,7 @@ import java.io.File
 import java.util.concurrent.CompletableFuture
 import kafka.log.UnifiedLog
 import kafka.metrics.KafkaMetricsReporter
-import kafka.server.ServerSocketFactory.KafkaServerSocketFactory
+import org.apache.kafka.server.ServerSocketFactory.KafkaServerSocketFactory
 import kafka.utils.{CoreUtils, Logging, Mx4jLoader, VerifiableProperties}
 import org.apache.kafka.common.config.{ConfigDef, ConfigResource}
 import org.apache.kafka.common.internals.Topic

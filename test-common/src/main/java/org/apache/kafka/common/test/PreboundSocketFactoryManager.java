@@ -17,9 +17,8 @@
 
 package org.apache.kafka.common.test;
 
-import kafka.server.ServerSocketFactory;
-
 import org.apache.kafka.common.utils.Utils;
+import org.apache.kafka.server.ServerSocketFactory;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

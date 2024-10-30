@@ -17,7 +17,7 @@
 
 package kafka.server
 
-import kafka.server.ServerSocketFactory.KafkaServerSocketFactory
+import org.apache.kafka.server.ServerSocketFactory.KafkaServerSocketFactory
 import kafka.controller.ControllerEventManager
 
 import java.io.File
