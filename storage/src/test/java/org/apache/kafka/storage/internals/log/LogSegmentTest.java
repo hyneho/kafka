@@ -103,7 +103,7 @@ public class LogSegmentTest {
             Compression.NONE, TimestampType.CREATE_TIME, simpleRecords.toArray(new SimpleRecord[0]));
     }
 
-    private MemoryRecords recordsOneBatch(long offset, String... records) {
+    private MemoryRecords makeBatch(long offset, String... records) {
         List<SimpleRecord> simpleRecords = new ArrayList<>();
         for (String s : records) {
             simpleRecords.add(new SimpleRecord(offset * 10, s.getBytes()));
@@ -175,14 +175,14 @@ public class LogSegmentTest {
     }
 
     /**
-     * Reading from an offset is in the middle of a batch should return a
+     * Reading from an offset in the middle of a batch should return a
      * LogOffsetMetadata offset that points to the batch's base offset
      */
     @Test
     public void testReadFromMiddleOfBatch() throws IOException {
         long batchBaseOffset = 50;
         try (LogSegment seg = createSegment(40)) {
-            MemoryRecords ms = recordsOneBatch(batchBaseOffset, "hello", "there", "little", "bee");
+            MemoryRecords ms = makeBatch(batchBaseOffset, "hello", "there", "little", "bee");
             seg.append(53, RecordBatch.NO_TIMESTAMP, -1L, ms);
             FetchDataInfo readInfo = seg.read(52, 300);
             assertEquals(batchBaseOffset, readInfo.fetchOffsetMetadata.messageOffset);
