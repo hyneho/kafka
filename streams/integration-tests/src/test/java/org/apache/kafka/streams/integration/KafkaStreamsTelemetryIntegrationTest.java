@@ -157,8 +157,11 @@ public class KafkaStreamsTelemetryIntegrationTest {
             IntegrationTestUtils.startApplicationAndWaitUntilRunning(streams);
             final ClientInstanceIds clientInstanceIds = streams.clientInstanceIds(Duration.ofSeconds(60));
             final Uuid adminInstanceId = clientInstanceIds.adminInstanceId();
+            
             final Uuid mainConsumerInstanceId = clientInstanceIds.consumerInstanceIds().entrySet().stream()
-                    .filter(entry -> !entry.getKey().contains("restore"))
+                    .filter(entry -> !entry.getKey().contains("restore")
+                            && !entry.getKey().contains("producer")
+                            && !entry.getKey().contains("Global"))
                     .map(Map.Entry::getValue)
                     .findFirst().orElseThrow();
             assertNotNull(adminInstanceId);
