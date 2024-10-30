@@ -193,8 +193,9 @@ jobs:
           if-no-files-found: ignore
 
   update-test-catalog:
+    name: Update Test Catalog
     needs: test
-    if: always()
+    if: ${{ always() && !inputs.is-public-fork }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
