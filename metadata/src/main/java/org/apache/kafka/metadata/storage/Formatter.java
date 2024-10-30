@@ -27,7 +27,7 @@ import org.apache.kafka.metadata.properties.MetaPropertiesEnsemble;
 import org.apache.kafka.metadata.properties.MetaPropertiesVersion;
 import org.apache.kafka.raft.DynamicVoters;
 import org.apache.kafka.raft.KafkaRaftClient;
-import org.apache.kafka.raft.internals.VoterSet;
+import org.apache.kafka.raft.VoterSet;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.FeatureVersion;
 import org.apache.kafka.server.common.Features;
@@ -202,9 +202,13 @@ public class Formatter {
         return this;
     }
 
-    public Formatter setInitialVoters(DynamicVoters initialControllers) {
+    public Formatter setInitialControllers(DynamicVoters initialControllers) {
         this.initialControllers = Optional.of(initialControllers);
         return this;
+    }
+
+    public Optional<DynamicVoters> initialVoters() {
+        return initialControllers;
     }
 
     boolean hasDynamicQuorum() {

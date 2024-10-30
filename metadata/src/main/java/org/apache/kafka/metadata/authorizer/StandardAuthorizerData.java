@@ -369,6 +369,98 @@ public class StandardAuthorizerData extends AbstractAuthorizerData {
     }
 
     /**
+     * The set of operations which imply DESCRIBE permission, when used in an ALLOW acl.
+     */
+    private static final Set<AclOperation> IMPLIES_DESCRIBE = Collections.unmodifiableSet(
+        EnumSet.of(DESCRIBE, READ, WRITE, DELETE, ALTER));
+
+    /**
+     * The set of operations which imply DESCRIBE_CONFIGS permission, when used in an ALLOW acl.
+     */
+    private static final Set<AclOperation> IMPLIES_DESCRIBE_CONFIGS = Collections.unmodifiableSet(
+        EnumSet.of(DESCRIBE_CONFIGS, ALTER_CONFIGS));
+
+    static AuthorizationResult findResult(Action action,
+                                          AuthorizableRequestContext requestContext,
+                                          StandardAcl acl) {
+        return findResult(
+            action,
+            matchingPrincipals(requestContext),
+            requestContext.clientAddress().getHostAddress(),
+            acl
+        );
+    }
+
+    static KafkaPrincipal baseKafkaPrincipal(AuthorizableRequestContext context) {
+        KafkaPrincipal sessionPrincipal = context.principal();
+        return sessionPrincipal.getClass().equals(KafkaPrincipal.class)
+            ? sessionPrincipal
+            : new KafkaPrincipal(sessionPrincipal.getPrincipalType(), sessionPrincipal.getName());
+    }
+
+    static Set<KafkaPrincipal> matchingPrincipals(AuthorizableRequestContext context) {
+        KafkaPrincipal sessionPrincipal = context.principal();
+        KafkaPrincipal basePrincipal = sessionPrincipal.getClass().equals(KafkaPrincipal.class)
+            ? sessionPrincipal
+            : new KafkaPrincipal(sessionPrincipal.getPrincipalType(), sessionPrincipal.getName());
+        return Set.of(basePrincipal, WILDCARD_KAFKA_PRINCIPAL);
+    }
+
+    /**
+     * Determine what the result of applying an ACL to the given action and request
+     * context should be. Note that this function assumes that the resource name matches;
+     * the resource name is not checked here.
+     *
+     * @param action             The input action.
+     * @param matchingPrincipals The set of input matching principals
+     * @param host               The input host.
+     * @param acl                The input ACL.
+     * @return                   null if the ACL does not match. The authorization result
+     *                           otherwise.
+     */
+    static AuthorizationResult findResult(Action action,
+                                          Set<KafkaPrincipal> matchingPrincipals,
+                                          String host,
+                                          StandardAcl acl) {
+        // Check if the principal matches. If it doesn't, return no result (null).
+        if (!matchingPrincipals.contains(acl.kafkaPrincipal())) {
+            return null;
+        }
+        // Check if the host matches. If it doesn't, return no result (null).
+        if (!acl.host().equals(WILDCARD) && !acl.host().equals(host)) {
+            return null;
+        }
+        // Check if the operation field matches. Here we hit a slight complication.
+        // ACLs for various operations (READ, WRITE, DELETE, ALTER), "imply" the presence
+        // of DESCRIBE, even if it isn't explicitly stated. A similar rule applies to
+        // DESCRIBE_CONFIGS.
+        //
+        // But this rule only applies to ALLOW ACLs. So for example, a DENY ACL for READ
+        // on a resource does not DENY describe for that resource.
+        if (acl.operation() != ALL) {
+            if (acl.permissionType().equals(ALLOW)) {
+                switch (action.operation()) {
+                    case DESCRIBE:
+                        if (!IMPLIES_DESCRIBE.contains(acl.operation())) return null;
+                        break;
+                    case DESCRIBE_CONFIGS:
+                        if (!IMPLIES_DESCRIBE_CONFIGS.contains(acl.operation())) return null;
+                        break;
+                    default:
+                        if (action.operation() != acl.operation()) {
+                            return null;
+                        }
+                        break;
+                }
+            } else if (action.operation() != acl.operation()) {
+                return null;
+            }
+        }
+
+        return acl.permissionType().equals(ALLOW) ? ALLOWED : DENIED;
+    }
+
+    /**
      * Creates a consistent Iterable on read-only copy of AclBindings data for the given filter.
      *
      * @param filter The filter constraining the AclBindings to be present in the Iterable.
