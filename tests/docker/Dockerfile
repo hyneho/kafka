@@ -16,12 +16,15 @@
 # We need to build the differnet versions of Java in same image, because the
 # zookeeper client 3.4.x can't run under JDK 17, so we need to use JDK 11 in 2.1 ~ 2.3 
 # kafka versions, see KAFKA-17888
-ARG os_version=debian:buster-20240423
+ARG os_version=ubuntu:latest
 FROM $os_version AS build-native-image
 
-ARG java_base_dir=/opt/jdk
-ARG jdk_version_1=openjdk-11-jdk
-ARG jdk_version_2=openjdk-17-jdk
+ARG jdk_version_1=11.0.2-linux-x64
+ARG java_url_1=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_version_1}.tar.gz
+ARG jdk_version_2=17-linux-x64
+ARG java_url_2=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_version_2}.tar.gz
+
+ENV java_base_dir=/opt/jdk
 
 RUN apt-get update && \
     apt-get install -y curl \
@@ -29,19 +32,19 @@ RUN apt-get update && \
 
 WORKDIR /opt
 
-RUN curl -L -o ${jdk_version_1}.tar.gz https://builds.openlogic.com/downloadJDK/openlogic-openjdk/11.0.25+9/openlogic-openjdk-11.0.25+9-linux-x64.tar.gz && \
-    mkdir -p ${java_base_dir}/${jdk_version_1} && \
-    tar -xzf ${jdk_version_1}.tar.gz -C ${java_base_dir}/${jdk_version_1} --strip-components=1 && \
+RUN curl -L -o ${jdk_version_1}.tar.gz ${java_url_1} && \
+    mkdir -p ${java_base_dir}/11 && \
+    tar -xzf ${jdk_version_1}.tar.gz -C ${java_base_dir}/11 --strip-components=1 && \
     rm ${jdk_version_1}.tar.gz
 
-RUN curl -L -o ${jdk_version_2}.tar.gz https://builds.openlogic.com/downloadJDK/openlogic-openjdk/17.0.13+11/openlogic-openjdk-17.0.13+11-linux-x64.tar.gz && \
-    mkdir -p ${java_base_dir}/${jdk_version_2} && \
-    tar -xzf ${jdk_version_2}.tar.gz -C ${java_base_dir}/${jdk_version_2} --strip-components=1 && \
+RUN curl -L -o ${jdk_version_2}.tar.gz ${java_url_2} && \
+    mkdir -p ${java_base_dir}/17 && \
+    tar -xzf ${jdk_version_2}.tar.gz -C ${java_base_dir}/17 --strip-components=1 && \
     rm ${jdk_version_2}.tar.gz 
 
 # This JAVA_HOME path is also used in tests/kafkatest/services/kafka/util.py, 
 # so if you change it here, you should also change it there.
-ENV JAVA_HOME=${java_base_dir}/${jdk_version_2}
+ENV JAVA_HOME=${java_base_dir}/17
 ENV PATH="$JAVA_HOME/bin:$PATH"
 
 WORKDIR /build
@@ -81,21 +84,19 @@ ENV TZ="/usr/share/zoneinfo/America/Los_Angeles"
 # Do not ask for confirmations when running apt-get, etc.
 ENV DEBIAN_FRONTEND noninteractive
 
-ARG java_base_dir=/opt/jdk
-ARG jdk_version_1=openjdk-11-jdk
-ARG jdk_version_2=openjdk-17-jdk
+ENV java_base_dir=/opt/jdk
 
 # Copy the JDKs from the build-native-image stage
-COPY --from=build-native-image ${java_base_dir}/${jdk_version_1} ${java_base_dir}/${jdk_version_1}
-COPY --from=build-native-image ${java_base_dir}/${jdk_version_2} ${java_base_dir}/${jdk_version_2}
+COPY --from=build-native-image ${java_base_dir}/11 ${java_base_dir}/11
+COPY --from=build-native-image ${java_base_dir}/17 ${java_base_dir}/17
 
 # This JAVA_HOME path is also used in tests/kafkatest/services/kafka/util.py, 
 # so if you change it here, you should also change it there.
-ENV JAVA_HOME=${java_base_dir}/${jdk_version_2}
+ENV JAVA_HOME=${java_base_dir}/17
 ENV PATH="$JAVA_HOME/bin:$PATH"
 
 # Create symlinks for keytool
-RUN ln -s ${java_base_dir}/${jdk_version_2}/bin/keytool /usr/local/bin/keytool
+RUN ln -s ${java_base_dir}/17/bin/keytool /usr/local/bin/keytool
 
 # Set the ducker.creator label so that we know that this is a ducker image.  This will make it
 # visible to 'ducker purge'.  The ducker.creator label also lets us know what UNIX user built this

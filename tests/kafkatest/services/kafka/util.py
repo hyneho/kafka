@@ -39,9 +39,9 @@ def fix_opts_for_new_jvm(node):
             cmd += "export KAFKA_JVM_PERFORMANCE_OPTS=\"-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -XX:MaxInlineLevel=15 -Djava.awt.headless=true\"; "
         # zookeeper client 3.4.x can't run under JDK 17, so we need to use JDK 11 in 2.1 ~ 2.3 kafka versions see KAFKA-17888
         if node.version == V_2_1_0 or node.version == V_2_1_1 or node.version == V_2_2_0 or node.version == V_2_2_1 or node.version == V_2_2_2 or node.version == V_2_3_0 or node.version == V_2_3_1:
-            cmd += "export JAVA_HOME=/opt/jdk/openjdk-11-jdk; PATH=$JAVA_HOME/bin:$PATH; "
+            cmd += "export JAVA_HOME=/opt/jdk/11; PATH=$JAVA_HOME/bin:$PATH; "
             cmd += "sudo rm -f /usr/local/bin/keytool; "
-            cmd += "sudo ln -s /opt/jdk/openjdk-11-jdk/bin/keytool /usr/local/bin/keytool"
+            cmd += "sudo ln -s /opt/jdk/11/bin/keytool /usr/local/bin/keytool"
     return cmd
 
 
