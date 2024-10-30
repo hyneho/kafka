@@ -23,8 +23,6 @@ from kafkatest.services.streams import StreamsBrokerCompatibilityService
 from kafkatest.services.verifiable_consumer import VerifiableConsumer
 from kafkatest.version import LATEST_2_8, LATEST_3_0, LATEST_3_1, LATEST_3_2, LATEST_3_3, LATEST_3_4, LATEST_3_5, LATEST_3_6, LATEST_3_7, LATEST_3_8, KafkaVersion
 
-from tests.kafkatest.version import LATEST_2_8
-
 
 class StreamsBrokerCompatibility(Test):
     """
