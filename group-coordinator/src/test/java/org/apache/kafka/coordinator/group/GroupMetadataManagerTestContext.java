@@ -606,8 +606,8 @@ public class GroupMetadataManagerTestContext {
     }
 
     public CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> consumerGroupHeartbeat(
-            ConsumerGroupHeartbeatRequestData request,
-            short apiVersion
+        ConsumerGroupHeartbeatRequestData request,
+        short apiVersion
     ) {
         RequestContext context = new RequestContext(
             new RequestHeader(
