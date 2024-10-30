@@ -1154,8 +1154,8 @@ public class QueryableStateIntegrationTest {
                     || "12125".equals(store2.get("a")))
                     &&
                     ("34".equals(store2.get("b"))
-                        || "344".equals(store2.get("b"))
-                        || "3434".equals(store2.get("b"))),
+                    || "344".equals(store2.get("b"))
+                    || "3434".equals(store2.get("b"))),
                 maxWaitMs,
                 "wait for agg to be <a,125>||<a,1225>||<a,12125> and <b,34>||<b,344>||<b,3434>");
         } catch (final Throwable t) {
