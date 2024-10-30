@@ -454,12 +454,14 @@ class TransactionMetadataTest {
     txnMetadata.completeTransitionTo(transitMetadata)
     assertEquals(producerId, txnMetadata.producerId)
     assertEquals(Short.MaxValue, txnMetadata.producerEpoch)
+    assertEquals(producerEpoch, txnMetadata.lastProducerEpoch)
     assertEquals(TV_2, txnMetadata.clientTransactionVersion)
 
     transitMetadata = txnMetadata.prepareComplete(time.milliseconds())
     txnMetadata.completeTransitionTo(transitMetadata)
     assertEquals(newProducerId, txnMetadata.producerId)
     assertEquals(0, txnMetadata.producerEpoch)
+    assertEquals(producerEpoch, txnMetadata.lastProducerEpoch)
     assertEquals(TV_2, txnMetadata.clientTransactionVersion)
   }
 
