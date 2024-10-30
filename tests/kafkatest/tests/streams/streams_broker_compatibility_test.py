@@ -21,7 +21,9 @@ from ducktape.utils.util import wait_until
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.streams import StreamsBrokerCompatibilityService
 from kafkatest.services.verifiable_consumer import VerifiableConsumer
-from kafkatest.version import LATEST_3_0, LATEST_3_1, LATEST_3_2, LATEST_3_3, LATEST_3_4, LATEST_3_5, LATEST_3_6, LATEST_3_7, LATEST_3_8, KafkaVersion
+from kafkatest.version import LATEST_2_8, LATEST_3_0, LATEST_3_1, LATEST_3_2, LATEST_3_3, LATEST_3_4, LATEST_3_5, LATEST_3_6, LATEST_3_7, LATEST_3_8, KafkaVersion
+
+from tests.kafkatest.version import LATEST_2_8
 
 
 class StreamsBrokerCompatibility(Test):
@@ -54,7 +56,7 @@ class StreamsBrokerCompatibility(Test):
 
 
     @cluster(num_nodes=4)
-    @matrix(broker_version=[str(LATEST_3_0),str(LATEST_3_1),str(LATEST_3_2),str(LATEST_3_3),
+    @matrix(broker_version=[str(LATEST_2_8),str(LATEST_3_0),str(LATEST_3_1),str(LATEST_3_2),str(LATEST_3_3),
                             str(LATEST_3_4),str(LATEST_3_5),str(LATEST_3_6),str(LATEST_3_7),
                             str(LATEST_3_8)],
             metadata_quorum=[quorum.combined_kraft]
@@ -76,7 +78,8 @@ class StreamsBrokerCompatibility(Test):
         self.kafka.stop()
 
     @cluster(num_nodes=4)
-    @matrix(broker_version=[str(LATEST_3_0),str(LATEST_3_1),str(LATEST_3_2),str(LATEST_3_3),
+    @matrix(broker_version=[str(LATEST_2_8),
+                            str(LATEST_3_0),str(LATEST_3_1),str(LATEST_3_2),str(LATEST_3_3),
                             str(LATEST_3_4),str(LATEST_3_5),str(LATEST_3_6),str(LATEST_3_7),
                             str(LATEST_3_8)],
             metadata_quorum=[quorum.combined_kraft])
