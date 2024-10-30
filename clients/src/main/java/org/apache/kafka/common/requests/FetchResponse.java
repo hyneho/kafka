@@ -72,6 +72,8 @@ public class FetchResponse extends AbstractResponse {
     public static final long INVALID_LOG_START_OFFSET = -1L;
     public static final int INVALID_PREFERRED_REPLICA_ID = -1;
 
+    private static FetchResponseParser fetchResponseParser = FetchResponseParserFactory.getFetchResponseParser();
+
     private final FetchResponseData data;
 
     @Override
@@ -139,7 +141,7 @@ public class FetchResponse extends AbstractResponse {
     }
 
     public static FetchResponse parse(ByteBuffer buffer, short version) {
-        return new FetchResponse(new FetchResponseData(new ByteBufferAccessor(buffer), version));
+        return fetchResponseParser.parse(buffer, version);
     }
 
     // Fetch versions 13 and above should have topic IDs for all topics.
