@@ -25,8 +25,6 @@ all = [isolated_kraft, combined_kraft]
 # How we will parameterize tests that exercise all KRaft quorum styles
 all_kraft = [isolated_kraft, combined_kraft]
 # How we will parameterize tests that are unrelated to upgrades:
-#   [“ZK”] before the KIP-500 bridge release(s)
-#   [“ZK”, “ISOLATED_KRAFT”] during the KIP-500 bridge release(s) and in preview releases
 #   [“ISOLATED_KRAFT”] after the KIP-500 bridge release(s)
 all_non_upgrade = [isolated_kraft]
 
