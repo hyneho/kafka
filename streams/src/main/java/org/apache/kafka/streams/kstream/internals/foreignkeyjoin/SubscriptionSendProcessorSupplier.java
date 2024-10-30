@@ -20,6 +20,7 @@ package org.apache.kafka.streams.kstream.internals.foreignkeyjoin;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serializer;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.internals.Change;
 import org.apache.kafka.streams.processor.api.ContextualProcessor;
 import org.apache.kafka.streams.processor.api.Processor;
@@ -47,7 +48,7 @@ import static org.apache.kafka.streams.kstream.internals.foreignkeyjoin.Subscrip
 public class SubscriptionSendProcessorSupplier<K, KO, V> implements ProcessorSupplier<K, Change<V>, KO, SubscriptionWrapper<K>> {
     private static final Logger LOG = LoggerFactory.getLogger(SubscriptionSendProcessorSupplier.class);
 
-    private final Function<V, KO> foreignKeyExtractor;
+    private final Function<KeyValue<K, V>, KO> foreignKeyExtractor;
     private final Supplier<String> foreignKeySerdeTopicSupplier;
     private final Supplier<String> valueSerdeTopicSupplier;
     private final boolean leftJoin;
@@ -55,7 +56,7 @@ public class SubscriptionSendProcessorSupplier<K, KO, V> implements ProcessorSup
     private Serializer<V> valueSerializer;
     private boolean useVersionedSemantics;
 
-    public SubscriptionSendProcessorSupplier(final Function<V, KO> foreignKeyExtractor,
+    public SubscriptionSendProcessorSupplier(final Function<KeyValue<K, V>, KO> foreignKeyExtractor,
                                              final Supplier<String> foreignKeySerdeTopicSupplier,
                                              final Supplier<String> valueSerdeTopicSupplier,
                                              final Serde<KO> foreignKeySerde,
@@ -129,27 +130,27 @@ public class SubscriptionSendProcessorSupplier<K, KO, V> implements ProcessorSup
 
         private void leftJoinInstructions(final Record<K, Change<V>> record) {
             if (record.value().oldValue != null) {
-                final KO oldForeignKey = foreignKeyExtractor.apply(record.value().oldValue);
-                final KO newForeignKey = record.value().newValue == null ? null : foreignKeyExtractor.apply(record.value().newValue);
+                final KO oldForeignKey = foreignKeyExtractor.apply(new KeyValue<>(record.key(), record.value().oldValue));
+                final KO newForeignKey = record.value().newValue == null ? null : foreignKeyExtractor.apply(new KeyValue<>(record.key(), record.value().newValue));
                 if (oldForeignKey != null && !Arrays.equals(serialize(newForeignKey), serialize(oldForeignKey))) {
                     forward(record, oldForeignKey, DELETE_KEY_AND_PROPAGATE);
                 }
                 forward(record, newForeignKey, PROPAGATE_NULL_IF_NO_FK_VAL_AVAILABLE);
             } else if (record.value().newValue != null) {
-                final KO newForeignKey = foreignKeyExtractor.apply(record.value().newValue);
+                final KO newForeignKey = foreignKeyExtractor.apply(new KeyValue<>(record.key(), record.value().newValue));
                 forward(record, newForeignKey, PROPAGATE_NULL_IF_NO_FK_VAL_AVAILABLE);
             }
         }
 
         private void defaultJoinInstructions(final Record<K, Change<V>> record) {
             if (record.value().oldValue != null) {
-                final KO oldForeignKey = record.value().oldValue == null ? null : foreignKeyExtractor.apply(record.value().oldValue);
+                final KO oldForeignKey = record.value().oldValue == null ? null : foreignKeyExtractor.apply(new KeyValue<>(record.key(), record.value().oldValue));
                 if (oldForeignKey == null) {
                     logSkippedRecordDueToNullForeignKey();
                     return;
                 }
                 if (record.value().newValue != null) {
-                    final KO newForeignKey = record.value().newValue == null ? null : foreignKeyExtractor.apply(record.value().newValue);
+                    final KO newForeignKey = record.value().newValue == null ? null : foreignKeyExtractor.apply(new KeyValue<>(record.key(), record.value().newValue));
                     if (newForeignKey == null) {
                         logSkippedRecordDueToNullForeignKey();
                         return;
@@ -167,7 +168,7 @@ public class SubscriptionSendProcessorSupplier<K, KO, V> implements ProcessorSup
                     forward(record, oldForeignKey, DELETE_KEY_AND_PROPAGATE);
                 }
             } else if (record.value().newValue != null) {
-                final KO newForeignKey = foreignKeyExtractor.apply(record.value().newValue);
+                final KO newForeignKey = foreignKeyExtractor.apply(new KeyValue<>(record.key(), record.value().newValue));
                 if (newForeignKey == null) {
                     logSkippedRecordDueToNullForeignKey();
                 } else {
