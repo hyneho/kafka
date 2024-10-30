@@ -59,6 +59,7 @@ import org.apache.kafka.streams.state.WindowStoreIterator;
 import org.apache.kafka.test.MockMapper;
 import org.apache.kafka.test.NoRetryException;
 import org.apache.kafka.test.TestUtils;
+
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -102,7 +103,7 @@ import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkProperties;
 import static org.apache.kafka.streams.StoreQueryParameters.fromNameAndType;
-import static org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.REPLACE_THREAD;
+import static org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.SHUTDOWN_CLIENT;
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.getRunningStreams;
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.startApplicationAndWaitUntilRunning;
 import static org.apache.kafka.streams.state.QueryableStoreTypes.keyValueStore;
@@ -1097,7 +1098,10 @@ public class QueryableStateIntegrationTest {
 
         streamsConfiguration.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, 2);
         kafkaStreams = new KafkaStreams(builder.build(), streamsConfiguration);
-        kafkaStreams.setUncaughtExceptionHandler(exception -> REPLACE_THREAD);
+        kafkaStreams.setUncaughtExceptionHandler(exception -> {
+            failed.set(true);
+            return SHUTDOWN_CLIENT;
+        });
 
         startApplicationAndWaitUntilRunning(kafkaStreams);
 
@@ -1134,6 +1138,11 @@ public class QueryableStateIntegrationTest {
                 StringSerializer.class,
                 new Properties()),
             mockTime);
+
+        TestUtils.waitForCondition(
+            failed::get,
+            maxWaitMs,
+            "wait for thread to fail");
 
         final ReadOnlyKeyValueStore<String, String> store2 =
             IntegrationTestUtils.getStore(storeName, kafkaStreams, keyValueStore());
