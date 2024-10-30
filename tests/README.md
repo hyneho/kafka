@@ -51,7 +51,7 @@ image_name="ducker-ak-openjdk:17-buster" bash tests/docker/run_tests.sh
 ```
 bash tests/docker/ducker-ak up -j '17-linux-x64'; tests/docker/run_tests.sh
 ```
-* Run tests with a different JDK 11 version
+* Run tests with a different **JDK 11** version
 ```
 bash tests/docker/ducker-ak up -j11 '11.0.2-linux-x64'; tests/docker/run_tests.sh
 ```
