@@ -125,7 +125,7 @@ public class DelegatingClassLoader extends URLClassLoader {
         return aliases.getOrDefault(classOrAlias, classOrAlias);
     }
 
-    String defaultVersion(String classOrAlias) {
+    String latestVersion(String classOrAlias) {
         if (classOrAlias == null) {
             return null;
         }
