@@ -43,12 +43,11 @@ public class BrokerHeartbeatTrackerTest {
     private static final Set<BrokerIdAndEpoch> TEST_BROKERS;
 
     static {
-        Set<BrokerIdAndEpoch> brokers = new HashSet<>();
-        Arrays.asList(
-            new BrokerIdAndEpoch(0, 0L),
-            new BrokerIdAndEpoch(1, 100L),
-            new BrokerIdAndEpoch(2, 200L)
-        ).forEach(brokers::add);
+        Set<BrokerIdAndEpoch> brokers = new HashSet<>(Arrays.asList(
+                new BrokerIdAndEpoch(0, 0L),
+                new BrokerIdAndEpoch(1, 100L),
+                new BrokerIdAndEpoch(2, 200L)
+        ));
         TEST_BROKERS = Collections.unmodifiableSet(brokers);
     }
 
