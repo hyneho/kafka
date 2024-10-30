@@ -47,9 +47,17 @@ TC_PATHS="tests/kafkatest/tests/streams/streams_upgrade_test.py::StreamsUpgradeT
 ```
 image_name="ducker-ak-openjdk:17-buster" bash tests/docker/run_tests.sh
 ```
-* Run tests with a different JVM
+* Run tests with a different JDK version
 ```
-bash tests/docker/ducker-ak up -j 'openjdk:17-buster'; tests/docker/run_tests.sh
+bash tests/docker/ducker-ak up -j '17-linux-x64'; tests/docker/run_tests.sh
+```
+* Run tests with a different JDK 11 version
+```
+bash tests/docker/ducker-ak up -j11 '11.0.2-linux-x64'; tests/docker/run_tests.sh
+```
+* Run tests with a different OS version
+```
+bash tests/docker/ducker-ak up -o 'ubuntu:latest'; tests/docker/run_tests.sh
 ```
 * Remove ducker-ak containers
 ```

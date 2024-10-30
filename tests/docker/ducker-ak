@@ -38,14 +38,26 @@ tmp_native_dir=${ducker_dir}/native
 # This does not include swap.
 docker_build_memory_limit="3200m"
 
-# The maximum mmemory consumption to allow in containers.
+# The maximum memory consumption to allow in containers.
 docker_run_memory_limit="2000m"
 
 # The default number of cluster nodes to bring up if a number is not specified.
 default_num_nodes=14
 
-# The default OpenJDK base image.
-default_jdk="openjdk:17-buster"
+# The default JDK 11 version to use.
+default_jdk_11_version="11.0.2-linux-x64"
+
+# The default JDK 11 download URL to use.
+default_jdk_11_url="https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${default_jdk_11_version}.tar.gz"
+
+# The default JDK version to use.
+default_jdk="17-linux-x64"
+
+# The default JDK download URL to use.
+default_jdk_url="https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${default_jdk}.tar.gz"
+
+# The default os version to use.
+default_os_version="ubuntu:latest"
 
 # The default ducker-ak image name.
 default_image_name="ducker-ak"
@@ -252,6 +264,10 @@ ducker_build() {
     echo_and_do docker build --memory="${docker_build_memory_limit}" \
         --build-arg "ducker_creator=${user_name}" \
         --build-arg "jdk_version=${jdk_version}" \
+        --build-arg "jdk_url=${jdk_url}" \
+        --build-arg "os_version=${os_version}" \
+        --build-arg "jdk_11_version=${default_jdk_11_version}" \
+        --build-arg "jdk_11_url=${default_jdk_11_url}" \
         --build-arg "UID=${UID}" \
         --build-arg "KAFKA_MODE=${kafka_mode}" \
         -t "${image_name}" \
@@ -346,15 +362,23 @@ ducker_up() {
             -C|--custom-ducktape) set_once custom_ducktape "${2}" "the custom ducktape directory"; shift 2;;
             -f|--force) force=1; shift;;
             -n|--num-nodes) set_once num_nodes "${2}" "number of nodes"; shift 2;;
-            -j|--jdk) set_once jdk_version "${2}" "the OpenJDK base image"; shift 2;;
+            -j|--jdk) set_once jdk_version "${2}" "the default JDK version to use"; shift 2;;
+            -j11|--jdk11) set_once jdk_11_version "${2}" "the default JDK 11 version to use"; shift 2;;
+            -j11u|--jdk11-url) set_once jdk_11_url "${2}" "the default download JDK 11 url to use"; shift 2;;
+            -u|--url) set_once jdk_url "${2}" "the default download JDK url to use"; shift 2;;
+            -o|--os) set_once os_version "${2}" "the default OS version to use"; shift 2;;
             -e|--expose-ports) set_once expose_ports "${2}" "the ports to expose"; shift 2;;
             -m|--kafka_mode) set_once kafka_mode "${2}" "the mode in which kafka will run"; shift 2;;
             *) set_once image_name "${1}" "docker image name"; shift;;
         esac
     done
     [[ -n "${num_nodes}" ]] || num_nodes="${default_num_nodes}"
-    [[ -n "${jdk_version}" ]] || jdk_version="${default_jdk}"
+    [[ -n "${jdk_version}" ]] || jdk_version="${default_jdk}" || jdk_url="https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${default_jdk}.tar.gz"
     [[ -n "${kafka_mode}" ]] || kafka_mode="${default_kafka_mode}"
+    [[ -n "${jdk_url}" ]] || jdk_url="${default_jdk_url}" 
+    [[ -n "${os_version}" ]] || os_version="${default_os_version}"
+    [[ -n "${jdk_11_version}" ]] || jdk_11_version="${default_jdk_11_version}" || jdk_11_url="https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${default_jdk_11_version}.tar.gz"
+    [[ -n "${jdk_11_url}" ]] || jdk_11_url="${default_jdk_11_url}"
     [[ -n "${image_name}" ]] || image_name="${default_image_name}-${jdk_version/:/-}"
     [[ "${num_nodes}" =~ ^-?[0-9]+$ ]] || \
         die "ducker_up: the number of nodes must be an integer."
