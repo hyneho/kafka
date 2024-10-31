@@ -535,7 +535,7 @@ public class ConnectorConfig extends AbstractConfig {
         }
         // update the default of connector converter based on if the worker converter is provided
         if (workerConverter != null) {
-            updateVersionKeyDefault(configDef, connectorConverterConfig, workerProps.get(workerConverterVersionConfig));
+            updateVersionKeyDefault(configDef, connectorConverterConfig, workerProps.get(workerConverterConfig));
         }
 
         // get te  connector classloader to load the converter
