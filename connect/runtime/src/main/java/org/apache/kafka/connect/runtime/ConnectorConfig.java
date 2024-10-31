@@ -27,7 +27,10 @@ import org.apache.kafka.connect.components.Versioned;
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.runtime.errors.ToleranceType;
-import org.apache.kafka.connect.runtime.isolation.*;
+import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
+import org.apache.kafka.connect.runtime.isolation.PluginDesc;
+import org.apache.kafka.connect.runtime.isolation.Plugins;
+import org.apache.kafka.connect.runtime.isolation.VersionedPluginLoadingException;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.HeaderConverter;
 import org.apache.kafka.connect.transforms.Transformation;
@@ -339,10 +342,6 @@ public class ConnectorConfig extends AbstractConfig {
 
     public boolean enforceTasksMax() {
         return getBoolean(TASKS_MAX_ENFORCE_CONFIG);
-    }
-
-    public static void addVersionRecommendors(Plugins plugins) {
-
     }
 
     /**
