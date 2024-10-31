@@ -48,7 +48,7 @@ default_num_nodes=14
 default_jdk_11_url="https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-11.0.2-linux-x64.tar.gz"
 
 # The default JDK download URL to use.
-default_jdk_url="https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-17-linux-x64.tar.gz"
+default_latest_jdk_url="https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-17-linux-x64.tar.gz"
 
 # The default os version to use.
 default_os_version="ubuntu:latest"
@@ -257,7 +257,7 @@ ducker_build() {
     # (for example java.lang.NoClassDefFoundError), add --no-cache flag to the build shall give you a clean start.
     echo_and_do docker build --memory="${docker_build_memory_limit}" \
         --build-arg "ducker_creator=${user_name}" \
-        --build-arg "jdk_url=${jdk_url}" \
+        --build-arg "latest_jdk_url=${latest_jdk_url}" \
         --build-arg "os_version=${os_version}" \
         --build-arg "jdk_11_url=${default_jdk_11_url}" \
         --build-arg "UID=${UID}" \
@@ -355,7 +355,7 @@ ducker_up() {
             -f|--force) force=1; shift;;
             -n|--num-nodes) set_once num_nodes "${2}" "number of nodes"; shift 2;;
             -j11u|--jdk11-url) set_once jdk_11_url "${2}" "the default download JDK 11 url to use"; shift 2;;
-            -u|--url) set_once jdk_url "${2}" "the default download JDK url to use"; shift 2;;
+            -u|--url) set_once latest_jdk_url "${2}" "the default download JDK url to use"; shift 2;;
             -o|--os) set_once os_version "${2}" "the default OS version to use"; shift 2;;
             -e|--expose-ports) set_once expose_ports "${2}" "the ports to expose"; shift 2;;
             -m|--kafka_mode) set_once kafka_mode "${2}" "the mode in which kafka will run"; shift 2;;
@@ -364,7 +364,7 @@ ducker_up() {
     done
     [[ -n "${num_nodes}" ]] || num_nodes="${default_num_nodes}"
     [[ -n "${kafka_mode}" ]] || kafka_mode="${default_kafka_mode}"
-    [[ -n "${jdk_url}" ]] || jdk_url="${default_jdk_url}" 
+    [[ -n "${latest_jdk_url}" ]] || latest_jdk_url="${default_latest_jdk_url}" 
     [[ -n "${os_version}" ]] || os_version="${default_os_version}"
     [[ -n "${jdk_11_url}" ]] || jdk_11_url="${default_jdk_11_url}"
     [[ -n "${image_name}" ]] || image_name="${default_image_name}-${default_os_version/:/-}"
