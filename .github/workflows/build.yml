@@ -61,8 +61,14 @@ jobs:
       - name: Format Catalog
         shell: bash
         run: |
-          find .
           python trunk/.github/scripts/format-test-catalog.py
+
+      - name: Archive formatted test catalog
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-test-catalog
+          path: test-catalog/combined.txt
+          compression-level: 9
 
   validate:
     runs-on: ubuntu-latest
@@ -149,6 +155,13 @@ jobs:
           gradle-cache-read-only: ${{ inputs.gradle-cache-read-only }}
           gradle-cache-write-only: ${{ inputs.gradle-cache-write-only }}
           develocity-access-key: ${{ secrets.GE_ACCESS_TOKEN }}
+      - name: Load Test Catalog
+        uses: actions/download-artifact@v4
+        with:
+          name: formatted-test-catalog
+      - run: |
+          ls -la test-catalog
+          head test-catalog/combined.txt
       - name: Test
         # Gradle flags
         # --build-cache:  Let Gradle restore the build cache
