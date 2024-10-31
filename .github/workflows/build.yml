@@ -35,6 +35,31 @@ on:
         type: boolean
 
 jobs:
+  load-catalog:
+    runs-on: ubuntu-latest
+    name: Load Test Catalog
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ inputs.gh-token }}
+          persist-credentials: false
+          ref: "test-catalog"
+          fetch-depth: 100
+
+      - name: Go back N days
+        run: |
+          git show --no-patch
+          git checkout test-catalog@"{2 days ago}"
+          git show --no-patch
+          pwd
+          ls -R
+
+      - name: Format Catalog
+        shell: bash
+        run: |
+          python .github/scripts/format-all-tests.py from-yaml
+
   validate:
     runs-on: ubuntu-latest
     name: Compile and Check Java
@@ -96,7 +121,7 @@ jobs:
           GITHUB_WORKSPACE: ${{ github.workspace }}
 
   test:
-    needs: validate
+    needs: [validate, load-catalog]
     if: ${{ ! needs.validate.outputs.is-draft }}
     runs-on: ubuntu-latest
     strategy:
@@ -120,12 +145,6 @@ jobs:
           gradle-cache-read-only: ${{ inputs.gradle-cache-read-only }}
           gradle-cache-write-only: ${{ inputs.gradle-cache-write-only }}
           develocity-access-key: ${{ secrets.GE_ACCESS_TOKEN }}
-      - name: Load Test Catalog
-        id: load-catalog
-        uses: ./.github/actions/load-test-catalog
-        with:
-          gh-token: ${{ github.token }}
-          days: 2
       - name: Test
         # Gradle flags
         # --build-cache:  Let Gradle restore the build cache
