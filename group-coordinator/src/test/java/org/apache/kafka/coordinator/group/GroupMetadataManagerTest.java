@@ -14131,7 +14131,6 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setSubscribedTopicNames(Arrays.asList("foo", "bar")));
 
-        assertNotNull(result.response().memberId());
         assertEquals(
             memberId,
             result.response().memberId(),
