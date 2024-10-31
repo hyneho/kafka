@@ -44,7 +44,7 @@ jobs:
         with:
           ref: 'test-catalog'
           persist-credentials: false
-          depth: 100
+          fetch-depth: 100
 
       - name: Go back N days
         run: |
