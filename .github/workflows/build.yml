@@ -48,18 +48,16 @@ jobs:
 
       - name: Go back N days
         run: |
-          SHA=$(git rev-list -1 --before 12.hours.ago origin/test-catalog)
+          SHA=$(git rev-list -1 --before 18.hours.ago origin/test-catalog)
           echo $SHA
           git switch --detach $SHA
-          git show --no-patch
           git log
-          pwd
-          find .
 
       - name: Checkout script
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          clean: false
 
       - name: Format Catalog
         shell: bash
