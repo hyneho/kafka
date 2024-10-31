@@ -47,6 +47,7 @@ jobs:
       - name: Go back N days
         run: |
           git fetch origin test-catalog
+          git rev-list -1 --before 1.days.ago origin/test-catalog
           git switch --detach "origin/test-catalog@{1 days ago}"
           git show --no-patch
           git log
