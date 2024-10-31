@@ -23,11 +23,13 @@ import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.CoordinatorNotAvailableException;
 import org.apache.kafka.common.errors.FencedStateEpochException;
+import org.apache.kafka.common.errors.GroupIdNotFoundException;
 import org.apache.kafka.common.errors.InvalidRecordStateException;
 import org.apache.kafka.common.errors.InvalidRequestException;
 import org.apache.kafka.common.errors.LeaderNotAvailableException;
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException;
 import org.apache.kafka.common.errors.UnknownServerException;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.message.ShareFetchResponseData.AcquiredRecords;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.RecordBatch;
@@ -104,7 +106,11 @@ public class SharePartition {
         /**
          * The share partition failed to initialize with persisted state.
          */
-        FAILED
+        FAILED,
+        /**
+         * The share partition is fenced and cannot be used.
+         */
+        FENCED
     }
 
     /**
@@ -181,6 +187,11 @@ public class SharePartition {
      * The topic id partition of the share partition.
      */
     private final TopicIdPartition topicIdPartition;
+
+    /**
+     * The leader epoch is used to track the partition epoch.
+     */
+    private final int leaderEpoch;
 
     /**
      * The in-flight record is used to track the state of a record that has been fetched from the
@@ -286,6 +297,7 @@ public class SharePartition {
     SharePartition(
         String groupId,
         TopicIdPartition topicIdPartition,
+        int leaderEpoch,
         int maxInFlightMessages,
         int maxDeliveryCount,
         int defaultRecordLockDurationMs,
@@ -295,8 +307,27 @@ public class SharePartition {
         ReplicaManager replicaManager,
         GroupConfigManager groupConfigManager
     ) {
+        this(groupId, topicIdPartition, leaderEpoch, maxInFlightMessages, maxDeliveryCount, defaultRecordLockDurationMs,
+            timer, time, persister, replicaManager, groupConfigManager, SharePartitionState.EMPTY);
+    }
+
+    SharePartition(
+        String groupId,
+        TopicIdPartition topicIdPartition,
+        int leaderEpoch,
+        int maxInFlightMessages,
+        int maxDeliveryCount,
+        int defaultRecordLockDurationMs,
+        Timer timer,
+        Time time,
+        Persister persister,
+        ReplicaManager replicaManager,
+        GroupConfigManager groupConfigManager,
+        SharePartitionState sharePartitionState
+    ) {
         this.groupId = groupId;
         this.topicIdPartition = topicIdPartition;
+        this.leaderEpoch = leaderEpoch;
         this.maxInFlightMessages = maxInFlightMessages;
         this.maxDeliveryCount = maxDeliveryCount;
         this.cachedState = new ConcurrentSkipListMap<>();
@@ -307,7 +338,7 @@ public class SharePartition {
         this.timer = timer;
         this.time = time;
         this.persister = persister;
-        this.partitionState = SharePartitionState.EMPTY;
+        this.partitionState = sharePartitionState;
         this.replicaManager = replicaManager;
         this.groupConfigManager = groupConfigManager;
         this.fetchOffsetMetadata = Optional.empty();
@@ -348,7 +379,7 @@ public class SharePartition {
                 .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
                     .setGroupId(this.groupId)
                     .setTopicsData(Collections.singletonList(new TopicData<>(topicIdPartition.topicId(),
-                        Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(topicIdPartition.partition(), 0)))))
+                        Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(topicIdPartition.partition(), leaderEpoch)))))
                     .build())
                 .build()
             ).whenComplete((result, exception) -> {
@@ -527,13 +558,14 @@ public class SharePartition {
      * @param fetchPartitionData The fetched records for the share partition.
      * @return The acquired records for the share partition.
      */
+    @SuppressWarnings("cyclomaticcomplexity") // Consider refactoring to avoid suppression
     public ShareAcquiredRecords acquire(
         String memberId,
         int maxFetchRecords,
         FetchPartitionData fetchPartitionData
     ) {
         log.trace("Received acquire request for share partition: {}-{} memberId: {}", groupId, topicIdPartition, memberId);
-        if (maxFetchRecords <= 0) {
+        if (stateNotActive() || maxFetchRecords <= 0) {
             // Nothing to acquire.
             return ShareAcquiredRecords.empty();
         }
@@ -1053,7 +1085,7 @@ public class SharePartition {
      * @return A boolean which indicates whether the fetch lock is acquired.
      */
     boolean maybeAcquireFetchLock() {
-        if (partitionState() != SharePartitionState.ACTIVE) {
+        if (stateNotActive()) {
             return false;
         }
         return fetchLock.compareAndSet(false, true);
@@ -1064,6 +1096,22 @@ public class SharePartition {
      */
     void releaseFetchLock() {
         fetchLock.set(false);
+    }
+
+    /**
+     * Marks the share partition as fenced.
+     */
+    void markFenced() {
+        lock.writeLock().lock();
+        try {
+            partitionState = SharePartitionState.FENCED;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    private boolean stateNotActive() {
+        return  partitionState() != SharePartitionState.ACTIVE;
     }
 
     private void completeInitializationWithException(CompletableFuture<Void> future, Throwable exception) {
@@ -1087,6 +1135,9 @@ public class SharePartition {
                 return;
             case INITIALIZING:
                 future.completeExceptionally(new LeaderNotAvailableException(String.format("Share partition is already initializing %s-%s", groupId, topicIdPartition)));
+                return;
+            case FENCED:
+                future.completeExceptionally(new FencedStateEpochException(String.format("Share partition is fenced %s-%s", groupId, topicIdPartition)));
                 return;
             case EMPTY:
                 // Do not complete the future as the share partition is not yet initialized.
@@ -1774,7 +1825,7 @@ public class SharePartition {
                 .setGroupId(this.groupId)
                 .setTopicsData(Collections.singletonList(new TopicData<>(topicIdPartition.topicId(),
                     Collections.singletonList(PartitionFactory.newPartitionStateBatchData(
-                        topicIdPartition.partition(), stateEpoch, startOffset, 0, stateBatches))))
+                        topicIdPartition.partition(), stateEpoch, startOffset, leaderEpoch, stateBatches))))
                 ).build()).build())
             .whenComplete((result, exception) -> {
                 if (exception != null) {
@@ -1823,8 +1874,9 @@ public class SharePartition {
             case COORDINATOR_LOAD_IN_PROGRESS:
                 return new CoordinatorNotAvailableException(errorMessage);
             case GROUP_ID_NOT_FOUND:
+                return new GroupIdNotFoundException(errorMessage);
             case UNKNOWN_TOPIC_OR_PARTITION:
-                return new InvalidRequestException(errorMessage);
+                return new UnknownTopicOrPartitionException(errorMessage);
             case FENCED_STATE_EPOCH:
                 return new FencedStateEpochException(errorMessage);
             case FENCED_LEADER_EPOCH:

@@ -126,7 +126,7 @@ public class DelayedShareFetch extends DelayedOperation {
             shareFetchData.future().complete(result);
         } catch (Exception e) {
             log.error("Error processing delayed share fetch request", e);
-            shareFetchData.future().completeExceptionally(e);
+            sharePartitionManager.handleFetchException(shareFetchData.groupId(), topicPartitionData.keySet(), shareFetchData.future(), e);
         } finally {
             // Releasing the lock to move ahead with the next request in queue.
             releasePartitionLocks(shareFetchData.groupId(), topicPartitionData.keySet());
@@ -134,12 +134,9 @@ public class DelayedShareFetch extends DelayedOperation {
             // then we should check if there is a pending share fetch request for the topic-partition and complete it.
             // We add the action to delayed actions queue to avoid an infinite call stack, which could happen if
             // we directly call delayedShareFetchPurgatory.checkAndComplete
-            replicaManager.addToActionQueue(() -> {
-                topicPartitionData.keySet().forEach(topicIdPartition ->
-                    replicaManager.completeDelayedShareFetchRequest(
-                        new DelayedShareFetchGroupKey(shareFetchData.groupId(), topicIdPartition.topicId(), topicIdPartition.partition())));
-                return BoxedUnit.UNIT;
-            });
+            replicaManager.addToActionQueue(() -> topicPartitionData.keySet().forEach(topicIdPartition ->
+                replicaManager.completeDelayedShareFetchRequest(
+                    new DelayedShareFetchGroupKey(shareFetchData.groupId(), topicIdPartition.topicId(), topicIdPartition.partition()))));
         }
     }
 
@@ -330,7 +327,7 @@ public class DelayedShareFetch extends DelayedOperation {
                 topicPartitionData.entrySet().stream().map(entry ->
                     new Tuple2<>(entry.getKey(), entry.getValue())).collect(Collectors.toList())
             ),
-            QuotaFactory.UnboundedQuota$.MODULE$,
+            QuotaFactory.UNBOUNDED_QUOTA,
             true);
 
         Map<TopicIdPartition, LogReadResult> responseData = new HashMap<>();

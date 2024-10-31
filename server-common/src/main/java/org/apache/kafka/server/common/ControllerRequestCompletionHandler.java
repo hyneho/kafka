@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.kafka.server;
+package org.apache.kafka.server.common;
 
 import org.apache.kafka.clients.RequestCompletionHandler;
 

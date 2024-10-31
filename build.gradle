@@ -118,6 +118,7 @@ ext {
     // ref: https://github.com/junit-team/junit5/blob/4c0dddad1b96d4a20e92a2cd583954643ac56ac0/junit-jupiter-params/src/main/java/org/junit/jupiter/params/ParameterizedTest.java#L161-L164
     if (name == "compileTestJava" || name == "compileTestScala") {
       options.compilerArgs << "-parameters"
+      options.compilerArgs += ["--release", String.valueOf(minJavaVersion)]
     } else if (name == "compileJava" || name == "compileScala") {
       options.compilerArgs << "-Xlint:all"
       if (!project.path.startsWith(":connect") && !project.path.startsWith(":storage"))
@@ -995,9 +996,13 @@ project(':share') {
     implementation project(':server-common')
     implementation project(':storage')
 
+    testImplementation project(':clients').sourceSets.test.output
+    testImplementation project(':server-common').sourceSets.test.output
+
     implementation libs.slf4jApi
 
     testImplementation libs.junitJupiter
+    testImplementation libs.mockitoCore
     testImplementation libs.slf4jReload4j
 
     testRuntimeOnly libs.junitPlatformLanucher
@@ -1504,6 +1509,7 @@ project(':group-coordinator') {
     implementation libs.slf4jApi
     implementation libs.metrics
     implementation libs.hdrHistogram
+    implementation libs.re2j
 
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':server-common').sourceSets.test.output
@@ -1654,9 +1660,14 @@ project(':transaction-coordinator') {
   dependencies {
     implementation libs.jacksonDatabind
     implementation project(':clients')
+    implementation project(':server-common')
+    implementation libs.slf4jApi
+
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
-
+    testImplementation project(':clients').sourceSets.test.output
+    testImplementation project(':test-common')
+    testImplementation project(':test-common:test-common-api')
     testRuntimeOnly runtimeTestLibs
 
     generator project(':generator')
