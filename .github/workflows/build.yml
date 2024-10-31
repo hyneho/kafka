@@ -43,24 +43,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: "test-catalog"
-          fetch-depth: 0
 
       - name: Go back N days
         run: |
-          git show --no-patch
-          git log
-          git switch --detach "test-catalog@{1 days ago}"
+          git fetch origin test-catalog
+          git switch --detach "origin/test-catalog@{1 days ago}"
           git show --no-patch
           git log
           pwd
           find .
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          clean: false
       - name: Format Catalog
         shell: bash
         run: |
