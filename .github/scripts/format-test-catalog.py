@@ -32,16 +32,19 @@ logger.addHandler(handler)
 def yaml_to_all_tests(glob_path: str, out_file: str):
     yamls = glob(pathname=glob_path, recursive=True)
     logger.debug(f"Found {len(yamls)} YAML files")
-
+    class_count = 0
+    method_count = 0
     with open(out_file, "w") as fp:
         for yaml_file in yamls:
             with open(yaml_file, "r") as yamp_fp:
                 tests = yaml.safe_load(yamp_fp)
                 for clazz, methods in tests.items():
+                    class_count += 1
                     for method in methods:
+                        method_count += 1
                         fp.write(f"{clazz}#{method}\n")
 
-    logger.debug(f"Wrote to {out_file}")
+    logger.debug(f"Wrote {method_count} test methods from {class_count} classes to {out_file}")
 
 
 if __name__ == "__main__":
