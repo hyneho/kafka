@@ -19,7 +19,15 @@ package org.apache.kafka.streams.scala.kstream
 import java.time.Duration.ofSeconds
 import java.time.{Duration, Instant}
 import org.apache.kafka.streams.KeyValue
-import org.apache.kafka.streams.kstream.{JoinWindows, Named, Transformer, ValueTransformer, ValueTransformerSupplier, ValueTransformerWithKey, ValueTransformerWithKeySupplier}
+import org.apache.kafka.streams.kstream.{
+  JoinWindows,
+  Named,
+  Transformer,
+  ValueTransformer,
+  ValueTransformerSupplier,
+  ValueTransformerWithKey,
+  ValueTransformerWithKeySupplier
+}
 import org.apache.kafka.streams.processor.api
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.processor.api.{Processor, ProcessorSupplier}
@@ -229,7 +237,7 @@ class KStreamTest extends TestDriver {
           val keyValueStoreBuilder = Stores.keyValueStoreBuilder(
             Stores.persistentKeyValueStore(storeName),
             Serdes.stringSerde,
-            Serdes.stringSerde,
+            Serdes.stringSerde
           )
           Collections.singleton(keyValueStoreBuilder)
         }
