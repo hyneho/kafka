@@ -18,7 +18,6 @@
 package org.apache.kafka.common.test;
 
 import org.apache.kafka.common.Uuid;
-import org.apache.kafka.metadata.properties.MetaProperties;
 import org.apache.kafka.metadata.properties.MetaPropertiesEnsemble;
 
 import java.util.Map;
