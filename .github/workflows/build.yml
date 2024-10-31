@@ -64,7 +64,7 @@ jobs:
       - name: Format Catalog
         shell: bash
         run: |
-          python .github/scripts/format-test-catalog.py from-yaml
+          python .github/scripts/format-test-catalog.py
 
   validate:
     runs-on: ubuntu-latest
