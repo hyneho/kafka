@@ -57,6 +57,7 @@ jobs:
         with:
           persist-credentials: false
           clean: false
+          sparse-checkout: .github/scripts
 
       - name: Format Catalog
         shell: bash
