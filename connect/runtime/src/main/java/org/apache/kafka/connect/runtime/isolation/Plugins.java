@@ -19,10 +19,8 @@ package org.apache.kafka.connect.runtime.isolation;
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.provider.ConfigProvider;
-import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.components.Versioned;
-import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.connector.Connector;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.connector.policy.ConnectorClientConfigOverridePolicy;
@@ -269,8 +267,8 @@ public class Plugins {
         };
     }
 
-    public String defaultVersion(String classOrAlias) {
-        return delegatingLoader.defaultVersion(classOrAlias);
+    public String latestVersion(String classOrAlias) {
+        return delegatingLoader.latestVersion(classOrAlias);
     }
 
     public DelegatingClassLoader delegatingLoader() {
@@ -525,7 +523,7 @@ public class Plugins {
             return null;
         }
 
-        HeaderConverter plugin = getVersionedPlugin(config, classPropertyName, classPropertyName + ".version",
+        HeaderConverter plugin = getVersionedPlugin(config, classPropertyName, versionPropertyName,
                 HeaderConverter.class, classLoaderUsage, scanResult.headerConverters());
 
         String configPrefix = classPropertyName + ".";
