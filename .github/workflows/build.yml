@@ -164,9 +164,6 @@ jobs:
         continue-on-error: true
         with:
           name: combined-test-catalog
-      - run: |
-          ls -la combined-test-catalog.txt
-          head combined-test-catalog.txt
       - name: Test
         # Gradle flags
         # --build-cache:  Let Gradle restore the build cache
