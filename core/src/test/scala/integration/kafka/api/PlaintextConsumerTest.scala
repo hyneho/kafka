@@ -825,10 +825,8 @@ class PlaintextConsumerTest extends BaseConsumerTest {
     assertThrows(classOf[WakeupException], () => consumer.position(topicPartition, Duration.ofSeconds(100)))
   }
 
-  // NOTE: at present this test fails for the CLASSIC group protocol when run on the Apache CI infrastructure. For
-  //       now this will remain a test that only covers the CONSUMER group protocol.
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testCloseLeavesGroupOnInterrupt(quorum: String, groupProtocol: String): Unit = {
     val adminClient = createAdminClient()
     val consumer = createConsumer()
