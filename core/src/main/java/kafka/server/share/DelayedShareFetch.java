@@ -150,31 +150,42 @@ public class DelayedShareFetch extends DelayedOperation {
         }
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = acquirablePartitions();
 
-        if (!topicPartitionData.isEmpty()) {
-            Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse = maybeUpdateFetchOffsetMetadataForTopicPartitions(topicPartitionData);
-            if (isMinBytesSatisfied(topicPartitionData)) {
-                topicPartitionDataFromTryComplete = topicPartitionData;
-                if (replicaManagerReadResponse != null && !replicaManagerReadResponse.isEmpty())
-                    logReadResponse = replicaManagerReadResponse;
-                boolean completedByMe = forceComplete();
-                // If invocation of forceComplete is not successful, then that means the request is already completed
-                // hence release the acquired locks.
-                if (!completedByMe) {
-                    releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
+        try {
+            if (!topicPartitionData.isEmpty()) {
+                Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse = maybeUpdateFetchOffsetMetadataForTopicPartitions(topicPartitionData);
+                if (isMinBytesSatisfied(topicPartitionData)) {
+                    topicPartitionDataFromTryComplete = topicPartitionData;
+                    if (replicaManagerReadResponse != null && !replicaManagerReadResponse.isEmpty())
+                        logReadResponse = replicaManagerReadResponse;
+                    boolean completedByMe = forceComplete();
+                    // If invocation of forceComplete is not successful, then that means the request is already completed
+                    // hence release the acquired locks.
+                    if (!completedByMe) {
+                        releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
+                    }
+                    return completedByMe;
+                } else {
+                    log.debug("minBytes is not satisfied for the share fetch request for group {}, member {}, " +
+                            "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
+                        shareFetchData.partitionMaxBytes().keySet());
+                    releasePartitionLocks(shareFetchData.groupId(), topicPartitionData.keySet());
                 }
-                return completedByMe;
             } else {
-                log.debug("minBytes is not satisfied for the share fetch request for group {}, member {}, " +
+                log.trace("Can't acquire records for any partition in the share fetch request for group {}, member {}, " +
                         "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
                     shareFetchData.partitionMaxBytes().keySet());
-                releasePartitionLocks(shareFetchData.groupId(), topicPartitionData.keySet());
             }
-        } else {
-            log.trace("Can't acquire records for any partition in the share fetch request for group {}, member {}, " +
-                "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
-                shareFetchData.partitionMaxBytes().keySet());
+            return false;
+        } catch (Exception e) {
+            log.error("Error processing delayed share fetch request", e);
+            boolean completedByMe = forceComplete();
+            // If invocation of forceComplete is not successful, then that means the request is already completed
+            // hence release the acquired locks.
+            if (!completedByMe) {
+                releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
+            }
+            return completedByMe;
         }
-        return false;
     }
 
     /**
@@ -261,48 +272,40 @@ public class DelayedShareFetch extends DelayedOperation {
 
     private boolean isMinBytesSatisfied(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         long accumulatedSize = 0;
-        try {
-            for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
-                TopicIdPartition topicIdPartition = entry.getKey();
-                FetchRequest.PartitionData partitionData = entry.getValue();
-                LogOffsetMetadata endOffsetMetadata = endOffsetMetadataForTopicPartition(topicIdPartition);
+        for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
+            TopicIdPartition topicIdPartition = entry.getKey();
+            FetchRequest.PartitionData partitionData = entry.getValue();
+            LogOffsetMetadata endOffsetMetadata = endOffsetMetadataForTopicPartition(topicIdPartition);
 
-                if (endOffsetMetadata == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
-                    continue;
+            if (endOffsetMetadata == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
+                continue;
 
-                SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
+            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
 
-                Optional<LogOffsetMetadata> optionalFetchOffsetMetadata = sharePartition.fetchOffsetMetadata();
-                if (optionalFetchOffsetMetadata.isEmpty() || optionalFetchOffsetMetadata.get() == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
-                    continue;
-                LogOffsetMetadata fetchOffsetMetadata = optionalFetchOffsetMetadata.get();
+            Optional<LogOffsetMetadata> optionalFetchOffsetMetadata = sharePartition.fetchOffsetMetadata();
+            if (optionalFetchOffsetMetadata.isEmpty() || optionalFetchOffsetMetadata.get() == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
+                continue;
+            LogOffsetMetadata fetchOffsetMetadata = optionalFetchOffsetMetadata.get();
 
-                if (fetchOffsetMetadata.messageOffset > endOffsetMetadata.messageOffset) {
-                    log.debug("Satisfying delayed share fetch request for group {}, member {} since it is fetching later segments of " +
-                        "topicIdPartition {}", shareFetchData.groupId(), shareFetchData.memberId(), topicIdPartition);
+            if (fetchOffsetMetadata.messageOffset > endOffsetMetadata.messageOffset) {
+                log.debug("Satisfying delayed share fetch request for group {}, member {} since it is fetching later segments of " +
+                    "topicIdPartition {}", shareFetchData.groupId(), shareFetchData.memberId(), topicIdPartition);
+                return true;
+            } else if (fetchOffsetMetadata.messageOffset < endOffsetMetadata.messageOffset) {
+                if (fetchOffsetMetadata.onOlderSegment(endOffsetMetadata)) {
+                    // This can happen when the fetch operation is falling behind the current segment or the partition
+                    // has just rolled a new segment.
+                    log.debug("Satisfying delayed share fetch request for group {}, member {} immediately since it is fetching older " +
+                        "segments of topicIdPartition {}", shareFetchData.groupId(), shareFetchData.memberId(), topicIdPartition);
                     return true;
-                } else if (fetchOffsetMetadata.messageOffset < endOffsetMetadata.messageOffset) {
-                    if (fetchOffsetMetadata.onOlderSegment(endOffsetMetadata)) {
-                        // This can happen when the fetch operation is falling behind the current segment or the partition
-                        // has just rolled a new segment.
-                        log.debug("Satisfying delayed share fetch request for group {}, member {} immediately since it is fetching older " +
-                            "segments of topicIdPartition {}", shareFetchData.groupId(), shareFetchData.memberId(), topicIdPartition);
-                        return true;
-                    } else if (fetchOffsetMetadata.onSameSegment(endOffsetMetadata)) {
-                        // we take the partition fetch size as upper bound when accumulating the bytes.
-                        long bytesAvailable = Math.min(endOffsetMetadata.positionDiff(fetchOffsetMetadata), partitionData.maxBytes);
-                        accumulatedSize += bytesAvailable;
-                    }
+                } else if (fetchOffsetMetadata.onSameSegment(endOffsetMetadata)) {
+                    // we take the partition fetch size as upper bound when accumulating the bytes.
+                    long bytesAvailable = Math.min(endOffsetMetadata.positionDiff(fetchOffsetMetadata), partitionData.maxBytes);
+                    accumulatedSize += bytesAvailable;
                 }
             }
-            return accumulatedSize >= shareFetchData.fetchParams().minBytes;
-        } catch (Exception e) {
-            // Ideally we should complete the share fetch request's future exceptionally in this case from tryComplete itself.
-            // A function that can be utilized is handleFetchException in an in-flight PR https://github.com/apache/kafka/pull/16842.
-            // Perhaps, once the mentioned PR is merged, I'll change it to better exception handling.
-            log.error("Error processing the minBytes criteria for share fetch request", e);
-            return true;
         }
+        return accumulatedSize >= shareFetchData.fetchParams().minBytes;
     }
 
     private LogOffsetMetadata endOffsetMetadataForTopicPartition(TopicIdPartition topicIdPartition) {

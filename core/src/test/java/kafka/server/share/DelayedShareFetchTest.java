@@ -662,6 +662,8 @@ public class DelayedShareFetchTest {
         LogOffsetSnapshot endOffsetSnapshot = new LogOffsetSnapshot(1, mock(LogOffsetMetadata.class),
             hwmOffsetMetadata, mock(LogOffsetMetadata.class));
         Partition partition = mock(Partition.class);
+        when(partition.isLeader()).thenReturn(true);
+        when(partition.getLeaderEpoch()).thenReturn(1);
         when(partition.fetchOffsetSnapshot(any(), anyBoolean())).thenReturn(endOffsetSnapshot);
         when(replicaManager.getPartitionOrException(topicIdPartition.topicPartition())).thenReturn(partition);
     }
