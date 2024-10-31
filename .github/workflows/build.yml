@@ -58,6 +58,8 @@ jobs:
           persist-credentials: false
           path: trunk
 
+      # Prior to this step, we don't expect any errors. For the rest of this "load-catalog" job, we need to ensure
+      # we do not fail as this will fail the overall workflow.
       - name: Combine Catalog into single file
         id: combine-catalog
         continue-on-error: true
@@ -157,13 +159,15 @@ jobs:
           gradle-cache-read-only: ${{ inputs.gradle-cache-read-only }}
           gradle-cache-write-only: ${{ inputs.gradle-cache-write-only }}
           develocity-access-key: ${{ secrets.GE_ACCESS_TOKEN }}
+
+      # If the load-catalog job failed, we won't be able to download the artifact. Since we don't want this to fail
+      # the overall workflow, so we'll continue here without a test catalog.
       - name: Load Test Catalog
         uses: actions/download-artifact@v4
-        # If the load-catalog job failed, we won't be able to load an artifact. We don't want this to fail the overall
-        # workflow, so we'll continue without a test catalog.
         continue-on-error: true
         with:
           name: combined-test-catalog
+
       - name: Test
         # Gradle flags
         # --build-cache:  Let Gradle restore the build cache
