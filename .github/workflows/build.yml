@@ -56,7 +56,7 @@ jobs:
         run: |
           git show --no-patch
           git log
-          git checkout test-catalog@"{1 days ago}"
+          git checkout @{1 days ago}
           git show --no-patch
           git log
           pwd
