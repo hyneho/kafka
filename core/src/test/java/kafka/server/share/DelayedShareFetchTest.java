@@ -18,6 +18,7 @@ package kafka.server.share;
 
 import kafka.cluster.Partition;
 import kafka.server.DelayedOperationPurgatory;
+import kafka.server.LogReadResult;
 import kafka.server.ReplicaManager;
 import kafka.server.ReplicaQuota;
 
@@ -28,7 +29,6 @@ import org.apache.kafka.common.message.ShareFetchResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.server.share.SharePartitionKey;
-import org.apache.kafka.server.share.fetch.FetchPartitionOffsetData;
 import org.apache.kafka.server.share.fetch.ShareAcquiredRecords;
 import org.apache.kafka.server.share.fetch.ShareFetchData;
 import org.apache.kafka.server.storage.log.FetchIsolation;
@@ -164,7 +164,7 @@ public class DelayedShareFetchTest {
 
         // We are testing the case when the share partition is getting fetched for the first time, hence we are using 1
         // as the file position, so it doesn't satisfy the minBytes(2).
-        when(sp0.latestFetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
+        when(sp0.fetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
         LogOffsetMetadata hwmOffsetMetadata = new LogOffsetMetadata(1, 1, 1);
         mockTopicIdPartitionFetchBytes(replicaManager, tp0, hwmOffsetMetadata);
 
@@ -216,7 +216,7 @@ public class DelayedShareFetchTest {
         // functionality to give the file position difference as 1 byte, so it doesn't satisfy the minBytes(2).
         LogOffsetMetadata hwmOffsetMetadata = mock(LogOffsetMetadata.class);
         when(hwmOffsetMetadata.positionDiff(any())).thenReturn(1);
-        when(sp0.latestFetchOffsetMetadata()).thenReturn(Optional.of(mock(LogOffsetMetadata.class)));
+        when(sp0.fetchOffsetMetadata()).thenReturn(Optional.of(mock(LogOffsetMetadata.class)));
         mockTopicIdPartitionFetchBytes(replicaManager, tp0, hwmOffsetMetadata);
 
         DelayedShareFetch delayedShareFetch = spy(DelayedShareFetchBuilder.builder()
@@ -262,7 +262,7 @@ public class DelayedShareFetchTest {
             ShareAcquiredRecords.fromAcquiredRecords(new ShareFetchResponseData.AcquiredRecords().setFirstOffset(0).setLastOffset(3).setDeliveryCount((short) 1)));
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp0))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
 
-        when(sp0.latestFetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
+        when(sp0.fetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
         mockTopicIdPartitionToReturnDataEqualToMinBytes(replicaManager, tp0, 1);
         DelayedShareFetch delayedShareFetch = spy(DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetchData)
@@ -536,19 +536,19 @@ public class DelayedShareFetchTest {
 
         // Case 1 - logReadResponse contains tp0.
 
-        Map<TopicIdPartition, FetchPartitionOffsetData> logReadResponse = Collections.singletonMap(
-            tp0, mock(FetchPartitionOffsetData.class));
+        Map<TopicIdPartition, LogReadResult> logReadResponse = Collections.singletonMap(
+            tp0, mock(LogReadResult.class));
         delayedShareFetch.updateLogReadResponse(logReadResponse);
 
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp1))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
-        Map<TopicIdPartition, FetchPartitionOffsetData> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData);
+        Map<TopicIdPartition, LogReadResult> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
         assertEquals(combinedLogReadResponse.get(tp0), logReadResponse.get(tp0));
 
         // Case 2 - logReadResponse contains tp0 and tp1.
         logReadResponse = new HashMap<>();
-        logReadResponse.put(tp0, mock(FetchPartitionOffsetData.class));
-        logReadResponse.put(tp1, mock(FetchPartitionOffsetData.class));
+        logReadResponse.put(tp0, mock(LogReadResult.class));
+        logReadResponse.put(tp1, mock(LogReadResult.class));
         delayedShareFetch.updateLogReadResponse(logReadResponse);
         combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());

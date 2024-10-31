@@ -265,7 +265,7 @@ public class SharePartition {
     /**
      * We maintain the latest fetch offset metadata to estimate the minBytes requirement more efficiently.
      */
-    private Optional<LogOffsetMetadata> latestFetchOffsetMetadata;
+    private Optional<LogOffsetMetadata> fetchOffsetMetadata;
 
     /**
      * The state epoch is used to track the version of the state of the share partition.
@@ -310,7 +310,7 @@ public class SharePartition {
         this.partitionState = SharePartitionState.EMPTY;
         this.replicaManager = replicaManager;
         this.groupConfigManager = groupConfigManager;
-        this.latestFetchOffsetMetadata = Optional.empty();
+        this.fetchOffsetMetadata = Optional.empty();
     }
 
     /**
@@ -794,7 +794,7 @@ public class SharePartition {
         if (!stateBatches.isEmpty()) {
             // The next fetch offset will change on release of acquired records on session close, hence we update latestFetchOffsetMetadata
             // for the share partition.
-            updateLatestFetchOffsetMetadata(null);
+            updateLatestFetchOffsetMetadata(Optional.empty());
         }
         return future;
     }
@@ -1538,22 +1538,19 @@ public class SharePartition {
         return Optional.empty();
     }
 
-    protected void updateLatestFetchOffsetMetadata(LogOffsetMetadata fetchOffsetMetadata) {
+    protected void updateLatestFetchOffsetMetadata(Optional<LogOffsetMetadata> fetchOffsetMetadata) {
         lock.writeLock().lock();
         try {
-            if (fetchOffsetMetadata != null)
-                latestFetchOffsetMetadata = Optional.of(fetchOffsetMetadata);
-            else
-                latestFetchOffsetMetadata = Optional.empty();
+            this.fetchOffsetMetadata = fetchOffsetMetadata;
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    protected Optional<LogOffsetMetadata> latestFetchOffsetMetadata() {
+    protected Optional<LogOffsetMetadata> fetchOffsetMetadata() {
         lock.readLock().lock();
         try {
-            return latestFetchOffsetMetadata;
+            return fetchOffsetMetadata;
         } finally {
             lock.readLock().unlock();
         }
@@ -1929,7 +1926,7 @@ public class SharePartition {
         if (!stateBatches.isEmpty()) {
             // The next fetch offset changes on acquisition lock timeout, hence we update latestFetchOffsetMetadata for the
             // share partition.
-            updateLatestFetchOffsetMetadata(null);
+            updateLatestFetchOffsetMetadata(Optional.empty());
             // If we have an acquisition lock timeout for a share-partition, then we should check if
             // there is a pending share fetch request for the share-partition and complete it.
             DelayedShareFetchKey delayedShareFetchKey = new DelayedShareFetchGroupKey(groupId, topicIdPartition.topicId(), topicIdPartition.partition());

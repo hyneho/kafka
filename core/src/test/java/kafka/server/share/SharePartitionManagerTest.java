@@ -1663,7 +1663,7 @@ public class SharePartitionManagerTest {
                 "TestShareFetch", mockTimer, replicaManager.localBrokerId(),
                 DELAYED_SHARE_FETCH_PURGATORY_PURGE_INTERVAL, true, true);
         mockReplicaManagerDelayedShareFetch(replicaManager, delayedShareFetchPurgatory);
-        when(sp1.latestFetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
+        when(sp1.fetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
         mockTopicIdPartitionToReturnDataEqualToMinBytes(replicaManager, tp1, 2);
 
         // Initially you cannot acquire records for both sp1 and sp2.
@@ -1854,7 +1854,7 @@ public class SharePartitionManagerTest {
                 "TestShareFetch", mockTimer, replicaManager.localBrokerId(),
                 DELAYED_SHARE_FETCH_PURGATORY_PURGE_INTERVAL, true, true);
         mockReplicaManagerDelayedShareFetch(replicaManager, delayedShareFetchPurgatory);
-        when(sp1.latestFetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
+        when(sp1.fetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
         mockTopicIdPartitionToReturnDataEqualToMinBytes(replicaManager, tp1, 1);
 
         // Initially you cannot acquire records for both sp1 and sp2.
