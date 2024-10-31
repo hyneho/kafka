@@ -49,11 +49,11 @@ image_name="ducker-ak-openjdk:17-buster" bash tests/docker/run_tests.sh
 ```
 * Run tests with a different JDK version
 ```
-bash tests/docker/ducker-ak up -j '17-linux-x64'; tests/docker/run_tests.sh
+bash tests/docker/ducker-ak up -u 'https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-17-linux-x64.tar.gz'; tests/docker/run_tests.sh
 ```
 * Run tests with a different **JDK 11** version
 ```
-bash tests/docker/ducker-ak up -j11 '11.0.2-linux-x64'; tests/docker/run_tests.sh
+bash tests/docker/ducker-ak up -j11u 'https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-11.0.2-linux-x64.tar.gz'; tests/docker/run_tests.sh
 ```
 * Run tests with a different OS version
 ```
