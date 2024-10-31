@@ -50,13 +50,13 @@ jobs:
           clean: false
           persist-credentials: false
           ref: "test-catalog"
-          fetch-depth: 100
+          fetch-depth: 0
 
       - name: Go back N days
         run: |
           git show --no-patch
           git log
-          git checkout origin/test-catalog@"{1 days ago}"
+          git checkout test-catalog@"{1 days ago}"
           git show --no-patch
           git log
           pwd
