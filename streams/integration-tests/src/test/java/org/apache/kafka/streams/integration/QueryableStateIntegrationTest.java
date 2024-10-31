@@ -103,7 +103,7 @@ import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkProperties;
 import static org.apache.kafka.streams.StoreQueryParameters.fromNameAndType;
-import static org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.SHUTDOWN_CLIENT;
+import static org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.REPLACE_THREAD;
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.getRunningStreams;
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.startApplicationAndWaitUntilRunning;
 import static org.apache.kafka.streams.state.QueryableStoreTypes.keyValueStore;
@@ -1100,7 +1100,7 @@ public class QueryableStateIntegrationTest {
         kafkaStreams = new KafkaStreams(builder.build(), streamsConfiguration);
         kafkaStreams.setUncaughtExceptionHandler(exception -> {
             failed.set(true);
-            return SHUTDOWN_CLIENT;
+            return REPLACE_THREAD;
         });
 
         startApplicationAndWaitUntilRunning(kafkaStreams);
