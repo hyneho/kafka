@@ -3571,11 +3571,16 @@ public class KafkaAdminClient extends AdminClient {
 
                         private void maybeAddGroup(ListGroupsResponseData.ListedGroup group) {
                             final String groupId = group.groupId();
-                            final GroupType type = GroupType.parse(group.groupType());
+                            final Optional<GroupType> type;
+                            if (group.groupType() == null || group.groupType().isEmpty()) {
+                                type = Optional.empty();
+                            } else {
+                                type = Optional.of(GroupType.parse(group.groupType()));
+                            }
                             final String protocolType = group.protocolType();
                             final GroupListing groupListing = new GroupListing(
                                 groupId,
-                                Optional.of(type),
+                                type,
                                 protocolType
                             );
                             results.addListing(groupListing);

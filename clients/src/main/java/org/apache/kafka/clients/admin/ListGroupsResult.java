@@ -41,7 +41,7 @@ public class ListGroupsResult {
         this.all = new KafkaFutureImpl<>();
         this.valid = new KafkaFutureImpl<>();
         this.errors = new KafkaFutureImpl<>();
-        future.thenApply((KafkaFuture.BaseFunction<Collection<Object>, Void>) results -> {
+        future.thenApply(results -> {
             ArrayList<Throwable> curErrors = new ArrayList<>();
             ArrayList<GroupListing> curValid = new ArrayList<>();
             for (Object resultObject : results) {
