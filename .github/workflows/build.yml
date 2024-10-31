@@ -52,22 +52,24 @@ jobs:
           echo $SHA
           git switch --detach $SHA
 
-      - name: Checkout script
+      - name: Checkout trunk
         uses: actions/checkout@v4
         with:
           persist-credentials: false
           path: trunk
 
-      - name: Format Catalog
-        shell: bash
+      - name: Combine Catalog into single file
+        id: combine-catalog
+        continue-on-error: true
         run: |
           python trunk/.github/scripts/format-test-catalog.py
 
-      - name: Archive formatted test catalog
+      - name: Archive Combined Test Catalog
+        if: steps.combine-catalog.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: formatted-test-catalog
-          path: test-catalog/combined.txt
+          name: combined-test-catalog
+          path: combined-test-catalog.txt
           compression-level: 9
 
   validate:
@@ -157,11 +159,14 @@ jobs:
           develocity-access-key: ${{ secrets.GE_ACCESS_TOKEN }}
       - name: Load Test Catalog
         uses: actions/download-artifact@v4
+        # If the load-catalog job failed, we won't be able to load an artifact. We don't want this to fail the overall
+        # workflow, so we'll continue without a test catalog.
+        continue-on-error: true
         with:
-          name: formatted-test-catalog
+          name: combined-test-catalog
       - run: |
-          ls -la test-catalog
-          head test-catalog/combined.txt
+          ls -la combined-test-catalog.txt
+          head combined-test-catalog.txt
       - name: Test
         # Gradle flags
         # --build-cache:  Let Gradle restore the build cache

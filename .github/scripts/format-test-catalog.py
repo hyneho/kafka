@@ -53,7 +53,7 @@ if __name__ == "__main__":
                         help="Path to module YAML files. Glob patterns are supported.")
     parser.add_argument("--output-file",
                         required=False,
-                        default="test-catalog/combined.txt",
+                        default="combined-test-catalog.txt",
                         help="Output file location")
 
     if not os.getenv("GITHUB_WORKSPACE"):
