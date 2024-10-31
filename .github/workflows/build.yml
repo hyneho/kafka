@@ -56,11 +56,11 @@ jobs:
         run: |
           git show --no-patch
           git log
-          git checkout test-catalog@"{2 days ago}"
+          git checkout origin/test-catalog@"{1 days ago}"
           git show --no-patch
           git log
           pwd
-          ls -R
+          find .
 
       - name: Format Catalog
         shell: bash
