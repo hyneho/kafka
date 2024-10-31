@@ -50,7 +50,7 @@ jobs:
         run: |
           git show --no-patch
           git log
-          git checkout "@{1 days ago}"
+          git switch --detach "test-catalog@{1 days ago}"
           git show --no-patch
           git log
           pwd
