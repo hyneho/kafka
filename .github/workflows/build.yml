@@ -42,17 +42,24 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
+          ref: 'test-catalog'
           persist-credentials: false
+          depth: 100
 
       - name: Go back N days
         run: |
-          git fetch origin test-catalog
-          git rev-list -1 --before 1.days.ago origin/test-catalog
-          git switch --detach "origin/test-catalog@{1 days ago}"
+          SHA=$(git rev-list -1 --before 12.hours.ago origin/test-catalog)
+          echo $SHA
+          git switch --detach $SHA
           git show --no-patch
           git log
           pwd
           find .
+
+      - name: Checkout script
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Format Catalog
         shell: bash
