@@ -48,10 +48,10 @@ runs:
     - name: Go back N days
       shell: bash
       env:
-        DATE_REF: "{'${{ inputs.days }} days ago'}"
+        DAYS: ${{ inputs.days }}
       run: |
         git show --no-patch
-        git checkout test-catalog@$DATE_REF
+        git checkout test-catalog@"{$DAYS days ago}"
         git show --no-patch
         pwd
         ls -R
