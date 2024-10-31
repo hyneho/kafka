@@ -51,7 +51,7 @@ public class StreamsGroupInitializeRequestManager implements RequestManager {
     private Optional<NetworkClientDelegate.UnsentRequest> unsentRequest = Optional.empty();
 
 
-    StreamsGroupInitializeRequestManager(final LogContext logContext,
+    public StreamsGroupInitializeRequestManager(final LogContext logContext,
                                          final String groupId,
                                          final StreamsAssignmentInterface streamsAssignmentInterface,
                                          final CoordinatorRequestManager coordinatorRequestManager) {
