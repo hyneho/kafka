@@ -21,14 +21,27 @@ import java.util
 import java.util.{Locale, Properties}
 import java.util.regex.Pattern
 import org.apache.kafka.common.serialization.{Serdes => SerdesJ}
-import org.apache.kafka.streams.kstream.{Aggregator, Initializer, JoinWindows, KeyValueMapper, Reducer, ValueJoiner, ValueMapper, KGroupedStream => KGroupedStreamJ, KStream => KStreamJ, KTable => KTableJ, Materialized => MaterializedJ, StreamJoined => StreamJoinedJ}
+import org.apache.kafka.streams.kstream.{
+  Aggregator,
+  Initializer,
+  JoinWindows,
+  KGroupedStream => KGroupedStreamJ,
+  KStream => KStreamJ,
+  KTable => KTableJ,
+  KeyValueMapper,
+  Materialized => MaterializedJ,
+  Reducer,
+  StreamJoined => StreamJoinedJ,
+  ValueJoiner,
+  ValueMapper
+}
 import org.apache.kafka.streams.processor.api
 import org.apache.kafka.streams.processor.api.{Processor, ProcessorSupplier}
 import org.apache.kafka.streams.scala.ImplicitConversions._
 import org.apache.kafka.streams.scala.serialization.{Serdes => NewSerdes}
 import org.apache.kafka.streams.scala.serialization.Serdes._
 import org.apache.kafka.streams.scala.kstream._
-import org.apache.kafka.streams.{KeyValue, StreamsConfig, TopologyDescription, StreamsBuilder => StreamsBuilderJ}
+import org.apache.kafka.streams.{KeyValue, StreamsBuilder => StreamsBuilderJ, StreamsConfig, TopologyDescription}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api._
 
