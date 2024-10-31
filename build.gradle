@@ -1511,6 +1511,7 @@ project(':group-coordinator') {
     implementation libs.slf4jApi
     implementation libs.metrics
     implementation libs.hdrHistogram
+    implementation libs.re2j
 
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':server-common').sourceSets.test.output
@@ -1661,9 +1662,14 @@ project(':transaction-coordinator') {
   dependencies {
     implementation libs.jacksonDatabind
     implementation project(':clients')
+    implementation project(':server-common')
+    implementation libs.slf4jApi
+
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
-
+    testImplementation project(':clients').sourceSets.test.output
+    testImplementation project(':test-common')
+    testImplementation project(':test-common:test-common-api')
     testRuntimeOnly runtimeTestLibs
 
     generator project(':generator')
