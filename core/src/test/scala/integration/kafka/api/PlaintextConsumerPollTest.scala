@@ -54,7 +54,7 @@ class PlaintextConsumerPollTest extends AbstractConsumerTest {
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testMaxPollIntervalMs(quorum: String, groupProtocol: String): Unit = {
     this.consumerConfig.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 1000.toString)
-    if (groupProtocol.contains("CONSUMER")) {
+    if (groupProtocol.contains("classic")) {
       this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 500.toString)
       this.consumerConfig.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 2000.toString)
     }
@@ -82,7 +82,7 @@ class PlaintextConsumerPollTest extends AbstractConsumerTest {
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testMaxPollIntervalMsDelayInRevocation(quorum: String, groupProtocol: String): Unit = {
     this.consumerConfig.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 5000.toString)
-    if (groupProtocol.contains("CONSUMER")) {
+    if (groupProtocol.contains("classic")) {
       this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 500.toString)
       this.consumerConfig.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 1000.toString)
     }
@@ -126,7 +126,7 @@ class PlaintextConsumerPollTest extends AbstractConsumerTest {
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testMaxPollIntervalMsDelayInAssignment(quorum: String, groupProtocol: String): Unit = {
     this.consumerConfig.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 5000.toString)
-    if (groupProtocol.contains("CONSUMER")) {
+    if (groupProtocol.contains("classic")) {
       this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 500.toString)
       this.consumerConfig.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 1000.toString)
     }
@@ -153,7 +153,7 @@ class PlaintextConsumerPollTest extends AbstractConsumerTest {
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testMaxPollIntervalMsShorterThanPollTimeout(quorum: String, groupProtocol: String): Unit = {
     this.consumerConfig.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 1000.toString)
-    if (groupProtocol.contains("CONSUMER")) {
+    if (groupProtocol.contains("classic")) {
       this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 500.toString)
     }
 

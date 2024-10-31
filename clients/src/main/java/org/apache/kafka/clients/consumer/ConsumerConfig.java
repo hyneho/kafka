@@ -60,8 +60,12 @@ public class ConsumerConfig extends AbstractConfig {
 
     // a list contains all the assignor names that only assign subscribed topics to consumer. Should be updated when new assignor added.
     // This is to help optimize ConsumerCoordinator#performAssignment method
-    public static final List<String> ASSIGN_FROM_SUBSCRIBED_ASSIGNORS =
-            List.of(RANGE_ASSIGNOR_NAME, ROUNDROBIN_ASSIGNOR_NAME, STICKY_ASSIGNOR_NAME, COOPERATIVE_STICKY_ASSIGNOR_NAME);
+    public static final List<String> ASSIGN_FROM_SUBSCRIBED_ASSIGNORS = List.of(
+            RANGE_ASSIGNOR_NAME, 
+            ROUNDROBIN_ASSIGNOR_NAME, 
+            STICKY_ASSIGNOR_NAME, 
+            COOPERATIVE_STICKY_ASSIGNOR_NAME
+    );
 
     /*
      * NOTE: DO NOT CHANGE EITHER CONFIG STRINGS OR THEIR JAVA VARIABLE NAMES AS
@@ -389,8 +393,13 @@ public class ConsumerConfig extends AbstractConfig {
      * A list of configuration keys for consumer protocol not supported. we should check the input string and clean up the
      * default value.
      */
-    private static final List<String> CONSUMER_PROTOCOL_UNSUPPORTED_CONFIGS = 
-            List.of(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, HEARTBEAT_INTERVAL_MS_CONFIG, SESSION_TIMEOUT_MS_CONFIG);
+    private static final List<String> CONSUMER_PROTOCOL_UNSUPPORTED_CONFIGS = List.of(
+            PARTITION_ASSIGNMENT_STRATEGY_CONFIG, 
+            HEARTBEAT_INTERVAL_MS_CONFIG, 
+            SESSION_TIMEOUT_MS_CONFIG,
+            "group.max.session.timeout.ms",
+            "group.mix.session.timeout.ms"
+    );
     
     static {
         CONFIG = new ConfigDef().define(BOOTSTRAP_SERVERS_CONFIG,
