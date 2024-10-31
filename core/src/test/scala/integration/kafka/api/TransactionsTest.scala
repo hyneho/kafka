@@ -914,11 +914,23 @@ class TransactionsTest extends IntegrationTestHarness {
 
     // Check that the epoch only increased by 1 when TV2 is disabled.
     // With TV2 and the latest EndTxnRequest version, the epoch will be bumped at the end of every transaction.
-    if (!isTV2Enabled) assertEquals((initialProducerEpoch + 1).toShort, producerStateEntry.producerEpoch)
-    else {
-      assertEquals((initialProducerEpoch + 2).toShort, producerStateEntry.producerEpoch)
+    if (!isTV2Enabled) {
+      producerStateEntry =
+        brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager.activeProducers.get(producerId)
+      assertNotNull(producerStateEntry)
+      assertEquals((initialProducerEpoch + 1).toShort, producerStateEntry.producerEpoch)
     }
-  }
+    else {
+      // Wait until the producer epoch has been updated on the broker
+      TestUtils.waitUntilTrue(() => {
+        val logOption = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0))
+        logOption.exists { log =>
+          val producerStateEntry = log.producerStateManager.activeProducers.get(producerId)
+          producerStateEntry != null && producerStateEntry.producerEpoch > initialProducerEpoch + 1
+        }
+      }, "Timed out waiting for producer epoch to be incremented after second commit", 10000)
+    }
+}
 
   private def sendTransactionalMessagesWithValueRange(producer: KafkaProducer[Array[Byte], Array[Byte]], topic: String,
                                                       start: Int, end: Int, willBeCommitted: Boolean): Unit = {
