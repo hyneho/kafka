@@ -19,6 +19,7 @@ package org.apache.kafka.jmh.log;
 import kafka.log.UnifiedLog;
 import kafka.utils.TestUtils;
 
+import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.compress.Compression;
 import org.apache.kafka.common.config.TopicConfig;
 import org.apache.kafka.common.record.FileLogInputStream;
@@ -30,9 +31,10 @@ import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.server.common.RequestLocal;
+import org.apache.kafka.server.storage.log.FetchIsolation;
 import org.apache.kafka.server.util.MockTime;
 import org.apache.kafka.storage.internals.log.AppendOrigin;
-import org.apache.kafka.storage.internals.log.FetchIsolation;
+import org.apache.kafka.storage.internals.log.FetchDataInfo;
 import org.apache.kafka.storage.internals.log.LogAppendInfo;
 import org.apache.kafka.storage.internals.log.LogConfig;
 import org.apache.kafka.storage.internals.log.LogDirFailureChannel;
@@ -41,36 +43,21 @@ import org.apache.kafka.storage.internals.log.ProducerStateManagerConfig;
 import org.apache.kafka.storage.internals.log.VerificationGuard;
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats;
 
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.BenchmarkMode;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import scala.Option;
 
 
-@State(Scope.Benchmark)
 public class StressTestLog {
-    private WriterThread writer;
-    private ReaderThread reader;
-    private final AtomicBoolean running = new AtomicBoolean(true);
-    private File dir;
+    private static final AtomicBoolean RUNNING = new AtomicBoolean(true);
 
-    @Setup(Level.Trial)
-    public void setup() throws InterruptedException {
-        dir = TestUtils.randomPartitionLogDir(TestUtils.tempDir());
+    public static void main(String[] args) throws Exception {
+        File dir = TestUtils.randomPartitionLogDir(TestUtils.tempDir());
         MockTime time = new MockTime();
         Properties logProperties = new Properties();
         logProperties.put(TopicConfig.SEGMENT_BYTES_CONFIG, 64 * 1024 * 1024);
@@ -79,31 +66,33 @@ public class StressTestLog {
 
         int fiveMinutesInMillis = (int) Duration.ofMinutes(5).toMillis();
         UnifiedLog log = UnifiedLog.apply(
-                dir,
-                new LogConfig(logProperties),
-                0L,
-                0L,
-                time.scheduler,
-                new BrokerTopicStats(),
-                time,
-                fiveMinutesInMillis,
-                new ProducerStateManagerConfig(600000, false),
-                fiveMinutesInMillis,
-                new LogDirFailureChannel(10),
-                true,
-                Option.empty(),
-                true,
-                new ConcurrentHashMap<>(),
-                false,
-                LogOffsetsListener.NO_OP_OFFSETS_LISTENER
+            dir,
+            new LogConfig(logProperties),
+            0L,
+            0L,
+            time.scheduler,
+            new BrokerTopicStats(),
+            time,
+            fiveMinutesInMillis,
+            new ProducerStateManagerConfig(600000, false),
+            fiveMinutesInMillis,
+            new LogDirFailureChannel(10),
+            true,
+            Option.empty(),
+            true,
+            new ConcurrentHashMap<>(),
+            false,
+            LogOffsetsListener.NO_OP_OFFSETS_LISTENER
         );
 
-        writer = new WriterThread(log);
-        reader = new ReaderThread(log);
+        WriterThread writer = new WriterThread(log);
+        writer.start();
+        ReaderThread reader = new ReaderThread(log);
+        reader.start();
 
         Exit.addShutdownHook("strees-test-shudtodwn-hook", () -> {
             try {
-                running.set(false);
+                RUNNING.set(false);
                 writer.join();
                 reader.join();
                 Utils.delete(dir);
@@ -111,45 +100,34 @@ public class StressTestLog {
                 e.printStackTrace();
             }
         });
-    }
-    @Benchmark
-    @BenchmarkMode(Mode.Throughput)
-    @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    public void stressTest() throws InterruptedException {
-        writer.start();
-        reader.start();
-        while (running.get()) {
+
+        while (RUNNING.get()) {
             Thread.sleep(1000);
-            System.out.printf("Reader offset = %d, writer offset = %d%n", reader.getCurrentOffset(), writer.getCurrentOffset());
+            System.out.printf("Reader offset = %d, writer offset = %d%n", reader.currentOffset, writer.currentOffset);
             writer.checkProgress();
             reader.checkProgress();
         }
     }
 
-    abstract class WorkerThread extends Thread {
-        protected final UnifiedLog log;
-        protected int currentOffset = 0;
-        protected int lastOffsetCheckpointed = currentOffset;
-        protected long lastProgressCheckTime = System.currentTimeMillis();
-
-        public WorkerThread(UnifiedLog log) {
-            this.log = log;
-        }
-
-        public abstract void work() throws InterruptedException;
+    abstract static class WorkerThread extends Thread {
+        protected long currentOffset = 0;
+        private long lastOffsetCheckpointed = currentOffset;
+        private long lastProgressCheckTime = System.currentTimeMillis();
 
         @Override
         public void run() {
             try {
-                while (running.get()) {
+                while (StressTestLog.RUNNING.get()) {
                     work();
                 }
-            } catch (Exception exception) {
-                exception.printStackTrace();
+            } catch (Exception e) {
+                e.printStackTrace();
             } finally {
-                running.set(false);
+                StressTestLog.RUNNING.set(false);
             }
         }
+
+        protected abstract void work() throws Exception;
 
         public boolean isMakingProgress() {
             if (currentOffset > lastOffsetCheckpointed) {
@@ -161,25 +139,26 @@ public class StressTestLog {
 
         public void checkProgress() {
             long curTime = System.currentTimeMillis();
-            if (curTime - lastProgressCheckTime > 500) {
-                assert isMakingProgress() : "Thread not making progress";
+            if ((curTime - lastProgressCheckTime) > 500) {
+                if (!isMakingProgress()) {
+                    throw new RuntimeException("Thread not making progress");
+                }
                 lastProgressCheckTime = curTime;
             }
         }
-
-        public int getCurrentOffset() {
-            return currentOffset;
-        }
     }
 
-    class WriterThread extends WorkerThread {
-        WriterThread(UnifiedLog log) {
-            super(log);
+    static class WriterThread extends WorkerThread {
+        private final UnifiedLog log;
+
+        public WriterThread(UnifiedLog log) {
+            this.log = log;
         }
 
         @Override
-        public void work() throws InterruptedException {
-            MemoryRecords records = TestUtils.singletonRecords(Integer.toString(currentOffset).getBytes(StandardCharsets.UTF_8),
+        protected void work() throws Exception {
+            byte[] value = Long.toString(currentOffset).getBytes(StandardCharsets.UTF_8);
+            MemoryRecords records = TestUtils.singletonRecords(value,
                     null,
                     Compression.NONE,
                     RecordBatch.NO_TIMESTAMP,
@@ -190,7 +169,12 @@ public class StressTestLog {
                     MetadataVersion.LATEST_PRODUCTION,
                     RequestLocal.noCaching(),
                     VerificationGuard.SENTINEL);
-            assert (logAppendInfo.firstOffset() == -1 || logAppendInfo.firstOffset() == currentOffset) && logAppendInfo.lastOffset() == currentOffset;
+
+            if ((logAppendInfo.firstOffset() != -1 && logAppendInfo.firstOffset() != currentOffset)
+                || logAppendInfo.lastOffset() != currentOffset) {
+                throw new RuntimeException("Offsets do not match");
+            }
+
             currentOffset++;
             if (currentOffset % 1000 == 0) {
                 Thread.sleep(50);
@@ -198,20 +182,37 @@ public class StressTestLog {
         }
     }
 
-    class ReaderThread extends WorkerThread {
+    static class ReaderThread extends WorkerThread {
+        private final UnifiedLog log;
 
-        ReaderThread(UnifiedLog log) {
-            super(log);
+        public ReaderThread(UnifiedLog log) {
+            this.log = log;
         }
 
         @Override
-        public void work() {
-            Records read = log.read(currentOffset, 1, FetchIsolation.LOG_END, true).records;
-            if (read instanceof FileRecords && read.sizeInBytes() > 0) {
-                FileLogInputStream.FileChannelRecordBatch first = ((FileRecords) read).batches().iterator().next();
-                assert first.lastOffset() == currentOffset : "We should either read nothing or the message we asked for.";
-                assert first.sizeInBytes() == read.sizeInBytes() : String.format("Expected %d but got %d.", first.sizeInBytes(), read.sizeInBytes());
-                currentOffset++;
+        protected void work() throws Exception {
+            try {
+                FetchDataInfo fetchDataInfo = log.read(
+                    currentOffset,
+                    1,
+                    FetchIsolation.LOG_END,
+                    true
+                );
+
+                Records records = fetchDataInfo.records;
+
+                if (records instanceof FileRecords && records.sizeInBytes() > 0) {
+                    FileLogInputStream.FileChannelRecordBatch first = ((FileRecords) records).batches().iterator().next();
+                    if (first.lastOffset() != currentOffset) {
+                        throw new RuntimeException("Expected to read the message at offset " + currentOffset);
+                    }
+                    if (first.sizeInBytes() != records.sizeInBytes()) {
+                        throw new RuntimeException(String.format("Expected %d but got %d.", first.sizeInBytes(), records.sizeInBytes()));
+                    }
+                    currentOffset++;
+                }
+            } catch (OffsetOutOfRangeException e) {
+                // this is ok
             }
         }
     }
