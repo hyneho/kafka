@@ -57,7 +57,7 @@ bash tests/docker/ducker-ak up -j11u 'https://s3-us-west-2.amazonaws.com/kafka-p
 ```
 * Run tests with a different OS version
 ```
-bash tests/docker/ducker-ak up -o 'ubuntu:latest'; tests/docker/run_tests.sh
+bash tests/docker/ducker-ak up -o 'ubuntu'; tests/docker/run_tests.sh
 ```
 * Remove ducker-ak containers
 ```
