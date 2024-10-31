@@ -981,7 +981,7 @@ public class ReplicationControlManager {
         log.trace("Deleting topic {} with ID {} and {} partitions", topic.name, id, numPartitions);
         try {
             context.applyPartitionChangeQuota(numPartitions); // check controller mutation quota
-            log.trace("Applied partition change quota for topic {} with ID {}", topic.name, id);
+            log.trace("Checked for a partition change quota on topic {} with ID {}", topic.name, id);
         } catch (ThrottlingQuotaExceededException e) {
             // log a message and rethrow the exception
             log.debug("Topic deletion of {} partitions not allowed because quota is violated. Delay time: {}",
