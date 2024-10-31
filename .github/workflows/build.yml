@@ -124,7 +124,7 @@ jobs:
         id: load-catalog
         uses: ./.github/actions/load-test-catalog
         with:
-          github-token: ${{ github.token }}
+          gh-token: ${{ github.token }}
           days: 2
       - name: Test
         # Gradle flags
