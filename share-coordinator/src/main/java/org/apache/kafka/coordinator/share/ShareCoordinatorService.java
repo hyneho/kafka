@@ -539,7 +539,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
     }
 
     private TopicPartition topicPartitionFor(SharePartitionKey key) {
-        return new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, partitionFor(key.toString()));
+        return new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, partitionFor(key.asCoordinatorKey()));
     }
 
     private static <P> boolean isEmpty(List<P> list) {
