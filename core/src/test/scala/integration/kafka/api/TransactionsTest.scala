@@ -857,6 +857,7 @@ class TransactionsTest extends IntegrationTestHarness {
   def testFailureToFenceEpoch(quorum: String, isTV2Enabled: Boolean): Unit = {
     val producer1 = transactionalProducers.head
     val producer2 = createTransactionalProducer("transactional-producer", maxBlockMs = 1000)
+    val initialProducerEpoch = 0
 
     producer1.initTransactions()
 
@@ -865,12 +866,21 @@ class TransactionsTest extends IntegrationTestHarness {
     producer1.commitTransaction()
 
     val partitionLeader = TestUtils.waitUntilLeaderIsKnown(brokers, new TopicPartition(topic1, 0))
-    val activeProducersIter = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager
-      .activeProducers.entrySet().iterator()
-    assertTrue(activeProducersIter.hasNext)
-    var producerStateEntry = activeProducersIter.next().getValue
+
+    if (isTV2Enabled) {
+      // Wait until producer epoch is greater than 0 after the first commit
+      TestUtils.waitUntilTrue(() => {
+        val logOption = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0))
+        logOption.exists { log =>
+          val producerStateEntry = log.producerStateManager.activeProducers.entrySet().iterator().next().getValue
+          producerStateEntry.producerEpoch > initialProducerEpoch
+        }
+      }, "Timed out waiting for producer epoch to be greater than 0 after first commit", 10000)
+    }
+
+    var producerStateEntry = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager
+      .activeProducers.entrySet().iterator().next().getValue
     val producerId = producerStateEntry.producerId
-    val initialProducerEpoch = producerStateEntry.producerEpoch
 
     // Kill two brokers to bring the transaction log under min-ISR
     killBroker(0)
@@ -913,7 +923,8 @@ class TransactionsTest extends IntegrationTestHarness {
     assertNotNull(producerStateEntry)
 
     // Check that the epoch only increased by 1 when TV2 is disabled.
-    // With TV2 and the latest EndTxnRequest version, the epoch will be bumped at the end of every transaction.
+    // With TV2 and the latest EndTxnRequest version, the epoch will be bumped at the end of every transaction aka
+    // three times (once after each commit and once after the timeout exception)
     if (!isTV2Enabled) {
       producerStateEntry =
         brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager.activeProducers.get(producerId)
@@ -926,7 +937,7 @@ class TransactionsTest extends IntegrationTestHarness {
         val logOption = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0))
         logOption.exists { log =>
           val producerStateEntry = log.producerStateManager.activeProducers.get(producerId)
-          producerStateEntry != null && producerStateEntry.producerEpoch > initialProducerEpoch + 1
+          producerStateEntry != null && producerStateEntry.producerEpoch > initialProducerEpoch + 2
         }
       }, "Timed out waiting for producer epoch to be incremented after second commit", 10000)
     }
