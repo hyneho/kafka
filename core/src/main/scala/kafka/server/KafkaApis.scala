@@ -2431,8 +2431,12 @@ class KafkaApis(val requestChannel: RequestChannel,
         }
 
         val markerResults = new ConcurrentHashMap[TopicPartition, Errors]()
-        def maybeComplete(): Unit = {
-          if (partitionsWithCompatibleMessageFormat.size == markerResults.size) {
+        val numPartitions = new AtomicInteger(partitionsWithCompatibleMessageFormat.size)
+        def addResultAndMaybeComplete(partition: TopicPartition, error: Errors): Unit = {
+          markerResults.put(partition, error)
+          // We should only call maybeSendResponseCallback once per marker. Otherwise, it causes sending the response
+          // prematurely.
+          if (numPartitions.decrementAndGet() == 0) {
             maybeSendResponseCallback(producerId, marker.transactionResult, markerResults)
           }
         }
@@ -2462,8 +2466,7 @@ class KafkaApis(val requestChannel: RequestChannel,
                     error
                 }
               }
-              markerResults.put(partition, error)
-              maybeComplete()
+              addResultAndMaybeComplete(partition, error)
             }
           } else {
             // Otherwise, the regular appendRecords path is used for all the non __consumer_offsets
@@ -2476,9 +2479,6 @@ class KafkaApis(val requestChannel: RequestChannel,
           }
         }
 
-        // If all the markers for consumer offsets partitions for the producer ID are written with the new group
-        // coordinator, we should avoid calling the replica manager appendRecords. Otherwise, maybeComplete() will be
-        // called more times than the markers and cause sending the response prematurely.
         if (!controlRecords.isEmpty) {
           replicaManager.appendRecords(
             timeout = config.requestTimeoutMs.toLong,
@@ -2489,9 +2489,8 @@ class KafkaApis(val requestChannel: RequestChannel,
             requestLocal = requestLocal,
             responseCallback = errors => {
               errors.foreachEntry { (tp, partitionResponse) =>
-                markerResults.put(tp, partitionResponse.error)
+                addResultAndMaybeComplete(tp, partitionResponse.error)
               }
-              maybeComplete()
             }
           )
         }
