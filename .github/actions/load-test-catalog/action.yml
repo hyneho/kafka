@@ -60,4 +60,4 @@ runs:
       shell: bash
       run: |
         python .github/scripts/format-all-tests.py from-yaml
-        echo "test-catalog-path=$(realpath data/all-tests.txt)" >> "$GITHUB_OUTPUT"
+        echo "test-catalog-path=$(realpath test-catalog/combined.txt)" >> "$GITHUB_OUTPUT"
