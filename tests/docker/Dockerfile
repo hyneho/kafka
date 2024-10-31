@@ -24,8 +24,8 @@ ENV jdk_17_version=17-linux-x64
 ARG latest_jdk_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_17_version}.tar.gz
 
 RUN apt-get update && \
-    apt-get install -y curl \
-    && rm -rf /var/lib/apt/lists/* 
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/* 
 
 WORKDIR /opt
 ENV java_base_dir=/opt/jdk
