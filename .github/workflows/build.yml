@@ -39,9 +39,15 @@ jobs:
     runs-on: ubuntu-latest
     name: Load Test Catalog
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
+          clean: false
           persist-credentials: false
           ref: "test-catalog"
           fetch-depth: 100
