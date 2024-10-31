@@ -1903,8 +1903,6 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                     // If users subscribe to an invalid topic name, they will get InvalidTopicException in error events,
                     // because network thread keeps trying to send MetadataRequest in the background.
                     // Ignore it to avoid unsubscribe failed.
-                } catch (Exception e) {
-                    throw e;
                 }
             } finally {
                 if (wasInterrupted)
