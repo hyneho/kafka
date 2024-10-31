@@ -39,15 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Load Test Catalog
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
-          clean: false
           persist-credentials: false
           ref: "test-catalog"
           fetch-depth: 0
@@ -56,12 +50,17 @@ jobs:
         run: |
           git show --no-patch
           git log
-          git checkout @{1 days ago}
+          git checkout "@{1 days ago}"
           git show --no-patch
           git log
           pwd
           find .
 
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: false
       - name: Format Catalog
         shell: bash
         run: |
