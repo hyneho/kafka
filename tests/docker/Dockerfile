@@ -21,7 +21,7 @@ FROM ubuntu AS build-native-image
 ENV jdk_11_version=11.0.2-linux-x64
 ARG jdk_11_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_11_version}.tar.gz
 ENV jdk_17_version=17-linux-x64
-ARG latest_jdk_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_17_version}.tar.gz
+ARG jdk_latest_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_17_version}.tar.gz
 
 RUN apt-get update && \
     apt-get install -y curl && \
@@ -34,7 +34,7 @@ RUN curl -L -o jdk_11.tar.gz ${jdk_11_url} && \
     mkdir -p ${java_base_dir}/11 && \
     tar -xzf jdk_11.tar.gz -C ${java_base_dir}/11 --strip-components=1
 
-RUN curl -L -o jdk_17.tar.gz ${latest_jdk_url} && \
+RUN curl -L -o jdk_17.tar.gz ${jdk_latest_url} && \
     mkdir -p ${java_base_dir}/17 && \
     tar -xzf jdk_17.tar.gz -C ${java_base_dir}/17 --strip-components=1
 
