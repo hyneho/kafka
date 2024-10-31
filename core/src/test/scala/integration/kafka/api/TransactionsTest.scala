@@ -866,18 +866,6 @@ class TransactionsTest extends IntegrationTestHarness {
     producer1.commitTransaction()
 
     val partitionLeader = TestUtils.waitUntilLeaderIsKnown(brokers, new TopicPartition(topic1, 0))
-
-    if (isTV2Enabled) {
-      // Wait until producer epoch is greater than 0 after the first commit
-      TestUtils.waitUntilTrue(() => {
-        val logOption = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0))
-        logOption.exists { log =>
-          val producerStateEntry = log.producerStateManager.activeProducers.entrySet().iterator().next().getValue
-          producerStateEntry.producerEpoch > initialProducerEpoch
-        }
-      }, "Timed out waiting for producer epoch to be greater than 0 after first commit", 10000)
-    }
-
     var producerStateEntry = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager
       .activeProducers.entrySet().iterator().next().getValue
     val producerId = producerStateEntry.producerId
@@ -921,23 +909,19 @@ class TransactionsTest extends IntegrationTestHarness {
     // Check that the epoch only increased by 1 when TV2 is disabled.
     // With TV2 and the latest EndTxnRequest version, the epoch will be bumped at the end of every transaction aka
     // three times (once after each commit and once after the timeout exception)
+    producerStateEntry =
+      brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager.activeProducers.get(producerId)
+    assertNotNull(producerStateEntry)
+
     if (!isTV2Enabled) {
-      producerStateEntry =
-        brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager.activeProducers.get(producerId)
-      assertNotNull(producerStateEntry)
       assertEquals((initialProducerEpoch + 1).toShort, producerStateEntry.producerEpoch)
-    }
-    else {
-      // Wait until the producer epoch has been updated on the broker
+    } else {
+      // Wait until the producer epoch has been updated on the broker.
       TestUtils.waitUntilTrue(() => {
-        val logOption = brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0))
-        logOption.exists { log =>
-          val producerStateEntry = log.producerStateManager.activeProducers.get(producerId)
-          producerStateEntry != null && producerStateEntry.producerEpoch > initialProducerEpoch + 2
-        }
+          producerStateEntry != null && producerStateEntry.producerEpoch == initialProducerEpoch + 3
       }, "Timed out waiting for producer epoch to be incremented after second commit", 10000)
     }
-}
+  }
 
   private def sendTransactionalMessagesWithValueRange(producer: KafkaProducer[Array[Byte], Array[Byte]], topic: String,
                                                       start: Int, end: Int, willBeCommitted: Boolean): Unit = {
