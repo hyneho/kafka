@@ -367,7 +367,7 @@ ducker_up() {
     [[ -n "${jdk_url}" ]] || jdk_url="${default_jdk_url}" 
     [[ -n "${os_version}" ]] || os_version="${default_os_version}"
     [[ -n "${jdk_11_url}" ]] || jdk_11_url="${default_jdk_11_url}"
-    [[ -n "${image_name}" ]] || image_name="${default_image_name}-${jdk_version/:/-}"
+    [[ -n "${image_name}" ]] || image_name="${default_image_name}-${default_os_version/:/-}"
     [[ "${num_nodes}" =~ ^-?[0-9]+$ ]] || \
         die "ducker_up: the number of nodes must be an integer."
     [[ "${num_nodes}" -gt 0 ]] || die "ducker_up: the number of nodes must be greater than 0."
