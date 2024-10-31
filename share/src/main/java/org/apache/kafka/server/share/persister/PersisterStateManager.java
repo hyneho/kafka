@@ -401,6 +401,7 @@ public class PersisterStateManager {
 
                 case COORDINATOR_NOT_AVAILABLE: // retryable error codes
                 case COORDINATOR_LOAD_IN_PROGRESS:
+                case NOT_COORDINATOR:
                     log.warn("Received retryable error in find coordinator: {}", error.message());
                     if (!findCoordBackoff.canAttempt()) {
                         log.error("Exhausted max retries to find coordinator without success.");

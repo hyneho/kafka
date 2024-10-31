@@ -1500,7 +1500,7 @@ class PersisterStateManagerTest {
     }
 
     @Test
-    public void testReadStateRequestFailButCoordinatorFoundSuccessfully() {
+    public void testReadStateRequestRetryWithNotCoordinatorSuccessfulOnRetry() throws ExecutionException, InterruptedException {
         MockClient client = new MockClient(MOCK_TIME);
 
         String groupId = "group1";
@@ -1511,6 +1511,19 @@ class PersisterStateManagerTest {
         Node coordinatorNode = new Node(1, HOST, PORT);
 
         String coordinatorKey = SharePartitionKey.asCoordinatorKey(groupId, topicId, partition);
+
+        client.prepareResponseFrom(body -> body instanceof FindCoordinatorRequest
+                && ((FindCoordinatorRequest) body).data().keyType() == FindCoordinatorRequest.CoordinatorType.SHARE.id()
+                && ((FindCoordinatorRequest) body).data().coordinatorKeys().get(0).equals(coordinatorKey),
+            new FindCoordinatorResponse(
+                new FindCoordinatorResponseData()
+                    .setCoordinators(Collections.singletonList(
+                        new FindCoordinatorResponseData.Coordinator()
+                            .setErrorCode(Errors.NOT_COORDINATOR.code())
+                    ))
+            ),
+            suppliedNode
+        );
 
         client.prepareResponseFrom(body -> body instanceof FindCoordinatorRequest
                 && ((FindCoordinatorRequest) body).data().keyType() == FindCoordinatorRequest.CoordinatorType.SHARE.id()
@@ -1543,8 +1556,11 @@ class PersisterStateManagerTest {
                         .setPartitions(Collections.singletonList(
                             new ReadShareGroupStateResponseData.PartitionResult()
                                 .setPartition(partition)
-                                .setErrorCode(Errors.NOT_COORDINATOR.code())
-                                .setErrorMessage(Errors.NOT_COORDINATOR.message())
+                                .setErrorCode(Errors.NONE.code())
+                                .setErrorMessage("")
+                                .setStateEpoch(1)
+                                .setStartOffset(0)
+                                .setStateBatches(Collections.emptyList())
                         ))
                 ))
         ), coordinatorNode);
@@ -1577,16 +1593,12 @@ class PersisterStateManagerTest {
 
         CompletableFuture<ReadShareGroupStateResponse> resultFuture = handler.result();
 
-        ReadShareGroupStateResponse result = null;
-        try {
-            result = resultFuture.get();
-        } catch (Exception e) {
-            fail("Failed to get result from future", e);
-        }
+        TestUtils.waitForCondition(resultFuture::isDone, TestUtils.DEFAULT_MAX_WAIT_MS, 10L, () -> "Failed to get result from future");
 
+        ReadShareGroupStateResponse result = resultFuture.get();
         ReadShareGroupStateResponseData.PartitionResult partitionResult = result.data().results().get(0).partitions().get(0);
 
-        verify(handler, times(1)).findShareCoordinatorBuilder();
+        verify(handler, times(2)).findShareCoordinatorBuilder();
         verify(handler, times(0)).requestBuilder();
 
         // Verifying the coordinator node was populated correctly by the FIND_COORDINATOR request
@@ -1594,7 +1606,7 @@ class PersisterStateManagerTest {
 
         // Verifying the result returned in correct
         assertEquals(partition, partitionResult.partition());
-        assertEquals(Errors.NOT_COORDINATOR.code(), partitionResult.errorCode());
+        assertEquals(Errors.NONE.code(), partitionResult.errorCode());
 
         try {
             // Stopping the state manager
@@ -1624,7 +1636,7 @@ class PersisterStateManagerTest {
                 new FindCoordinatorResponseData()
                     .setCoordinators(Collections.singletonList(
                         new FindCoordinatorResponseData.Coordinator()
-                            .setErrorCode(Errors.COORDINATOR_LOAD_IN_PROGRESS.code())
+                            .setErrorCode(Errors.NOT_COORDINATOR.code())
                     ))
             ),
             suppliedNode
