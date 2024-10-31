@@ -18,13 +18,24 @@
 ---
 name: "Python Setup"
 description: "Setup Python and install dependencies"
+inputs:
+  # Composite actions do not support typed parameters. Everything is treated as a string
+  # See: https://github.com/actions/runner/issues/2238
+  python-version:
+    description: "Python version to use"
+    default: "3.12"
+  requirements-file:
+    description: "Requirements file to pass to Pip"
+    default: ".github/scripts/requirements.txt"
 runs:
   using: "composite"
   steps:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: ${{ inputs.python-version }}
     - name: Pip install
       shell: bash
-      run: pip install -r .github/scripts/requirements.txt
+      env:
+        REQ_FILE: ${{ inputs.requirements-file }}
+      run: pip install -r $REQ_FILE
