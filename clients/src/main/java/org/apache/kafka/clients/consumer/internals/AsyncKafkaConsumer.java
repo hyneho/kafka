@@ -1824,21 +1824,20 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *
      * <ul>
      *     <li>
-     *         While most of the unsubscribe logic is performed on the background thread, the
-     *         {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection) rebalance listener callback} must be
+     *         While most of the unsubscribe logic is performed on the background thread,
+     *         {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection)} must be
      *         executed on the application thread. This requires a delicate dance between the two threads that is
      *         orchestrated via the {@link ConsumerRebalanceListenerCallbackNeededEvent} and
      *         {@link ConsumerRebalanceListenerCallbackCompletedEvent} events.
      *     </li>
      *     <li>
-     *         The user may or may not be using a callback handler. This can be deduced by
-     *         {@link SubscriptionState#rebalanceListener() checking for rebalance listener}.
+     *         The user may or may not be using a callback handler. This can be deduced by checking the result of
+     *         {@link SubscriptionState#rebalanceListener()}.
      *     </li>
      *     <li>
      *         If, at the time of unsubscribe, the consumer does not have any partitions assigned, the background
      *         thread will <em>not</em> enqueue a {@link ConsumerRebalanceListenerCallbackNeededEvent} to signal the
-     *         application thread to execute the
-     *         {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection) rebalance listener callback}. It's
+     *         application thread to execute {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection)}. It's
      *         technically possible to check if there are any partitions assigned} in the application thread, but it's
      *         possible the assignment could change in the background thread. So the application thread cannot
      *         blindly assume that a {@link ConsumerRebalanceListenerCallbackNeededEvent} will appear in the
