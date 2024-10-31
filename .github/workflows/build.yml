@@ -58,6 +58,9 @@ jobs:
           persist-credentials: false
           path: trunk
 
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
+
       # Prior to this step, we don't expect any errors. For the rest of this "load-catalog" job, we need to ensure
       # we do not fail as this will fail the overall workflow.
       - name: Combine Catalog into single file
@@ -94,9 +97,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
       - name: Setup Gradle
         uses: ./.github/actions/setup-gradle
         with:
@@ -148,10 +150,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install -r .github/scripts/requirements.txt
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
       - name: Setup Gradle
         uses: ./.github/actions/setup-gradle
         with:
