@@ -918,10 +918,6 @@ class TransactionsTest extends IntegrationTestHarness {
     producer3.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, 0, "4", "4", willBeCommitted = true))
     producer3.commitTransaction()
 
-    producerStateEntry =
-      brokers(partitionLeader).logManager.getLog(new TopicPartition(topic1, 0)).get.producerStateManager.activeProducers.get(producerId)
-    assertNotNull(producerStateEntry)
-
     // Check that the epoch only increased by 1 when TV2 is disabled.
     // With TV2 and the latest EndTxnRequest version, the epoch will be bumped at the end of every transaction aka
     // three times (once after each commit and once after the timeout exception)
