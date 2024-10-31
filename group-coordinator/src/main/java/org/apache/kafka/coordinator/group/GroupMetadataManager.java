@@ -16,8 +16,6 @@
  */
 package org.apache.kafka.coordinator.group;
 
-import com.google.re2j.Pattern;
-import com.google.re2j.PatternSyntaxException;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Uuid;
@@ -120,6 +118,9 @@ import org.apache.kafka.image.TopicImage;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineHashSet;
+
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 import org.slf4j.Logger;
 
