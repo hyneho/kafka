@@ -120,6 +120,12 @@ jobs:
           gradle-cache-read-only: ${{ inputs.gradle-cache-read-only }}
           gradle-cache-write-only: ${{ inputs.gradle-cache-write-only }}
           develocity-access-key: ${{ secrets.GE_ACCESS_TOKEN }}
+      - name: Load Test Catalog
+        id: load-catalog
+        uses: ./.github/actions/load-test-catalog
+        with:
+          github-token: ${{ github.token }}
+          days: 2
       - name: Test
         # Gradle flags
         # --build-cache:  Let Gradle restore the build cache
