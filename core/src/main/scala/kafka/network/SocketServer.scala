@@ -84,7 +84,7 @@ class SocketServer(
   val time: Time,
   val credentialProvider: CredentialProvider,
   val apiVersionManager: ApiVersionManager,
-  val socketFactory: ServerSocketFactory = KafkaServerSocketFactory.INSTANCE,
+  val socketFactory: ServerSocketFactory = ServerSocketFactory.INSTANCE,
   val connectionDisconnectListeners: Seq[ConnectionDisconnectListener] = Seq.empty
 ) extends Logging with BrokerReconfigurable {
 

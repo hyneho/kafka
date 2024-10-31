@@ -38,9 +38,7 @@ public interface TestKitNode {
     }
 
     default Uuid metadataDirectoryId() {
-        MetaProperties props = initialMetaPropertiesEnsemble().logDirProps().get(
-            initialMetaPropertiesEnsemble().metadataLogDir().get());
-        return props.directoryId().get();
+        return initialMetaPropertiesEnsemble().logDirProps().get(metadataDirectory()).directoryId().get();
     }
 
     MetaPropertiesEnsemble initialMetaPropertiesEnsemble();

@@ -27,6 +27,7 @@ import java.net.SocketException;
 import java.nio.channels.ServerSocketChannel;
 
 public interface ServerSocketFactory {
+    ServerSocketFactory INSTANCE = new KafkaServerSocketFactory();
     ServerSocketChannel openServerSocket(
         String listenerName,
         InetSocketAddress socketAddress,
@@ -35,7 +36,6 @@ public interface ServerSocketFactory {
     ) throws IOException;
 
     class KafkaServerSocketFactory implements ServerSocketFactory {
-        public static final KafkaServerSocketFactory INSTANCE = new KafkaServerSocketFactory();
 
         @Override
         public ServerSocketChannel openServerSocket(

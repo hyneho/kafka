@@ -17,7 +17,6 @@
 
 package kafka.server
 
-import org.apache.kafka.server.ServerSocketFactory.KafkaServerSocketFactory
 import kafka.controller.ControllerEventManager
 
 import java.io.File
@@ -43,7 +42,7 @@ import org.apache.kafka.metadata.storage.Formatter
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.queue.KafkaEventQueue
 import org.apache.kafka.raft.QuorumConfig
-import org.apache.kafka.server.ClientMetricsManager
+import org.apache.kafka.server.{ClientMetricsManager, ServerSocketFactory}
 import org.apache.kafka.server.common.MetadataVersion
 import org.apache.kafka.server.config.{KRaftConfigs, ServerConfigs, ServerLogConfigs}
 import org.apache.kafka.server.fault.{FaultHandler, MockFaultHandler}
@@ -139,7 +138,7 @@ class KRaftQuorumImplementation(
       controllerQuorumVotersFuture,
       controllerQuorumVotersFuture.get().values(),
       faultHandlerFactory,
-      KafkaServerSocketFactory.INSTANCE,
+      ServerSocketFactory.INSTANCE,
     )
     var broker: BrokerServer = null
     try {
@@ -383,7 +382,7 @@ abstract class QuorumTestHarness extends Logging {
       controllerQuorumVotersFuture,
       Collections.emptyList(),
       faultHandlerFactory,
-      KafkaServerSocketFactory.INSTANCE,
+      ServerSocketFactory.INSTANCE,
     )
     var controllerServer: ControllerServer = null
     try {

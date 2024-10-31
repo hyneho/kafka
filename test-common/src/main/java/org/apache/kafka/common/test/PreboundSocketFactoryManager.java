@@ -34,7 +34,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class PreboundSocketFactoryManager implements AutoCloseable {
-    private static final Logger LOG = LoggerFactory.getLogger(PreboundSocketFactoryManager.class);
 
     private class PreboundSocketFactory implements ServerSocketFactory {
         private final int nodeId;
@@ -56,7 +55,7 @@ public class PreboundSocketFactoryManager implements AutoCloseable {
             if (socketChannel != null) {
                 return socketChannel;
             }
-            return KafkaServerSocketFactory.INSTANCE.openServerSocket(
+            return ServerSocketFactory.INSTANCE.openServerSocket(
                 listenerName,
                 socketAddress,
                 listenBacklogSize,
@@ -141,7 +140,7 @@ public class PreboundSocketFactoryManager implements AutoCloseable {
             if (closed) {
                 throw new RuntimeException("Cannot open new socket: manager is closed.");
             }
-            socketChannel = ServerSocketFactory.KafkaServerSocketFactory.INSTANCE.openServerSocket(
+            socketChannel = ServerSocketFactory.INSTANCE.openServerSocket(
                 listener,
                 new InetSocketAddress(0),
                 -1,
