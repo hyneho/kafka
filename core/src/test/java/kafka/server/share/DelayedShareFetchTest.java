@@ -597,7 +597,7 @@ public class DelayedShareFetchTest {
         // Since minBytes calculation throws an exception and returns true, tryComplete should return true.
         assertTrue(delayedShareFetch.tryComplete());
         assertTrue(delayedShareFetch.isCompleted());
-        Mockito.verify(replicaManager, times(1)).readFromLog(
+        Mockito.verify(replicaManager, times(2)).readFromLog(
             any(), any(), any(ReplicaQuota.class), anyBoolean());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any(), any());
     }
@@ -616,6 +616,7 @@ public class DelayedShareFetchTest {
 
         ReplicaManager replicaManager = mock(ReplicaManager.class);
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp0))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
+        mockTopicIdPartitionToReturnDataEqualToMinBytes(replicaManager, tp0, 1);
 
         ShareFetchData shareFetchData = new ShareFetchData(FETCH_PARAMS, groupId, Uuid.randomUuid().toString(),
             new CompletableFuture<>(), Map.of(tp0, PARTITION_MAX_BYTES), MAX_FETCH_RECORDS);

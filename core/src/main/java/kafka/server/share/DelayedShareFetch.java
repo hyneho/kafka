@@ -24,6 +24,7 @@ import kafka.server.ReplicaManager;
 
 import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.message.ShareFetchResponseData;
+import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.server.share.fetch.ShareFetchData;
 import org.apache.kafka.server.storage.log.FetchIsolation;
@@ -58,8 +59,8 @@ public class DelayedShareFetch extends DelayedOperation {
     private final ShareFetchData shareFetchData;
     private final ReplicaManager replicaManager;
 
-    private Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionDataFromTryComplete;
-    private Map<TopicIdPartition, LogReadResult> logReadResponse;
+    private Map<TopicIdPartition, FetchRequest.PartitionData> partitionsToComplete;
+    private Map<TopicIdPartition, LogReadResult> partitionsAlreadyFetched;
     private final SharePartitionManager sharePartitionManager;
 
     DelayedShareFetch(
@@ -69,8 +70,8 @@ public class DelayedShareFetch extends DelayedOperation {
         super(shareFetchData.fetchParams().maxWaitMs, Option.empty());
         this.shareFetchData = shareFetchData;
         this.replicaManager = replicaManager;
-        this.topicPartitionDataFromTryComplete = new LinkedHashMap<>();
-        this.logReadResponse = new LinkedHashMap<>();
+        this.partitionsToComplete = new LinkedHashMap<>();
+        this.partitionsAlreadyFetched = new LinkedHashMap<>();
         this.sharePartitionManager = sharePartitionManager;
     }
 
@@ -87,18 +88,18 @@ public class DelayedShareFetch extends DelayedOperation {
     public void onComplete() {
         log.trace("Completing the delayed share fetch request for group {}, member {}, "
             + "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
-            topicPartitionDataFromTryComplete.keySet());
+            partitionsToComplete.keySet());
 
         if (shareFetchData.future().isDone())
             return;
 
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData;
         // tryComplete did not invoke forceComplete, so we need to check if we have any partitions to fetch.
-        if (topicPartitionDataFromTryComplete.isEmpty())
+        if (partitionsToComplete.isEmpty())
             topicPartitionData = acquirablePartitions();
         // tryComplete invoked forceComplete, so we can use the data from tryComplete.
         else
-            topicPartitionData = topicPartitionDataFromTryComplete;
+            topicPartitionData = partitionsToComplete;
 
         if (topicPartitionData.isEmpty()) {
             // No locks for share partitions could be acquired, so we complete the request with an empty response.
@@ -110,7 +111,7 @@ public class DelayedShareFetch extends DelayedOperation {
 
         try {
             Map<TopicIdPartition, LogReadResult> responseData;
-            if (logReadResponse.isEmpty())
+            if (partitionsAlreadyFetched.isEmpty())
                 responseData = readFromLog(topicPartitionData);
             else
                 // There can't be a case when we have a non-empty logReadResponse, and we have a fresh topicPartitionData
@@ -152,16 +153,16 @@ public class DelayedShareFetch extends DelayedOperation {
 
         try {
             if (!topicPartitionData.isEmpty()) {
-                Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse = maybeUpdateFetchOffsetMetadataForTopicPartitions(topicPartitionData);
-                if (isMinBytesSatisfied(topicPartitionData)) {
-                    topicPartitionDataFromTryComplete = topicPartitionData;
-                    if (replicaManagerReadResponse != null && !replicaManagerReadResponse.isEmpty())
-                        logReadResponse = replicaManagerReadResponse;
+                Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse = maybeReadFromLogAndUpdateFetchOffsetMetadata(topicPartitionData);
+                if (anyTopicIdPartitionHasLogReadError(replicaManagerReadResponse) || isMinBytesSatisfied(topicPartitionData)) {
+                    partitionsToComplete = topicPartitionData;
+                    if (!replicaManagerReadResponse.isEmpty())
+                        partitionsAlreadyFetched = replicaManagerReadResponse;
                     boolean completedByMe = forceComplete();
                     // If invocation of forceComplete is not successful, then that means the request is already completed
                     // hence release the acquired locks.
                     if (!completedByMe) {
-                        releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
+                        releasePartitionLocks(shareFetchData.groupId(), partitionsToComplete.keySet());
                     }
                     return completedByMe;
                 } else {
@@ -182,7 +183,7 @@ public class DelayedShareFetch extends DelayedOperation {
             // If invocation of forceComplete is not successful, then that means the request is already completed
             // hence release the acquired locks.
             if (!completedByMe) {
-                releasePartitionLocks(shareFetchData.groupId(), topicPartitionDataFromTryComplete.keySet());
+                releasePartitionLocks(shareFetchData.groupId(), partitionsToComplete.keySet());
             }
             return completedByMe;
         }
@@ -237,7 +238,7 @@ public class DelayedShareFetch extends DelayedOperation {
 
     // In case, fetch offset metadata doesn't exist for one or more topic partitions, we do a
     // replicaManager.readFromLog to populate the offset metadata.
-    private Map<TopicIdPartition, LogReadResult> maybeUpdateFetchOffsetMetadataForTopicPartitions(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
+    private Map<TopicIdPartition, LogReadResult> maybeReadFromLogAndUpdateFetchOffsetMetadata(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         Map<TopicIdPartition, FetchRequest.PartitionData> missingFetchOffsetMetadataTopicPartitions = new LinkedHashMap<>();
         for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
@@ -247,7 +248,7 @@ public class DelayedShareFetch extends DelayedOperation {
             }
         }
         if (missingFetchOffsetMetadataTopicPartitions.isEmpty()) {
-            return null;
+            return Collections.emptyMap();
         }
         // We fetch data from replica manager corresponding to the topic partitions that have missing fetch offset metadata.
         Map<TopicIdPartition, LogReadResult> replicaManagerReadResponseData = readFromLog(missingFetchOffsetMetadataTopicPartitions);
@@ -260,7 +261,7 @@ public class DelayedShareFetch extends DelayedOperation {
             TopicIdPartition topicIdPartition = entry.getKey();
             SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
             LogReadResult replicaManagerLogReadResult = entry.getValue();
-            if (replicaManagerLogReadResult == null) {
+            if (replicaManagerLogReadResult.error().code() != Errors.NONE.code()) {
                 log.debug("Replica manager read log result {} does not contain topic partition {}",
                     replicaManagerReadResponseData, topicIdPartition);
                 continue;
@@ -354,27 +355,34 @@ public class DelayedShareFetch extends DelayedOperation {
         return false;
     }
 
+    private boolean anyTopicIdPartitionHasLogReadError(Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse) {
+        for (LogReadResult logReadResult : replicaManagerReadResponse.values()) {
+            if (logReadResult.error().code()  != Errors.NONE.code()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Visible for testing.
     Map<TopicIdPartition, LogReadResult> combineLogReadResponse(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         Map<TopicIdPartition, FetchRequest.PartitionData> missingLogReadTopicPartitions = new LinkedHashMap<>();
-        for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
-            TopicIdPartition topicIdPartition = entry.getKey();
-            FetchRequest.PartitionData partitionData = entry.getValue();
-            if (!logReadResponse.containsKey(topicIdPartition)) {
+        topicPartitionData.forEach((topicIdPartition, partitionData) -> {
+            if (!partitionsAlreadyFetched.containsKey(topicIdPartition)) {
                 missingLogReadTopicPartitions.put(topicIdPartition, partitionData);
             }
-        }
+        });
         if (missingLogReadTopicPartitions.isEmpty()) {
-            return logReadResponse;
+            return partitionsAlreadyFetched;
         }
         Map<TopicIdPartition, LogReadResult> missingTopicPartitionsLogReadResponse = readFromLog(missingLogReadTopicPartitions);
-        missingTopicPartitionsLogReadResponse.putAll(logReadResponse);
+        missingTopicPartitionsLogReadResponse.putAll(partitionsAlreadyFetched);
         return missingTopicPartitionsLogReadResponse;
     }
 
     // Visible for testing. Only used for testing purposes.
     void updateLogReadResponse(Map<TopicIdPartition, LogReadResult> logReadResponse) {
-        this.logReadResponse = logReadResponse;
+        this.partitionsAlreadyFetched = logReadResponse;
     }
 
     // Visible for testing.
