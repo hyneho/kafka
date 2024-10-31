@@ -446,7 +446,8 @@ public class Plugins {
      * @throws VersionedPluginLoadingException if the version requested is not found
      */
     public Converter newConverter(AbstractConfig config, String classPropertyName, String versionPropertyName) {
-        return getConverter(config, classPropertyName, versionPropertyName, ClassLoaderUsage.PLUGINS);
+        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
+        return getConverter(config, classPropertyName, versionPropertyName, classLoader);
     }
 
     private Converter getConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
@@ -514,7 +515,8 @@ public class Plugins {
     }
 
     public HeaderConverter newHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName) {
-        return getHeaderConverter(config, classPropertyName, versionPropertyName, ClassLoaderUsage.PLUGINS);
+        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
+        return getHeaderConverter(config, classPropertyName, versionPropertyName, classLoader);
     }
 
     private HeaderConverter getHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
@@ -543,8 +545,9 @@ public class Plugins {
             return null;
         }
 
+        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
         return getVersionedPlugin(config, classPropertyName, versionPropertyName,
-                Transformation.class, ClassLoaderUsage.PLUGINS, scanResult.transformations());
+                Transformation.class, classLoader, scanResult.transformations());
     }
 
     public Predicate<?> newPredicate(ConnectorConfig config, String classPropertyName, String versionPropertyName) {
@@ -553,8 +556,9 @@ public class Plugins {
             return null;
         }
 
+        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
         return getVersionedPlugin(config, classPropertyName, versionPropertyName,
-                Predicate.class, ClassLoaderUsage.PLUGINS, scanResult.predicates());
+                Predicate.class, classLoader, scanResult.predicates());
     }
 
     @SuppressWarnings("unchecked")
