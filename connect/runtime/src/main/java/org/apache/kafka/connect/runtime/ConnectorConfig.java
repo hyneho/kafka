@@ -509,6 +509,10 @@ public class ConnectorConfig extends AbstractConfig {
             Map<String, String> workerProps
     ) {
         /*
+        if a converter is specified in the connector config it overrides the worker config for the corresponding converter
+        otherwise the worker config is used, hence if the converter is not provided in the connector config, the default
+        is the one provided in the worker config
+
         for converters which version is used depends on a several factors with multi-versioning support
         A. If the converter class is provided as part of the connector properties
             1. if the version is not provided,
@@ -524,6 +528,7 @@ public class ConnectorConfig extends AbstractConfig {
         final String connectorConverter = connectorProps.get(connectorConverterConfig);
         final String workerConverter = workerProps.get(workerConverterConfig);
         final String connectorClass = connectorProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
+        final String connectorVersion = connectorProps.get(ConnectorConfig.CONNECTOR_VERSION);
         if (connectorConverter == null && workerConverter == null) {
             return;
         }
@@ -535,28 +540,10 @@ public class ConnectorConfig extends AbstractConfig {
             updateVersionKeyDefault(configDef, connectorConverterConfig, workerProps.get(workerConverterConfig));
         }
 
-        // get te  connector classloader to load the converter
-        final ClassLoader connectorLoader;
-        try {
-            VersionRange range = VersionRange.createFromVersionSpec(connectorProps.get(CONNECTOR_VERSION));
-            connectorLoader = plugins.connectorLoader(connectorClass, range);
-        } catch (InvalidVersionSpecificationException | ClassNotFoundException | VersionedPluginLoadingException e) {
-            // these errors should be captured in other places, so we can ignore them here
-            log.error("Failed to determine connector loader for {}", connectorClass, e);
-            return;
-        }
 
         String version = null;
         if (connectorConverter != null) {
-            try(LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
-                // this will load using the connector classloader, and then delegate to delegating classloader if not found
-                Converter converter = Utils.newInstance(connectorConverter, Converter.class);
-                if (converter instanceof Versioned) {
-                    version = ((Versioned) converter).version();
-                }
-            } catch (ClassNotFoundException e) {
-                log.error("Failed to determine default version of converter {}", connectorConverter, e);
-            }
+            version = fetchDefaultPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, Converter.class);
         } else {
             version = workerProps.get(workerConverterVersionConfig);
             if (version == null) {
@@ -576,6 +563,25 @@ public class ConnectorConfig extends AbstractConfig {
         configDef.configKeys().put(versionConfigKey, new ConfigDef.ConfigKey(
                 versionConfigKey, key.type, versionDefault, key.validator, key.importance, key.documentation, key.group, key.orderInGroup, key.width, key.displayName, key.dependents, key.recommender, false
         ));
+    }
+
+    private static <T> String fetchDefaultPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName, Class<T> pluginClass) {
+        try {
+            VersionRange range = VersionRange.createFromVersionSpec(connectorVersion);
+            ClassLoader connectorLoader = plugins.connectorLoader(connectorClass, range);
+            try(LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
+                // this will load using the connector classloader, and then delegate to delegating classloader if not found
+                // this will ultimately get the latest version of the plugin if a different version is not packaged with the connector
+                T plugin = Utils.newInstance(pluginName, pluginClass);
+                if (plugin instanceof Versioned) {
+                    return ((Versioned) plugin).version();
+                }
+            }
+        } catch (InvalidVersionSpecificationException | ClassNotFoundException | VersionedPluginLoadingException e) {
+            // these errors should be captured in other places, so we can ignore them here
+            log.warn("Failed to determine default plugin version for {}", connectorClass, e);
+        }
+        return null;
     }
 
     /**
