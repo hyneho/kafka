@@ -1815,9 +1815,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     /**
      * When unsubscribing, the application thread enqueues an {@link UnsubscribeEvent} on the application event queue.
      * That event will eventually trigger the rebalancing logic in the background thread.
-     * Critically, as part of this rebalancing work, any
-     * {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection) rebalance listener callback} may need to be
-     * invoked.
+     * Critically, as part of this rebalancing work, {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection)}
+     * may need to be invoked.
      *
      * <p/>
      *
@@ -1840,11 +1839,10 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *         thread will <em>not</em> enqueue a {@link ConsumerRebalanceListenerCallbackNeededEvent} to signal the
      *         application thread to execute the
      *         {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection) rebalance listener callback}. It's
-     *         technically possible to
-     *         {@link SubscriptionState#assignedPartitions() check if there are any partitions assigned} in the
-     *         application thread, but it's possible the assignment could change in the background thread. So the
-     *         application thread cannot blindly assume that a {@link ConsumerRebalanceListenerCallbackNeededEvent}
-     *         will appear in the background event queue even if a rebalance listener is in use.
+     *         technically possible to check if there are any partitions assigned} in the application thread, but it's
+     *         possible the assignment could change in the background thread. So the application thread cannot
+     *         blindly assume that a {@link ConsumerRebalanceListenerCallbackNeededEvent} will appear in the
+     *         background event queue even if a rebalance listener is in use.
      *     </li>
      *     <li>
      *         The call to {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection)} may take so long that
@@ -1853,9 +1851,9 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *     </li>
      *     <li>
      *         If, prior to the unsubscribe operation, the application thread was interrupted, it's important that
-     *         the interrupt flag be preserved for the
-     *         {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection) rebalance listener callback} to
-     *         maintain compatibility with the {@link ClassicKafkaConsumer}
+     *         the interrupt flag be preserved for the call to
+     *         {@link ConsumerRebalanceListener#onPartitionsRevoked(Collection)} to maintain compatibility with
+     *         the {@link ClassicKafkaConsumer}.
      *     </li>
      * </ul>
      *
