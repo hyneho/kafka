@@ -15,25 +15,13 @@
  * limitations under the License.
  */
 
-package org.apache.kafka.server;
+package org.apache.kafka.controller.errors;
 
-import org.apache.kafka.clients.NodeApiVersions;
-import org.apache.kafka.common.requests.AbstractRequest;
-
-import java.util.Optional;
-
-public interface NodeToControllerChannelManager {
-
-    void start();
-
-    void shutdown();
-
-    Optional<NodeApiVersions> controllerApiVersions();
-
-    void sendRequest(
-        AbstractRequest.Builder<? extends AbstractRequest> request,
-        ControllerRequestCompletionHandler callback
-    );
-
-    long getTimeoutMs();
+/**
+ * An exception indicating that a periodic task managed by PeriodicTaskControlManager failed.
+ */
+public class PeriodicControlTaskException extends RuntimeException {
+    public PeriodicControlTaskException(String message, Throwable e) {
+        super(message, e);
+    }
 }
