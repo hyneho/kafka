@@ -502,32 +502,7 @@ public class ConnectorConfig extends AbstractConfig {
 
         }.enrich(newDef, plugins);
 
-        updateVersionDefaults(newDef, plugins, props.get(CONNECTOR_CLASS_CONFIG), props.get(VALUE_CONVERTER_CLASS_CONFIG),
-                props.get(KEY_CONVERTER_CLASS_CONFIG), props.get(HEADER_CONVERTER_CLASS_CONFIG));
-
         return newDef;
-    }
-
-    private static void updateVersionDefaults(ConfigDef configDef, Plugins plugins, String connector, String valueConverter, String keyConverter, String headerConverter) {
-        if (connector != null) {
-            updateVersionKeyDefault(configDef, ConnectorConfig.CONNECTOR_VERSION, plugins.defaultVersion(connector));
-        }
-        if (valueConverter != null) {
-            updateVersionKeyDefault(configDef, ConnectorConfig.VALUE_CONVERTER_VERSION_CONFIG, plugins.defaultVersion(valueConverter));
-        }
-        if (keyConverter != null) {
-            updateVersionKeyDefault(configDef, ConnectorConfig.KEY_CONVERTER_VERSION_CONFIG, plugins.defaultVersion(keyConverter));
-        }
-        if (headerConverter != null) {
-            updateVersionKeyDefault(configDef, ConnectorConfig.HEADER_CONVERTER_VERSION_CONFIG, plugins.defaultVersion(headerConverter));
-        }
-    }
-
-    private static void updateVersionKeyDefault(ConfigDef configDef, String versionConfigKey, String versionDefault) {
-        ConfigDef.ConfigKey key = configDef.configKeys().get(versionConfigKey);
-        configDef.configKeys().put(versionConfigKey, new ConfigDef.ConfigKey(
-                versionConfigKey, key.type, versionDefault, key.validator, key.importance, key.documentation, key.group, key.orderInGroup, key.width, key.displayName, key.dependents, key.recommender, false
-        ));
     }
 
     /**
