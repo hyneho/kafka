@@ -523,7 +523,7 @@ public class Plugins {
             return null;
         }
 
-        HeaderConverter plugin = getVersionedPlugin(config, classPropertyName, classPropertyName + ".version",
+        HeaderConverter plugin = getVersionedPlugin(config, classPropertyName, versionPropertyName,
                 HeaderConverter.class, classLoaderUsage, scanResult.headerConverters());
 
         String configPrefix = classPropertyName + ".";
