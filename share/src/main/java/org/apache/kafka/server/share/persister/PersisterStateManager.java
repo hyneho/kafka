@@ -679,6 +679,7 @@ public class PersisterStateManager {
                             // check retryable errors
                             case COORDINATOR_NOT_AVAILABLE:
                             case COORDINATOR_LOAD_IN_PROGRESS:
+                            case NOT_COORDINATOR:
                                 log.warn("Received retryable error in read state RPC: {}", error.message());
                                 if (!readStateBackoff.canAttempt()) {
                                     log.error("Exhausted max retries for read state RPC without success.");
