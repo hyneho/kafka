@@ -29,6 +29,7 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.TopicConfig;
+import org.apache.kafka.common.metrics.JmxReporter;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.Sensor.RecordingLevel;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
@@ -631,11 +632,6 @@ public class StreamsConfig extends AbstractConfig {
     @SuppressWarnings("WeakerAccess")
     public static final String METRICS_SAMPLE_WINDOW_MS_CONFIG = CommonClientConfigs.METRICS_SAMPLE_WINDOW_MS_CONFIG;
 
-    /** {@code auto.include.jmx.reporter}
-     * @deprecated and will be removed in 4.0.0 */
-    @Deprecated
-    public static final String AUTO_INCLUDE_JMX_REPORTER_CONFIG = CommonClientConfigs.AUTO_INCLUDE_JMX_REPORTER_CONFIG;
-
     /** {@code num.standby.replicas} */
     @SuppressWarnings("WeakerAccess")
     public static final String NUM_STANDBY_REPLICAS_CONFIG = "num.standby.replicas";
@@ -697,7 +693,7 @@ public class StreamsConfig extends AbstractConfig {
     @Deprecated
     public static final String RACK_AWARE_ASSIGNMENT_STRATEGY_DOC = "The strategy we use for rack aware assignment. Rack aware assignment will take <code>client.rack</code> and <code>racks</code> of <code>TopicPartition</code> into account when assigning"
         + " tasks to minimize cross rack traffic. Valid settings are : <code>" + RACK_AWARE_ASSIGNMENT_STRATEGY_NONE + "</code> (default), which will disable rack aware assignment; <code>" + RACK_AWARE_ASSIGNMENT_STRATEGY_MIN_TRAFFIC
-        + "</code>, which will compute minimum cross rack traffic assignment; <code>" + RACK_AWARE_ASSIGNMENT_STRATEGY_BALANCE_SUBTOPOLOGY + "</code>, which will compute minimum cross rack traffic and try to balance the tasks of same subtopolgies across different clients";
+        + "</code>, which will compute minimum cross rack traffic assignment; <code>" + RACK_AWARE_ASSIGNMENT_STRATEGY_BALANCE_SUBTOPOLOGY + "</code>, which will compute minimum cross rack traffic and try to balance the tasks of same subtopologies across different clients";
 
     /** {@code rack.aware.assignment.tags} */
     @SuppressWarnings("WeakerAccess")
@@ -1095,7 +1091,7 @@ public class StreamsConfig extends AbstractConfig {
                     CommonClientConfigs.METRICS_NUM_SAMPLES_DOC)
             .define(METRIC_REPORTER_CLASSES_CONFIG,
                     Type.LIST,
-                    "",
+                    JmxReporter.class.getName(),
                     Importance.LOW,
                     CommonClientConfigs.METRIC_REPORTER_CLASSES_DOC)
             .define(METRICS_RECORDING_LEVEL_CONFIG,
@@ -1110,11 +1106,6 @@ public class StreamsConfig extends AbstractConfig {
                     atLeast(0),
                     Importance.LOW,
                     CommonClientConfigs.METRICS_SAMPLE_WINDOW_MS_DOC)
-            .define(AUTO_INCLUDE_JMX_REPORTER_CONFIG,
-                    Type.BOOLEAN,
-                    true,
-                    Importance.LOW,
-                    CommonClientConfigs.AUTO_INCLUDE_JMX_REPORTER_DOC)
             .define(POLL_MS_CONFIG,
                     Type.LONG,
                     100L,
@@ -1236,6 +1227,13 @@ public class StreamsConfig extends AbstractConfig {
         CONSUMER_EOS_OVERRIDES = Collections.unmodifiableMap(tempConsumerDefaultOverrides);
     }
 
+    private static final Map<String, Object> ADMIN_CLIENT_OVERRIDES;
+    static {
+        final Map<String, Object> tempAdminClientDefaultOverrides = new HashMap<>();
+        tempAdminClientDefaultOverrides.put(AdminClientConfig.ENABLE_METRICS_PUSH_CONFIG, "true");
+        ADMIN_CLIENT_OVERRIDES = Collections.unmodifiableMap(tempAdminClientDefaultOverrides);
+    }
+
     public static class InternalConfig {
         // This is settable in the main Streams config, but it's a private API for now
         public static final String INTERNAL_TASK_ASSIGNOR_CLASS = "internal.task.assignor.class";
@@ -1281,7 +1279,11 @@ public class StreamsConfig extends AbstractConfig {
             } else if (value instanceof String) {
                 return Boolean.parseBoolean((String) value);
             } else {
-                log.warn("Invalid value (" + value + ") on internal configuration '" + key + "'. Please specify a true/false value.");
+                log.warn(
+                    "Invalid value ({}) on internal configuration '{}'. Please specify a true/false value.",
+                    value,
+                    key
+                );
                 return defaultValue;
             }
         }
@@ -1293,7 +1295,11 @@ public class StreamsConfig extends AbstractConfig {
             } else if (value instanceof String) {
                 return Long.parseLong((String) value);
             } else {
-                log.warn("Invalid value (" + value + ") on internal configuration '" + key + "'. Please specify a numeric value.");
+                log.warn(
+                    "Invalid value ({}) on internal configuration '{}'. Please specify a numeric value.",
+                    value,
+                    key
+                );
                 return defaultValue;
             }
         }
@@ -1303,7 +1309,11 @@ public class StreamsConfig extends AbstractConfig {
             if (value instanceof String) {
                 return (String) value;
             } else {
-                log.warn("Invalid value (" + value + ") on internal configuration '" + key + "'. Please specify a String value.");
+                log.warn(
+                    "Invalid value ({}) on internal configuration '{}'. Please specify a String value.",
+                    value,
+                    key
+                );
                 return defaultValue;
             }
         }
@@ -1431,6 +1441,7 @@ public class StreamsConfig extends AbstractConfig {
             verifyEOSTransactionTimeoutCompatibility();
         }
         verifyTopologyOptimizationConfigs(getString(TOPOLOGY_OPTIMIZATION_CONFIG));
+        verifyClientTelemetryConfigs();
     }
 
     private void verifyEOSTransactionTimeoutCompatibility() {
@@ -1444,13 +1455,62 @@ public class StreamsConfig extends AbstractConfig {
                     DEFAULT_TRANSACTION_TIMEOUT;
 
         if (transactionTimeout < commitInterval) {
-            throw new IllegalArgumentException(String.format("Transaction timeout %d was set lower than " +
+            throw new IllegalArgumentException(String.format(
+                "Transaction timeout %d was set lower than " +
                 "streams commit interval %d. This will cause ongoing transaction always timeout due to inactivity " +
                 "caused by long commit interval. Consider reconfiguring commit interval to match " +
                 "transaction timeout by tuning 'commit.interval.ms' config, or increase the transaction timeout to match " +
                 "commit interval by tuning `producer.transaction.timeout.ms` config.",
-                transactionTimeout, commitInterval));
+                transactionTimeout,
+                commitInterval
+            ));
         }
+    }
+
+    private void verifyClientTelemetryConfigs() {
+        final boolean streamTelemetryEnabled = getBoolean(ENABLE_METRICS_PUSH_CONFIG);
+        final Boolean mainConsumerMetricsConfig = maybeMetricsPushEnabled(MAIN_CONSUMER_PREFIX);
+        final Boolean consumerMetricsConfig = maybeMetricsPushEnabled(CONSUMER_PREFIX);
+        final Boolean adminMetricsConfig = maybeMetricsPushEnabled(ADMIN_CLIENT_PREFIX);
+
+        if (streamTelemetryEnabled) {
+            checkConsumerAndMainConsumerAndAdminMetricsConfig(adminMetricsConfig, consumerMetricsConfig, mainConsumerMetricsConfig);
+            checkMainConsumerAndAdminMetricsConfig(adminMetricsConfig, mainConsumerMetricsConfig, "enabled");
+        }
+    }
+
+
+    private void checkConsumerAndMainConsumerAndAdminMetricsConfig(final Boolean adminMetricsConfig,
+                                                                   final Boolean consumerMetricsConfig,
+                                                                   final Boolean mainConsumerMetricsConfig) {
+        if (consumerMetricsConfig != null) {
+            if (!consumerMetricsConfig
+                    && mainConsumerMetricsConfig == null
+                    && adminMetricsConfig == null) {
+                throw new ConfigException("Kafka Streams metrics push enabled but consumer.enable.metrics is false, the setting needs to be consistent between the two");
+            } else if (consumerMetricsConfig) {
+                checkMainConsumerAndAdminMetricsConfig(adminMetricsConfig, mainConsumerMetricsConfig, "and consumer.enable.metrics are enabled,");
+            }
+        }
+    }
+
+    private void checkMainConsumerAndAdminMetricsConfig(final Boolean adminMetricsConfig, final Boolean mainConsumerMetricsConfig, final String message) {
+        if (mainConsumerMetricsConfig != null && !mainConsumerMetricsConfig
+                && adminMetricsConfig != null && !adminMetricsConfig) {
+            throw new ConfigException("Kafka Streams metrics push " + message + " but main.consumer and admin.client metrics push are disabled, the setting needs to be consistent between the two");
+        } else if (mainConsumerMetricsConfig != null && !mainConsumerMetricsConfig) {
+            throw new ConfigException("Kafka Streams metrics push " + message + " but main.consumer metrics push is disabled, the setting needs to be consistent between the two");
+        } else if (adminMetricsConfig != null && !adminMetricsConfig) {
+            throw new ConfigException("Kafka Streams metrics push " + message + " but admin.client metrics push is disabled, the setting needs to be consistent between the two");
+        }
+    }
+
+    private Boolean maybeMetricsPushEnabled(final String prefix) {
+        Boolean configSetValue = null;
+        if (originalsWithPrefix(prefix).containsKey(ENABLE_METRICS_PUSH_CONFIG)) {
+            configSetValue =  (Boolean) originalsWithPrefix(prefix).get(ENABLE_METRICS_PUSH_CONFIG);
+        }
+        return configSetValue;
     }
 
     @Override
@@ -1525,36 +1585,61 @@ public class StreamsConfig extends AbstractConfig {
         // Streams does not allow users to configure certain consumer/producer configurations, for example,
         // enable.auto.commit. In cases where user tries to override such non-configurable
         // consumer/producer configurations, log a warning and remove the user defined value from the Map.
-        // Thus the default values for these consumer/producer configurations that are suitable for
+        // Thus, the default values for these consumer/producer configurations that are suitable for
         // Streams will be used instead.
 
-        final String nonConfigurableConfigMessage = "Unexpected user-specified %s config: %s found. %sUser setting (%s) will be ignored and the Streams default setting (%s) will be used ";
-        final String eosMessage = PROCESSING_GUARANTEE_CONFIG + " is set to " + getString(PROCESSING_GUARANTEE_CONFIG) + ". Hence, ";
+        final String nonConfigurableConfigMessage = "Unexpected user-specified {} config '{}' found. {} setting ({}) will be ignored and the Streams default setting ({}) will be used.";
+        final String eosMessage = "'" + PROCESSING_GUARANTEE_CONFIG + "' is set to \"" + getString(PROCESSING_GUARANTEE_CONFIG) + "\". Hence, user";
 
         for (final String config: nonConfigurableConfigs) {
             if (clientProvidedProps.containsKey(config)) {
 
                 if (CONSUMER_DEFAULT_OVERRIDES.containsKey(config)) {
                     if (!clientProvidedProps.get(config).equals(CONSUMER_DEFAULT_OVERRIDES.get(config))) {
-                        log.warn(String.format(nonConfigurableConfigMessage, "consumer", config, "", clientProvidedProps.get(config),  CONSUMER_DEFAULT_OVERRIDES.get(config)));
+                        log.error(
+                            nonConfigurableConfigMessage,
+                            "consumer",
+                            config,
+                            "User",
+                            clientProvidedProps.get(config),
+                            CONSUMER_DEFAULT_OVERRIDES.get(config)
+                        );
                         clientProvidedProps.remove(config);
                     }
                 } else if (eosEnabled) {
                     if (CONSUMER_EOS_OVERRIDES.containsKey(config)) {
                         if (!clientProvidedProps.get(config).equals(CONSUMER_EOS_OVERRIDES.get(config))) {
-                            log.warn(String.format(nonConfigurableConfigMessage,
-                                    "consumer", config, eosMessage, clientProvidedProps.get(config), CONSUMER_EOS_OVERRIDES.get(config)));
+                            log.warn(
+                                nonConfigurableConfigMessage,
+                                "consumer",
+                                config,
+                                eosMessage,
+                                clientProvidedProps.get(config),
+                                CONSUMER_EOS_OVERRIDES.get(config)
+                            );
                             clientProvidedProps.remove(config);
                         }
                     } else if (PRODUCER_EOS_OVERRIDES.containsKey(config)) {
                         if (!clientProvidedProps.get(config).equals(PRODUCER_EOS_OVERRIDES.get(config))) {
-                            log.warn(String.format(nonConfigurableConfigMessage,
-                                    "producer", config, eosMessage, clientProvidedProps.get(config), PRODUCER_EOS_OVERRIDES.get(config)));
+                            log.warn(
+                                nonConfigurableConfigMessage,
+                                "producer",
+                                config,
+                                eosMessage,
+                                clientProvidedProps.get(config),
+                                PRODUCER_EOS_OVERRIDES.get(config)
+                            );
                             clientProvidedProps.remove(config);
                         }
                     } else if (ProducerConfig.TRANSACTIONAL_ID_CONFIG.equals(config)) {
-                        log.warn(String.format(nonConfigurableConfigMessage,
-                            "producer", config, eosMessage, clientProvidedProps.get(config), "<appId>-<generatedSuffix>"));
+                        log.warn(
+                            nonConfigurableConfigMessage,
+                            "producer",
+                            config,
+                            eosMessage,
+                            clientProvidedProps.get(config),
+                            "<appId>-<generatedSuffix>"
+                        );
                         clientProvidedProps.remove(config);
                     }
                 }
@@ -1651,9 +1736,11 @@ public class StreamsConfig extends AbstractConfig {
             final int batchSize = Integer.parseInt(producerProps.get(ProducerConfig.BATCH_SIZE_CONFIG).toString());
 
             if (segmentSize < batchSize) {
-                throw new IllegalArgumentException(String.format("Specified topic segment size %d is is smaller than the configured producer batch size %d, this will cause produced batch not able to be appended to the topic",
-                        segmentSize,
-                        batchSize));
+                throw new IllegalArgumentException(String.format(
+                    "Specified topic segment size %d is is smaller than the configured producer batch size %d, this will cause produced batch not able to be appended to the topic",
+                    segmentSize,
+                    batchSize
+                ));
             }
         }
 
@@ -1764,7 +1851,7 @@ public class StreamsConfig extends AbstractConfig {
     public Map<String, Object> getAdminConfigs(final String clientId) {
         final Map<String, Object> clientProvidedProps = getClientPropsWithPrefix(ADMIN_CLIENT_PREFIX, AdminClientConfig.configNames());
 
-        final Map<String, Object> props = new HashMap<>();
+        final Map<String, Object> props = new HashMap<>(ADMIN_CLIENT_OVERRIDES);
         props.putAll(getClientCustomProps());
         props.putAll(clientProvidedProps);
 
@@ -1867,7 +1954,9 @@ public class StreamsConfig extends AbstractConfig {
             return serde;
         } catch (final Exception e) {
             throw new StreamsException(
-                String.format("Failed to configure key serde %s", keySerdeConfigSetting), e);
+                String.format("Failed to configure key serde %s", keySerdeConfigSetting),
+                e
+            );
         }
     }
 
@@ -1889,7 +1978,9 @@ public class StreamsConfig extends AbstractConfig {
             return serde;
         } catch (final Exception e) {
             throw new StreamsException(
-                String.format("Failed to configure value serde %s", valueSerdeConfigSetting), e);
+                String.format("Failed to configure value serde %s", valueSerdeConfigSetting),
+                e
+            );
         }
     }
 

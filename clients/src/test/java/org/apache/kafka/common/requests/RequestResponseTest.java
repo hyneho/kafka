@@ -278,7 +278,6 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.security.token.delegation.DelegationToken;
 import org.apache.kafka.common.security.token.delegation.TokenInformation;
 import org.apache.kafka.common.utils.SecurityUtils;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.Assertions;
@@ -2696,7 +2695,7 @@ public class RequestResponseTest {
             .setReplicas(replicas)
             .setIsNew(false));
 
-        Set<Node> leaders = Utils.mkSet(
+        Set<Node> leaders = Set.of(
                 new Node(0, "test0", 1223),
                 new Node(1, "test1", 1223)
         );
@@ -3873,7 +3872,7 @@ public class RequestResponseTest {
             .setSubscriptionId(1)
             .setTerminating(false)
             .setCompressionType(CompressionType.ZSTD.id)
-            .setMetrics("test-metrics".getBytes(StandardCharsets.UTF_8))
+            .setMetrics(ByteBuffer.wrap("test-metrics".getBytes(StandardCharsets.UTF_8)))
         ).build(version);
     }
 

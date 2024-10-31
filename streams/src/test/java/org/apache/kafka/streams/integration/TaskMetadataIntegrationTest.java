@@ -61,7 +61,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 @Timeout(600)
 public class TaskMetadataIntegrationTest {
 
-    public static final EmbeddedKafkaCluster CLUSTER = new EmbeddedKafkaCluster(1, new Properties(), Collections.emptyList(), 0L, 0L);
+    public static final EmbeddedKafkaCluster CLUSTER = new EmbeddedKafkaCluster(1, new Properties(), Collections.emptyMap(), 0L, 0L);
 
     @BeforeAll
     public static void startCluster() throws IOException {
@@ -78,7 +78,7 @@ public class TaskMetadataIntegrationTest {
     private String inputTopic;
     private static StreamsBuilder builder;
     private static Properties properties;
-    private static String appIdPrefix = "TaskMetadataTest_";
+    private static final String APP_ID_PREFIX = "TaskMetadataTest_";
     private static String appId;
     private AtomicBoolean process;
     private AtomicBoolean commit;
@@ -86,7 +86,7 @@ public class TaskMetadataIntegrationTest {
     @BeforeEach
     public void setup(final TestInfo testInfo) {
         final String testId = safeUniqueTestName(testInfo);
-        appId = appIdPrefix + testId;
+        appId = APP_ID_PREFIX + testId;
         inputTopic = "input" + testId;
         IntegrationTestUtils.cleanStateBeforeTest(CLUSTER, inputTopic);
 

@@ -1070,7 +1070,6 @@ public class ReplicationControlManager {
                     featureControl.metadataVersion(),
                     getTopicEffectiveMinIsr(topic.name)
                 )
-                    .setZkMigrationEnabled(clusterControl.zkRegistrationAllowed())
                     .setEligibleLeaderReplicasEnabled(isElrEnabled());
                 if (configurationControl.uncleanLeaderElectionEnabledForTopic(topic.name())) {
                     builder.setElection(PartitionChangeBuilder.Election.UNCLEAN);
@@ -1517,7 +1516,6 @@ public class ReplicationControlManager {
             getTopicEffectiveMinIsr(topic)
         )
             .setElection(election)
-            .setZkMigrationEnabled(clusterControl.zkRegistrationAllowed())
             .setEligibleLeaderReplicasEnabled(isElrEnabled())
             .setDefaultDirProvider(clusterDescriber)
             .build();
@@ -1599,18 +1597,34 @@ public class ReplicationControlManager {
         return ControllerResult.of(records, null);
     }
 
-    ControllerResult<Void> maybeFenceOneStaleBroker() {
-        List<ApiMessageAndVersion> records = new ArrayList<>();
+    ControllerResult<Boolean> maybeFenceOneStaleBroker() {
         BrokerHeartbeatManager heartbeatManager = clusterControl.heartbeatManager();
-        heartbeatManager.findOneStaleBroker().ifPresent(brokerId -> {
-            // Even though multiple brokers can go stale at a time, we will process
-            // fencing one at a time so that the effect of fencing each broker is visible
-            // to the system prior to processing the next one
-            log.info("Fencing broker {} because its session has timed out.", brokerId);
-            handleBrokerFenced(brokerId, records);
-            heartbeatManager.fence(brokerId);
-        });
-        return ControllerResult.of(records, null);
+        Optional<BrokerIdAndEpoch> idAndEpoch = heartbeatManager.tracker().maybeRemoveExpired();
+        if (!idAndEpoch.isPresent()) {
+            log.debug("No stale brokers found.");
+            return ControllerResult.of(Collections.emptyList(), false);
+        }
+        int id = idAndEpoch.get().id();
+        long epoch = idAndEpoch.get().epoch();
+        if (!clusterControl.brokerRegistrations().containsKey(id)) {
+            log.info("Removing heartbeat tracker entry for unknown broker {} at epoch {}.",
+                    id, epoch);
+            heartbeatManager.remove(id);
+            return ControllerResult.of(Collections.emptyList(), true);
+        } else if (clusterControl.brokerRegistrations().get(id).epoch() != epoch) {
+            log.info("Removing heartbeat tracker entry for broker {} at previous epoch {}. " +
+                "Current epoch is {}", id, epoch,
+                clusterControl.brokerRegistrations().get(id).epoch());
+            return ControllerResult.of(Collections.emptyList(), true);
+        }
+        // Even though multiple brokers can go stale at a time, we will process
+        // fencing one at a time so that the effect of fencing each broker is visible
+        // to the system prior to processing the next one.
+        log.info("Fencing broker {} at epoch {} because its session has timed out.", id, epoch);
+        List<ApiMessageAndVersion> records = new ArrayList<>();
+        handleBrokerFenced(id, records);
+        heartbeatManager.fence(id);
+        return ControllerResult.of(records, true);
     }
 
     boolean arePartitionLeadersImbalanced() {
@@ -1666,7 +1680,6 @@ public class ReplicationControlManager {
                 getTopicEffectiveMinIsr(topic.name)
             )
                 .setElection(PartitionChangeBuilder.Election.PREFERRED)
-                .setZkMigrationEnabled(clusterControl.zkRegistrationAllowed())
                 .setEligibleLeaderReplicasEnabled(isElrEnabled())
                 .setDefaultDirProvider(clusterDescriber)
                 .build().ifPresent(records::add);
@@ -1936,7 +1949,6 @@ public class ReplicationControlManager {
                 featureControl.metadataVersion(),
                 getTopicEffectiveMinIsr(topic.name)
             );
-            builder.setZkMigrationEnabled(clusterControl.zkRegistrationAllowed());
             builder.setEligibleLeaderReplicasEnabled(isElrEnabled());
             if (configurationControl.uncleanLeaderElectionEnabledForTopic(topic.name)) {
                 builder.setElection(PartitionChangeBuilder.Election.UNCLEAN);
@@ -2055,7 +2067,6 @@ public class ReplicationControlManager {
             featureControl.metadataVersion(),
             getTopicEffectiveMinIsr(topicName)
         );
-        builder.setZkMigrationEnabled(clusterControl.zkRegistrationAllowed());
         builder.setEligibleLeaderReplicasEnabled(isElrEnabled());
         if (configurationControl.uncleanLeaderElectionEnabledForTopic(topicName)) {
             builder.setElection(PartitionChangeBuilder.Election.UNCLEAN);
@@ -2117,7 +2128,6 @@ public class ReplicationControlManager {
             featureControl.metadataVersion(),
             getTopicEffectiveMinIsr(topics.get(tp.topicId()).name)
         );
-        builder.setZkMigrationEnabled(clusterControl.zkRegistrationAllowed());
         builder.setEligibleLeaderReplicasEnabled(isElrEnabled());
         if (!reassignment.replicas().equals(currentReplicas)) {
             builder.setTargetReplicas(reassignment.replicas());

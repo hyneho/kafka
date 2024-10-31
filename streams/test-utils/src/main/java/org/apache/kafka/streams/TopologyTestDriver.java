@@ -109,7 +109,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -347,28 +346,8 @@ public class TopologyTestDriver implements Closeable {
             }
         };
         testDriverProducer = new TestDriverProducer(
-            streamsConfig,
-            new KafkaClientSupplier() {
-                @Override
-                public Producer<byte[], byte[]> getProducer(final Map<String, Object> config) {
-                    return producer;
-                }
-
-                @Override
-                public Consumer<byte[], byte[]> getConsumer(final Map<String, Object> config) {
-                    throw new IllegalStateException();
-                }
-
-                @Override
-                public Consumer<byte[], byte[]> getRestoreConsumer(final Map<String, Object> config) {
-                    throw new IllegalStateException();
-                }
-
-                @Override
-                public Consumer<byte[], byte[]> getGlobalConsumer(final Map<String, Object> config) {
-                    throw new IllegalStateException();
-                }
-            },
+            StreamsConfigUtils.processingMode(streamsConfig),
+            producer,
             logContext,
             mockWallClockTime
         );
@@ -403,7 +382,6 @@ public class TopologyTestDriver implements Closeable {
         final StreamsMetricsImpl streamsMetrics = new StreamsMetricsImpl(
             metrics,
             "test-client",
-            streamsConfig.getString(StreamsConfig.BUILT_IN_METRICS_VERSION_CONFIG),
             mockWallClockTime
         );
         TaskMetrics.droppedRecordsSensor(threadId, TASK_ID.toString(), streamsMetrics);
@@ -533,7 +511,9 @@ public class TopologyTestDriver implements Closeable {
             task.initializeIfNeeded();
             task.completeRestoration(noOpResetter -> { });
             task.processorContext().setRecordContext(null);
-
+            for (final TopicPartition tp: task.inputPartitions()) {
+                task.updateNextOffsets(tp, new OffsetAndMetadata(0, Optional.empty(), ""));
+            }
         } else {
             task = null;
         }
@@ -1374,11 +1354,11 @@ public class TopologyTestDriver implements Closeable {
 
     private static class TestDriverProducer extends StreamsProducer {
 
-        public TestDriverProducer(final StreamsConfig config,
-                                  final KafkaClientSupplier clientSupplier,
+        public TestDriverProducer(final StreamsConfigUtils.ProcessingMode processingMode,
+                                  final Producer<byte[], byte[]> producer,
                                   final LogContext logContext,
                                   final Time time) {
-            super(config, "TopologyTestDriver-StreamThread-1", clientSupplier, new TaskId(0, 0), UUID.randomUUID(), logContext, time);
+            super(processingMode, producer, logContext, time);
         }
 
         @Override
