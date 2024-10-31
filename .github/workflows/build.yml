@@ -56,14 +56,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          clean: false
-          sparse-checkout: .github/scripts
+          path: trunk
 
       - name: Format Catalog
         shell: bash
         run: |
           find .
-          python .github/scripts/format-test-catalog.py
+          python trunk/.github/scripts/format-test-catalog.py
 
   validate:
     runs-on: ubuntu-latest
