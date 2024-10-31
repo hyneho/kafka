@@ -44,14 +44,13 @@ jobs:
         with:
           ref: 'test-catalog'
           persist-credentials: false
-          fetch-depth: 100
+          fetch-depth: 100  # Needs to be large enough to ensure we can fetch N days ago
 
-      - name: Go back N days
+      - name: Checkout catalog at earlier date
         run: |
           SHA=$(git rev-list -1 --before 18.hours.ago origin/test-catalog)
           echo $SHA
           git switch --detach $SHA
-          git log
 
       - name: Checkout script
         uses: actions/checkout@v4
@@ -62,6 +61,7 @@ jobs:
       - name: Format Catalog
         shell: bash
         run: |
+          find .
           python .github/scripts/format-test-catalog.py
 
   validate:
