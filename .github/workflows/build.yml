@@ -55,15 +55,17 @@ jobs:
       - name: Go back N days
         run: |
           git show --no-patch
+          git log
           git checkout test-catalog@"{2 days ago}"
           git show --no-patch
+          git log
           pwd
           ls -R
 
       - name: Format Catalog
         shell: bash
         run: |
-          python .github/scripts/format-all-tests.py from-yaml
+          python .github/scripts/format-test-catalog.py from-yaml
 
   validate:
     runs-on: ubuntu-latest
