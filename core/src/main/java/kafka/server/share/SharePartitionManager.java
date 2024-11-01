@@ -574,6 +574,7 @@ public class SharePartitionManager implements AutoCloseable {
         // Initialize lazily, if required.
         Map<TopicIdPartition, Throwable> erroneous = null;
         Set<DelayedShareFetchKey> delayedShareFetchWatchKeys = new HashSet<>();
+        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
         for (TopicIdPartition topicIdPartition : shareFetchData.partitionMaxBytes().keySet()) {
             SharePartitionKey sharePartitionKey = sharePartitionKey(
                 shareFetchData.groupId(),
@@ -617,6 +618,7 @@ public class SharePartitionManager implements AutoCloseable {
                     maybeCompleteInitializationWithException(sharePartitionKey, shareFetchData.future(), throwable);
                 }
             });
+            sharePartitions.put(topicIdPartition, sharePartition);
         }
 
         // If all the partitions in the request errored out, then complete the fetch request with an exception.
@@ -629,7 +631,7 @@ public class SharePartitionManager implements AutoCloseable {
         // TODO: If there exists some erroneous partitions then they will not be part of response.
 
         // Add the share fetch to the delayed share fetch purgatory to process the fetch request.
-        addDelayedShareFetch(new DelayedShareFetch(shareFetchData, replicaManager, this), delayedShareFetchWatchKeys);
+        addDelayedShareFetch(new DelayedShareFetch(shareFetchData, replicaManager, this, sharePartitions), delayedShareFetchWatchKeys);
     }
 
     private SharePartition getOrCreateSharePartition(SharePartitionKey sharePartitionKey) {

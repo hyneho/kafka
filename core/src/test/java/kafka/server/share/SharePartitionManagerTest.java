@@ -1683,10 +1683,14 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build();
 
+        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        sharePartitions.put(tp1, sp1);
+        sharePartitions.put(tp2, sp2);
+
         DelayedShareFetch delayedShareFetch = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetchData)
             .withReplicaManager(mockReplicaManager)
-            .withSharePartitionManager(sharePartitionManager)
+            .withSharePartitions(sharePartitions)
             .build();
 
         delayedShareFetchPurgatory.tryCompleteElseWatch(
@@ -1780,10 +1784,15 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build();
 
+        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        sharePartitions.put(tp1, sp1);
+        sharePartitions.put(tp2, sp2);
+        sharePartitions.put(tp3, sp3);
+
         DelayedShareFetch delayedShareFetch = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetchData)
             .withReplicaManager(mockReplicaManager)
-            .withSharePartitionManager(sharePartitionManager)
+            .withSharePartitions(sharePartitions)
             .build();
 
         delayedShareFetchPurgatory.tryCompleteElseWatch(
@@ -1873,10 +1882,14 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build());
 
+        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        sharePartitions.put(tp1, sp1);
+        sharePartitions.put(tp2, sp2);
+
         DelayedShareFetch delayedShareFetch = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetchData)
             .withReplicaManager(mockReplicaManager)
-            .withSharePartitionManager(sharePartitionManager)
+            .withSharePartitions(sharePartitions)
             .build();
 
         delayedShareFetchPurgatory.tryCompleteElseWatch(
@@ -1974,10 +1987,15 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build());
 
+        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        sharePartitions.put(tp1, sp1);
+        sharePartitions.put(tp2, sp2);
+        sharePartitions.put(tp3, sp3);
+
         DelayedShareFetch delayedShareFetch = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetchData)
             .withReplicaManager(mockReplicaManager)
-            .withSharePartitionManager(sharePartitionManager)
+            .withSharePartitions(sharePartitions)
             .build();
 
         delayedShareFetchPurgatory.tryCompleteElseWatch(

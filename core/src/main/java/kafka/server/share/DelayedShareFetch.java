@@ -62,17 +62,20 @@ public class DelayedShareFetch extends DelayedOperation {
     private Map<TopicIdPartition, FetchRequest.PartitionData> partitionsToComplete;
     private Map<TopicIdPartition, LogReadResult> partitionsAlreadyFetched;
     private final SharePartitionManager sharePartitionManager;
+    private final Map<TopicIdPartition, SharePartition> sharePartitions;
 
     DelayedShareFetch(
             ShareFetchData shareFetchData,
             ReplicaManager replicaManager,
-            SharePartitionManager sharePartitionManager) {
+            SharePartitionManager sharePartitionManager,
+            Map<TopicIdPartition, SharePartition> sharePartitions) {
         super(shareFetchData.fetchParams().maxWaitMs, Option.empty());
         this.shareFetchData = shareFetchData;
         this.replicaManager = replicaManager;
         this.partitionsToComplete = new LinkedHashMap<>();
         this.partitionsAlreadyFetched = new LinkedHashMap<>();
         this.sharePartitionManager = sharePartitionManager;
+        this.sharePartitions = sharePartitions;
     }
 
     @Override
@@ -130,7 +133,7 @@ public class DelayedShareFetch extends DelayedOperation {
             sharePartitionManager.handleFetchException(shareFetchData.groupId(), topicPartitionData.keySet(), shareFetchData.future(), e);
         } finally {
             // Releasing the lock to move ahead with the next request in queue.
-            releasePartitionLocks(shareFetchData.groupId(), topicPartitionData.keySet());
+            releasePartitionLocks(topicPartitionData.keySet());
             // If we have a fetch request completed for a topic-partition, we release the locks for that partition,
             // then we should check if there is a pending share fetch request for the topic-partition and complete it.
             // We add the action to delayed actions queue to avoid an infinite call stack, which could happen if
@@ -162,14 +165,14 @@ public class DelayedShareFetch extends DelayedOperation {
                     // If invocation of forceComplete is not successful, then that means the request is already completed
                     // hence release the acquired locks.
                     if (!completedByMe) {
-                        releasePartitionLocks(shareFetchData.groupId(), partitionsToComplete.keySet());
+                        releasePartitionLocks(partitionsToComplete.keySet());
                     }
                     return completedByMe;
                 } else {
                     log.debug("minBytes is not satisfied for the share fetch request for group {}, member {}, " +
                             "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
                         shareFetchData.partitionMaxBytes().keySet());
-                    releasePartitionLocks(shareFetchData.groupId(), topicPartitionData.keySet());
+                    releasePartitionLocks(topicPartitionData.keySet());
                 }
             } else {
                 log.trace("Can't acquire records for any partition in the share fetch request for group {}, member {}, " +
@@ -183,7 +186,7 @@ public class DelayedShareFetch extends DelayedOperation {
             // If invocation of forceComplete is not successful, then that means the request is already completed
             // hence release the acquired locks.
             if (!completedByMe) {
-                releasePartitionLocks(shareFetchData.groupId(), partitionsToComplete.keySet());
+                releasePartitionLocks(partitionsToComplete.keySet());
             }
             return completedByMe;
         }
@@ -198,7 +201,7 @@ public class DelayedShareFetch extends DelayedOperation {
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = new LinkedHashMap<>();
 
         shareFetchData.partitionMaxBytes().keySet().forEach(topicIdPartition -> {
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
+            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             if (sharePartition == null) {
                 log.debug("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), topicIdPartition);
                 return;
@@ -242,7 +245,7 @@ public class DelayedShareFetch extends DelayedOperation {
         Map<TopicIdPartition, FetchRequest.PartitionData> missingFetchOffsetMetadataTopicPartitions = new LinkedHashMap<>();
         for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
+            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             if (sharePartition.fetchOffsetMetadata().isEmpty()) {
                 missingFetchOffsetMetadataTopicPartitions.put(topicIdPartition, entry.getValue());
             }
@@ -259,7 +262,7 @@ public class DelayedShareFetch extends DelayedOperation {
         Map<TopicIdPartition, LogReadResult> replicaManagerReadResponseData) {
         for (Map.Entry<TopicIdPartition, LogReadResult> entry : replicaManagerReadResponseData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
+            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             LogReadResult replicaManagerLogReadResult = entry.getValue();
             if (replicaManagerLogReadResult.error().code() != Errors.NONE.code()) {
                 log.debug("Replica manager read log result {} does not contain topic partition {}",
@@ -281,7 +284,7 @@ public class DelayedShareFetch extends DelayedOperation {
             if (endOffsetMetadata == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
                 continue;
 
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
+            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
 
             Optional<LogOffsetMetadata> optionalFetchOffsetMetadata = sharePartition.fetchOffsetMetadata();
             if (optionalFetchOffsetMetadata.isEmpty() || optionalFetchOffsetMetadata.get() == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
@@ -346,7 +349,7 @@ public class DelayedShareFetch extends DelayedOperation {
 
     private boolean anySharePartitionNoLongerExists() {
         for (TopicIdPartition topicIdPartition: shareFetchData.partitionMaxBytes().keySet()) {
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
+            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             if (sharePartition == null) {
                 log.debug("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), topicIdPartition);
                 return true;
@@ -386,13 +389,9 @@ public class DelayedShareFetch extends DelayedOperation {
     }
 
     // Visible for testing.
-    void releasePartitionLocks(String groupId, Set<TopicIdPartition> topicIdPartitions) {
+    void releasePartitionLocks(Set<TopicIdPartition> topicIdPartitions) {
         topicIdPartitions.forEach(tp -> {
-            SharePartition sharePartition = sharePartitionManager.sharePartition(groupId, tp);
-            if (sharePartition == null) {
-                log.error("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), tp);
-                return;
-            }
+            SharePartition sharePartition = sharePartitions.get(tp);
             sharePartition.releaseFetchLock();
         });
     }
