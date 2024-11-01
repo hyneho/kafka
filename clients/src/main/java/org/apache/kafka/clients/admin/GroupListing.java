@@ -54,6 +54,11 @@ public class GroupListing {
 
     /**
      * The type of the group.
+     * <p>
+     * If the broker returns a group type which is not recognised, as might
+     * happen when talking to a broker with a later version, the type will be
+     * <code>Optional.of(GroupType.UNKNOWN)</code>. If the broker is earlier than version 2.6.0,
+     * the group type will not be available, and the type will be <code>Optional.empty()</code>.
      *
      * @return An Optional containing the type, if available
      */
@@ -81,8 +86,8 @@ public class GroupListing {
     public String toString() {
         return "(" +
             "groupId='" + groupId + '\'' +
-            ", type=" + type +
-            ", protocol=" + protocol +
+            ", type=" + type.map(GroupType::toString).orElse("none") +
+            ", protocol='" + protocol + '\'' +
             ')';
     }
 

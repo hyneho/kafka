@@ -150,8 +150,8 @@ public class GroupsCommand {
             String protocol = group.protocol();
 
             if (groupTypeFilter.isPresent()) {
-                pass = protocolFilter.map(s -> protocol.equals(s) && groupType.filter(gt -> gt == groupTypeFilter.get()).isPresent())
-                        .orElseGet(() -> groupType.filter(gt -> gt == groupTypeFilter.get()).isPresent());
+                pass = groupType.filter(gt -> gt == groupTypeFilter.get()).isPresent()
+                    && protocolFilter.map(protocol::equals).orElse(true);
             } else if (protocolFilter.isPresent()) {
                 pass = protocol.equals(protocolFilter.get());
             } else if (consumerGroupFilter) {
