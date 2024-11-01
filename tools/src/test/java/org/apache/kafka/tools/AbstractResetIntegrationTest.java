@@ -59,13 +59,8 @@ import java.util.stream.Collectors;
 
 import static java.time.Duration.ofMillis;
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.waitForEmptyConsumerGroup;
-<<<<<<<< HEAD:tools/src/test/java/org/apache/kafka/tools/AbstractResetIntegrationTest.java
-import static org.junit.jupiter.api.Assertions.assertEquals;
-========
 import static org.apache.kafka.streams.utils.TestUtils.safeUniqueTestName;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.MatcherAssert.assertThat;
->>>>>>>> origin/trunk:streams/integration-tests/src/test/java/org/apache/kafka/streams/integration/AbstractResetIntegrationTest.java
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Timeout(600)

@@ -46,12 +46,7 @@ import java.util.Properties;
 
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.isEmptyConsumerGroup;
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.waitForEmptyConsumerGroup;
-<<<<<<<< HEAD:tools/src/test/java/org/apache/kafka/tools/ResetIntegrationTest.java
-========
 import static org.apache.kafka.streams.utils.TestUtils.safeUniqueTestName;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.MatcherAssert.assertThat;
->>>>>>>> origin/trunk:streams/integration-tests/src/test/java/org/apache/kafka/streams/integration/ResetIntegrationTest.java
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
