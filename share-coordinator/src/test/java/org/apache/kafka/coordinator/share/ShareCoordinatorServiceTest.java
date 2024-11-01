@@ -668,7 +668,7 @@ class ShareCoordinatorServiceTest {
 
         // The presence of a topic name should not affect the choice of partition
         final SharePartitionKey key2 = new SharePartitionKey(groupId, new TopicIdPartition(topicId, partition, "whatever"));
-        sharePartitionKey = service.partitionFor(new SharePartitionKey(groupId, new TopicIdPartition(topicId, partition, "whatever")));
+        sharePartitionKey = service.partitionFor(key2);
         assertEquals(Utils.abs(key2.asCoordinatorKey().hashCode()) % numPartitions, sharePartitionKey);
     }
 }
