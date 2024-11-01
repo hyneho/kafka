@@ -13,31 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# We need to build the differnet versions of Java in same image, because the
-# zookeeper client 3.4.x can't run under JDK 17, so we need to use JDK 11 in 2.1 ~ 2.3 
-# kafka versions, see KAFKA-17888
-ARG os_version=ubuntu
-FROM $os_version AS build-native-image
-
-ENV jdk_11_version=11.0.2-linux-x64
-ARG jdk_11_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_11_version}.tar.gz
-ENV jdk_17_version=17-linux-x64
-ARG jdk_latest_url=https://s3-us-west-2.amazonaws.com/kafka-packages/jdk-${jdk_17_version}.tar.gz
-
-RUN apt-get update && \
-    apt-get install -y curl && \
-    rm -rf /var/lib/apt/lists/* 
-
-WORKDIR /opt
-ENV java_base_dir=/opt/jdk
-
-RUN curl -L -o jdk_11.tar.gz ${jdk_11_url} && \
-    mkdir -p ${java_base_dir}/11 && \
-    tar -xzf jdk_11.tar.gz -C ${java_base_dir}/11 --strip-components=1
-
-RUN curl -L -o jdk_latest.tar.gz ${jdk_latest_url} && \
-    mkdir -p ${java_base_dir}/latest && \
-    tar -xzf jdk_latest.tar.gz -C ${java_base_dir}/latest --strip-components=1
+# The base image of openjdk:17 is typically oraclelinux:8-slim, which doesn't include apt-get. 
+# Therefore, use openjdk:17-buster instead.
+ARG jdk_version=openjdk:17-buster
+FROM $jdk_version AS build-native-image
 
 WORKDIR /build
 
@@ -65,7 +44,7 @@ RUN if [ "$KAFKA_MODE" = "native" ]; then \
       /build/native/native_command.sh $NATIVE_IMAGE_PATH $NATIVE_CONFIGS_DIR $KAFKA_LIBS_DIR $TARGET_PATH ; \
     fi
 
-FROM $os_version
+FROM $jdk_version
 
 MAINTAINER Apache Kafka dev@kafka.apache.org
 VOLUME ["/opt/kafka-dev"]
@@ -75,21 +54,6 @@ ENV TZ="/usr/share/zoneinfo/America/Los_Angeles"
 
 # Do not ask for confirmations when running apt-get, etc.
 ENV DEBIAN_FRONTEND noninteractive
-
-ENV java_base_dir=/opt/jdk
-
-# Copy the JDKs from the build-native-image stage
-COPY --from=build-native-image ${java_base_dir}/11 ${java_base_dir}/11
-COPY --from=build-native-image ${java_base_dir}/latest ${java_base_dir}/latest
-
-# This JAVA_HOME path is also used in tests/kafkatest/services/kafka/util.py, 
-# so if you change it here, you should also change it there.
-ENV JAVA_HOME=${java_base_dir}/default
-ENV PATH="$JAVA_HOME/bin:$PATH"
-RUN ln -s ${java_base_dir}/latest ${java_base_dir}/default
-
-# Create symlinks for keytool
-RUN ln -s ${java_base_dir}/latest/bin/keytool /usr/local/bin/keytool
 
 # Set the ducker.creator label so that we know that this is a ducker image.  This will make it
 # visible to 'ducker purge'.  The ducker.creator label also lets us know what UNIX user built this
@@ -166,6 +130,12 @@ RUN curl -s "$KAFKA_MIRROR/kafka-streams-3.5.2-test.jar" -o /opt/kafka-3.5.2/lib
 RUN curl -s "$KAFKA_MIRROR/kafka-streams-3.6.2-test.jar" -o /opt/kafka-3.6.2/libs/kafka-streams-3.6.2-test.jar
 RUN curl -s "$KAFKA_MIRROR/kafka-streams-3.7.1-test.jar" -o /opt/kafka-3.7.1/libs/kafka-streams-3.7.1-test.jar
 RUN curl -s "$KAFKA_MIRROR/kafka-streams-3.8.0-test.jar" -o /opt/kafka-3.8.0/libs/kafka-streams-3.8.0-test.jar
+
+RUN curl -s "https://repo1.maven.org/maven2/org/apache/zookeeper/zookeeper/3.5.5/zookeeper-3.5.5.jar" -o /opt/zookeeper-3.5.5.jar
+RUN rm -f /opt/kafka-/opt/kafka-2.1.1/libs/zookeeper-* && rm -f /opt/kafka-/opt/kafka-2.1.2/libs/zookeeper-* && rm -f /opt/kafka-/opt/kafka-2.3.1/libs/zookeeper-*
+RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-/opt/kafka-2.1.1/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.1.1/libs/zookeeper-3.5.5.jar
+RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-/opt/kafka-2.2.2/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.1.2/libs/zookeeper-3.5.5.jar
+RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-/opt/kafka-2.3.1/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.3.1/libs/zookeeper-3.5.5.jar
 
 # The version of Kibosh to use for testing.
 # If you update this, also update vagrant/base.sh

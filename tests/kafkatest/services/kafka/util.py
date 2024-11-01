@@ -16,7 +16,7 @@
 from collections import namedtuple
 
 from kafkatest.utils.remote_account import java_version
-from kafkatest.version import LATEST_0_8_2, LATEST_0_9, LATEST_0_10_0, LATEST_0_10_1, LATEST_0_10_2, LATEST_0_11_0, LATEST_1_0, V_2_1_0, V_2_1_1, V_2_2_0, V_2_2_1, V_2_2_2, V_2_3_0, V_2_3_1
+from kafkatest.version import LATEST_0_8_2, LATEST_0_9, LATEST_0_10_0, LATEST_0_10_1, LATEST_0_10_2, LATEST_0_11_0, LATEST_1_0
 
 TopicPartition = namedtuple('TopicPartition', ['topic', 'partition'])
 
@@ -37,12 +37,6 @@ def fix_opts_for_new_jvm(node):
         if node.version == LATEST_0_8_2 or node.version == LATEST_0_9 or node.version == LATEST_0_10_0 or node.version == LATEST_0_10_1 or node.version == LATEST_0_10_2 or node.version == LATEST_0_11_0 or node.version == LATEST_1_0:
             cmd += "export KAFKA_GC_LOG_OPTS=\"-Xlog:gc*:file=kafka-gc.log:time,tags:filecount=10,filesize=102400\"; "
             cmd += "export KAFKA_JVM_PERFORMANCE_OPTS=\"-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -XX:MaxInlineLevel=15 -Djava.awt.headless=true\"; "
-        # zookeeper client 3.4.x can't run under JDK 17, so we need to use JDK 11 in 2.1 ~ 2.3 kafka versions see KAFKA-17888
-        if node.version == V_2_1_0 or node.version == V_2_1_1 or node.version == V_2_2_0 or node.version == V_2_2_1 or node.version == V_2_2_2 or node.version == V_2_3_0 or node.version == V_2_3_1:
-            cmd += "sudo rm -f /opt/jdk/default; "
-            cmd += "sudo ln -s /opt/jdk/11 /opt/jdk/default; "
-            cmd += "sudo rm -f /usr/local/bin/keytool; "
-            cmd += "sudo ln -s /opt/jdk/11/bin/keytool /usr/local/bin/keytool"
     return cmd
 
 
