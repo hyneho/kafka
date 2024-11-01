@@ -65,6 +65,40 @@ public class SharePartitionKey {
         return getInstance(groupId, topicIdPartition.topicId(), topicIdPartition.partition());
     }
 
+
+    /**
+     * Returns a SharePartitionKey from input string of format - groupId:topicId:partition
+     * @param key - String in format groupId:topicId:partition
+     * @return object representing SharePartitionKey
+     */
+    public static SharePartitionKey getInstance(String key) {
+        Objects.requireNonNull(key, "Share partition key cannot be null");
+        if (key.isEmpty()) {
+            throw new IllegalArgumentException("Share partition key cannot be empty");
+        }
+
+        String[] tokens = key.split(":");
+        if (tokens.length != 3) {
+            throw new IllegalArgumentException("Invalid key format: expected - groupId:topicId:partition, found -  " + key);
+        }
+
+        String groupId = tokens[0];
+        Uuid topicId;
+        int partition;
+        try {
+            topicId = Uuid.fromString(tokens[1]);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid topic ID: " + tokens[1], e);
+        }
+
+        try {
+            partition = Integer.parseInt(tokens[2]);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid partition: " + tokens[2], e);
+        }
+        return new SharePartitionKey(groupId, topicId, partition);
+    }
+
     public static SharePartitionKey getInstance(String groupId, Uuid topicId, int partition) {
         return new SharePartitionKey(groupId, topicId, partition);
     }

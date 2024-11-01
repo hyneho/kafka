@@ -212,6 +212,7 @@ public class PersisterStateManager {
         private final BackoffManager findCoordBackoff;
         protected final Logger log = LoggerFactory.getLogger(getClass());
         private Consumer<ClientResponse> onCompleteCallback;
+        private SharePartitionKey partitionKey;
 
         public PersisterStateManagerHandler(
             String groupId,
@@ -227,6 +228,7 @@ public class PersisterStateManager {
             this.findCoordBackoff = new BackoffManager(maxRPCRetryAttempts, backoffMs, backoffMaxMs);
             this.onCompleteCallback = response -> {
             }; // noop
+            partitionKey = SharePartitionKey.getInstance(groupId, topicId, partition);
         }
 
         /**
@@ -290,7 +292,7 @@ public class PersisterStateManager {
         protected AbstractRequest.Builder<FindCoordinatorRequest> findShareCoordinatorBuilder() {
             return new FindCoordinatorRequest.Builder(new FindCoordinatorRequestData()
                 .setKeyType(FindCoordinatorRequest.CoordinatorType.SHARE.id())
-                .setKey(coordinatorKey()));
+                .setKey(partitionKey().asCoordinatorKey()));
         }
 
         public void addRequestToNodeMap(Node node, PersisterStateManagerHandler handler) {
@@ -317,7 +319,7 @@ public class PersisterStateManager {
             }
             if (cacheHelper.containsTopic(Topic.SHARE_GROUP_STATE_TOPIC_NAME)) {
                 log.debug("{} internal topic already exists.", Topic.SHARE_GROUP_STATE_TOPIC_NAME);
-                Node node = cacheHelper.getShareCoordinator(coordinatorKey(), Topic.SHARE_GROUP_STATE_TOPIC_NAME);
+                Node node = cacheHelper.getShareCoordinator(partitionKey(), Topic.SHARE_GROUP_STATE_TOPIC_NAME);
                 if (node != Node.noNode()) {
                     log.debug("Found coordinator node in cache: {}", node);
                     coordinatorNode = node;
@@ -333,8 +335,8 @@ public class PersisterStateManager {
          *
          * @return String
          */
-        protected String coordinatorKey() {
-            return SharePartitionKey.asCoordinatorKey(groupId, topicId, partition);
+        protected SharePartitionKey partitionKey() {
+            return partitionKey;
         }
 
         /**
@@ -378,7 +380,7 @@ public class PersisterStateManager {
             findCoordBackoff.incrementAttempt();
             List<FindCoordinatorResponseData.Coordinator> coordinators = ((FindCoordinatorResponse) response.responseBody()).coordinators();
             if (coordinators.size() != 1) {
-                log.error("Find coordinator response for {} is invalid", coordinatorKey());
+                log.error("Find coordinator response for {} is invalid", partitionKey());
                 findCoordinatorErrorResponse(Errors.UNKNOWN_SERVER_ERROR, new IllegalStateException("Invalid response with multiple coordinators."));
                 return;
             }
@@ -401,9 +403,9 @@ public class PersisterStateManager {
 
                 case COORDINATOR_NOT_AVAILABLE: // retryable error codes
                 case COORDINATOR_LOAD_IN_PROGRESS:
-                    log.warn("Received retryable error in find coordinator: {}", error.message());
+                    log.warn("Received retryable error in find coordinator for {} using key {}: {}", name(), partitionKey(), error.message());
                     if (!findCoordBackoff.canAttempt()) {
-                        log.error("Exhausted max retries to find coordinator without success.");
+                        log.error("Exhausted max retries to find coordinator for {} using key {} without success.", name(), partitionKey());
                         findCoordinatorErrorResponse(error, new Exception("Exhausted max retries to find coordinator without success."));
                         break;
                     }
@@ -412,7 +414,7 @@ public class PersisterStateManager {
                     break;
 
                 default:
-                    log.error("Unable to find coordinator.");
+                    log.error("Unable to find coordinator for {} using key {}.", name(), partitionKey());
                     findCoordinatorErrorResponse(error, null);
             }
         }
@@ -537,9 +539,9 @@ public class PersisterStateManager {
                             // check retryable errors
                             case COORDINATOR_NOT_AVAILABLE:
                             case COORDINATOR_LOAD_IN_PROGRESS:
-                                log.warn("Received retryable error in write state RPC: {}", error.message());
+                                log.warn("Received retryable error in write state RPC for key {}: {}", partitionKey(), error.message());
                                 if (!writeStateBackoff.canAttempt()) {
-                                    log.error("Exhausted max retries for write state RPC without success.");
+                                    log.error("Exhausted max retries for write state RPC for key {} without success.", partitionKey());
                                     writeStateErrorResponse(error, new Exception("Exhausted max retries to complete write state RPC without success."));
                                     return;
                                 }
@@ -548,7 +550,7 @@ public class PersisterStateManager {
                                 return;
 
                             default:
-                                log.error("Unable to perform write state RPC: {}", error.message());
+                                log.error("Unable to perform write state RPC for key {}: {}", partitionKey(), error.message());
                                 writeStateErrorResponse(error, null);
                                 return;
                         }
@@ -593,7 +595,6 @@ public class PersisterStateManager {
 
     public class ReadStateHandler extends PersisterStateManagerHandler {
         private final int leaderEpoch;
-        private final String coordinatorKey;
         private final CompletableFuture<ReadShareGroupStateResponse> result;
         private final BackoffManager readStateBackoff;
 
@@ -610,7 +611,6 @@ public class PersisterStateManager {
         ) {
             super(groupId, topicId, partition, backoffMs, backoffMaxMs, maxRPCRetryAttempts);
             this.leaderEpoch = leaderEpoch;
-            this.coordinatorKey = SharePartitionKey.asCoordinatorKey(groupId, topicId, partition);
             this.result = result;
             this.readStateBackoff = new BackoffManager(maxRPCRetryAttempts, backoffMs, backoffMaxMs);
         }
@@ -679,9 +679,9 @@ public class PersisterStateManager {
                             // check retryable errors
                             case COORDINATOR_NOT_AVAILABLE:
                             case COORDINATOR_LOAD_IN_PROGRESS:
-                                log.warn("Received retryable error in read state RPC: {}", error.message());
+                                log.warn("Received retryable error in read state RPC for key {}: {}", partitionKey(), error.message());
                                 if (!readStateBackoff.canAttempt()) {
-                                    log.error("Exhausted max retries for read state RPC without success.");
+                                    log.error("Exhausted max retries for read state RPC for key {} without success.", partitionKey());
                                     readStateErrorReponse(error, new Exception("Exhausted max retries to complete read state RPC without success."));
                                     return;
                                 }
@@ -690,7 +690,7 @@ public class PersisterStateManager {
                                 return;
 
                             default:
-                                log.error("Unable to perform read state RPC: {}", error.message());
+                                log.error("Unable to perform read state RPC for key {}: {}", partitionKey(), error.message());
                                 readStateErrorReponse(error, null);
                                 return;
                         }

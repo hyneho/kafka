@@ -198,7 +198,7 @@ class PersisterStateManagerTest {
             }
 
             @Override
-            public Node getShareCoordinator(String key, String internalTopicName) {
+            public Node getShareCoordinator(SharePartitionKey key, String internalTopicName) {
                 return Node.noNode();
             }
 
@@ -217,7 +217,7 @@ class PersisterStateManagerTest {
             }
 
             @Override
-            public Node getShareCoordinator(String key, String internalTopicName) {
+            public Node getShareCoordinator(SharePartitionKey key, String internalTopicName) {
                 return coordinatorNode;
             }
 
