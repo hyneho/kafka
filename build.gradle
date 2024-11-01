@@ -994,7 +994,6 @@ project(':share') {
 
   dependencies {
     implementation project(':server-common')
-    implementation project(':storage')
 
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':server-common').sourceSets.test.output
