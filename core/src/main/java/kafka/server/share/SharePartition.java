@@ -341,7 +341,6 @@ public class SharePartition {
         this.partitionState = sharePartitionState;
         this.replicaManager = replicaManager;
         this.groupConfigManager = groupConfigManager;
-        this.fetchOffsetMetadata = Optional.empty();
     }
 
     /**
@@ -442,12 +441,12 @@ public class SharePartition {
                     // If the cachedState is not empty, findNextFetchOffset flag is set to true so that any AVAILABLE records
                     // in the cached state are not missed
                     findNextFetchOffset.set(true);
-                    endOffset = cachedState.lastEntry().getValue().lastOffset();
+                    updateEndOffsetAndFetchOffsetMetadata(cachedState.lastEntry().getValue().lastOffset(), Optional.empty());
                     // In case the persister read state RPC result contains no AVAILABLE records, we can update cached state
                     // and start/end offsets.
                     maybeUpdateCachedStateAndOffsets();
                 } else {
-                    endOffset = partitionData.startOffset();
+                    updateEndOffsetAndFetchOffsetMetadata(partitionData.startOffset(), Optional.empty());
                 }
                 // Set the partition state to Active and complete the future.
                 partitionState = SharePartitionState.ACTIVE;
@@ -822,12 +821,6 @@ public class SharePartition {
         } finally {
             lock.writeLock().unlock();
         }
-
-        if (!stateBatches.isEmpty()) {
-            // The next fetch offset will change on release of acquired records on session close, hence we update latestFetchOffsetMetadata
-            // for the share partition.
-            updateLatestFetchOffsetMetadata(Optional.empty());
-        }
         return future;
     }
 
@@ -940,7 +933,7 @@ public class SharePartition {
                 // If the cached state is empty, then the start and end offset will be the new log start offset.
                 // This can occur during the initialization of share partition if LSO has moved.
                 startOffset = logStartOffset;
-                endOffset = logStartOffset;
+                updateEndOffsetAndFetchOffsetMetadata(logStartOffset, Optional.empty());
                 return;
             }
 
@@ -958,7 +951,7 @@ public class SharePartition {
                 // This case means that the cached state is completely fresh now.
                 // Example scenario - batch of 0-10 in acquired state in cached state, then LSO moves to 15,
                 // then endOffset should be 15 as well.
-                endOffset = startOffset;
+                updateEndOffsetAndFetchOffsetMetadata(startOffset, Optional.empty());
             }
 
             // Note -
@@ -1189,7 +1182,7 @@ public class SharePartition {
             if (cachedState.firstKey() == firstAcquiredOffset)  {
                 startOffset = firstAcquiredOffset;
             }
-            endOffset = lastAcquiredOffset;
+            updateEndOffsetAndFetchOffsetMetadata(lastAcquiredOffset, Optional.empty());
             return new AcquiredRecords()
                 .setFirstOffset(firstAcquiredOffset)
                 .setLastOffset(lastAcquiredOffset)
@@ -1589,7 +1582,17 @@ public class SharePartition {
         return Optional.empty();
     }
 
-    protected void updateLatestFetchOffsetMetadata(Optional<LogOffsetMetadata> fetchOffsetMetadata) {
+    protected void updateEndOffsetAndFetchOffsetMetadata(long endOffset, Optional<LogOffsetMetadata> fetchOffsetMetadata) {
+        lock.writeLock().lock();
+        try {
+            this.endOffset = endOffset;
+            this.fetchOffsetMetadata = fetchOffsetMetadata;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    protected void updateFetchOffsetMetadata(Optional<LogOffsetMetadata> fetchOffsetMetadata) {
         lock.writeLock().lock();
         try {
             this.fetchOffsetMetadata = fetchOffsetMetadata;
@@ -1685,7 +1688,7 @@ public class SharePartition {
             long lastCachedOffset = cachedState.lastEntry().getValue().lastOffset();
             if (lastOffsetAcknowledged == lastCachedOffset) {
                 startOffset = lastCachedOffset + 1; // The next offset that will be fetched and acquired in the share partition
-                endOffset = lastCachedOffset + 1;
+                updateEndOffsetAndFetchOffsetMetadata(lastCachedOffset + 1, Optional.empty());
                 cachedState.clear();
                 // Nothing further to do.
                 return;
@@ -1976,9 +1979,6 @@ public class SharePartition {
 
         // Skip null check for stateBatches, it should always be initialized if reached here.
         if (!stateBatches.isEmpty()) {
-            // The next fetch offset changes on acquisition lock timeout, hence we update latestFetchOffsetMetadata for the
-            // share partition.
-            updateLatestFetchOffsetMetadata(Optional.empty());
             // If we have an acquisition lock timeout for a share-partition, then we should check if
             // there is a pending share fetch request for the share-partition and complete it.
             DelayedShareFetchKey delayedShareFetchKey = new DelayedShareFetchGroupKey(groupId, topicIdPartition.topicId(), topicIdPartition.partition());

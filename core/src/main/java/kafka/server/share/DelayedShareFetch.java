@@ -269,7 +269,7 @@ public class DelayedShareFetch extends DelayedOperation {
                     replicaManagerReadResponseData, topicIdPartition);
                 continue;
             }
-            sharePartition.updateLatestFetchOffsetMetadata(Optional.of(replicaManagerLogReadResult.info().fetchOffsetMetadata));
+            sharePartition.updateFetchOffsetMetadata(Optional.of(replicaManagerLogReadResult.info().fetchOffsetMetadata));
         }
         return replicaManagerReadResponseData;
     }

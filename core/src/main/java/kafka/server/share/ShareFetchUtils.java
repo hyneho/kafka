@@ -112,9 +112,6 @@ public class ShareFetchUtils {
                         .setRecords(fetchPartitionData.records)
                         .setAcquiredRecords(shareAcquiredRecords.acquiredRecords());
                     acquiredRecordsCount += shareAcquiredRecords.count();
-
-                    // The next fetch offset for the share partition changes on acquire, hence we update latestFetchOffsetMetadata.
-                    sharePartition.updateLatestFetchOffsetMetadata(Optional.empty());
                 }
             }
             response.put(topicIdPartition, partitionData);
