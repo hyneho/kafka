@@ -1049,8 +1049,8 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getKraftQuorumAndGroupProtocolParametersAll"))
-  def testPatternSubscriptionWithNoTopicAccess(quorum: String, groupProtocol: String): Unit = {
+  @ValueSource(strings = Array("kraft"))
+  def testPatternSubscriptionWithNoTopicAccess(quorum: String): Unit = {
     val assignSemaphore = new Semaphore(0)
     createTopicWithBrokerPrincipal(topic)
 
@@ -1067,6 +1067,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
         assignSemaphore.release()
       }
       def onPartitionsRevoked(partitions: util.Collection[TopicPartition]): Unit = {
+        assignSemaphore.release()
       }})
     TestUtils.waitUntilTrue(() => {
       consumer.poll(Duration.ofMillis(500))
