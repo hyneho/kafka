@@ -131,7 +131,7 @@ public class SharePartitionKey {
     @Override
     public String toString() {
         return "SharePartitionKey{" +
-            "groupId='" + groupId +
+            "groupId=" + groupId +
             ", topicIdPartition=" + topicIdPartition +
             '}';
     }
