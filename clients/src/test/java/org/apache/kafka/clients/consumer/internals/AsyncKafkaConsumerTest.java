@@ -39,7 +39,6 @@ import org.apache.kafka.clients.consumer.internals.events.CommitOnCloseEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableBackgroundEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableEventReaper;
-import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackCompletedEvent;
 import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackNeededEvent;
 import org.apache.kafka.clients.consumer.internals.events.CreateFetchRequestsEvent;
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
@@ -798,12 +797,12 @@ public class AsyncKafkaConsumerTest {
         completeUnsubscribeApplicationEventSuccessfully();
         doReturn(null).when(applicationEventHandler).addAndGet(any());
         consumer.close();
-        verify(applicationEventHandler).add(any(UnsubscribeEvent.class));
         verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
+        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
     @Test
-    public void testUnsubscribeOnClose() {
+    public void testLeaveGroupOnClose() {
         SubscriptionState subscriptions = mock(SubscriptionState.class);
         consumer = spy(newConsumer(
             mock(FetchBuffer.class),
@@ -814,7 +813,7 @@ public class AsyncKafkaConsumerTest {
             "client-id"));
         completeUnsubscribeApplicationEventSuccessfully();
         consumer.close(Duration.ZERO);
-        verifyUnsubscribeEvent(subscriptions);
+        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
     @Test
@@ -1226,82 +1225,11 @@ public class AsyncKafkaConsumerTest {
 
     @Test
     public void testCloseWithInterruptUsingDefaultTimeout() {
+        Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
+
         SubscriptionState subscriptions = mock(SubscriptionState.class);
-        ConsumerRebalanceListenerInvoker rebalanceListenerInvoker = mock(ConsumerRebalanceListenerInvoker.class);
-        consumer = spy(newConsumer(
-            mock(FetchBuffer.class),
-            mock(ConsumerInterceptors.class),
-            rebalanceListenerInvoker,
-            subscriptions,
-            "group-id",
-            "client-id"));
-
-        AtomicBoolean wasInterrupted = new AtomicBoolean();
-        MockRebalanceListener consumerRebalanceListener = new MockRebalanceListener() {
-
-            @Override
-            public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-                super.onPartitionsRevoked(partitions);
-                wasInterrupted.compareAndSet(false, Thread.currentThread().isInterrupted());
-            }
-        };
-
-        consumer.subscribe(Collections.singleton("topic-1"), consumerRebalanceListener);
-
-        // This future is completed when the ConsumerRebalanceListener has been invoked and the
-        // ConsumerRebalanceListenerCallbackCompletedEvent has been enqueued.
-        CompletableFuture<Void> crlCallbackCompletedFuture = new CompletableFuture<>();
-
-        doAnswer(invocation -> {
-            SortedSet<TopicPartition> partitions = invocation.getArgument(0);
-            consumerRebalanceListener.onPartitionsRevoked(partitions);
-            return null;
-        }).when(rebalanceListenerInvoker).invokePartitionsRevoked(any());
-
-        doAnswer(invocation -> {
-            // When an UnsubscribeEvent is enqueued, don't complete it immediately. Instead, enqueue the 'rebalance
-            // callback needed' event from the background thread.
-            SortedSet<TopicPartition> partitions = new TreeSet<>(TOPIC_PARTITION_COMPARATOR);
-            partitions.addAll(subscriptions.assignedPartitions());
-            backgroundEventQueue.add(new ConsumerRebalanceListenerCallbackNeededEvent(ON_PARTITIONS_REVOKED, partitions));
-
-            // Complete the unsubscribe event when the ConsumerRebalanceListenerCallbackCompletedEvent has been
-            // enqueued.
-            UnsubscribeEvent event = invocation.getArgument(0);
-            crlCallbackCompletedFuture.whenComplete((result, exception) -> {
-                if (exception != null)
-                    event.future().completeExceptionally(exception);
-                else
-                    event.future().complete(result);
-            });
-
-            return null;
-        }).when(applicationEventHandler).add(ArgumentMatchers.isA(UnsubscribeEvent.class));
-
-        doAnswer(invocation -> {
-            // This triggers the completion of the UnsubscribeEvent above.
-            crlCallbackCompletedFuture.complete(null);
-            return null;
-        }).when(applicationEventHandler).add(ArgumentMatchers.isA(ConsumerRebalanceListenerCallbackCompletedEvent.class));
-
-        try {
-            Thread.currentThread().interrupt();
-            InterruptException e = assertThrows(InterruptException.class, () -> consumer.close());
-            assertNotNull(e.getCause());
-            assertEquals(InterruptedException.class, e.getCause().getClass());
-        } finally {
-            Thread.interrupted();
-        }
-
-        assertEquals(1, consumerRebalanceListener.revokedCount);
-        assertTrue(wasInterrupted.get());
-        verifyUnsubscribeEvent(subscriptions);
-        verify(applicationEventHandler).add(any(ConsumerRebalanceListenerCallbackCompletedEvent.class));
-    }
-
-    @Test
-    public void testCloseWithInterruptUsingZeroTimeout() {
-        SubscriptionState subscriptions = mock(SubscriptionState.class);
+        when(subscriptions.assignedPartitions()).thenReturn(partitions);
+        when(applicationEventHandler.addAndGet(any(CompletableApplicationEvent.class))).thenThrow(InterruptException.class);
         consumer = spy(newConsumer(
             mock(FetchBuffer.class),
             mock(ConsumerInterceptors.class),
@@ -1312,15 +1240,39 @@ public class AsyncKafkaConsumerTest {
 
         try {
             Thread.currentThread().interrupt();
-            InterruptException e = assertThrows(InterruptException.class, () -> consumer.close(Duration.ZERO));
-            assertNotNull(e.getCause());
-            assertEquals(InterruptedException.class, e.getCause().getClass());
+            assertThrows(InterruptException.class, () -> consumer.close());
         } finally {
             Thread.interrupted();
         }
 
-        verifyUnsubscribeEvent(subscriptions);
-        verify(applicationEventHandler, never()).add(any(ConsumerRebalanceListenerCallbackCompletedEvent.class));
+        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
+        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
+    }
+
+    @Test
+    public void testCloseWithInterruptUsingZeroTimeout() {
+        Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
+
+        SubscriptionState subscriptions = mock(SubscriptionState.class);
+        when(subscriptions.assignedPartitions()).thenReturn(partitions);
+        when(applicationEventHandler.addAndGet(any(CompletableApplicationEvent.class))).thenThrow(InterruptException.class);
+        consumer = spy(newConsumer(
+            mock(FetchBuffer.class),
+            mock(ConsumerInterceptors.class),
+            mock(ConsumerRebalanceListenerInvoker.class),
+            subscriptions,
+            "group-id",
+            "client-id"));
+
+        try {
+            Thread.currentThread().interrupt();
+            assertThrows(InterruptException.class, () -> consumer.close(Duration.ZERO));
+        } finally {
+            Thread.interrupted();
+        }
+
+        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
+        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
     @Test
