@@ -401,9 +401,9 @@ public class PersisterStateManager {
                     }
                     break;
 
-                case COORDINATOR_NOT_AVAILABLE: // retryable error codes
+                case COORDINATOR_NOT_AVAILABLE: // retriable error codes
                 case COORDINATOR_LOAD_IN_PROGRESS:
-                    log.warn("Received retryable error in find coordinator for {} using key {}: {}", name(), partitionKey(), error.message());
+                    log.warn("Received retriable error in find coordinator for {} using key {}: {}", name(), partitionKey(), error.message());
                     if (!findCoordBackoff.canAttempt()) {
                         log.error("Exhausted max retries to find coordinator for {} using key {} without success.", name(), partitionKey());
                         findCoordinatorErrorResponse(error, new Exception("Exhausted max retries to find coordinator without success."));
@@ -536,10 +536,10 @@ public class PersisterStateManager {
                                     new WriteShareGroupStateResponseData().setResults(Collections.singletonList(result))));
                                 return;
 
-                            // check retryable errors
+                            // check retriable errors
                             case COORDINATOR_NOT_AVAILABLE:
                             case COORDINATOR_LOAD_IN_PROGRESS:
-                                log.warn("Received retryable error in write state RPC for key {}: {}", partitionKey(), error.message());
+                                log.warn("Received retriable error in write state RPC for key {}: {}", partitionKey(), error.message());
                                 if (!writeStateBackoff.canAttempt()) {
                                     log.error("Exhausted max retries for write state RPC for key {} without success.", partitionKey());
                                     writeStateErrorResponse(error, new Exception("Exhausted max retries to complete write state RPC without success."));
@@ -676,10 +676,10 @@ public class PersisterStateManager {
                                     .setResults(Collections.singletonList(result))));
                                 return;
 
-                            // check retryable errors
+                            // check retriable errors
                             case COORDINATOR_NOT_AVAILABLE:
                             case COORDINATOR_LOAD_IN_PROGRESS:
-                                log.warn("Received retryable error in read state RPC for key {}: {}", partitionKey(), error.message());
+                                log.warn("Received retriable error in read state RPC for key {}: {}", partitionKey(), error.message());
                                 if (!readStateBackoff.canAttempt()) {
                                     log.error("Exhausted max retries for read state RPC for key {} without success.", partitionKey());
                                     readStateErrorReponse(error, new Exception("Exhausted max retries to complete read state RPC without success."));
