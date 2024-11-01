@@ -1076,7 +1076,10 @@ public class StreamTask extends AbstractTask implements ProcessorNodePunctuator,
         for (final Map.Entry<TopicPartition, Long> entry : consumedOffsets.entrySet()) {
             final TopicPartition tp = entry.getKey();
             if (topology.isRepartitionTopic(tp.topic())) {
-                purgeableConsumedOffsets.put(tp, entry.getValue() + 1);
+                final Long maybeCommitted = committedOffsets.get(tp);
+                if (maybeCommitted != null && maybeCommitted >= entry.getValue()) {
+                    purgeableConsumedOffsets.put(tp, entry.getValue() + 1);
+                }
             }
         }
 
