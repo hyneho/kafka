@@ -54,7 +54,6 @@ jobs:
 
       - name: Checkout catalog at earlier date
         run: |
-          ls
           cd test-catalog
           SHA=$(git rev-list -1 --before 7.days.ago origin/test-catalog)
           echo $SHA
@@ -72,7 +71,6 @@ jobs:
         id: combine-catalog
         continue-on-error: true
         run: |
-          ls -R
           python .github/scripts/format-test-catalog.py --path test-catalog/test-catalog/**/*.yaml
 
       - name: Archive Combined Test Catalog
