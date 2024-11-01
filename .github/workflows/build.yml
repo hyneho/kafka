@@ -39,7 +39,12 @@ jobs:
     runs-on: ubuntu-latest
     name: Load Test Catalog
     steps:
-      - name: Checkout branch
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout test-catalog
         uses: actions/checkout@v4
         with:
           ref: 'test-catalog'
@@ -55,11 +60,6 @@ jobs:
           echo $SHA
           git switch --detach $SHA
           git show --no-patch
-
-      - name: Checkout trunk
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
       - name: Setup Python
         uses: ./.github/actions/setup-python
