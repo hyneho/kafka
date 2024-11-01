@@ -61,7 +61,7 @@ jobs:
       - name: Setup Gradle
         uses: ./.github/actions/setup-gradle
         with:
-          java-version: 21
+          java-version: 23
           gradle-cache-read-only: ${{ inputs.gradle-cache-read-only }}
           gradle-cache-write-only: ${{ inputs.gradle-cache-write-only }}
           develocity-access-key: ${{ secrets.GE_ACCESS_TOKEN }}
@@ -85,13 +85,11 @@ jobs:
           compression-level: 9
           if-no-files-found: ignore
       - name: Annotate checkstyle errors
-        # Avoid duplicate annotations, only run on java 21
         if: failure()
         run: python .github/scripts/checkstyle.py
         env:
           GITHUB_WORKSPACE: ${{ github.workspace }}
       - name: Annotate Rat errors
-        # Avoid duplicate annotations, only run on java 21
         if: failure()
         run: python .github/scripts/rat.py
         env:
@@ -178,7 +176,7 @@ jobs:
           THREAD_DUMP_URL: ${{ steps.thread-dump-upload-artifact.outputs.artifact-url }}
           GRADLE_EXIT_CODE: ${{ steps.junit-test.outputs.exitcode }}
       - name: Archive Test Catalog
-        if: ${{ always() && matrix.java == '21' }}
+        if: ${{ always() && matrix.java == '23' }}
         uses: actions/upload-artifact@v4
         with:
           name: test-catalog
@@ -193,3 +191,41 @@ jobs:
           path: ~/.gradle/build-scan-data
           compression-level: 9
           if-no-files-found: ignore
+
+  update-test-catalog:
+    name: Update Test Catalog
+    needs: test
+    if: ${{ always() && !inputs.is-public-fork }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Test Catalog
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true  # Needed to commit and push later
+          ref: test-catalog
+      - name: Reset Catalog
+        run: |
+          rm -rf test-catalog
+      - name: Download Test Catalog
+        uses: actions/download-artifact@v4
+        with:
+          name: test-catalog
+          path: test-catalog
+      - name: Push Test Catalog
+        # Git user.name and user.email come from https://github.com/actions/checkout?tab=readme-ov-file#push-a-commit-using-the-built-in-token
+        env:
+          COMMIT_MSG: |
+            Update test catalog data for GHA workflow run ${{ github.run_id }}
+            
+            Commit: https://github.com/apache/kafka/commit/${{ github.sha }}
+            GitHub Run: https://github.com/apache/kafka/actions/runs/${{ github.run_id }}
+        run: |
+          pwd
+          ls -R
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add test-catalog
+          git diff --quiet && git diff --staged --quiet || git commit -m "$COMMIT_MSG"
+          git push
