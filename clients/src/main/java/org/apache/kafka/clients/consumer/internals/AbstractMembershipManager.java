@@ -44,6 +44,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
@@ -130,7 +131,8 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      * requests in cases where a currently assigned topic is in the target assignment (new
      * partition assigned, or revoked), but it is not present the Metadata cache at that moment.
      * The cache is cleared when the subscription changes ({@link #transitionToJoining()}, the
-     * member fails ({@link #transitionToFatal()} or leaves the group ({@link #leaveGroup()}).
+     * member fails ({@link #transitionToFatal()} or leaves the group
+     * ({@link #leaveGroup()}/{@link #leaveGroupOnClose()}).
      */
     private final Map<Uuid, String> assignedTopicNamesCache;
 
@@ -157,9 +159,9 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     private boolean rejoinedWhileReconciliationInProgress;
 
     /**
-     * If the member is currently leaving the group after a call to {@link #leaveGroup()}}, this
-     * will have a future that will complete when the ongoing leave operation completes
-     * (callbacks executed and heartbeat request to leave is sent out). This will be empty is the
+     * If the member is currently leaving the group after a call to {@link #leaveGroup()} or
+     * {@link #leaveGroupOnClose()}, this will have a future that will complete when the ongoing leave operation
+     * completes (callbacks executed and heartbeat request to leave is sent out). This will be empty is the
      * member is not leaving.
      */
     private Optional<CompletableFuture<Void>> leaveGroupInProgress = Optional.empty();
@@ -523,12 +525,39 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     /**
      * Transition to {@link MemberState#PREPARE_LEAVING} to release the assignment. Once completed,
      * transition to {@link MemberState#LEAVING} to send the heartbeat request and leave the group.
-     * This is expected to be invoked when the user calls the unsubscribe API.
+     * This is expected to be invoked when the user calls the {@link Consumer#close()} API.
+     *
+     * @return Future that will complete when the heartbeat to leave the group has been sent out.
+     */
+    public CompletableFuture<Void> leaveGroupOnClose() {
+        // We pass in an already completed Future because the callback was already executed.
+        return leaveGroup(() -> CompletableFuture.completedFuture(null));
+    }
+
+    /**
+     * Transition to {@link MemberState#PREPARE_LEAVING} to release the assignment. Once completed,
+     * transition to {@link MemberState#LEAVING} to send the heartbeat request and leave the group.
+     * This is expected to be invoked when the user calls the {@link Consumer#unsubscribe()} API.
      *
      * @return Future that will complete when the callback execution completes and the heartbeat
      * to leave the group has been sent out.
      */
     public CompletableFuture<Void> leaveGroup() {
+        // We pass in the member leaving group Future because the callback may still need to be executed.
+        return leaveGroup(this::signalMemberLeavingGroup);
+    }
+
+    /**
+     * Transition to {@link MemberState#PREPARE_LEAVING} to release the assignment. Once completed,
+     * transition to {@link MemberState#LEAVING} to send the heartbeat request and leave the group.
+     * This is expected to be invoked when the user calls the unsubscribe API.
+     *
+     * @param callbackFutureSupplier Used if the consumer needs to insert the step to execute the
+     *                               {@link ConsumerRebalanceListener} before completing unsubscribe
+     * @return Future that will complete when the callback execution completes and the heartbeat
+     * to leave the group has been sent out.
+     */
+    protected CompletableFuture<Void> leaveGroup(Supplier<CompletableFuture<Void>> callbackFutureSupplier) {
         if (isNotInGroup()) {
             if (state == MemberState.FENCED) {
                 clearAssignment();
@@ -549,7 +578,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         CompletableFuture<Void> leaveResult = new CompletableFuture<>();
         leaveGroupInProgress = Optional.of(leaveResult);
 
-        CompletableFuture<Void> callbackResult = signalMemberLeavingGroup();
+        CompletableFuture<Void> callbackResult = callbackFutureSupplier.get();
         callbackResult.whenComplete((result, error) -> {
             if (error != null) {
                 log.error("Member {} callback to release assignment failed. It will proceed " +

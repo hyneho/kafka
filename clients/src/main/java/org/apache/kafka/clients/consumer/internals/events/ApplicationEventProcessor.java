@@ -382,6 +382,14 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         requestManagers.commitRequestManager.get().signalClose();
     }
 
+    private void process(@SuppressWarnings("unused") final LeaveGroupOnCloseEvent event) {
+        if (!requestManagers.consumerMembershipManager.isPresent())
+            return;
+        log.debug("Signal the ConsumerMembershipManager that the consumer is closing");
+        CompletableFuture<Void> future = requestManagers.consumerMembershipManager.get().leaveGroupOnClose();
+        future.whenComplete(complete(event.future()));
+    }
+
     /**
      * Process event that tells the share consume request manager to fetch more records.
      */

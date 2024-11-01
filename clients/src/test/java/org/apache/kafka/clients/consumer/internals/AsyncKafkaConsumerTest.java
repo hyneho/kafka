@@ -45,6 +45,7 @@ import org.apache.kafka.clients.consumer.internals.events.CreateFetchRequestsEve
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.clients.consumer.internals.events.EventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.FetchCommittedOffsetsEvent;
+import org.apache.kafka.clients.consumer.internals.events.LeaveGroupOnCloseEvent;
 import org.apache.kafka.clients.consumer.internals.events.ListOffsetsEvent;
 import org.apache.kafka.clients.consumer.internals.events.PollEvent;
 import org.apache.kafka.clients.consumer.internals.events.ResetOffsetEvent;
@@ -820,19 +821,56 @@ public class AsyncKafkaConsumerTest {
     public void testFailedPartitionRevocationOnClose() {
         // If rebalance listener failed to execute during close, we still send the leave group,
         // and proceed with closing the consumer.
+        Throwable rootError = new KafkaException("Intentional error");
+        Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
+
         SubscriptionState subscriptions = mock(SubscriptionState.class);
+        when(subscriptions.assignedPartitions()).thenReturn(partitions);
+        ConsumerRebalanceListenerInvoker invoker = mock(ConsumerRebalanceListenerInvoker.class);
+        doAnswer(invocation -> rootError).when(invoker).invokePartitionsRevoked(any(SortedSet.class));
+
         consumer = spy(newConsumer(
             mock(FetchBuffer.class),
             new ConsumerInterceptors<>(Collections.emptyList()),
-            mock(ConsumerRebalanceListenerInvoker.class),
+            invoker,
             subscriptions,
             "group-id",
             "client-id"));
-        doThrow(new KafkaException()).when(consumer).processBackgroundEvents();
-        assertThrows(KafkaException.class, () -> consumer.close(Duration.ZERO));
-        verifyUnsubscribeEvent(subscriptions);
-        // Close operation should carry on even if the unsubscribe fails
-        verify(applicationEventHandler).close(any(Duration.class));
+
+        Throwable t = assertThrows(KafkaException.class, () -> consumer.close(Duration.ZERO));
+        assertNotNull(t.getCause());
+        assertEquals(rootError, t.getCause());
+
+        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
+        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
+    }
+
+    @Test
+    public void testFailedPartitionLostOnClose() {
+        // If rebalance listener failed to execute during close, we still send the leave group,
+        // and proceed with closing the consumer.
+        Throwable rootError = new KafkaException("Intentional error");
+        Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
+
+        SubscriptionState subscriptions = mock(SubscriptionState.class);
+        when(subscriptions.assignedPartitions()).thenReturn(partitions);
+        ConsumerRebalanceListenerInvoker invoker = mock(ConsumerRebalanceListenerInvoker.class);
+        doAnswer(invocation -> rootError).when(invoker).invokePartitionsLost(any(SortedSet.class));
+
+        consumer = spy(newConsumer(
+            mock(FetchBuffer.class),
+            new ConsumerInterceptors<>(Collections.emptyList()),
+            invoker,
+            subscriptions,
+            "group-id",
+            "client-id"));
+
+        Throwable t = assertThrows(KafkaException.class, () -> consumer.close(Duration.ZERO));
+        assertNotNull(t.getCause());
+        assertEquals(rootError, t.getCause());
+
+        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
+        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
     @Test
