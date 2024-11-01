@@ -71,7 +71,7 @@ jobs:
         id: combine-catalog
         continue-on-error: true
         run: |
-          python .github/scripts/format-test-catalog.py --path test-catalog/test-catalog/**/*.yaml
+          python .github/scripts/format-test-catalog.py --path "test-catalog/test-catalog/**/*.yaml"
 
       - name: Archive Combined Test Catalog
         if: steps.combine-catalog.outcome == 'success'
