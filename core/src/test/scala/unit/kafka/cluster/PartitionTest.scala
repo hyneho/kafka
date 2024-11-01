@@ -46,6 +46,7 @@ import java.nio.ByteBuffer
 import java.util.Optional
 import java.util.concurrent.{ConcurrentHashMap, CountDownLatch, Semaphore}
 import kafka.server.metadata.{KRaftMetadataCache, ZkMetadataCache}
+import kafka.server.share.{DelayedShareFetch, DelayedShareFetchPartitionKey}
 import org.apache.kafka.clients.ClientResponse
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
@@ -54,21 +55,20 @@ import org.apache.kafka.common.replica.ClientMetadata
 import org.apache.kafka.common.replica.ClientMetadata.DefaultClientMetadata
 import org.apache.kafka.common.security.auth.{KafkaPrincipal, SecurityProtocol}
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
-import org.apache.kafka.server.{ControllerRequestCompletionHandler, NodeToControllerChannelManager}
-import org.apache.kafka.server.common.{MetadataVersion, RequestLocal}
+import org.apache.kafka.server.common.{ControllerRequestCompletionHandler, MetadataVersion, NodeToControllerChannelManager, RequestLocal}
 import org.apache.kafka.server.common.MetadataVersion.IBP_2_6_IV0
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams}
 import org.apache.kafka.server.util.{KafkaScheduler, MockTime}
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpoints
 import org.apache.kafka.storage.internals.epoch.LeaderEpochFileCache
-import org.apache.kafka.storage.internals.log.{AppendOrigin, CleanerConfig, EpochEntry, LogAppendInfo, LogDirFailureChannel, LogLoader, LogOffsetMetadata, LogReadInfo, LogSegments, LogStartOffsetIncrementReason, ProducerStateManager, ProducerStateManagerConfig, VerificationGuard}
+import org.apache.kafka.storage.internals.log.{AppendOrigin, CleanerConfig, EpochEntry, LocalLog, LogAppendInfo, LogDirFailureChannel, LogLoader, LogOffsetMetadata, LogReadInfo, LogSegments, LogStartOffsetIncrementReason, ProducerStateManager, ProducerStateManagerConfig, VerificationGuard}
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
-import scala.compat.java8.OptionConverters._
 import scala.jdk.CollectionConverters._
+import scala.jdk.OptionConverters.RichOption
 
 object PartitionTest {
   class MockPartitionListener extends PartitionListener {
@@ -148,7 +148,7 @@ object PartitionTest {
       minBytes,
       maxBytes,
       isolation,
-      clientMetadata.asJava
+      clientMetadata.toJava
     )
   }
 }
@@ -1149,8 +1149,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     // let the follower in ISR move leader's HW to move further but below LEO
     fetchFollower(partition, replicaId = follower2, fetchOffset = 0)
-    fetchFollower(partition, replicaId = follower2, fetchOffset = lastOffsetOfFirstBatch)
-    assertEquals(lastOffsetOfFirstBatch, partition.log.get.highWatermark, "Expected leader's HW")
+    fetchFollower(partition, replicaId = follower2, fetchOffset = lastOffsetOfFirstBatch + 1)
+    assertEquals(lastOffsetOfFirstBatch + 1, partition.log.get.highWatermark, "Expected leader's HW")
 
     // current leader becomes follower and then leader again (without any new records appended)
     val followerState = new LeaderAndIsrPartitionState()
@@ -4110,7 +4110,11 @@ class PartitionTest extends AbstractPartitionTest {
     val deleteRecords = mock(classOf[DelayedOperationPurgatory[DelayedDeleteRecords]])
     when(deleteRecords.checkAndComplete(requestKey)).thenThrow(new RuntimeException("uh oh"))
 
-    val delayedOperations = new DelayedOperations(topicPartition, produce, fetch, deleteRecords)
+    val shareFetch = mock(classOf[DelayedOperationPurgatory[DelayedShareFetch]])
+    when(shareFetch.checkAndComplete(new DelayedShareFetchPartitionKey(topicId.get, topicPartition.partition())))
+      .thenThrow(new RuntimeException("uh oh"))
+
+    val delayedOperations = new DelayedOperations(topicId, topicPartition, produce, fetch, deleteRecords, shareFetch)
     val spyLogManager = spy(logManager)
     val partition = new Partition(topicPartition,
       replicaLagTimeMaxMs = ReplicationConfigs.REPLICA_LAG_TIME_MAX_MS_DEFAULT,
