@@ -133,9 +133,9 @@ RUN curl -s "$KAFKA_MIRROR/kafka-streams-3.8.0-test.jar" -o /opt/kafka-3.8.0/lib
 
 RUN curl -s "https://repo1.maven.org/maven2/org/apache/zookeeper/zookeeper/3.5.5/zookeeper-3.5.5.jar" -o /opt/zookeeper-3.5.5.jar
 RUN rm -f /opt/kafka-/opt/kafka-2.1.1/libs/zookeeper-* && rm -f /opt/kafka-/opt/kafka-2.1.2/libs/zookeeper-* && rm -f /opt/kafka-/opt/kafka-2.3.1/libs/zookeeper-*
-RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-/opt/kafka-2.1.1/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.1.1/libs/zookeeper-3.5.5.jar
-RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-/opt/kafka-2.2.2/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.1.2/libs/zookeeper-3.5.5.jar
-RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-/opt/kafka-2.3.1/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.3.1/libs/zookeeper-3.5.5.jar
+RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-2.1.1/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.1.1/libs/zookeeper-3.5.5.jar
+RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-2.2.2/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.1.2/libs/zookeeper-3.5.5.jar
+RUN cp /opt/zookeeper-3.5.5.jar /opt/kafka-2.3.1/libs/zookeeper-3.5.5.jar && chmod a+rw /opt/kafka-/opt/kafka-2.3.1/libs/zookeeper-3.5.5.jar
 
 # The version of Kibosh to use for testing.
 # If you update this, also update vagrant/base.sh
