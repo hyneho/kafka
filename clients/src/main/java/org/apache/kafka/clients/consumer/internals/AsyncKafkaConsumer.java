@@ -1788,8 +1788,14 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
                 fetchBuffer.retainAll(currentTopicPartitions);
                 log.info("Subscribed to topic(s): {}", String.join(", ", topics));
-                applicationEventHandler.addAndGet(new TopicSubscriptionChangeEvent(
-                    new HashSet<>(topics), listener, calculateDeadlineMs(time.timer(defaultApiTimeoutMs))));
+                Timer timer = time.timer(defaultApiTimeoutMs);
+                TopicSubscriptionChangeEvent topicSubscriptionChangeEvent = new TopicSubscriptionChangeEvent(
+                        new HashSet<>(topics), listener, calculateDeadlineMs(timer));
+                applicationEventHandler.add(topicSubscriptionChangeEvent);
+                processBackgroundEvents(
+                        topicSubscriptionChangeEvent.future(),
+                        timer, __ -> false
+                );
             }
         } finally {
             release();
