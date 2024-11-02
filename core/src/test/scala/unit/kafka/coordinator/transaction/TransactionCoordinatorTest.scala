@@ -1096,7 +1096,7 @@ class TransactionCoordinatorTest {
       capturedErrorsCallback.getValue.apply(Errors.NONE)
       txnMetadata.pendingState = None
       txnMetadata.producerId = capturedTxnTransitMetadata.getValue.producerId
-      txnMetadata.previousProducerId = capturedTxnTransitMetadata.getValue.prevProducerId
+      txnMetadata.prevProducerId = capturedTxnTransitMetadata.getValue.prevProducerId
       txnMetadata.producerEpoch = capturedTxnTransitMetadata.getValue.producerEpoch
       txnMetadata.lastProducerEpoch = capturedTxnTransitMetadata.getValue.lastProducerEpoch
     })
@@ -1137,7 +1137,7 @@ class TransactionCoordinatorTest {
       capturedErrorsCallback.getValue.apply(Errors.NONE)
       txnMetadata.pendingState = None
       txnMetadata.producerId = capturedTxnTransitMetadata.getValue.producerId
-      txnMetadata.previousProducerId = capturedTxnTransitMetadata.getValue.prevProducerId
+      txnMetadata.prevProducerId = capturedTxnTransitMetadata.getValue.prevProducerId
       txnMetadata.producerEpoch = capturedTxnTransitMetadata.getValue.producerEpoch
       txnMetadata.lastProducerEpoch = capturedTxnTransitMetadata.getValue.lastProducerEpoch
     })
