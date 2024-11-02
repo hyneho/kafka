@@ -136,6 +136,10 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
                 process((CommitOnCloseEvent) event);
                 return;
 
+            case LEAVE_GROUP_ON_CLOSE:
+                process((LeaveGroupOnCloseEvent) event);
+                return;
+
             case CREATE_FETCH_REQUESTS:
                 process((CreateFetchRequestsEvent) event);
                 return;
