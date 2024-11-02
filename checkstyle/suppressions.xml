@@ -43,6 +43,7 @@
     <suppress checks="ClassFanOutComplexity" files="RemoteLogManagerTest.java"/>
     <suppress checks="MethodLength"
               files="(KafkaClusterTestKit).java"/>
+    <suppress checks="NPathComplexity" files="TestKitNodes.java"/>
     <suppress checks="JavaNCSS"
               files="(RemoteLogManagerTest|SharePartitionTest).java"/>
     <suppress checks="ClassDataAbstractionCoupling|ClassFanOutComplexity" files="SharePartitionManagerTest"/>
@@ -187,7 +188,7 @@
 
     <!-- Streams -->
     <suppress checks="ClassFanOutComplexity"
-              files="(KafkaStreams|KStreamImpl|KTableImpl|InternalTopologyBuilder|StreamsPartitionAssignor|StreamThread|IQv2StoreIntegrationTest|KStreamImplTest|RocksDBStore|StreamTask).java"/>
+              files="(KafkaStreams|KStreamImpl|KTableImpl|InternalTopologyBuilder|StreamsPartitionAssignor|StreamThread|IQv2StoreIntegrationTest|KStreamImplTest|RocksDBStore|StreamTask|TaskManager).java"/>
 
     <suppress checks="MethodLength"
               files="KTableImpl.java"/>
@@ -295,15 +296,6 @@
     <suppress checks="JavaNCSS"
               files="(MetadataNodeManager).java"/>
 
-    <!-- Log4J-Appender -->
-    <suppress checks="CyclomaticComplexity"
-              files="KafkaLog4jAppender.java"/>
-
-    <suppress checks="NPathComplexity"
-              files="KafkaLog4jAppender.java"/>
-    <suppress checks="JavaNCSS"
-              files="RequestResponseTest.java"/>
-
     <!-- metadata -->
     <suppress checks="ClassDataAbstractionCoupling"
               files="(QuorumController|QuorumControllerTest|ReplicationControlManager|ReplicationControlManagerTest|ClusterControlManagerTest|KRaftMigrationDriverTest).java"/>
@@ -352,7 +344,7 @@
     <suppress checks="CyclomaticComplexity"
               files="(LogLoader|LogValidator|RemoteLogManagerConfig|RemoteLogManager).java"/>
     <suppress checks="NPathComplexity"
-              files="(LogLoader|LogValidator|RemoteLogManager|RemoteIndexCache).java"/>
+              files="(LocalLog|LogLoader|LogValidator|RemoteLogManager|RemoteIndexCache).java"/>
     <suppress checks="ParameterNumber"
               files="(LogAppendInfo|LogLoader|RemoteLogManagerConfig).java"/>
 
