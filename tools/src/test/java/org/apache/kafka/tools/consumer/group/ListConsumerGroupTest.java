@@ -144,7 +144,7 @@ public class ListConsumerGroupTest {
                                 protocolGroup,
                                 false,
                                 Optional.of(ConsumerGroupState.STABLE),
-                                Optional.of(GroupType.parse(groupProtocol.name()))
+                                GroupType.parse(groupProtocol.name())
                         )
                 );
 
@@ -160,7 +160,7 @@ public class ListConsumerGroupTest {
                                 protocolGroup,
                                 false,
                                 Optional.of(ConsumerGroupState.STABLE),
-                                Optional.of(GroupType.parse(groupProtocol.name()))
+                                GroupType.parse(groupProtocol.name())
                         )
                 );
 

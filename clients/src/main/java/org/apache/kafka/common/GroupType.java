@@ -19,6 +19,7 @@ package org.apache.kafka.common;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -40,12 +41,13 @@ public enum GroupType {
     /**
      * Parse a string into a consumer group type, in a case-insensitive manner.
      */
-    public static GroupType parse(String name) {
-        if (name == null) {
-            return UNKNOWN;
+    public static Optional<GroupType> parse(String name) {
+        if (name == null || name.isEmpty()) {
+            return Optional.empty();
         }
+
         GroupType type = NAME_TO_ENUM.get(name.toLowerCase(Locale.ROOT));
-        return type == null ? UNKNOWN : type;
+        return type == null ? Optional.of(UNKNOWN) : Optional.of(type);
     }
 
     @Override

@@ -251,7 +251,7 @@ public class GroupsCommand {
         }
 
         public Optional<GroupType> groupType() {
-            return valueAsOption(groupTypeOpt).map(GroupType::parse).filter(gt -> gt != GroupType.UNKNOWN);
+            return valueAsOption(groupTypeOpt).flatMap(GroupType::parse).filter(gt -> gt != GroupType.UNKNOWN);
         }
 
         public Optional<String> protocol() {

@@ -3571,12 +3571,7 @@ public class KafkaAdminClient extends AdminClient {
 
                         private void maybeAddGroup(ListGroupsResponseData.ListedGroup group) {
                             final String groupId = group.groupId();
-                            final Optional<GroupType> type;
-                            if (group.groupType() == null || group.groupType().isEmpty()) {
-                                type = Optional.empty();
-                            } else {
-                                type = Optional.of(GroupType.parse(group.groupType()));
-                            }
+                            final Optional<GroupType> type = GroupType.parse(group.groupType());
                             final String protocolType = group.protocolType();
                             final GroupListing groupListing = new GroupListing(
                                 groupId,
@@ -3727,9 +3722,7 @@ public class KafkaAdminClient extends AdminClient {
                                 final Optional<ConsumerGroupState> state = group.groupState().isEmpty()
                                         ? Optional.empty()
                                         : Optional.of(ConsumerGroupState.parse(group.groupState()));
-                                final Optional<GroupType> type = group.groupType().isEmpty()
-                                        ? Optional.empty()
-                                        : Optional.of(GroupType.parse(group.groupType()));
+                                final Optional<GroupType> type = GroupType.parse(group.groupType());
                                 final ConsumerGroupListing groupListing = new ConsumerGroupListing(
                                         groupId,
                                         protocolType.isEmpty(),

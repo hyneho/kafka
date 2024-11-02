@@ -141,7 +141,7 @@ public class ConsumerGroupCommand {
 
     @SuppressWarnings("Regexp")
     static Set<GroupType> consumerGroupTypesFromString(String input) {
-        Set<GroupType> parsedTypes = Stream.of(input.toLowerCase().split(",")).map(s -> GroupType.parse(s.trim())).collect(Collectors.toSet());
+        Set<GroupType> parsedTypes = Stream.of(input.toLowerCase().split(",")).map(s -> GroupType.parse(s.trim()).orElseThrow(() -> new IllegalArgumentException("Required name is not defined"))).collect(Collectors.toSet());
         if (parsedTypes.contains(GroupType.UNKNOWN)) {
             List<String> validTypes = Arrays.stream(GroupType.values()).filter(t -> t != GroupType.UNKNOWN).map(Object::toString).collect(Collectors.toList());
             throw new IllegalArgumentException("Invalid types list '" + input + "'. Valid types are: " + String.join(", ", validTypes));
