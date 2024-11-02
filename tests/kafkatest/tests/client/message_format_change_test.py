@@ -15,7 +15,7 @@ from ducktape.utils.util import wait_until
 from ducktape.mark.resource import cluster
 
 from kafkatest.services.console_consumer import ConsoleConsumer
-from kafkatest.services.kafka import config_property, KafkaService, quorum
+from kafkatest.services.kafka import config_property, KafkaService, quorum, consumer_group
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest
@@ -41,15 +41,17 @@ class MessageFormatChangeTest(ProduceConsumeValidateTest):
         self.num_consumers = 1
         self.messages_per_producer = 100
 
-    def produce_and_consume(self, producer_version, consumer_version, group):
+    def produce_and_consume(self, producer_version, consumer_version, group, group_protocol):
         self.producer = VerifiableProducer(self.test_context, self.num_producers, self.kafka,
                                            self.topic,
                                            throughput=self.producer_throughput,
                                            message_validator=is_int,
                                            version=KafkaVersion(producer_version))
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
                                         self.topic, consumer_timeout_ms=30000,
-                                        message_validator=is_int, version=KafkaVersion(consumer_version))
+                                        message_validator=is_int, version=KafkaVersion(consumer_version),
+                                        consumer_properties=consumer_properties)
         self.consumer.group_id = group
         self.run_produce_consume_validate(lambda: wait_until(
             lambda: self.producer.each_produced_at_least(self.messages_per_producer) == True,
@@ -57,10 +59,11 @@ class MessageFormatChangeTest(ProduceConsumeValidateTest):
             err_msg="Producer did not produce all messages in reasonable amount of time"))
 
     @cluster(num_nodes=12)
-    @matrix(producer_version=[str(DEV_BRANCH)], consumer_version=[str(DEV_BRANCH)], metadata_quorum=[quorum.zk])
-    @matrix(producer_version=[str(LATEST_0_10)], consumer_version=[str(LATEST_0_10)], metadata_quorum=[quorum.zk])
-    @matrix(producer_version=[str(LATEST_0_9)], consumer_version=[str(LATEST_0_9)], metadata_quorum=[quorum.zk])
-    def test_compatibility(self, producer_version, consumer_version, metadata_quorum=quorum.zk):
+    @matrix(producer_version=[str(DEV_BRANCH)], consumer_version=[str(DEV_BRANCH)], metadata_quorum=[quorum.zk], group_protocol=[consumer_group.classic_group_protocol])
+    @matrix(producer_version=[str(LATEST_0_10)], consumer_version=[str(LATEST_0_10)], metadata_quorum=[quorum.zk], group_protocol=[consumer_group.classic_group_protocol])
+    @matrix(producer_version=[str(LATEST_0_9)], consumer_version=[str(LATEST_0_9)], metadata_quorum=[quorum.zk], group_protocol=[consumer_group.classic_group_protocol])
+    def test_compatibility(self, producer_version, consumer_version, metadata_quorum=quorum.zk,
+                           group_protocol=consumer_group.classic_group_protocol):
         """ This tests performs the following checks:
         The workload is a mix of 0.9.x, 0.10.x and 0.11.x producers and consumers
         that produce to and consume from a DEV_BRANCH cluster
@@ -88,19 +91,19 @@ class MessageFormatChangeTest(ProduceConsumeValidateTest):
         self.kafka.start()
         self.logger.info("First format change to 0.9.0")
         self.kafka.alter_message_format(self.topic, str(LATEST_0_9))
-        self.produce_and_consume(producer_version, consumer_version, "group1")
+        self.produce_and_consume(producer_version, consumer_version, "group1", group_protocol=group_protocol)
 
         self.logger.info("Second format change to 0.10.0")
         self.kafka.alter_message_format(self.topic, str(LATEST_0_10))
-        self.produce_and_consume(producer_version, consumer_version, "group2")
+        self.produce_and_consume(producer_version, consumer_version, "group2", group_protocol=group_protocol)
 
         self.logger.info("Third format change to 0.11.0")
         self.kafka.alter_message_format(self.topic, str(LATEST_0_11))
-        self.produce_and_consume(producer_version, consumer_version, "group3")
+        self.produce_and_consume(producer_version, consumer_version, "group3", group_protocol=group_protocol)
 
         if producer_version == str(DEV_BRANCH) and consumer_version == str(DEV_BRANCH):
             self.logger.info("Fourth format change back to 0.10.0")
             self.kafka.alter_message_format(self.topic, str(LATEST_0_10))
-            self.produce_and_consume(producer_version, consumer_version, "group4")
+            self.produce_and_consume(producer_version, consumer_version, "group4", group_protocol=group_protocol)
 
 

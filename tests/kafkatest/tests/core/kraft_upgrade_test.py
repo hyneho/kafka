@@ -17,7 +17,7 @@ from ducktape.mark import parametrize, matrix
 from ducktape.mark.resource import cluster
 from ducktape.utils.util import wait_until
 from kafkatest.services.console_consumer import ConsoleConsumer
-from kafkatest.services.kafka import KafkaService
+from kafkatest.services.kafka import KafkaService, consumer_group
 from kafkatest.services.kafka.quorum import isolated_kraft, combined_kraft
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest
@@ -74,7 +74,7 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
         self.logger.info("Changing metadata.version to %s" % LATEST_STABLE_METADATA_VERSION)
         self.kafka.upgrade_metadata_version(LATEST_STABLE_METADATA_VERSION)
 
-    def run_upgrade(self, from_kafka_version):
+    def run_upgrade(self, from_kafka_version, group_protocol):
         """Test upgrade of Kafka broker cluster from various versions to the current version
 
         from_kafka_version is a Kafka version to upgrade from.
@@ -99,9 +99,11 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
                                            message_validator=is_int,
                                            compression_types=["none"],
                                            version=KafkaVersion(from_kafka_version))
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
                                         self.topic, new_consumer=True, consumer_timeout_ms=30000,
-                                        message_validator=is_int, version=KafkaVersion(from_kafka_version))
+                                        message_validator=is_int, version=KafkaVersion(from_kafka_version),
+                                        consumer_properties=consumer_properties)
         self.run_produce_consume_validate(core_test_action=lambda: self.perform_version_change(from_kafka_version))
         cluster_id = self.kafka.cluster_id()
         assert cluster_id is not None
@@ -111,12 +113,14 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
     @cluster(num_nodes=5)
     @matrix(from_kafka_version=[str(LATEST_3_1), str(LATEST_3_2), str(LATEST_3_3), str(LATEST_3_4), str(LATEST_3_5), str(LATEST_3_6), str(LATEST_3_7), str(LATEST_3_8), str(DEV_BRANCH)],
             metadata_quorum=[combined_kraft])
-    def test_combined_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False):
-        self.run_upgrade(from_kafka_version)
+    def test_combined_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False,
+                                   group_protocol=consumer_group.classic_group_protocol):
+        self.run_upgrade(from_kafka_version, group_protocol)
 
     @cluster(num_nodes=8)
     @matrix(from_kafka_version=[str(LATEST_3_1), str(LATEST_3_2), str(LATEST_3_3), str(LATEST_3_4), str(LATEST_3_5), str(LATEST_3_6), str(LATEST_3_7), str(LATEST_3_8), str(DEV_BRANCH)],
             metadata_quorum=[isolated_kraft])
-    def test_isolated_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False):
-        self.run_upgrade(from_kafka_version)
+    def test_isolated_mode_upgrade(self, from_kafka_version, metadata_quorum, use_new_coordinator=False,
+                                   group_protocol=consumer_group.classic_group_protocol):
+        self.run_upgrade(from_kafka_version, group_protocol)
 

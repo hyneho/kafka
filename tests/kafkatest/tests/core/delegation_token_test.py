@@ -17,7 +17,7 @@ from ducktape.mark import matrix
 from ducktape.mark.resource import cluster
 from ducktape.tests.test import Test
 from ducktape.utils.util import wait_until
-from kafkatest.services.kafka import config_property, KafkaService, quorum
+from kafkatest.services.kafka import config_property, KafkaService, quorum, consumer_group
 from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.services.delegation_tokens import DelegationTokens
@@ -57,10 +57,11 @@ client.id=console-consumer
         self.producer = VerifiableProducer(self.test_context, num_nodes=1, kafka=self.kafka, topic=self.topic, max_messages=1,
                                        throughput=1, kafka_opts_override=self.client_kafka_opts,
                                        client_prop_file_override=self.client_properties_content)
-
+        consumer_properties = consumer_group.maybe_set_group_protocol(consumer_group.classic_group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, num_nodes=1, kafka=self.kafka, topic=self.topic,
                                         kafka_opts_override=self.client_kafka_opts,
-                                        client_prop_file_override=self.client_properties_content)
+                                        client_prop_file_override=self.client_properties_content,
+                                        consumer_properties=consumer_properties)
 
         self.kafka.security_protocol = 'SASL_PLAINTEXT'
         self.kafka.client_sasl_mechanism = 'GSSAPI,SCRAM-SHA-256'

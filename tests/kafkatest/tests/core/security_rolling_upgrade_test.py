@@ -14,7 +14,7 @@
 # limitations under the License.
 from kafkatest.services.security.security_config import SecurityConfig
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService
+from kafkatest.services.kafka import KafkaService, consumer_group
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.utils import is_int
@@ -46,14 +46,15 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
             'configs': {"min.insync.replicas": 2}}})
         self.zk.start()
 
-    def create_producer_and_consumer(self):
+    def create_producer_and_consumer(self, group_protocol):
         self.producer = VerifiableProducer(
             self.test_context, self.num_producers, self.kafka, self.topic,
             throughput=self.producer_throughput)
 
         self.consumer = ConsoleConsumer(
             self.test_context, self.num_consumers, self.kafka, self.topic,
-            consumer_timeout_ms=60000, message_validator=is_int)
+            consumer_timeout_ms=60000, message_validator=is_int,
+            consumer_properties=consumer_group.maybe_set_group_protocol(group_protocol))
 
         self.consumer.group_id = "group"
 
@@ -101,8 +102,8 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
     @cluster(num_nodes=8)
     @matrix(client_protocol=[SecurityConfig.SSL])
     @cluster(num_nodes=9)
-    @matrix(client_protocol=[SecurityConfig.SASL_PLAINTEXT, SecurityConfig.SASL_SSL])
-    def test_rolling_upgrade_phase_one(self, client_protocol):
+    @matrix(client_protocol=[SecurityConfig.SASL_PLAINTEXT, SecurityConfig.SASL_SSL], group_protocol=[consumer_group.classic_group_protocol])
+    def test_rolling_upgrade_phase_one(self, client_protocol, group_protocol=consumer_group.classic_group_protocol):
         """
         Start with a PLAINTEXT cluster, open a SECURED port, via a rolling upgrade, ensuring we could produce
         and consume throughout over PLAINTEXT. Finally check we can produce and consume the new secured port.
@@ -112,19 +113,20 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
         self.kafka.start()
 
         # Create PLAINTEXT producer and consumer
-        self.create_producer_and_consumer()
+        self.create_producer_and_consumer(group_protocol=group_protocol)
 
         # Rolling upgrade, opening a secure protocol, ensuring the Plaintext producer/consumer continues to run
         self.run_produce_consume_validate(self.open_secured_port, client_protocol)
 
         # Now we can produce and consume via the secured port
         self.kafka.security_protocol = client_protocol
-        self.create_producer_and_consumer()
+        self.create_producer_and_consumer(group_protocol=group_protocol)
         self.run_produce_consume_validate(lambda: time.sleep(1))
 
     @cluster(num_nodes=9)
-    @matrix(new_client_sasl_mechanism=[SecurityConfig.SASL_MECHANISM_PLAIN])
-    def test_rolling_upgrade_sasl_mechanism_phase_one(self, new_client_sasl_mechanism):
+    @matrix(new_client_sasl_mechanism=[SecurityConfig.SASL_MECHANISM_PLAIN], group_protocol=[consumer_group.classic_group_protocol])
+    def test_rolling_upgrade_sasl_mechanism_phase_one(self, new_client_sasl_mechanism,
+                                                      group_protocol=consumer_group.classic_group_protocol):
         """
         Start with a SASL/GSSAPI cluster, add new SASL mechanism, via a rolling upgrade, ensuring we could produce
         and consume throughout over SASL/GSSAPI. Finally check we can produce and consume using new mechanism.
@@ -136,18 +138,18 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
         self.kafka.start()
 
         # Create SASL/GSSAPI producer and consumer
-        self.create_producer_and_consumer()
+        self.create_producer_and_consumer(group_protocol=group_protocol)
 
         # Rolling upgrade, adding new SASL mechanism, ensuring the GSSAPI producer/consumer continues to run
         self.run_produce_consume_validate(self.add_sasl_mechanism, new_client_sasl_mechanism)
 
         # Now we can produce and consume using the new SASL mechanism
         self.kafka.client_sasl_mechanism = new_client_sasl_mechanism
-        self.create_producer_and_consumer()
+        self.create_producer_and_consumer(group_protocol=group_protocol)
         self.run_produce_consume_validate(lambda: time.sleep(1))
 
-    @cluster(num_nodes=9)
-    def test_enable_separate_interbroker_listener(self):
+    @cluster(num_nodes=9, group_protocol=[consumer_group.classic_group_protocol])
+    def test_enable_separate_interbroker_listener(self, group_protocol=consumer_group.classic_group_protocol):
         """
         Start with a cluster that has a single PLAINTEXT listener.
         Start producing/consuming on PLAINTEXT port.
@@ -158,13 +160,13 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
 
         self.kafka.start()
 
-        self.create_producer_and_consumer()
+        self.create_producer_and_consumer(group_protocol=group_protocol)
 
         self.run_produce_consume_validate(self.add_separate_broker_listener, SecurityConfig.SASL_SSL,
                                           SecurityConfig.SASL_MECHANISM_PLAIN)
 
-    @cluster(num_nodes=9)
-    def test_disable_separate_interbroker_listener(self):
+    @cluster(num_nodes=9, group_protocol=[consumer_group.classic_group_protocol])
+    def test_disable_separate_interbroker_listener(self, group_protocol=consumer_group.classic_group_protocol):
         """
         Start with a cluster that has two listeners, one on SSL (clients), another on SASL_SSL (broker-to-broker).
         Start producer and consumer on SSL listener.
@@ -181,7 +183,7 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
 
         self.kafka.start()
         # create producer and consumer via client security protocol
-        self.create_producer_and_consumer()
+        self.create_producer_and_consumer(group_protocol=group_protocol)
 
         # run produce/consume/validate loop while disabling a separate interbroker listener via rolling restart
         self.run_produce_consume_validate(

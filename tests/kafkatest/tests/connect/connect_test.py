@@ -21,7 +21,7 @@ from ducktape.cluster.remoteaccount import RemoteCommandError
 from ducktape.errors import TimeoutError
 
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService, quorum
+from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.connect import ConnectServiceBase, ConnectStandaloneService, ErrorTolerance
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.services.security.security_config import SecurityConfig
@@ -71,9 +71,9 @@ class ConnectStandaloneFileTest(Test):
     @parametrize(converter="org.apache.kafka.connect.storage.StringConverter", schemas=None)
     @parametrize(security_protocol=SecurityConfig.PLAINTEXT)
     @cluster(num_nodes=6)
-    @matrix(security_protocol=[SecurityConfig.SASL_SSL], metadata_quorum=quorum.all_non_upgrade)
+    @matrix(security_protocol=[SecurityConfig.SASL_SSL], metadata_quorum=quorum.all_non_upgrade, group_protocol=[consumer_group.classic_group_protocol])
     def test_file_source_and_sink(self, converter="org.apache.kafka.connect.json.JsonConverter", schemas=True, security_protocol='PLAINTEXT',
-                                  metadata_quorum=quorum.zk):
+                                  metadata_quorum=quorum.zk, group_protocol=consumer_group.classic_group_protocol):
         """
         Validates basic end-to-end functionality of Connect standalone using the file source and sink converters. Includes
         parameterizations to test different converters (which also test per-connector converter overrides), schema/schemaless
@@ -95,8 +95,10 @@ class ConnectStandaloneFileTest(Test):
                                                include_filestream_connectors=True)
         self.sink = ConnectStandaloneService(self.test_context, self.kafka, [self.OUTPUT_FILE, self.OFFSETS_FILE],
                                              include_filestream_connectors=True)
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer_validator = ConsoleConsumer(self.test_context, 1, self.kafka, self.TOPIC_TEST,
-                                                  consumer_timeout_ms=10000)
+                                                  consumer_timeout_ms=10000,
+                                                  consumer_properties=consumer_properties)
 
         if self.zk:
             self.zk.start()
@@ -138,11 +140,11 @@ class ConnectStandaloneFileTest(Test):
             return False
 
     @cluster(num_nodes=5)
-    @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.zk)
-    @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.isolated_kraft)
-    @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.isolated_kraft)
-    @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.zk)
-    def test_skip_and_log_to_dlq(self, error_tolerance, metadata_quorum):
+    @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.zk, group_protocol=[consumer_group.classic_group_protocol])
+    @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.isolated_kraft, group_protocol=[consumer_group.classic_group_protocol])
+    @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.isolated_kraft, group_protocol=[consumer_group.classic_group_protocol])
+    @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.zk, group_protocol=[consumer_group.classic_group_protocol])
+    def test_skip_and_log_to_dlq(self, error_tolerance, metadata_quorum, group_protocol):
         self.kafka = KafkaService(self.test_context, self.num_brokers, self.zk, topics=self.topics)
 
         # set config props
@@ -209,8 +211,9 @@ class ConnectStandaloneFileTest(Test):
 
         if self.enable_deadletterqueue:
             self.logger.info("Reading records from deadletterqueue")
+            consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
             consumer_validator = ConsoleConsumer(self.test_context, 1, self.kafka, "my-connector-errors",
-                                                 consumer_timeout_ms=10000)
+                                                 consumer_timeout_ms=10000, consumer_properties=consumer_properties)
             consumer_validator.run()
             actual = ",".join(consumer_validator.messages_consumed[1])
             assert faulty_records == actual, "Expected %s but saw %s in dead letter queue" % (faulty_records, actual)

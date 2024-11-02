@@ -18,7 +18,7 @@ from ducktape.utils.util import wait_until
 from ducktape.mark.resource import cluster
 
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService, quorum
+from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest
@@ -56,8 +56,8 @@ class CompressionTest(ProduceConsumeValidateTest):
         return super(CompressionTest, self).min_cluster_size() + self.num_producers + self.num_consumers
 
     @cluster(num_nodes=8)
-    @matrix(compression_types=[COMPRESSION_TYPES], metadata_quorum=quorum.all_non_upgrade)
-    def test_compressed_topic(self, compression_types, metadata_quorum=quorum.zk):
+    @matrix(compression_types=[COMPRESSION_TYPES], metadata_quorum=quorum.all_non_upgrade, group_protocol=[consumer_group.classic_group_protocol])
+    def test_compressed_topic(self, compression_types, metadata_quorum=quorum.zk, group_protocol=consumer_group.classic_group_protocol):
         """Test produce => consume => validate for compressed topics
         Setup: 1 zk, 1 kafka node, 1 topic with partitions=10, replication-factor=1
 
@@ -77,8 +77,10 @@ class CompressionTest(ProduceConsumeValidateTest):
                                            self.topic, throughput=self.producer_throughput,
                                            message_validator=is_int_with_prefix,
                                            compression_types=compression_types)
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka, self.topic,
-                                        consumer_timeout_ms=60000, message_validator=is_int_with_prefix)
+                                        consumer_timeout_ms=60000, message_validator=is_int_with_prefix,
+                                        consumer_properties=consumer_properties)
         self.kafka.start()
 
         self.run_produce_consume_validate(lambda: wait_until(

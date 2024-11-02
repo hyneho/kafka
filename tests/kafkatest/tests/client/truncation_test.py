@@ -17,7 +17,7 @@ from ducktape.mark.resource import cluster
 from ducktape.utils.util import wait_until
 
 from kafkatest.tests.verifiable_consumer_test import VerifiableConsumerTest
-from kafkatest.services.kafka import TopicPartition
+from kafkatest.services.kafka import TopicPartition, consumer_group
 from kafkatest.services.verifiable_consumer import VerifiableConsumer
 
 
@@ -39,8 +39,8 @@ class TruncationTest(VerifiableConsumerTest):
         self.all_offsets_consumed = []
         self.all_values_consumed = []
 
-    def setup_consumer(self, topic, **kwargs):
-        consumer = super(TruncationTest, self).setup_consumer(topic, **kwargs)
+    def setup_consumer(self, topic, group_protocol, **kwargs):
+        consumer = super(TruncationTest, self).setup_consumer(topic, group_protocol, **kwargs)
         self.mark_for_collect(consumer, 'verifiable_consumer_stdout')
 
         def print_record(event, node):
@@ -51,7 +51,7 @@ class TruncationTest(VerifiableConsumerTest):
         return consumer
 
     @cluster(num_nodes=7)
-    def test_offset_truncate(self):
+    def test_offset_truncate(self, group_protocol=consumer_group.classic_group_protocol):
         """
         Verify correct consumer behavior when the brokers are consecutively restarted.
 
@@ -71,7 +71,7 @@ class TruncationTest(VerifiableConsumerTest):
         producer.start()
         self.await_produced_messages(producer, min_messages=10)
 
-        consumer = self.setup_consumer(self.TOPIC, reset_policy="earliest", verify_offsets=False)
+        consumer = self.setup_consumer(self.TOPIC, reset_policy="earliest", verify_offsets=False, group_protocol=group_protocol)
         consumer.start()
         self.await_all_members(consumer)
 
@@ -129,7 +129,7 @@ class TruncationTest(VerifiableConsumerTest):
 
         # Re-consume all the records
         consumer2 = VerifiableConsumer(self.test_context, 1, self.kafka, self.TOPIC, group_id="group2",
-                                       reset_policy="earliest", verify_offsets=True)
+                                       reset_policy="earliest", verify_offsets=True, group_protocol=group_protocol)
 
         consumer2.start()
         self.await_all_members(consumer2)

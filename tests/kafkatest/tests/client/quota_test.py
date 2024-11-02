@@ -18,7 +18,7 @@ from ducktape.mark import matrix, parametrize
 from ducktape.mark.resource import cluster
 
 from kafkatest.services.zookeeper import ZookeeperService
-from kafkatest.services.kafka import KafkaService
+from kafkatest.services.kafka import KafkaService, consumer_group
 from kafkatest.services.performance import ProducerPerformanceService
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.version import DEV_BRANCH, LATEST_1_1
@@ -127,12 +127,13 @@ class QuotaTest(Test):
         return super(QuotaTest, self).min_cluster_size() + self.num_producers + self.num_consumers
 
     @cluster(num_nodes=5)
-    @matrix(quota_type=[QuotaConfig.CLIENT_ID, QuotaConfig.USER, QuotaConfig.USER_CLIENT], override_quota=[True, False])
+    @matrix(quota_type=[QuotaConfig.CLIENT_ID, QuotaConfig.USER, QuotaConfig.USER_CLIENT], override_quota=[True, False], group_protocol=[consumer_group.classic_group_protocol])
     @parametrize(quota_type=QuotaConfig.CLIENT_ID, consumer_num=2)
     @parametrize(quota_type=QuotaConfig.CLIENT_ID, old_broker_throttling_behavior=True)
     @parametrize(quota_type=QuotaConfig.CLIENT_ID, old_client_throttling_behavior=True)
     def test_quota(self, quota_type, override_quota=True, producer_num=1, consumer_num=1,
-                   old_broker_throttling_behavior=False, old_client_throttling_behavior=False):
+                   old_broker_throttling_behavior=False, old_client_throttling_behavior=False,
+                   group_protocol=consumer_group.classic_group_protocol):
         # Old (pre-2.0) throttling behavior for broker throttles before sending a response to the client.
         if old_broker_throttling_behavior:
             self.kafka.set_version(LATEST_1_1)
@@ -157,10 +158,12 @@ class QuotaTest(Test):
         producer.run()
 
         # Consume all messages
+        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         consumer = ConsoleConsumer(self.test_context, consumer_num, self.kafka, self.topic,
             consumer_timeout_ms=60000, client_id=consumer_client_id,
             jmx_object_names=['kafka.consumer:type=consumer-fetch-manager-metrics,client-id=%s' % consumer_client_id],
-            jmx_attributes=['bytes-consumed-rate'], version=client_version)
+            jmx_attributes=['bytes-consumed-rate'], version=client_version,
+            consumer_properties=consumer_properties)
         consumer.run()
 
         for idx, messages in consumer.messages_consumed.items():

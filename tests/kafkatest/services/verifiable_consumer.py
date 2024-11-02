@@ -231,8 +231,8 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
         }
 
     def __init__(self, context, num_nodes, kafka, topic, group_id,
-                 static_membership=False, max_messages=-1, session_timeout_sec=30, enable_autocommit=False,
-                 assignment_strategy=None, group_protocol=None, group_remote_assignor=None,
+                 group_protocol, static_membership=False, max_messages=-1, session_timeout_sec=30, enable_autocommit=False,
+                 assignment_strategy=None, group_remote_assignor=None,
                  version=DEV_BRANCH, stop_timeout_sec=30, log_level="INFO", jaas_override_variables=None,
                  on_record_consumed=None, reset_policy="earliest", verify_offsets=True):
         """
@@ -403,7 +403,7 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
         #
         # See the Java class/method VerifiableConsumer.createFromArgs() for how the command line arguments are
         # parsed and used as configuration in the runner.
-        if node.version >= V_3_7_0 and self.is_consumer_group_protocol_enabled():
+        if node.version >= V_3_7_0 and self.group_protocol:
             cmd += " --group-protocol %s" % self.group_protocol
 
             if self.group_remote_assignor:
@@ -526,4 +526,4 @@ class VerifiableConsumer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
                     if handler.state != ConsumerState.Dead]
 
     def is_consumer_group_protocol_enabled(self):
-        return self.group_protocol and self.group_protocol.lower() == consumer_group.consumer_group_protocol
+        return consumer_group.is_consumer_group_protocol_enabled(self.group_protocol)
