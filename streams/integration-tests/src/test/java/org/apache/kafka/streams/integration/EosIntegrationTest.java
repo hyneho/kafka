@@ -419,7 +419,7 @@ public class EosIntegrationTest {
                 uncommittedRecords,
                 dataBeforeFailure,
                 "The uncommitted records before failure do not match what expected");
-
+            errorInjected.set(true);
             writeInputData(dataAfterFailure);
 
             waitForCondition(
