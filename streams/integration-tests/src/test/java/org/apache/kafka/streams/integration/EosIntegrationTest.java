@@ -1108,7 +1108,7 @@ public class EosIntegrationTest {
                 hasUnexpectedError = true;
             }
             uncaughtException = e;
-            return StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.SHUTDOWN_CLIENT;
+            return StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.REPLACE_THREAD;
         });
         return streams;
     }
