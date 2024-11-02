@@ -11111,7 +11111,7 @@ class KafkaApisTest extends Logging {
     kafkaApis.handle(requestChannelRequest, RequestLocal.noCaching)
 
     val expectedHeartbeatResponse = new ConsumerGroupHeartbeatResponseData()
-      .setErrorCode(Errors.UNSUPPORTED_VERSION.code)
+      .setErrorCode(Errors.UNKNOWN_SERVER_ERROR.code)
     val response = verifyNoThrottling[ConsumerGroupHeartbeatResponse](requestChannelRequest)
     assertEquals(expectedHeartbeatResponse, response.data)
   }
@@ -11245,7 +11245,7 @@ class KafkaApisTest extends Logging {
     consumerGroupDescribeRequestData.groupIds.add(groupId)
     val requestChannelRequest = buildRequest(new ConsumerGroupDescribeRequest.Builder(consumerGroupDescribeRequestData, true).build())
 
-    val errorCode = Errors.UNSUPPORTED_VERSION.code
+    val errorCode = Errors.UNKNOWN_SERVER_ERROR.code
     val expectedDescribedGroup = new DescribedGroup().setGroupId(groupId).setErrorCode(errorCode)
     val expectedResponse = new ConsumerGroupDescribeResponseData()
     expectedResponse.groups.add(expectedDescribedGroup)
