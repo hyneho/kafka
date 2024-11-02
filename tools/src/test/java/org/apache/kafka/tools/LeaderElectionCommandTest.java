@@ -86,7 +86,7 @@ public class LeaderElectionCommandTest {
         List<Integer> assignment = asList(broker2, broker3);
 
         cluster.waitForReadyBrokers();
-        Admin client = cluster.createAdminClient();
+        Admin client = cluster.admin();
 
         createTopic(client, topic, Collections.singletonMap(partition, assignment));
 
@@ -142,7 +142,7 @@ public class LeaderElectionCommandTest {
         List<Integer> assignment = asList(broker2, broker3);
 
         cluster.waitForReadyBrokers();
-        Admin client = cluster.createAdminClient();
+        Admin client = cluster.admin();
         createTopic(client, topic, Collections.singletonMap(partition, assignment));
 
         TopicPartition topicPartition = new TopicPartition(topic, partition);
@@ -179,7 +179,7 @@ public class LeaderElectionCommandTest {
         Map<Integer, List<Integer>> partitionAssignment = new HashMap<>();
         partitionAssignment.put(partition, assignment);
 
-        Admin client = cluster.createAdminClient();
+        Admin client = cluster.admin();
         createTopic(client, topic, partitionAssignment);
 
         TopicPartition topicPartition = new TopicPartition(topic, partition);
@@ -214,7 +214,7 @@ public class LeaderElectionCommandTest {
         List<Integer> assignment = asList(broker2, broker3);
 
         cluster.waitForReadyBrokers();
-        Admin client = cluster.createAdminClient();
+        Admin client = cluster.admin();
         Map<Integer, List<Integer>> partitionAssignment = new HashMap<>();
         partitionAssignment.put(partition, assignment);
 
@@ -261,7 +261,7 @@ public class LeaderElectionCommandTest {
         List<Integer> assignment1 = asList(broker3, broker2);
 
         cluster.waitForReadyBrokers();
-        Admin client = cluster.createAdminClient();
+        Admin client = cluster.admin();
         Map<Integer, List<Integer>> partitionAssignment = new HashMap<>();
         partitionAssignment.put(partition0, assignment0);
         partitionAssignment.put(partition1, assignment1);

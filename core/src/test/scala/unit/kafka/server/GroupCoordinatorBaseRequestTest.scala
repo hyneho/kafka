@@ -48,7 +48,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
 
   protected def createOffsetsTopic(): Unit = {
     TestUtils.createOffsetsTopicWithAdmin(
-      admin = cluster.createAdminClient(),
+      admin = cluster.admin(),
       brokers = brokers(),
       controllers = controllerServers()
     )
@@ -59,7 +59,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     numPartitions: Int
   ): Unit = {
     TestUtils.createTopicWithAdmin(
-      admin = cluster.createAdminClient(),
+      admin = cluster.admin(),
       brokers = brokers(),
       controllers = controllerServers(),
       topic = topic,
@@ -74,7 +74,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     topicConfig: Properties = new Properties
   ): Map[TopicIdPartition, Int] = {
     val partitionToLeader = TestUtils.createTopicWithAdmin(
-      admin = cluster.createAdminClient(),
+      admin = cluster.admin(),
       topic = topic,
       brokers = brokers(),
       controllers = controllerServers(),

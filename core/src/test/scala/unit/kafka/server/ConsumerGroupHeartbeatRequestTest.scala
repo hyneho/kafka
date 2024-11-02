@@ -79,7 +79,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
   @ClusterTest
   def testConsumerGroupHeartbeatIsAccessibleWhenNewGroupCoordinatorIsEnabled(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -167,7 +167,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
   @ClusterTest
   def testRejoiningStaticMemberGetsAssignmentsBackWhenNewGroupCoordinatorIsEnabled(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
     val instanceId = "instanceId"
 
     // Creates the __consumer_offsets topics because it won't be created automatically
@@ -288,7 +288,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
   )
   def testStaticMemberRemovedAfterSessionTimeoutExpiryWhenNewGroupCoordinatorIsEnabled(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
     val instanceId = "instanceId"
 
     // Creates the __consumer_offsets topics because it won't be created automatically
@@ -399,7 +399,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
   )
   def testUpdateConsumerGroupHeartbeatConfigSuccessful(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
     val newHeartbeatIntervalMs = 10000
     val instanceId = "instanceId"
     val consumerGroupId = "grp"
@@ -468,7 +468,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
   @ClusterTest
   def testConsumerGroupHeartbeatFailureIfMemberIdMissingForVersionsAbove0(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -498,7 +498,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
   @ClusterTest
   def testMemberIdGeneratedOnServerWhenApiVersionIs0(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.

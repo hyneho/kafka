@@ -86,7 +86,7 @@ class ShareGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCoord
     // in this test because it does not use FindCoordinator API.
     createOffsetsTopic()
 
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
     TestUtils.createTopicWithAdminRaw(
       admin = admin,
       topic = "foo",

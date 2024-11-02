@@ -133,7 +133,7 @@ public class ClusterTestExtensionsTest {
 
         // assert broker server 0 contains property queued.max.requests 200 from ClusterTest which overrides
         // the value 100 in server property in ClusterTestDefaults
-        try (Admin admin = clusterInstance.createAdminClient()) {
+        try (Admin admin = clusterInstance.admin()) {
             ConfigResource configResource = new ConfigResource(ConfigResource.Type.BROKER, "0");
             Map<ConfigResource, Config> configs = admin.describeConfigs(singletonList(configResource)).all().get();
             assertEquals(1, configs.size());
@@ -156,7 +156,7 @@ public class ClusterTestExtensionsTest {
         @ClusterTest(types = {Type.KRAFT, Type.CO_KRAFT}, disksPerBroker = 2),
     })
     public void testClusterTestWithDisksPerBroker() throws ExecutionException, InterruptedException {
-        Admin admin = clusterInstance.createAdminClient();
+        Admin admin = clusterInstance.admin();
 
         DescribeLogDirsResult result = admin.describeLogDirs(clusterInstance.brokerIds());
         result.allDescriptions().get().forEach((brokerId, logDirDescriptionMap) -> {
@@ -205,7 +205,7 @@ public class ClusterTestExtensionsTest {
         short numReplicas = 3;
         clusterInstance.createTopic(topicName, numPartition, numReplicas);
 
-        try (Admin admin = clusterInstance.createAdminClient()) {
+        try (Admin admin = clusterInstance.admin()) {
             Assertions.assertTrue(admin.listTopics().listings().get().stream().anyMatch(s -> s.name().equals(topicName)));
             List<TopicPartitionInfo> partitions = admin.describeTopics(singleton(topicName)).allTopicNames().get()
                     .get(topicName).partitions();
@@ -242,7 +242,7 @@ public class ClusterTestExtensionsTest {
 
     @ClusterTest(types = {Type.CO_KRAFT, Type.KRAFT}, brokers = 4)
     public void testVerifyTopicDeletion(ClusterInstance clusterInstance) throws Exception {
-        try (Admin admin = clusterInstance.createAdminClient()) {
+        try (Admin admin = clusterInstance.admin()) {
             String testTopic = "testTopic";
             admin.createTopics(singletonList(new NewTopic(testTopic, 1, (short) 1)));
             clusterInstance.waitForTopic(testTopic, 1);
@@ -255,11 +255,11 @@ public class ClusterTestExtensionsTest {
     }
 
     @ClusterTest(types = {Type.CO_KRAFT, Type.KRAFT}, brokers = 3)
-    public void testCreateProducer(ClusterInstance clusterInstance) throws InterruptedException {
+    public void testCreateProducerAndConsumer(ClusterInstance clusterInstance) throws InterruptedException, ExecutionException {
         String topic = "topic";
         String key = "key";
         String value = "value";
-        try (Admin adminClient = clusterInstance.createAdminClient();
+        try (Admin adminClient = clusterInstance.admin();
              Producer<String, String> producer = clusterInstance.producer(
                      Map.of(ACKS_CONFIG, "all"), new StringSerializer(), new StringSerializer());
              Consumer<String, String> consumer = clusterInstance.consumer(

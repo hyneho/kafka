@@ -21,7 +21,6 @@ import kafka.network.SocketServer;
 import kafka.server.BrokerServer;
 import kafka.server.ControllerServer;
 import kafka.server.KafkaBroker;
-
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -155,10 +154,10 @@ public interface ClusterInstance {
         return asClass.cast(getUnderlying());
     }
 
-    Admin createAdminClient(Properties configOverrides);
+    Admin admin(Map<String, Object> overrides);
 
-    default Admin createAdminClient() {
-        return createAdminClient(new Properties());
+    default Admin admin() {
+        return admin(Collections.emptyMap());
     }
 
     default Set<GroupProtocol> supportedGroupProtocols() {
@@ -186,7 +185,7 @@ public interface ClusterInstance {
     }
     
     default void createTopic(String topicName, int partitions, short replicas) throws InterruptedException {
-        try (Admin admin = createAdminClient()) {
+        try (Admin admin = admin()) {
             admin.createTopics(Collections.singletonList(new NewTopic(topicName, partitions, replicas)));
             waitForTopic(topicName, partitions);
         }
@@ -234,7 +233,7 @@ public interface ClusterInstance {
     }
     
 
-    //---------------------------[producer/consumer/admin]---------------------------//
+    //---------------------------[producer/consumer]---------------------------//
     
     default <K, V> Producer<K, V> producer(Map<String, Object> overrides, 
                                            Serializer<K> keySerializer, 
@@ -271,5 +270,4 @@ public interface ClusterInstance {
     ) {
         return consumer(Collections.emptyMap(), keyDeserializer, valueDeserializer);
     }
-    
 }

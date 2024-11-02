@@ -62,7 +62,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     ))
   def testShareGroupHeartbeatIsAccessibleWhenShareGroupIsEnabled(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -155,7 +155,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     ))
   def testShareGroupHeartbeatWithMultipleMembers(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -299,7 +299,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     ))
   def testMemberLeavingAndRejoining(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -412,7 +412,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     ))
   def testPartitionAssignmentWithChangingTopics(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
     TestUtils.createOffsetsTopicWithAdmin(
@@ -602,7 +602,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     ))
   def testMemberJoiningAndExpiring(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -772,7 +772,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     ))
   def testGroupCoordinatorChange(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
     TestUtils.createOffsetsTopicWithAdmin(

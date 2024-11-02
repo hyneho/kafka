@@ -171,7 +171,7 @@ class ClientQuotasRequestTest(cluster: ClusterInstance) {
   def testClientQuotasForScramUsers(): Unit = {
     val userName = "user"
 
-    val results = cluster.createAdminClient().alterUserScramCredentials(util.Arrays.asList(
+    val results = cluster.admin().alterUserScramCredentials(util.Arrays.asList(
       new UserScramCredentialUpsertion(userName, new ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 4096), "password")))
     results.all.get
 
