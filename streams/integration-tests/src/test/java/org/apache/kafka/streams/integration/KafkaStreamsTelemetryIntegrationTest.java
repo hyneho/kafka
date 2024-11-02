@@ -82,7 +82,7 @@ import java.util.stream.Stream;
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkObjectProperties;
-import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.safeUniqueTestName;
+import static org.apache.kafka.streams.utils.TestUtils.safeUniqueTestName;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -159,9 +159,8 @@ public class KafkaStreamsTelemetryIntegrationTest {
             final Uuid adminInstanceId = clientInstanceIds.adminInstanceId();
             
             final Uuid mainConsumerInstanceId = clientInstanceIds.consumerInstanceIds().entrySet().stream()
-                    .filter(entry -> !entry.getKey().toLowerCase(Locale.getDefault()).contains("restore")
-                            && !entry.getKey().toLowerCase(Locale.getDefault()).contains("producer")
-                            && !entry.getKey().toLowerCase(Locale.getDefault()).contains("global"))
+                    .filter(entry -> !entry.getKey().endsWith("-restore-consumer")
+                            && !entry.getKey().endsWith("GlobalStreamThread"))
                     .map(Map.Entry::getValue)
                     .findFirst().orElseThrow();
             assertNotNull(adminInstanceId);
