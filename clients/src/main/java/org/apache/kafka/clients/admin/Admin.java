@@ -53,7 +53,7 @@ import java.util.Set;
  * Instances returned from the {@code create} methods of this interface are guaranteed to be thread safe.
  * However, the {@link KafkaFuture KafkaFutures} returned from request methods are executed
  * by a single thread so it is important that any code which executes on that thread when they complete
- * (using {@link KafkaFuture#thenApply(KafkaFuture.Function)}, for example) doesn't block
+ * (using {@link KafkaFuture#thenApply(KafkaFuture.BaseFunction)}, for example) doesn't block
  * for too long. If necessary, processing of results should be passed to another thread.
  * <p>
  * The operations exposed by Admin follow a consistent pattern:
@@ -1021,6 +1021,26 @@ public interface Admin extends AutoCloseable {
     default DeleteConsumerGroupOffsetsResult deleteConsumerGroupOffsets(String groupId, Set<TopicPartition> partitions) {
         return deleteConsumerGroupOffsets(groupId, partitions, new DeleteConsumerGroupOffsetsOptions());
     }
+
+    /**
+     * List the groups available in the cluster with the default options.
+     *
+     * <p>This is a convenience method for {@link #listGroups(ListGroupsOptions)} with default options.
+     * See the overload for more details.
+     *
+     * @return The ListGroupsResult.
+     */
+    default ListGroupsResult listGroups() {
+        return listGroups(new ListGroupsOptions());
+    }
+
+    /**
+     * List the groups available in the cluster.
+     *
+     * @param options The options to use when listing the groups.
+     * @return The ListGroupsResult.
+     */
+    ListGroupsResult listGroups(ListGroupsOptions options);
 
     /**
      * Elect a replica as leader for topic partitions.

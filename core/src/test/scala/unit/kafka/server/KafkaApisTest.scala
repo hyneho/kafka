@@ -144,8 +144,8 @@ class KafkaApisTest extends Logging {
   private val clientRequestQuotaManager: ClientRequestQuotaManager = mock(classOf[ClientRequestQuotaManager])
   private val clientControllerQuotaManager: ControllerMutationQuotaManager = mock(classOf[ControllerMutationQuotaManager])
   private val replicaQuotaManager: ReplicationQuotaManager = mock(classOf[ReplicationQuotaManager])
-  private val quotas = QuotaManagers(clientQuotaManager, clientQuotaManager, clientRequestQuotaManager,
-    clientControllerQuotaManager, replicaQuotaManager, replicaQuotaManager, replicaQuotaManager, None)
+  private val quotas = new QuotaManagers(clientQuotaManager, clientQuotaManager, clientRequestQuotaManager,
+    clientControllerQuotaManager, replicaQuotaManager, replicaQuotaManager, replicaQuotaManager, util.Optional.empty())
   private val fetchManager: FetchManager = mock(classOf[FetchManager])
   private val sharePartitionManager: SharePartitionManager = mock(classOf[SharePartitionManager])
   private val clientMetricsManager: ClientMetricsManager = mock(classOf[ClientMetricsManager])
@@ -2582,16 +2582,18 @@ class KafkaApisTest extends Logging {
       val producerId = 15L
       val epoch = 0.toShort
 
+      val clientTransactionVersion = if (version > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
+      val isTransactionV2Enabled = clientTransactionVersion.equals(TransactionVersion.TV_2)
+
       val endTxnRequest = new EndTxnRequest.Builder(
         new EndTxnRequestData()
           .setTransactionalId(transactionalId)
           .setProducerId(producerId)
           .setProducerEpoch(epoch)
-          .setCommitted(true)
+          .setCommitted(true),
+        isTransactionV2Enabled
       ).build(version.toShort)
       val request = buildRequest(endTxnRequest)
-
-      val clientTransactionVersion = if (version > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
 
       val requestLocal = RequestLocal.withThreadConfinedCaching
       when(txnCoordinator.handleEndTransaction(

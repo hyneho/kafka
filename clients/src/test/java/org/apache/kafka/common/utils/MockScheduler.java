@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.common.utils;
 
-import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.internals.KafkaFutureImpl;
 
 import org.slf4j.Logger;
@@ -84,7 +83,7 @@ public final class MockScheduler implements Scheduler, MockTime.Listener {
                                   final Callable<T> callable, long delayMs) {
         final KafkaFutureImpl<T> future = new KafkaFutureImpl<>();
         KafkaFutureImpl<Long> waiter = new KafkaFutureImpl<>();
-        waiter.thenApply((KafkaFuture.BaseFunction<Long, Void>) now -> {
+        waiter.thenApply(now -> {
             executor.submit((Callable<Void>) () -> {
                 // Note: it is possible that we'll execute Callable#call right after
                 // the future is cancelled.  This is a valid sequence of events
