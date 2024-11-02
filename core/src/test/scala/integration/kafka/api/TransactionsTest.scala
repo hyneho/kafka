@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
-import org.junit.jupiter.params.provider.{CsvSource, ValueSource}
+import org.junit.jupiter.params.provider.CsvSource
 
 import java.lang.{Long => JLong}
 import java.nio.charset.StandardCharsets
@@ -856,7 +856,7 @@ class TransactionsTest extends IntegrationTestHarness {
     "kraft, classic, true",
     "kraft, consumer, true",
   ))
-  def testFailureToFenceEpoch(quorum: String, groupProtocol, isTV2Enabled: Boolean): Unit = {
+  def testFailureToFenceEpoch(quorum: String, groupProtocol: String, isTV2Enabled: Boolean): Unit = {
     val producer1 = transactionalProducers.head
     val producer2 = createTransactionalProducer("transactional-producer", maxBlockMs = 1000)
     val initialProducerEpoch = 0
