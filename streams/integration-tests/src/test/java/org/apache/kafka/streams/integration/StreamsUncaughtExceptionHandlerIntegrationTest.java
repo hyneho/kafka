@@ -77,7 +77,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@SuppressWarnings("deprecation") //Need to call the old handler, will remove those calls when the old handler is removed
 @Tag("integration")
 @Timeout(600)
 public class StreamsUncaughtExceptionHandlerIntegrationTest {
