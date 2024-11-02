@@ -441,12 +441,12 @@ public class SharePartition {
                     // If the cachedState is not empty, findNextFetchOffset flag is set to true so that any AVAILABLE records
                     // in the cached state are not missed
                     findNextFetchOffset.set(true);
-                    updateEndOffsetAndFetchOffsetMetadata(cachedState.lastEntry().getValue().lastOffset(), Optional.empty());
+                    updateEndOffsetAndResetFetchOffsetMetadata(cachedState.lastEntry().getValue().lastOffset());
                     // In case the persister read state RPC result contains no AVAILABLE records, we can update cached state
                     // and start/end offsets.
                     maybeUpdateCachedStateAndOffsets();
                 } else {
-                    updateEndOffsetAndFetchOffsetMetadata(partitionData.startOffset(), Optional.empty());
+                    updateEndOffsetAndResetFetchOffsetMetadata(partitionData.startOffset());
                 }
                 // Set the partition state to Active and complete the future.
                 partitionState = SharePartitionState.ACTIVE;
@@ -933,7 +933,7 @@ public class SharePartition {
                 // If the cached state is empty, then the start and end offset will be the new log start offset.
                 // This can occur during the initialization of share partition if LSO has moved.
                 startOffset = logStartOffset;
-                updateEndOffsetAndFetchOffsetMetadata(logStartOffset, Optional.empty());
+                updateEndOffsetAndResetFetchOffsetMetadata(logStartOffset);
                 return;
             }
 
@@ -951,7 +951,7 @@ public class SharePartition {
                 // This case means that the cached state is completely fresh now.
                 // Example scenario - batch of 0-10 in acquired state in cached state, then LSO moves to 15,
                 // then endOffset should be 15 as well.
-                updateEndOffsetAndFetchOffsetMetadata(startOffset, Optional.empty());
+                updateEndOffsetAndResetFetchOffsetMetadata(startOffset);
             }
 
             // Note -
@@ -1182,7 +1182,7 @@ public class SharePartition {
             if (cachedState.firstKey() == firstAcquiredOffset)  {
                 startOffset = firstAcquiredOffset;
             }
-            updateEndOffsetAndFetchOffsetMetadata(lastAcquiredOffset, Optional.empty());
+            updateEndOffsetAndResetFetchOffsetMetadata(lastAcquiredOffset);
             return new AcquiredRecords()
                 .setFirstOffset(firstAcquiredOffset)
                 .setLastOffset(lastAcquiredOffset)
@@ -1582,14 +1582,10 @@ public class SharePartition {
         return Optional.empty();
     }
 
-    protected void updateEndOffsetAndFetchOffsetMetadata(long endOffset, Optional<LogOffsetMetadata> fetchOffsetMetadata) {
-        lock.writeLock().lock();
-        try {
-            this.endOffset = endOffset;
-            this.fetchOffsetMetadata = fetchOffsetMetadata;
-        } finally {
-            lock.writeLock().unlock();
-        }
+    // The caller of this function is expected to hold lock.writeLock() when calling this method.
+    protected void updateEndOffsetAndResetFetchOffsetMetadata(long updatedEndOffset) {
+        endOffset = updatedEndOffset;
+        fetchOffsetMetadata = Optional.empty();
     }
 
     protected void updateFetchOffsetMetadata(Optional<LogOffsetMetadata> fetchOffsetMetadata) {
@@ -1688,7 +1684,7 @@ public class SharePartition {
             long lastCachedOffset = cachedState.lastEntry().getValue().lastOffset();
             if (lastOffsetAcknowledged == lastCachedOffset) {
                 startOffset = lastCachedOffset + 1; // The next offset that will be fetched and acquired in the share partition
-                updateEndOffsetAndFetchOffsetMetadata(lastCachedOffset + 1, Optional.empty());
+                updateEndOffsetAndResetFetchOffsetMetadata(lastCachedOffset + 1);
                 cachedState.clear();
                 // Nothing further to do.
                 return;

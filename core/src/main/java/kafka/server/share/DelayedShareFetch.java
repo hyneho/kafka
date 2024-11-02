@@ -156,16 +156,20 @@ public class DelayedShareFetch extends DelayedOperation {
 
         try {
             if (!topicPartitionData.isEmpty()) {
-                Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse = maybeReadFromLogAndUpdateFetchOffsetMetadata(topicPartitionData);
+                // In case, fetch offset metadata doesn't exist for one or more topic partitions, we do a
+                // replicaManager.readFromLog to populate the offset metadata and update the fetch offset metadata for
+                // those topic partitions.
+                Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse = updateFetchOffsetMetadata(maybeReadFromLog(topicPartitionData));
                 if (anyTopicIdPartitionHasLogReadError(replicaManagerReadResponse) || isMinBytesSatisfied(topicPartitionData)) {
                     partitionsToComplete = topicPartitionData;
-                    if (!replicaManagerReadResponse.isEmpty())
-                        partitionsAlreadyFetched = replicaManagerReadResponse;
+                    partitionsAlreadyFetched = replicaManagerReadResponse;
                     boolean completedByMe = forceComplete();
                     // If invocation of forceComplete is not successful, then that means the request is already completed
                     // hence release the acquired locks.
                     if (!completedByMe) {
                         releasePartitionLocks(partitionsToComplete.keySet());
+                        partitionsAlreadyFetched.clear();
+                        partitionsToComplete.clear();
                     }
                     return completedByMe;
                 } else {
@@ -239,26 +243,22 @@ public class DelayedShareFetch extends DelayedOperation {
         return topicPartitionData;
     }
 
-    // In case, fetch offset metadata doesn't exist for one or more topic partitions, we do a
-    // replicaManager.readFromLog to populate the offset metadata.
-    private Map<TopicIdPartition, LogReadResult> maybeReadFromLogAndUpdateFetchOffsetMetadata(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
+    private Map<TopicIdPartition, LogReadResult> maybeReadFromLog(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         Map<TopicIdPartition, FetchRequest.PartitionData> missingFetchOffsetMetadataTopicPartitions = new LinkedHashMap<>();
-        for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
-            TopicIdPartition topicIdPartition = entry.getKey();
+        topicPartitionData.forEach((topicIdPartition, partitionData) -> {
             SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             if (sharePartition.fetchOffsetMetadata().isEmpty()) {
-                missingFetchOffsetMetadataTopicPartitions.put(topicIdPartition, entry.getValue());
+                missingFetchOffsetMetadataTopicPartitions.put(topicIdPartition, partitionData);
             }
-        }
+        });
         if (missingFetchOffsetMetadataTopicPartitions.isEmpty()) {
             return Collections.emptyMap();
         }
         // We fetch data from replica manager corresponding to the topic partitions that have missing fetch offset metadata.
-        Map<TopicIdPartition, LogReadResult> replicaManagerReadResponseData = readFromLog(missingFetchOffsetMetadataTopicPartitions);
-        return updateFetchOffsetMetadataForMissingTopicPartitions(replicaManagerReadResponseData);
+        return readFromLog(missingFetchOffsetMetadataTopicPartitions);
     }
 
-    private Map<TopicIdPartition, LogReadResult> updateFetchOffsetMetadataForMissingTopicPartitions(
+    private Map<TopicIdPartition, LogReadResult> updateFetchOffsetMetadata(
         Map<TopicIdPartition, LogReadResult> replicaManagerReadResponseData) {
         for (Map.Entry<TopicIdPartition, LogReadResult> entry : replicaManagerReadResponseData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
