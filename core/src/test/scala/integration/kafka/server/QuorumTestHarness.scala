@@ -22,7 +22,7 @@ import kafka.controller.ControllerEventManager
 import java.io.File
 import java.net.InetSocketAddress
 import java.util
-import java.util.{Collections, Optional, OptionalInt, Properties}
+import java.util.{Collections, Optional, OptionalInt, Properties, stream}
 import java.util.concurrent.{CompletableFuture, TimeUnit}
 import javax.security.auth.login.Configuration
 import kafka.utils.{CoreUtils, Logging, TestInfoUtils, TestUtils}
@@ -51,6 +51,7 @@ import org.apache.zookeeper.client.ZKClientConfig
 import org.apache.zookeeper.{WatchedEvent, Watcher, ZooKeeper}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterAll, AfterEach, BeforeAll, BeforeEach, Tag, TestInfo}
+import org.junit.jupiter.params.provider.Arguments
 
 import java.nio.file.{Files, Paths}
 import scala.collection.Seq
@@ -203,7 +204,7 @@ abstract class QuorumTestHarness extends Logging {
     TestInfoUtils.isShareGroupTest(testInfo)
   }
 
-  def maybeGroupProtocolSpecified(testInfo: TestInfo): Option[GroupProtocol] = {
+  def maybeGroupProtocolSpecified(): Option[GroupProtocol] = {
     TestInfoUtils.maybeGroupProtocolSpecified(testInfo)
   }
 
@@ -528,5 +529,40 @@ object QuorumTestHarness {
     assertTrue(unexpected.isEmpty,
       s"Found ${unexpected.size} unexpected threads during $context: " +
         s"${unexpected.mkString("`", ",", "`")}")
+  }
+
+  // We want to test the following combinations:
+  // * KRaft and the classic group protocol
+  // * KRaft and the consumer group protocol
+  def getTestQuorumAndGroupProtocolParametersAll: java.util.stream.Stream[Arguments] = {
+    stream.Stream.of(
+      Arguments.of("kraft", "classic"),
+      Arguments.of("kraft", "consumer")
+    )
+  }
+
+  // For tests that only work with the classic group protocol, we want to test the following combinations:
+  // * KRaft and the classic group protocol
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly: java.util.stream.Stream[Arguments] = {
+    stream.Stream.of(
+      Arguments.of("kraft", "classic")
+    )
+  }
+
+  // For tests that only work with the classic group protocol because of relying on Zookeeper, we want to test the
+  // following combinations:
+  // * Zookeeper and the classic group protocol
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = {
+    stream.Stream.of(
+      Arguments.of("zk", "classic")
+    )
+  }
+
+  // For tests that only work with the consumer group protocol, we want to test the following combination:
+  // * KRaft and the consumer group protocol
+  def getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly: stream.Stream[Arguments] = {
+    stream.Stream.of(
+      Arguments.of("kraft", "consumer")
+    )
   }
 }
