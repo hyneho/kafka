@@ -24,10 +24,18 @@ import kafka.server.KafkaBroker;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.GroupProtocol;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.common.network.ListenerName;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.test.TestUtils;
 import org.apache.kafka.server.authorizer.Authorizer;
 
@@ -224,5 +232,44 @@ public interface ClusterInstance {
             }, "expected acls: " + entries + ", actual acls: " + actualEntries.get());
         }
     }
+    
 
+    //---------------------------[producer/consumer/admin]---------------------------//
+    
+    default <K, V> Producer<K, V> producer(Map<String, Object> overrides, 
+                                           Serializer<K> keySerializer, 
+                                           Serializer<V> valueSerializer
+    ) {
+        Properties props = new Properties();
+        props.putAll(overrides);
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializer.getClass().getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, valueSerializer.getClass().getName());
+        return new KafkaProducer<>(props);
+    }
+    
+    default <K, V> Producer<K, V> producer(Serializer<K> keySerializer, 
+                                           Serializer<V> valueSerializer
+    ) {
+        return producer(Collections.emptyMap(), keySerializer, valueSerializer);
+    }
+
+    default <K, V> Consumer<K, V> consumer(Map<String, Object> overrides,
+                                           Deserializer<K> keyDeserializer,
+                                           Deserializer<V> valueDeserializer
+    ) {
+        Properties props = new Properties();
+        props.putAll(overrides);
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, keyDeserializer.getClass().getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializer.getClass().getName());
+        return new KafkaConsumer<>(props);
+    }
+    
+    default <K, V> Consumer<K, V> consumer(Deserializer<K> keyDeserializer,
+                                           Deserializer<V> valueDeserializer
+    ) {
+        return consumer(Collections.emptyMap(), keyDeserializer, valueDeserializer);
+    }
+    
 }
