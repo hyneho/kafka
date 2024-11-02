@@ -1673,7 +1673,7 @@ public class KafkaStreamsTest {
     public void shouldReturnProducerAndConsumerInstanceIds() {
         prepareStreams();
         prepareStreamThread(streamThreadOne, 1);
-        prepareStreamThread(streamThreadTwo, 2);
+        props.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, 1);
         final Uuid mainConsumerInstanceId = Uuid.randomUuid();
         final Uuid producerInstanceId = Uuid.randomUuid();
         final KafkaFutureImpl<Uuid> consumerFuture = new KafkaFutureImpl<>();
@@ -1683,7 +1683,7 @@ public class KafkaStreamsTest {
         final Uuid adminInstanceId = Uuid.randomUuid();
         adminClient.setClientInstanceId(adminInstanceId);
         
-        final Map<String, KafkaFuture<Uuid>> expectedClientIds = Map.of("main-consumer", consumerFuture, "some-thread-producer-id", producerFuture);
+        final Map<String, KafkaFuture<Uuid>> expectedClientIds = Map.of("main-consumer", consumerFuture, "some-thread-producer", producerFuture);
         when(streamThreadOne.clientInstanceIds(any())).thenReturn(expectedClientIds);
 
         try (final KafkaStreams streams = new KafkaStreams(getBuilderWithSource().build(), props, supplier, time)) {
@@ -1692,7 +1692,8 @@ public class KafkaStreamsTest {
             assertThat(clientInstanceIds.consumerInstanceIds().size(), equalTo(1));
             assertThat(clientInstanceIds.consumerInstanceIds().get("main-consumer"), equalTo(mainConsumerInstanceId));
             assertThat(clientInstanceIds.producerInstanceIds().size(),  equalTo(1));
-            assertThat(clientInstanceIds.producerInstanceIds().get("some-thread-producer-id"), equalTo(producerInstanceId));
+            assertThat(clientInstanceIds.producerInstanceIds().get("some-thread-producer"), equalTo(producerInstanceId));
+            assertThat(clientInstanceIds.adminInstanceId(), equalTo(adminInstanceId));
         }
     }
 
