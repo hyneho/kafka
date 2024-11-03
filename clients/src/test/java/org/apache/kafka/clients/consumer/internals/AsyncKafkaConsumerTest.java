@@ -802,7 +802,7 @@ public class AsyncKafkaConsumerTest {
     }
 
     @Test
-    public void testLeaveGroupOnClose() {
+    public void testCloseLeavesGroup() {
         SubscriptionState subscriptions = mock(SubscriptionState.class);
         consumer = spy(newConsumer(
             mock(FetchBuffer.class),
@@ -817,7 +817,7 @@ public class AsyncKafkaConsumerTest {
     }
 
     @Test
-    public void testLeaveGroupOnCloseWithFailingOnPartitionsLost() {
+    public void testCloseLeavesGroupDespiteOnPartitionsLostError() {
         // If rebalance listener failed to execute during close, we still send the leave group,
         // and proceed with closing the consumer.
         Throwable rootError = new KafkaException("Intentional error");
