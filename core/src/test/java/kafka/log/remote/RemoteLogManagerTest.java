@@ -3021,8 +3021,8 @@ public class RemoteLogManagerTest {
             }
 
             // This is the key scenario that we are testing here
-            RecordBatch findFirstBatch(RemoteLogInputStream remoteLogInputStream, long offset) {
-                return null;
+            EnrichedRecordBatch findFirstBatch(RemoteLogInputStream remoteLogInputStream, long offset) {
+                return new EnrichedRecordBatch(null, 0);
             }
         }) {
             FetchDataInfo fetchDataInfo = remoteLogManager.read(fetchInfo);
@@ -3088,10 +3088,10 @@ public class RemoteLogManagerTest {
                 return 1;
             }
 
-            RecordBatch findFirstBatch(RemoteLogInputStream remoteLogInputStream, long offset) {
+            EnrichedRecordBatch findFirstBatch(RemoteLogInputStream remoteLogInputStream, long offset) {
                 when(firstBatch.sizeInBytes()).thenReturn(recordBatchSizeInBytes);
                 doNothing().when(firstBatch).writeTo(capture.capture());
-                return firstBatch;
+                return new EnrichedRecordBatch(firstBatch, 0);
             }
         }) {
             FetchDataInfo fetchDataInfo = remoteLogManager.read(fetchInfo);
