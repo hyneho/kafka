@@ -1244,20 +1244,16 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *         The application thread will be blocked during the entire duration of the execution of the
      *         {@link ConsumerRebalanceListener}. The {@link #close()} method does not employ a mechanism to
      *         short-circuit the callback execution.
-     * <p>
-     * <p/>
-     * <p>
-     *         Regarding timeouts: because the {@link ConsumerRebalanceListener} APIs do not receive the timeout
-     *         value as a parameter, a given {@link ConsumerRebalanceListener} implementation cannot alter its behavior
-     *         to adhere to the timeout.
-     * <p>
-     * <p/>
-     * <p>
-     *         Regarding interrupts: a given {@link ConsumerRebalanceListener} implementation may be affected by
-     *         the interrupts. If the callback implementation performs any blocking operations, its logic will either
-     *         catch the error and continue or it will be thrown up to the caller. Additionally, an implementation may
-     *         choose to preemptively check the thread's interrupt flag (via {@link Thread#isInterrupted()},
-     *         {@link Thread#isInterrupted()}, etc.) and alter its own behavior.
+     *     </li>
+     *     <li>
+     *         Since the {@link ConsumerRebalanceListener} APIs do not include a timeout parameter, a given
+     *         {@link ConsumerRebalanceListener} implementation cannot alter its behavior to adhere to the timeout.
+     *     </li>
+     *     <li>
+     *         A given {@link ConsumerRebalanceListener} implementation may be affected by the application thread's
+     *         interrupt state. If the callback implementation performs any blocking operations, it may result in
+     *         an error. An implementation may choose to preemptively check the thread's interrupt flag via
+     *         {@link Thread#isInterrupted()} or {@link Thread#isInterrupted()} and alter its behavior.
      *     </li>
      *     <li>
      *         If the application thread was interrupted <em>prior</em> to the execution of the
@@ -1372,6 +1368,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         SortedSet<TopicPartition> droppedPartitions = new TreeSet<>(TOPIC_PARTITION_COMPARATOR);
         droppedPartitions.addAll(assignedPartitions);
 
+        boolean isThreadInterrupted = Thread.currentThread().isInterrupted();
+
         try {
             final Exception error;
 
@@ -1383,6 +1381,12 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             if (error != null)
                 throw ConsumerUtils.maybeWrapAsKafkaException(error);
         } finally {
+            if (Thread.currentThread().isInterrupted() && !isThreadInterrupted) {
+                // This is the case where the thread was interrupted before invoking the handler, but it apparently
+                // cleared the interrupt flag, so we restore it to maintain a consistent view of the thread's state.
+                Thread.currentThread().interrupt();
+            }
+
             timer.update();
         }
     }

@@ -83,6 +83,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
@@ -844,6 +845,35 @@ public class AsyncKafkaConsumerTest {
         verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = {0, ConsumerUtils.DEFAULT_CLOSE_TIMEOUT_MS})
+    public void testCloseLeavesGroupDespiteInterrupt(long timeoutMs) {
+        Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
+
+        SubscriptionState subscriptions = mock(SubscriptionState.class);
+        when(subscriptions.assignedPartitions()).thenReturn(partitions);
+        when(applicationEventHandler.addAndGet(any(CompletableApplicationEvent.class))).thenThrow(InterruptException.class);
+        consumer = spy(newConsumer(
+            mock(FetchBuffer.class),
+            mock(ConsumerInterceptors.class),
+            mock(ConsumerRebalanceListenerInvoker.class),
+            subscriptions,
+            "group-id",
+            "client-id"));
+
+        Duration timeout = Duration.ofMillis(timeoutMs);
+
+        try {
+            Thread.currentThread().interrupt();
+            assertThrows(InterruptException.class, () -> consumer.close(timeout));
+        } finally {
+            Thread.interrupted();
+        }
+
+        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
+        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
+    }
+
     @Test
     public void testAutoCommitSyncEnabled() {
         completeCommitSyncApplicationEventSuccessfully();
@@ -1193,58 +1223,6 @@ public class AsyncKafkaConsumerTest {
         completeUnsubscribeApplicationEventSuccessfully();
         assertDoesNotThrow(() -> consumer.close(Duration.ofMillis(10)));
         assertEquals(1, cb.invoked);
-    }
-
-    @Test
-    public void testCloseWithInterruptUsingDefaultTimeout() {
-        Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
-
-        SubscriptionState subscriptions = mock(SubscriptionState.class);
-        when(subscriptions.assignedPartitions()).thenReturn(partitions);
-        when(applicationEventHandler.addAndGet(any(CompletableApplicationEvent.class))).thenThrow(InterruptException.class);
-        consumer = spy(newConsumer(
-            mock(FetchBuffer.class),
-            mock(ConsumerInterceptors.class),
-            mock(ConsumerRebalanceListenerInvoker.class),
-            subscriptions,
-            "group-id",
-            "client-id"));
-
-        try {
-            Thread.currentThread().interrupt();
-            assertThrows(InterruptException.class, () -> consumer.close());
-        } finally {
-            Thread.interrupted();
-        }
-
-        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
-        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
-    }
-
-    @Test
-    public void testCloseWithInterruptUsingZeroTimeout() {
-        Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
-
-        SubscriptionState subscriptions = mock(SubscriptionState.class);
-        when(subscriptions.assignedPartitions()).thenReturn(partitions);
-        when(applicationEventHandler.addAndGet(any(CompletableApplicationEvent.class))).thenThrow(InterruptException.class);
-        consumer = spy(newConsumer(
-            mock(FetchBuffer.class),
-            mock(ConsumerInterceptors.class),
-            mock(ConsumerRebalanceListenerInvoker.class),
-            subscriptions,
-            "group-id",
-            "client-id"));
-
-        try {
-            Thread.currentThread().interrupt();
-            assertThrows(InterruptException.class, () -> consumer.close(Duration.ZERO));
-        } finally {
-            Thread.interrupted();
-        }
-
-        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
-        verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
     @Test
