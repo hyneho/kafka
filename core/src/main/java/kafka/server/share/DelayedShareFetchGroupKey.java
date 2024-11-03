@@ -30,7 +30,7 @@ public class DelayedShareFetchGroupKey implements  DelayedShareFetchKey, Delayed
     private final Uuid topicId;
     private final int partition;
 
-    DelayedShareFetchGroupKey(String groupId, Uuid topicId, int partition) {
+    public DelayedShareFetchGroupKey(String groupId, Uuid topicId, int partition) {
         this.groupId = groupId;
         this.topicId = topicId;
         this.partition = partition;

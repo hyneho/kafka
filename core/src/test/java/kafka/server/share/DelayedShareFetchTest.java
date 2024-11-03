@@ -438,12 +438,12 @@ public class DelayedShareFetchTest {
         Mockito.verify(sp0, times(1)).releaseFetchLock();
     }
 
-    static class DelayedShareFetchBuilder {
+    public static class DelayedShareFetchBuilder {
         ShareFetchData shareFetchData = mock(ShareFetchData.class);
         private ReplicaManager replicaManager = mock(ReplicaManager.class);
         private SharePartitionManager sharePartitionManager = mock(SharePartitionManager.class);
 
-        DelayedShareFetchBuilder withShareFetchData(ShareFetchData shareFetchData) {
+        public DelayedShareFetchBuilder withShareFetchData(ShareFetchData shareFetchData) {
             this.shareFetchData = shareFetchData;
             return this;
         }

@@ -26,7 +26,7 @@ import org.apache.kafka.server.log.remote.quota.RLMQuotaManagerConfig.INACTIVE_S
 import org.apache.kafka.server.log.remote.quota.RLMQuotaMetrics
 import kafka.server.QuotaFactory.{QuotaManagers, UNBOUNDED_QUOTA}
 import kafka.server.epoch.util.MockBlockingSender
-import kafka.server.share.DelayedShareFetch
+import kafka.server.share.{DelayedShareFetch, DelayedShareFetchGroupKey, DelayedShareFetchKey, DelayedShareFetchPartitionKey, DelayedShareFetchTest}
 import kafka.utils.TestUtils.waitUntilTrue
 import kafka.utils.{Pool, TestUtils}
 import kafka.zk.KafkaZkClient
@@ -35,7 +35,7 @@ import org.apache.kafka.common.{DirectoryId, IsolationLevel, Node, TopicIdPartit
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.errors.{InvalidPidMappingException, KafkaStorageException}
-import org.apache.kafka.common.message.LeaderAndIsrRequestData
+import org.apache.kafka.common.message.{LeaderAndIsrRequestData, ShareFetchResponseData}
 import org.apache.kafka.common.message.LeaderAndIsrRequestData.LeaderAndIsrPartitionState
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.EpochEndOffset
 import org.apache.kafka.common.message.StopReplicaRequestData.StopReplicaPartitionState
@@ -66,6 +66,7 @@ import org.apache.kafka.server.config.{KRaftConfigs, ReplicationConfigs, ServerL
 import org.apache.kafka.server.log.remote.storage._
 import org.apache.kafka.server.metrics.{KafkaMetricsGroup, KafkaYammerMetrics}
 import org.apache.kafka.server.network.BrokerEndPoint
+import org.apache.kafka.server.share.fetch.ShareFetchData
 import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams, FetchPartitionData}
 import org.apache.kafka.server.util.timer.MockTimer
 import org.apache.kafka.server.util.{MockScheduler, MockTime}
@@ -88,7 +89,7 @@ import java.net.InetAddress
 import java.nio.file.{Files, Paths}
 import java.util
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong, AtomicReference}
-import java.util.concurrent.{Callable, ConcurrentHashMap, CountDownLatch, TimeUnit}
+import java.util.concurrent.{Callable, CompletableFuture, ConcurrentHashMap, CountDownLatch, TimeUnit}
 import java.util.stream.IntStream
 import java.util.{Collections, Optional, OptionalLong, Properties}
 import scala.collection.{Map, Seq, mutable}
@@ -6792,6 +6793,52 @@ class ReplicaManagerTest {
     val maxMetric = allMetrics.get(metrics.metricName("remote-fetch-throttle-time-max", "RemoteLogManager"))
     assertEquals(Double.NaN, avgMetric.metricValue)
     assertEquals(Double.NaN, maxMetric.metricValue)
+  }
+
+  @Test
+  def testClearDelayedShareFetchPurgatoryOnShutDown(): Unit = {
+    val replicaManager = setupReplicaManagerWithMockedPurgatories(new MockTimer(time))
+    val fetchParams = new FetchParams(ApiKeys.SHARE_FETCH.latestVersion, FetchRequest.ORDINARY_CONSUMER_ID, -1, 2000, 1,
+      1024 * 1024, FetchIsolation.HIGH_WATERMARK, Optional.empty, true);
+    val partitionMaxBytes1: util.Map[TopicIdPartition, Integer] = new util.HashMap()
+    val tp1 = new TopicIdPartition(Uuid.randomUuid, new TopicPartition("foo1", 0))
+    val tp2 = new TopicIdPartition(Uuid.randomUuid, new TopicPartition("foo2", 0))
+    val tp3 = new TopicIdPartition(Uuid.randomUuid, new TopicPartition("foo3", 0))
+    partitionMaxBytes1.put(tp1, 4000)
+    partitionMaxBytes1.put(tp2, 4000)
+    val future1: CompletableFuture[util.Map[TopicIdPartition, ShareFetchResponseData.PartitionData]] = new CompletableFuture[util.Map[TopicIdPartition, ShareFetchResponseData.PartitionData]]()
+    val shareFetchData1: ShareFetchData = new ShareFetchData(fetchParams, "grp", Uuid.randomUuid.toString, future1,
+      partitionMaxBytes1, 100)
+    val delayedShareFetch1 = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
+      .withShareFetchData(shareFetchData1)
+      .build()
+    val delayedShareFetchKeys1: Seq[DelayedShareFetchKey] = Seq(
+      new DelayedShareFetchPartitionKey(tp1.topicId(), tp1.partition()),
+      new DelayedShareFetchPartitionKey(tp2.topicId(), tp2.partition()),
+      new DelayedShareFetchGroupKey("grp", tp1.topicId(), tp1.partition()),
+      new DelayedShareFetchGroupKey("grp", tp2.topicId(), tp2.partition()),
+    )
+    replicaManager.addDelayedShareFetchRequest(delayedShareFetch1, delayedShareFetchKeys1)
+
+    val partitionMaxBytes2: util.Map[TopicIdPartition, Integer] = new util.HashMap()
+    partitionMaxBytes2.put(tp3, 4000)
+    val future2: CompletableFuture[util.Map[TopicIdPartition, ShareFetchResponseData.PartitionData]] = new CompletableFuture[util.Map[TopicIdPartition, ShareFetchResponseData.PartitionData]]()
+    val shareFetchData2: ShareFetchData = new ShareFetchData(fetchParams, "grp", Uuid.randomUuid.toString, future2,
+      partitionMaxBytes2, 100)
+    val delayedShareFetch2 = DelayedShareFetchTest.DelayedShareFetchBuilder.builder()
+      .withShareFetchData(shareFetchData2)
+      .build()
+    val delayedShareFetchKeys2: Seq[DelayedShareFetchKey] = Seq(
+      new DelayedShareFetchPartitionKey(tp3.topicId(), tp3.partition()),
+      new DelayedShareFetchGroupKey("grp", tp3.topicId(), tp3.partition()),
+    )
+    replicaManager.addDelayedShareFetchRequest(delayedShareFetch2, delayedShareFetchKeys2)
+    assertEquals(6, replicaManager.delayedShareFetchPurgatory.watched)
+
+    replicaManager.shutdown()
+    assertTrue(future1.isDone)
+    assertTrue(future2.isDone)
+    assertEquals(0, replicaManager.delayedShareFetchPurgatory.watched)
   }
 
   private def readFromLogWithOffsetOutOfRange(tp: TopicPartition): Seq[(TopicIdPartition, LogReadResult)] = {
