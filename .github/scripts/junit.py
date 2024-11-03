@@ -201,7 +201,7 @@ def split_report_path(base_path: str, report_path: str) -> Tuple[str, str]:
     """
     Parse a report XML and extract the module path. Test report paths look like:
 
-        build/junit-xml/module[/sub-module]/[suite]/TEST-class.method.xml
+        build/junit-xml/module[/sub-module]/[task]/TEST-class.method.xml
 
     This method strips off a base path and assumes all path segments leading up to the suite name
     are part of the module path.
@@ -311,7 +311,6 @@ if __name__ == "__main__":
                         simple_class_name = test.class_name.split(".")[-1]
                         quarantined_table.append((simple_class_name, test.test_name))
 
-                #quarantined_table.append()
                 if args.export_test_catalog:
                     exporter.handle_suite(module_path, suite)
 
