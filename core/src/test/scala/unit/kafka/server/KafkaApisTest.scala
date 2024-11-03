@@ -11107,11 +11107,12 @@ class KafkaApisTest extends Logging {
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequestData().setGroupId("group")
 
     val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest, true).build())
-    kafkaApis = createKafkaApis()
+    metadataCache = MetadataCache.kRaftMetadataCache(brokerId, () => KRaftVersion.KRAFT_VERSION_1)
+    kafkaApis = createKafkaApis(raftSupport = true)
     kafkaApis.handle(requestChannelRequest, RequestLocal.noCaching)
 
     val expectedHeartbeatResponse = new ConsumerGroupHeartbeatResponseData()
-      .setErrorCode(Errors.UNKNOWN_SERVER_ERROR.code)
+      .setErrorCode(Errors.UNSUPPORTED_VERSION.code)
     val response = verifyNoThrottling[ConsumerGroupHeartbeatResponse](requestChannelRequest)
     assertEquals(expectedHeartbeatResponse, response.data)
   }
@@ -11245,11 +11246,12 @@ class KafkaApisTest extends Logging {
     consumerGroupDescribeRequestData.groupIds.add(groupId)
     val requestChannelRequest = buildRequest(new ConsumerGroupDescribeRequest.Builder(consumerGroupDescribeRequestData, true).build())
 
-    val errorCode = Errors.UNKNOWN_SERVER_ERROR.code
+    val errorCode = Errors.UNSUPPORTED_VERSION.code
     val expectedDescribedGroup = new DescribedGroup().setGroupId(groupId).setErrorCode(errorCode)
     val expectedResponse = new ConsumerGroupDescribeResponseData()
     expectedResponse.groups.add(expectedDescribedGroup)
-    kafkaApis = createKafkaApis()
+    metadataCache = MetadataCache.kRaftMetadataCache(brokerId, () => KRaftVersion.KRAFT_VERSION_1)
+    kafkaApis = createKafkaApis(raftSupport = true)
     kafkaApis.handle(requestChannelRequest, RequestLocal.noCaching)
     val response = verifyNoThrottling[ConsumerGroupDescribeResponse](requestChannelRequest)
 
