@@ -41,6 +41,7 @@ PASSED = "PASSED ✅"
 FAILED = "FAILED ❌"
 FLAKY = "FLAKY ⚠️ "
 SKIPPED = "SKIPPED 🙈"
+QUARANTINED = "QUARANTINED 🤒"
 
 
 def get_env(key: str, fn = str) -> Optional:
@@ -324,7 +325,9 @@ if __name__ == "__main__":
     duration = pretty_time_duration(total_time)
     logger.info(f"Finished processing {len(reports)} reports")
 
-    # Print summary
+    # Print summary of the tests.
+    # The stdout (print) goes to the workflow step console output.
+    # The stderr (logger) is redirected to GITHUB_STEP_SUMMARY which becomes part of the HTML job summary.
     report_url = get_env("JUNIT_REPORT_URL")
     report_md = f"Download [HTML report]({report_url})."
     summary = (f"{total_run} tests cases run in {duration}. "
@@ -363,11 +366,13 @@ if __name__ == "__main__":
         print("\n</details>")
 
     if len(quarantined_table) > 0:
+        logger.info(f"Ran {len(quarantined_table)} quarantined test:")
         print("<details>")
         print(f"<summary>{len(quarantined_table)} Quarantined Tests</summary>\n")
         print(f"| Module | Test |")
         print(f"| ------ | ---- |")
         for row in quarantined_table:
+            logger.info(f"{QUARANTINED} {row[0]} > {row[1]}")
             row_joined = " | ".join(row)
             print(f"| {row_joined} |")
         print("\n</details>")
