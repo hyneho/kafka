@@ -2875,7 +2875,9 @@ project(':streams:integration-tests') {
     testImplementation libs.junitJupiter
     testImplementation libs.junitPlatformSuiteEngine // supports suite test
     testImplementation libs.mockitoCore
-    testImplementation libs.reload4j
+    testImplementation libs.log4j2Api
+    testImplementation libs.log4j2Core
+    testImplementation libs.log4j1Bridge2Api
     testImplementation libs.slf4jApi
     testImplementation project(':streams:test-utils')
 
