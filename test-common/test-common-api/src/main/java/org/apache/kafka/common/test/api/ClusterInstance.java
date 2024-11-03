@@ -22,7 +22,9 @@ import kafka.server.BrokerServer;
 import kafka.server.ControllerServer;
 import kafka.server.KafkaBroker;
 
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -155,10 +157,62 @@ public interface ClusterInstance {
         return asClass.cast(getUnderlying());
     }
 
-    Admin admin(Map<String, Object> overrides);
+    //---------------------------[producer/consumer/admin]---------------------------//
+
+    default <K, V> Producer<K, V> producer(Map<String, Object> configs,
+                                           Serializer<K> keySerializer,
+                                           Serializer<V> valueSerializer
+    ) {
+        Properties props = new Properties();
+        props.putAll(configs);
+        props.putIfAbsent(ProducerConfig.ACKS_CONFIG, "-1");
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializer.getClass().getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, valueSerializer.getClass().getName());
+        return new KafkaProducer<>(props);
+    }
+
+    default <K, V> Producer<K, V> producer(Serializer<K> keySerializer,
+                                           Serializer<V> valueSerializer
+    ) {
+        return producer(Map.of(), keySerializer, valueSerializer);
+    }
+
+    default <K, V> Consumer<K, V> consumer(Map<String, Object> configs,
+                                           Deserializer<V> valueDeserializer
+    ) {
+        Properties props = new Properties();
+        props.putAll(configs);
+        props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "group_" + TestUtils.randomString(5));
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializer.getClass().getName());
+        return new KafkaConsumer<>(props);
+    }
+
+    default <K, V> Consumer<K, V> consumer(Deserializer<V> valueDeserializer) {
+        return consumer(Map.of(), valueDeserializer);
+    }
+
+    default Admin admin(Map<String, Object> configs, boolean usingBootstrapControllers) {
+        Properties props = new Properties();
+        props.putAll(configs);
+        if (usingBootstrapControllers) {
+            props.setProperty(AdminClientConfig.BOOTSTRAP_CONTROLLERS_CONFIG, bootstrapControllers());
+            props.remove(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG);
+        } else {
+            props.setProperty(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+            props.remove(AdminClientConfig.BOOTSTRAP_CONTROLLERS_CONFIG);
+        }
+        return Admin.create(props);
+    }
+
+    default Admin admin(Map<String, Object> configs) {
+        return admin(configs, false);
+    }
 
     default Admin admin() {
-        return admin(Collections.emptyMap());
+        return admin(Map.of(), false);
     }
 
     default Set<GroupProtocol> supportedGroupProtocols() {
@@ -233,45 +287,4 @@ public interface ClusterInstance {
         }
     }
     
-
-    //---------------------------[producer/consumer]---------------------------//
-    
-    default <K, V> Producer<K, V> producer(Map<String, Object> overrides, 
-                                           Serializer<K> keySerializer, 
-                                           Serializer<V> valueSerializer
-    ) {
-        Properties props = new Properties();
-        props.putAll(overrides);
-        props.putIfAbsent(ProducerConfig.ACKS_CONFIG, "-1");
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializer.getClass().getName());
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, valueSerializer.getClass().getName());
-        return new KafkaProducer<>(props);
-    }
-    
-    default <K, V> Producer<K, V> producer(Serializer<K> keySerializer, 
-                                           Serializer<V> valueSerializer
-    ) {
-        return producer(Collections.emptyMap(), keySerializer, valueSerializer);
-    }
-
-    default <K, V> Consumer<K, V> consumer(Map<String, Object> overrides,
-                                           Deserializer<K> keyDeserializer,
-                                           Deserializer<V> valueDeserializer
-    ) {
-        Properties props = new Properties();
-        props.putAll(overrides);
-        props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "group");
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, keyDeserializer.getClass().getName());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializer.getClass().getName());
-        return new KafkaConsumer<>(props);
-    }
-    
-    default <K, V> Consumer<K, V> consumer(Deserializer<K> keyDeserializer,
-                                           Deserializer<V> valueDeserializer
-    ) {
-        return consumer(Collections.emptyMap(), keyDeserializer, valueDeserializer);
-    }
 }

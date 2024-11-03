@@ -52,6 +52,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.consumer.GroupProtocol.CLASSIC;
 import static org.apache.kafka.clients.consumer.GroupProtocol.CONSUMER;
 import static org.apache.kafka.clients.producer.ProducerConfig.ACKS_CONFIG;
@@ -263,8 +264,10 @@ public class ClusterTestExtensionsTest {
              Producer<String, String> producer = clusterInstance.producer(
                      Map.of(ACKS_CONFIG, "all"), new StringSerializer(), new StringSerializer());
              Consumer<String, String> consumer = clusterInstance.consumer(
-                     Map.of(GROUP_ID_CONFIG, "test-group", AUTO_OFFSET_RESET_CONFIG, "earliest"), 
-                     new StringDeserializer(), new StringDeserializer())
+                     Map.of(GROUP_ID_CONFIG, "test-group",
+                             AUTO_OFFSET_RESET_CONFIG, "earliest",
+                             KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()),
+                     new StringDeserializer())
         ) {
             adminClient.createTopics(singleton(new NewTopic(topic, 1, (short) 1)));
             assertNotNull(producer);

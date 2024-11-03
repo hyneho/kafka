@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Random;
 import java.util.function.Supplier;
 
 import static java.lang.String.format;
@@ -35,6 +36,13 @@ import static java.lang.String.format;
  */
 public class TestUtils {
     private static final Logger log = LoggerFactory.getLogger(TestUtils.class);
+
+    /* A consistent random number generator to make tests repeatable */
+    public static final Random SEEDED_RANDOM = new Random(192348092834L);
+    
+    public static final String LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    public static final String DIGITS = "0123456789";
+    public static final String LETTERS_AND_DIGITS = LETTERS + DIGITS;
 
     private static final long DEFAULT_POLL_INTERVAL_MS = 100;
     private static final long DEFAULT_MAX_WAIT_MS = 15_000;
@@ -48,6 +56,19 @@ public class TestUtils {
         final File file = Files.createTempFile("kafka", ".tmp").toFile();
         file.deleteOnExit();
         return file;
+    }
+
+    /**
+     * Generate a random string of letters and digits of the given length
+     *
+     * @param len The length of the string
+     * @return The random string
+     */
+    public static String randomString(final int len) {
+        final StringBuilder b = new StringBuilder();
+        for (int i = 0; i < len; i++)
+            b.append(LETTERS_AND_DIGITS.charAt(SEEDED_RANDOM.nextInt(LETTERS_AND_DIGITS.length())));
+        return b.toString();
     }
 
     /**
