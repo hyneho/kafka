@@ -1648,6 +1648,24 @@ public class GroupMetadataManager {
     }
 
     /**
+     * Validates if the provided regular expression is valid.
+     *
+     * @param regex The regular expression to validate.
+     * @throws InvalidRegularExpression if the regular expression is invalid.
+     */
+    private static void throwIfRegularExpressionIsInvalid(
+        String regex
+    ) throws InvalidRegularExpression {
+        try {
+            Pattern.compile(regex);
+        } catch (PatternSyntaxException ex) {
+            throw new InvalidRegularExpression(
+                String.format("SubscribedTopicRegex `%s` is not a valid regular expression: %s.",
+                    regex, ex.getDescription()));
+        }
+    }
+
+    /**
      * Deserialize the subscription in JoinGroupRequestProtocolCollection.
      * All the protocols have the same subscription, so the method picks a random one.
      *
@@ -2395,13 +2413,14 @@ public class GroupMetadataManager {
      * @param records       The list to accumulate any new records.
      * @return A boolean indicating whether the updatedMember has a different
      *         subscribedTopicNames/subscribedTopicRegex from the old member.
+     * @throws InvalidRegularExpression if the regular expression is invalid.
      */
     private boolean hasMemberSubscriptionChanged(
         String groupId,
         ConsumerGroupMember member,
         ConsumerGroupMember updatedMember,
         List<CoordinatorRecord> records
-    ) {
+    ) throws InvalidRegularExpression {
         String memberId = updatedMember.memberId();
         if (!updatedMember.equals(member)) {
             records.add(newConsumerGroupMemberSubscriptionRecord(groupId, updatedMember));
@@ -2418,13 +2437,7 @@ public class GroupMetadataManager {
                 // If the regular expression has changed, we compile it to ensure that
                 // its syntax is valid.
                 if (updatedMember.subscribedTopicRegex() != null) {
-                    try {
-                        Pattern.compile(updatedMember.subscribedTopicRegex());
-                    } catch (PatternSyntaxException ex) {
-                        throw new InvalidRegularExpression(
-                            String.format("SubscribedTopicRegex `%s` is not a valid regular expression: %s.",
-                                updatedMember.subscribedTopicRegex(), ex.getDescription()));
-                    }
+                    throwIfRegularExpressionIsInvalid(updatedMember.subscribedTopicRegex());
                 }
                 return true;
             }
