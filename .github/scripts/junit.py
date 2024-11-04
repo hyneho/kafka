@@ -41,7 +41,7 @@ PASSED = "PASSED ✅"
 FAILED = "FAILED ❌"
 FLAKY = "FLAKY ⚠️ "
 SKIPPED = "SKIPPED 🙈"
-QUARANTINED = "QUARANTINED 🤒"
+QUARANTINED = "QUARANTINED 😷"
 
 
 def get_env(key: str, fn = str) -> Optional:
