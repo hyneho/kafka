@@ -70,12 +70,13 @@ public class SharePartitionKey {
      * Returns a SharePartitionKey from input string of format - groupId:topicId:partition
      * @param key - String in format groupId:topicId:partition
      * @return object representing SharePartitionKey
+     * @throws IllegalArgumentException if the key is empty or has invalid format
      */
     public static SharePartitionKey getInstance(String key) {
         validate(key);
         String[] tokens = key.split(":");
         return new SharePartitionKey(
-                tokens[0],
+                tokens[0].trim(),
                 Uuid.fromString(tokens[1]),
                 Integer.parseInt(tokens[2])
         );
@@ -84,7 +85,7 @@ public class SharePartitionKey {
     /**
      * Validates whether the String argument has a valid SharePartitionKey format - groupId:topicId:partition
      * @param key - String in format groupId:topicId:partition
-     * @exception IllegalArgumentException if the key is empty or has invalid format
+     * @throws IllegalArgumentException if the key is empty or has invalid format
      */
     public static void validate(String key) {
         Objects.requireNonNull(key, "Share partition key cannot be null");
