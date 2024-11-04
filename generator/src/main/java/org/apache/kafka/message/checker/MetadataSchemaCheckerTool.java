@@ -17,6 +17,17 @@
 
 package org.apache.kafka.message.checker;
 
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevTree;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.filter.PathFilter;
+
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.Namespace;
@@ -24,7 +35,13 @@ import net.sourceforge.argparse4j.inf.Subparser;
 import net.sourceforge.argparse4j.inf.Subparsers;
 import net.sourceforge.argparse4j.internal.HelpScreenException;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Paths;
+import java.security.KeyPair;
+
+import static org.apache.kafka.message.checker.CheckerUtils.GetDataFromGit;
 
 public class MetadataSchemaCheckerTool {
     public static void main(String[] args) throws Exception {
@@ -56,6 +73,11 @@ public class MetadataSchemaCheckerTool {
         evolutionVerifierParser.addArgument("--path2", "-2").
             required(true).
             help("The final schema JSON path.");
+        Subparser evolutionGitVerifierParser = subparsers.addParser("verify-evolution-git").
+            help(" Verify that an evolution of a JSon file is valid using git. ");
+        evolutionGitVerifierParser.addArgument("--file", "-3").
+            required(true).
+            help("The edited json file");
         Namespace namespace;
         if (args.length == 0) {
             namespace = argumentParser.parseArgs(new String[] {"--help"});
@@ -81,8 +103,18 @@ public class MetadataSchemaCheckerTool {
                         ", and path2: " + path2);
                 break;
             }
+            case "verify-evolution-git": {
+                String fileCheckMetadata = namespace.getString("file");
+                String gitContent = GetDataFromGit(fileCheckMetadata);
+                EvolutionVerifier verifier = new EvolutionVerifier(
+                        CheckerUtils.readMessageSpecFromFile(Paths.get("").toAbsolutePath().getParent() + "/metadata/src/main/resources/common/metadata/" + fileCheckMetadata),
+                        CheckerUtils.readMessageSpecFromString(gitContent));
+                verifier.verify();writer.println("Successfully verified evolution of file: " + fileCheckMetadata);
+                break;
+            }
             default:
                 throw new RuntimeException("Unknown command " + command);
         }
     }
+
 }

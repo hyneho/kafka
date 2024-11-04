@@ -1841,9 +1841,18 @@ project(':generator') {
     implementation libs.jacksonDatabind
     implementation libs.jacksonJDK8Datatypes
     implementation libs.jacksonJaxrsJsonProvider
+
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.4.0.202211300538-r'
+    // SSH support for JGit based on Apache MINA sshd
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.ssh.apache:6.4.0.202211300538-r'
+    // GPG support for JGit based on BouncyCastle (commit signing)
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.gpg.bc:6.4.0.202211300538-r'
+
     testImplementation libs.junitJupiter
 
     testRuntimeOnly libs.junitPlatformLanucher
+
+
   }
 
   javadoc {
@@ -2471,6 +2480,12 @@ project(':tools') {
 
     implementation libs.jose4j                    // for SASL/OAUTHBEARER JWT validation
     implementation libs.jacksonJaxrsJsonProvider
+
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:5.13.0.202109080827-r'
+    // SSH support for JGit based on Apache MINA sshd
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.ssh.apache:5.13.0.202109080827-r'
+    // GPG support for JGit based on BouncyCastle (commit signing)
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.gpg.bc:5.13.0.202109080827-r'
 
     testImplementation project(':clients')
     testImplementation project(':clients').sourceSets.test.output

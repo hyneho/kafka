@@ -21,8 +21,19 @@ import org.apache.kafka.message.FieldSpec;
 import org.apache.kafka.message.MessageGenerator;
 import org.apache.kafka.message.MessageSpec;
 import org.apache.kafka.message.Versions;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevTree;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.filter.PathFilter;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
@@ -89,6 +100,56 @@ class CheckerUtils {
             return MessageGenerator.JSON_SERDE.readValue(new File(schemaPath), MessageSpec.class);
         } catch (Exception e) {
             throw new RuntimeException("Unable to parse file as MessageSpec: " + schemaPath, e);
+        }
+    }
+
+    /**
+     * Return a MessageSpec file give file contents.
+     *
+     * @param contents      The path to read the file from.
+     * @return              The MessageSpec.
+     */
+    static MessageSpec readMessageSpecFromString(String contents) {
+        try {
+            File myObj = new File("temp.txt");
+            myObj.createNewFile();
+            Files.write(Paths.get("temp.txt"), contents.getBytes());
+            MessageSpec messageSpec = MessageGenerator.JSON_SERDE.readValue(myObj, MessageSpec.class);
+            myObj.deleteOnExit();
+            return messageSpec;
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to parse file as MessageSpec: " + contents, e);
+        }
+    }
+
+
+    /**
+     * Read a MessageSpec file from remote git repo.
+     *
+     * @param fileCheckMetadata    The file to read from remote git repo.
+     * @return                     The file contents.
+     */
+    static String GetDataFromGit(String fileCheckMetadata) throws IOException {
+        String gitPath = String.valueOf(Paths.get("").toAbsolutePath()).replaceFirst("/generator", "");
+        Git git = Git.open(new File(gitPath + "/.git"));
+        Repository repository = git.getRepository();
+        Ref head = git.getRepository().getRefDatabase().firstExactRef("refs/heads/trunk");
+
+        try (RevWalk revWalk = new RevWalk(repository)) {
+            RevCommit commit = revWalk.parseCommit(head.getObjectId());
+            RevTree tree = commit.getTree();
+            try (TreeWalk treeWalk = new TreeWalk(repository)) {
+                treeWalk.addTree(tree);
+                treeWalk.setRecursive(true);
+                treeWalk.setFilter(PathFilter.create(String.valueOf(Paths.get("metadata/src/main/resources/common/metadata/" + fileCheckMetadata))));
+                if (!treeWalk.next()) {
+                    throw new IllegalStateException("Did not find expected file /metadata/src/main/resources/common/metadata/" + fileCheckMetadata);
+                }
+                ObjectId objectId = treeWalk.getObjectId(0);
+                ObjectLoader loader = repository.open(objectId);
+
+                return new String(loader.getBytes());
+            }
         }
     }
 }
