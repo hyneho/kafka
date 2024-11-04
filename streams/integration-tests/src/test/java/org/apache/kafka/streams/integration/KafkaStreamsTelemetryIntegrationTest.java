@@ -101,11 +101,11 @@ public class KafkaStreamsTelemetryIntegrationTest {
     private Properties streamsSecondApplicationProperties = new Properties();
 
     private static EmbeddedKafkaCluster cluster;
-    private static final List<MetricsInterceptingConsumer<byte[], byte[]>> INTERCEPTING_CONSUMERS = new ArrayList<>();
+    private static final List<TestingMetricsInterceptingConsumer<byte[], byte[]>> INTERCEPTING_CONSUMERS = new ArrayList<>();
     private static final List<TestingMetricsInterceptingAdminClient> INTERCEPTING_ADMIN_CLIENTS = new ArrayList<>();
     private static final int NUM_BROKERS = 3;
-    private static final int FIRST_INSTANCE_CONSUMER = 0;
-    private static final int SECOND_INSTANCE_CONSUMER = 1;
+    private static final int FIRST_INSTANCE_CLIENT = 0;
+    private static final int SECOND_INSTANCE_CLIENT = 1;
     private static final Logger LOG = LoggerFactory.getLogger(KafkaStreamsTelemetryIntegrationTest.class);
 
 
@@ -176,8 +176,8 @@ public class KafkaStreamsTelemetryIntegrationTest {
                         final String group = mn.group().replace("-metrics", "").replace('-', '.');
                         return "org.apache.kafka." + group + "." + name;
                     }).sorted().collect(Collectors.toList());
-            final List<String> actualTaskMetrics = new ArrayList<>(TelemetryPlugin.SUBSCRIBED_METRICS.get(mainConsumerInstanceId));
-            assertEquals(expectedMetrics, actualTaskMetrics);
+            final List<String> actualMetrics = new ArrayList<>(TelemetryPlugin.SUBSCRIBED_METRICS.get(mainConsumerInstanceId));
+            assertEquals(expectedMetrics, actualMetrics);
 
             TestUtils.waitForCondition(() -> !TelemetryPlugin.SUBSCRIBED_METRICS.get(adminInstanceId).isEmpty(),
                     30_000,
@@ -206,8 +206,8 @@ public class KafkaStreamsTelemetryIntegrationTest {
 
 
 
-            final List<MetricName> consumerPassedStreamThreadMetricNames = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CONSUMER).passedMetrics.stream().map(KafkaMetric::metricName).collect(Collectors.toList());
-            final List<MetricName> adminPassedStreamClientMetricNames = INTERCEPTING_ADMIN_CLIENTS.get(FIRST_INSTANCE_CONSUMER).passedMetrics.stream().map(KafkaMetric::metricName).collect(Collectors.toList());
+            final List<MetricName> consumerPassedStreamThreadMetricNames = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CLIENT).passedMetrics.stream().map(KafkaMetric::metricName).collect(Collectors.toList());
+            final List<MetricName> adminPassedStreamClientMetricNames = INTERCEPTING_ADMIN_CLIENTS.get(FIRST_INSTANCE_CLIENT).passedMetrics.stream().map(KafkaMetric::metricName).collect(Collectors.toList());
 
 
             assertEquals(streamsThreadMetrics.size(), consumerPassedStreamThreadMetricNames.size());
@@ -239,7 +239,7 @@ public class KafkaStreamsTelemetryIntegrationTest {
             final List<MetricName> streamsTaskMetricNames = streamsOne.metrics().values().stream().map(Metric::metricName)
                     .filter(metricName -> metricName.tags().containsKey("task-id")).collect(Collectors.toList());
 
-            final List<MetricName> consumerPassedStreamTaskMetricNames = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CONSUMER).passedMetrics.stream().map(KafkaMetric::metricName)
+            final List<MetricName> consumerPassedStreamTaskMetricNames = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CLIENT).passedMetrics.stream().map(KafkaMetric::metricName)
                     .filter(metricName -> metricName.tags().containsKey("task-id")).collect(Collectors.toList());
 
             /*
@@ -268,9 +268,9 @@ public class KafkaStreamsTelemetryIntegrationTest {
                 final List<MetricName> streamsOneStateMetrics = streamsOne.metrics().values().stream().map(Metric::metricName)
                         .filter(metricName -> metricName.group().equals("stream-state-metrics")).collect(Collectors.toList());
                 
-                final List<MetricName> consumerOnePassedTaskMetrics = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CONSUMER)
+                final List<MetricName> consumerOnePassedTaskMetrics = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CLIENT)
                         .passedMetrics.stream().map(KafkaMetric::metricName).filter(metricName -> metricName.tags().containsKey("task-id")).collect(Collectors.toList());
-                final List<MetricName> consumerOnePassedStateMetrics = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CONSUMER)
+                final List<MetricName> consumerOnePassedStateMetrics = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CLIENT)
                         .passedMetrics.stream().map(KafkaMetric::metricName).filter(metricName -> metricName.group().equals("stream-state-metrics")).collect(Collectors.toList());
 
                 final List<MetricName> streamsTwoTaskMetrics = streamsTwo.metrics().values().stream().map(Metric::metricName)
@@ -278,9 +278,9 @@ public class KafkaStreamsTelemetryIntegrationTest {
                 final List<MetricName> streamsTwoStateMetrics = streamsTwo.metrics().values().stream().map(Metric::metricName)
                         .filter(metricName -> metricName.group().equals("stream-state-metrics")).collect(Collectors.toList());
                 
-                final List<MetricName> consumerTwoPassedTaskMetrics = INTERCEPTING_CONSUMERS.get(SECOND_INSTANCE_CONSUMER)
+                final List<MetricName> consumerTwoPassedTaskMetrics = INTERCEPTING_CONSUMERS.get(SECOND_INSTANCE_CLIENT)
                         .passedMetrics.stream().map(KafkaMetric::metricName).filter(metricName -> metricName.tags().containsKey("task-id")).collect(Collectors.toList());
-                final List<MetricName> consumerTwoPassedStateMetrics = INTERCEPTING_CONSUMERS.get(SECOND_INSTANCE_CONSUMER)
+                final List<MetricName> consumerTwoPassedStateMetrics = INTERCEPTING_CONSUMERS.get(SECOND_INSTANCE_CLIENT)
                         .passedMetrics.stream().map(KafkaMetric::metricName).filter(metricName -> metricName.group().equals("stream-state-metrics")).collect(Collectors.toList());
                 /*
                  Confirm pre-existing KafkaStreams instance one only passes metrics for its tasks and has no metrics for previous tasks
@@ -312,8 +312,8 @@ public class KafkaStreamsTelemetryIntegrationTest {
     }
 
     @Test
-    @DisplayName("Streams metrics should not be visible in consumer metrics")
-    public void passedMetricsShouldNotLeakIntoConsumerMetrics() throws Exception {
+    @DisplayName("Streams metrics should not be visible in client metrics")
+    public void passedMetricsShouldNotLeakIntoClientMetrics() throws Exception {
         streamsApplicationProperties = props(true);
         final Topology topology =  complexTopology();
 
@@ -326,8 +326,8 @@ public class KafkaStreamsTelemetryIntegrationTest {
             final List<MetricName> streamsClientMetrics = streams.metrics().values().stream().map(Metric::metricName)
                     .filter(metricName -> metricName.group().equals("stream-metrics")).collect(Collectors.toList());
 
-            final Map<MetricName, ? extends Metric> embeddedConsumerMetrics = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CONSUMER).metrics();
-            final Map<MetricName, ? extends Metric> embeddedAdminMetrics = INTERCEPTING_ADMIN_CLIENTS.get(FIRST_INSTANCE_CONSUMER).metrics();
+            final Map<MetricName, ? extends Metric> embeddedConsumerMetrics = INTERCEPTING_CONSUMERS.get(FIRST_INSTANCE_CLIENT).metrics();
+            final Map<MetricName, ? extends Metric> embeddedAdminMetrics = INTERCEPTING_ADMIN_CLIENTS.get(FIRST_INSTANCE_CLIENT).metrics();
 
             streamsThreadMetrics.forEach(metricName -> assertFalse(embeddedConsumerMetrics.containsKey(metricName), "Stream thread metric found in client metrics" + metricName));
             streamsClientMetrics.forEach(metricName -> assertFalse(embeddedAdminMetrics.containsKey(metricName), "Stream client metric found in client metrics" + metricName));
@@ -408,7 +408,7 @@ public class KafkaStreamsTelemetryIntegrationTest {
 
         @Override
         public Consumer<byte[], byte[]> getConsumer(final Map<String, Object> config) {
-            final MetricsInterceptingConsumer<byte[], byte[]> consumer = new MetricsInterceptingConsumer<>(config, new ByteArrayDeserializer(), new ByteArrayDeserializer());
+            final TestingMetricsInterceptingConsumer<byte[], byte[]> consumer = new TestingMetricsInterceptingConsumer<>(config, new ByteArrayDeserializer(), new ByteArrayDeserializer());
             INTERCEPTING_CONSUMERS.add(consumer);
             return consumer;
         }
@@ -432,11 +432,11 @@ public class KafkaStreamsTelemetryIntegrationTest {
         }
     }
 
-    public static class MetricsInterceptingConsumer<K, V> extends KafkaConsumer<K, V> {
+    public static class TestingMetricsInterceptingConsumer<K, V> extends KafkaConsumer<K, V> {
 
         public List<KafkaMetric> passedMetrics = new ArrayList<>();
 
-        public MetricsInterceptingConsumer(final Map<String, Object> configs, final Deserializer<K> keyDeserializer, final Deserializer<V> valueDeserializer) {
+        public TestingMetricsInterceptingConsumer(final Map<String, Object> configs, final Deserializer<K> keyDeserializer, final Deserializer<V> valueDeserializer) {
             super(configs, keyDeserializer, valueDeserializer);
         }
 
