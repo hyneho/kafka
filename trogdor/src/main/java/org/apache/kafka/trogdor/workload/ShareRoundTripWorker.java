@@ -14,11 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.kafka.trogdor.workload;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.KafkaShareConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.utils.Utils;
@@ -28,11 +30,11 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Properties;
 
-public class RoundTripWorker extends RoundTripWorkerHelper<KafkaConsumer<byte[], byte[]>> {
 
-    KafkaConsumer<byte[], byte[]> consumer;
+public class ShareRoundTripWorker extends RoundTripWorkerHelper<KafkaConsumer<byte[], byte[]>> {
+    KafkaShareConsumer<byte[], byte[]> consumer;
 
-    RoundTripWorker(String id, RoundTripWorkloadSpec spec) {
+    ShareRoundTripWorker(String id, RoundTripWorkloadSpec spec) {
         this.id = id;
         this.spec = spec;
     }
@@ -49,9 +51,9 @@ public class RoundTripWorker extends RoundTripWorkerHelper<KafkaConsumer<byte[],
         WorkerUtils.addConfigsToProperties(props, spec.commonClientConf(), spec.consumerConf());
 
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "round-trip-share-group-" + id);
-        consumer = new KafkaConsumer<>(props, new ByteArrayDeserializer(),
+        consumer = new KafkaShareConsumer<>(props, new ByteArrayDeserializer(),
                 new ByteArrayDeserializer());
-        consumer.assign(partitions);
+        consumer.subscribe(spec.activeTopics().materialize().keySet());
     }
 
     @Override
