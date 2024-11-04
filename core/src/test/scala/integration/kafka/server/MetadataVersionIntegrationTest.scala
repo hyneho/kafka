@@ -58,6 +58,7 @@ class MetadataVersionIntegrationTest {
       val ff2 = describeResult2.featureMetadata().get().finalizedFeatures().get(MetadataVersion.FEATURE_NAME)
       ff2.minVersionLevel() == updateVersion && ff2.maxVersionLevel() == updateVersion
     }, "Never saw metadata.version increase on broker")
+    admin.close()
   }
 
   @ClusterTest(types = Array(Type.KRAFT), metadataVersion = MetadataVersion.IBP_3_3_IV0)
@@ -67,6 +68,7 @@ class MetadataVersionIntegrationTest {
     val updateResult = admin.updateFeatures(
       Map("metadata.version" -> new FeatureUpdate(updateVersion, UpgradeType.UPGRADE)).asJava, new UpdateFeaturesOptions())
     updateResult.all().get()
+    admin.close()
   }
 
   @ClusterTest(types = Array(Type.KRAFT))
@@ -77,5 +79,6 @@ class MetadataVersionIntegrationTest {
     assertEquals(ff.minVersionLevel(), MetadataVersion.latestTesting().featureLevel(),
       "If this test fails, check the default MetadataVersion in the @ClusterTest annotation")
     assertEquals(ff.maxVersionLevel(), MetadataVersion.latestTesting().featureLevel())
+    admin.close()
   }
 }

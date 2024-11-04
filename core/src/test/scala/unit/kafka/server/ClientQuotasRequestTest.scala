@@ -171,7 +171,8 @@ class ClientQuotasRequestTest(cluster: ClusterInstance) {
   def testClientQuotasForScramUsers(): Unit = {
     val userName = "user"
 
-    val results = cluster.admin().alterUserScramCredentials(util.Arrays.asList(
+    val admin = cluster.admin()
+    val results = admin.alterUserScramCredentials(util.Arrays.asList(
       new UserScramCredentialUpsertion(userName, new ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 4096), "password")))
     results.all.get
 
@@ -188,6 +189,7 @@ class ClientQuotasRequestTest(cluster: ClusterInstance) {
       QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG -> 10000.0,
       QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG -> 20000.0
     ))
+    admin.close()
   }
 
   @ClusterTest

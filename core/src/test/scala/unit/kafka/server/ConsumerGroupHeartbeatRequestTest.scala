@@ -162,6 +162,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
     // Verify the response.
     assertEquals(-1, consumerGroupHeartbeatResponse.data.memberEpoch)
+    admin.close()
   }
 
   @ClusterTest
@@ -278,6 +279,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     assertEquals(expectedAssignment, consumerGroupHeartbeatResponse.data.assignment)
     // The 2 member IDs should be different
     assertNotEquals(oldMemberId, consumerGroupHeartbeatResponse.data.memberId)
+    admin.close()
   }
 
   @ClusterTest(
@@ -390,6 +392,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     // Verify the response. The group epoch bumps upto 4 which eventually reflects in the new member epoch.
     assertEquals(4, consumerGroupHeartbeatResponse.data.memberEpoch)
     assertEquals(expectedAssignment, consumerGroupHeartbeatResponse.data.assignment)
+    admin.close()
   }
 
   @ClusterTest(
@@ -463,6 +466,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       consumerGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
         newHeartbeatIntervalMs == consumerGroupHeartbeatResponse.data.heartbeatIntervalMs
     }, msg = s"Dynamic update consumer group config failed. Last response $consumerGroupHeartbeatResponse.")
+    admin.close()
   }
 
   @ClusterTest
@@ -493,6 +497,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
       consumerGroupHeartbeatResponse.data.errorCode == Errors.INVALID_REQUEST.code
     }, msg = "Should fail due to invalid member id.")
+    admin.close()
   }
 
   @ClusterTest
@@ -527,6 +532,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     val memberId = consumerGroupHeartbeatResponse.data().memberId()
     assertNotNull(memberId)
     assertFalse(memberId.isEmpty)
+    admin.close()
   }
 
   private def connectAndReceive(request: ConsumerGroupHeartbeatRequest): ConsumerGroupHeartbeatResponse = {

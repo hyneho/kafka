@@ -208,5 +208,6 @@ class ConsumerGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCo
 
       assertEquals(expected, actual)
     }
+    admin.close()
   }
 }

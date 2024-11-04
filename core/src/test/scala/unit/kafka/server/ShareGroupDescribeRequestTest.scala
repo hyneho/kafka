@@ -136,5 +136,6 @@ class ShareGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCoord
 
       assertEquals(expected, actual)
     }
+    admin.close()
   }
 }

@@ -143,6 +143,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
     // Verify the response.
     assertEquals(-1, shareGroupHeartbeatResponse.data.memberEpoch)
+    admin.close()
   }
 
   @ClusterTest(
@@ -287,6 +288,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
     // Verify the response.
     assertEquals(3, shareGroupHeartbeatResponse.data.memberEpoch)
+    admin.close()
   }
 
   @ClusterTest(
@@ -400,6 +402,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     assertEquals(memberId, shareGroupHeartbeatResponse.data.memberId)
     // Partition assignment remains intact on rejoining.
     assertEquals(expectedAssignment, shareGroupHeartbeatResponse.data.assignment)
+    admin.close()
   }
 
   @ClusterTest(
@@ -586,6 +589,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     }, msg = s"Could not update partitions assignment for topic foo. Last response $shareGroupHeartbeatResponse.")
     // Verify the response.
     assertEquals(5, shareGroupHeartbeatResponse.data.memberEpoch)
+    admin.close()
   }
 
   @ClusterTest(
@@ -760,6 +764,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
     // Epoch should have been bumped when a member is removed and again when it joins back.
     assertTrue(shareGroupHeartbeatResponse.data.memberEpoch > memberEpoch)
+    admin.close()
   }
 
   @ClusterTest(
@@ -854,6 +859,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     // change in old assignment.
     assertEquals(2, shareGroupHeartbeatResponse.data.memberEpoch)
     assertNull(shareGroupHeartbeatResponse.data.assignment)
+    admin.close()
   }
 
   private def connectAndReceive(request: ShareGroupHeartbeatRequest): ShareGroupHeartbeatResponse = {

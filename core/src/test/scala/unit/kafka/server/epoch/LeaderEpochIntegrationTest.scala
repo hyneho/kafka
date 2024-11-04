@@ -295,6 +295,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
         brokers = brokers,
         controllers = controllerServers
       )
+      admin.close()
     }
   }
 

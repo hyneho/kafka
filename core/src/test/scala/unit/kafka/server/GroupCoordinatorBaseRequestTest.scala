@@ -47,24 +47,28 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
   protected var producer: KafkaProducer[String, String] = _
 
   protected def createOffsetsTopic(): Unit = {
+    val admin = cluster.admin()
     TestUtils.createOffsetsTopicWithAdmin(
-      admin = cluster.admin(),
+      admin = admin,
       brokers = brokers(),
       controllers = controllerServers()
     )
+    admin.close()
   }
 
   protected def createTopic(
     topic: String,
     numPartitions: Int
   ): Unit = {
+    val admin = cluster.admin()
     TestUtils.createTopicWithAdmin(
-      admin = cluster.admin(),
+      admin = admin,
       brokers = brokers(),
       controllers = controllerServers(),
       topic = topic,
       numPartitions = numPartitions
     )
+    admin.close()
   }
 
   protected def createTopicAndReturnLeaders(
@@ -73,8 +77,9 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     replicationFactor: Int = 1,
     topicConfig: Properties = new Properties
   ): Map[TopicIdPartition, Int] = {
+    val admin = cluster.admin()
     val partitionToLeader = TestUtils.createTopicWithAdmin(
-      admin = cluster.admin(),
+      admin = admin,
       topic = topic,
       brokers = brokers(),
       controllers = controllerServers(),
@@ -82,6 +87,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
       replicationFactor = replicationFactor,
       topicConfig = topicConfig
     )
+    admin.close()
     partitionToLeader.map { case (partition, leader) => new TopicIdPartition(getTopicIds(topic), new TopicPartition(topic, partition)) -> leader }
   }
 
