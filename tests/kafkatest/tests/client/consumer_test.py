@@ -588,8 +588,17 @@ class AssignmentValidationTest(VerifiableConsumerTest):
                              "org.apache.kafka.clients.consumer.StickyAssignor",
                              "org.apache.kafka.clients.consumer.CooperativeStickyAssignor"],
         metadata_quorum=[quorum.isolated_kraft],
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
+    )
+    @matrix(
+        assignment_strategy=["org.apache.kafka.clients.consumer.RangeAssignor",
+                             "org.apache.kafka.clients.consumer.RoundRobinAssignor",
+                             "org.apache.kafka.clients.consumer.StickyAssignor",
+                             "org.apache.kafka.clients.consumer.CooperativeStickyAssignor"],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[True],
-        group_protocol=[consumer_group.classic_group_protocol],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],

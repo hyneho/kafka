@@ -49,11 +49,6 @@ class ConsumerRollingUpgradeTest(VerifiableConsumerTest):
 
     @cluster(num_nodes=4)
     @matrix(
-        metadata_quorum=[quorum.zk],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
-    )
-    @matrix(
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[True, False],
         group_protocol=[consumer_group.classic_group_protocol]
