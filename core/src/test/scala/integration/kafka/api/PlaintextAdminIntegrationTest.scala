@@ -2284,7 +2284,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           partition2UpdatedPreferredLeader = preferredLeader(partition2)
           partition1UpdatedPreferredLeader == preferred && partition2UpdatedPreferredLeader == preferred
         },
-        s"Expected preferred leader $preferred for both topic-partitions; found $partition1UpdatedPreferredLeader for topic-partition $partition1 and $partition2UpdatedPreferredLeader for topic-partition $partition2",
+        s"""Expected preferred leader $preferred for both topic-partitions;
+           |found $partition1UpdatedPreferredLeader for topic-partition $partition1 and
+           |$partition2UpdatedPreferredLeader for topic-partition $partition2""".stripMargin,
         10000
       )
 
