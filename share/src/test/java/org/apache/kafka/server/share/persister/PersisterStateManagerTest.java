@@ -625,7 +625,7 @@ class PersisterStateManagerTest {
     }
 
     @Test
-    public void testWriteStateRequestFailButCoordinatorSuccess() {
+    public void testWriteStateRequestRetryWithNotCoordinatorSuccessfulOnRetry() throws InterruptedException, ExecutionException {
         MockClient client = new MockClient(MOCK_TIME);
 
         String groupId = "group1";
@@ -640,6 +640,19 @@ class PersisterStateManagerTest {
         Node coordinatorNode = new Node(1, HOST, PORT);
 
         String coordinatorKey = SharePartitionKey.asCoordinatorKey(groupId, topicId, partition);
+
+        client.prepareResponseFrom(body -> body instanceof FindCoordinatorRequest
+                && ((FindCoordinatorRequest) body).data().keyType() == FindCoordinatorRequest.CoordinatorType.SHARE.id()
+                && ((FindCoordinatorRequest) body).data().coordinatorKeys().get(0).equals(coordinatorKey),
+            new FindCoordinatorResponse(
+                new FindCoordinatorResponseData()
+                    .setCoordinators(Collections.singletonList(
+                        new FindCoordinatorResponseData.Coordinator()
+                            .setErrorCode(Errors.NOT_COORDINATOR.code())
+                    ))
+            ),
+            suppliedNode
+        );
 
         client.prepareResponseFrom(body -> body instanceof FindCoordinatorRequest
                 && ((FindCoordinatorRequest) body).data().keyType() == FindCoordinatorRequest.CoordinatorType.SHARE.id()
@@ -672,8 +685,8 @@ class PersisterStateManagerTest {
                         .setPartitions(Collections.singletonList(
                             new WriteShareGroupStateResponseData.PartitionResult()
                                 .setPartition(partition)
-                                .setErrorCode(Errors.NOT_COORDINATOR.code())
-                                .setErrorMessage(Errors.NOT_COORDINATOR.message())
+                                .setErrorCode(Errors.NONE.code())
+                                .setErrorMessage("")
                         ))
                 ))
         ), coordinatorNode);
@@ -708,16 +721,12 @@ class PersisterStateManagerTest {
 
         CompletableFuture<WriteShareGroupStateResponse> resultFuture = handler.result();
 
-        WriteShareGroupStateResponse result = null;
-        try {
-            result = resultFuture.get();
-        } catch (Exception e) {
-            fail("Failed to get result from future", e);
-        }
+        TestUtils.waitForCondition(resultFuture::isDone, TestUtils.DEFAULT_MAX_WAIT_MS, 10L, () -> "Failed to get result from future");
 
+        WriteShareGroupStateResponse result = resultFuture.get();
         WriteShareGroupStateResponseData.PartitionResult partitionResult = result.data().results().get(0).partitions().get(0);
 
-        verify(handler, times(1)).findShareCoordinatorBuilder();
+        verify(handler, times(2)).findShareCoordinatorBuilder();
         verify(handler, times(0)).requestBuilder();
 
         // Verifying the coordinator node was populated correctly by the FIND_COORDINATOR request
@@ -725,7 +734,7 @@ class PersisterStateManagerTest {
 
         // Verifying the result returned is correct
         assertEquals(partition, partitionResult.partition());
-        assertEquals(Errors.NOT_COORDINATOR.code(), partitionResult.errorCode());
+        assertEquals(Errors.NONE.code(), partitionResult.errorCode());
 
         try {
             // Stopping the state manager

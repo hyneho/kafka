@@ -538,6 +538,7 @@ public class PersisterStateManager {
                             // check retryable errors
                             case COORDINATOR_NOT_AVAILABLE:
                             case COORDINATOR_LOAD_IN_PROGRESS:
+                            case NOT_COORDINATOR:
                                 log.warn("Received retryable error in write state RPC: {}", error.message());
                                 if (!writeStateBackoff.canAttempt()) {
                                     log.error("Exhausted max retries for write state RPC without success.");
