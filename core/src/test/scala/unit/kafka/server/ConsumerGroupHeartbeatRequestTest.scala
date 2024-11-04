@@ -168,7 +168,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
   @ClusterTest
   def testConsumerGroupHeartbeatWithRegularExpression(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -203,12 +203,13 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     assertNotNull(consumerGroupHeartbeatResponse.data.memberId)
     assertEquals(1, consumerGroupHeartbeatResponse.data.memberEpoch)
     assertEquals(new ConsumerGroupHeartbeatResponseData.Assignment(), consumerGroupHeartbeatResponse.data.assignment)
+    admin.close()
   }
 
   @ClusterTest
   def testConsumerGroupHeartbeatWithInvalidRegularExpression(): Unit = {
     val raftCluster = cluster.asInstanceOf[RaftClusterInstance]
-    val admin = cluster.createAdminClient()
+    val admin = cluster.admin()
 
     // Creates the __consumer_offsets topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
@@ -241,6 +242,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
     // Verify the response.
     assertEquals(Errors.INVALID_REGULAR_EXPRESSION.code, consumerGroupHeartbeatResponse.data.errorCode)
+    admin.close()
   }
 
   @ClusterTest
