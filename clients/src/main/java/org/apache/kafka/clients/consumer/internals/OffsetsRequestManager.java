@@ -257,20 +257,26 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
                     result.complete(subscriptionState.hasAllFetchPositions());
                 }
             });
-            
-            metadataError.whenComplete((__, error) -> {
-                if (error instanceof AuthorizationException) {
-                    if (pendingOffsetFetchEvent != null) {
-                        pendingOffsetFetchEvent.result.completeExceptionally(error);
-                        result.completeExceptionally(error);
-                    }
-                }
-            });
+
+            onMetadataError(metadataError, result);
 
         } catch (Exception e) {
             result.completeExceptionally(maybeWrapAsKafkaException(e));
         }
         return result;
+    }
+
+    private void onMetadataError(CompletableFuture<Exception> metadataError, 
+                                 CompletableFuture<Boolean> result) {
+        metadataError.whenComplete((__, error) -> {
+            if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {
+                pendingOffsetFetchEvent.result.completeExceptionally(error);
+                result.completeExceptionally(error);
+            } 
+            if (error == null) {
+                result.complete(true);
+            }
+        });
     }
 
     private boolean maybeCompleteWithPreviousException(CompletableFuture<Boolean> result) {
