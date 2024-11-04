@@ -2479,7 +2479,7 @@ class KafkaApis(val requestChannel: RequestChannel,
           }
         }
 
-        if (!controlRecords.isEmpty) {
+        if (controlRecords.nonEmpty) {
           replicaManager.appendRecords(
             timeout = config.requestTimeoutMs.toLong,
             requiredAcks = -1,

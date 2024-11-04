@@ -3069,7 +3069,7 @@ class KafkaApisTest extends Logging {
   }
 
   @Test
-  def WriteTxnMarkersShouldAllBeIncludedInTheResponse(): Unit = {
+  def testWriteTxnMarkersShouldAllBeIncludedInTheResponse(): Unit = {
     // This test verifies the response will not be sent prematurely because of calling replicaManager append
     // with no records.
     val topicPartition = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0)
@@ -3083,7 +3083,7 @@ class KafkaApisTest extends Logging {
 
     when(replicaManager.getMagic(any()))
       .thenReturn(Some(RecordBatch.MAGIC_VALUE_V2))
-    when(groupCoordinator.isNewGroupCoordinator())
+    when(groupCoordinator.isNewGroupCoordinator)
       .thenReturn(true)
     when(groupCoordinator.completeTransaction(
       ArgumentMatchers.eq(topicPartition),
