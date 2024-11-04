@@ -425,6 +425,12 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
         return adminDelegate.listShareGroups(options);
     }
 
+
+    @Overrride
+    public DescribeClassicGroupsResult describeClassicGroups(final Collection<String> groupIds, final DescribeClassicGroupsOptions options) {
+        return adminDelegate.describeClassicGroups(groupId, options);
+    }
+
     @Override
     public void registerMetricForSubscription(final KafkaMetric metric) {
         throw new UnsupportedOperationException("not implemented");

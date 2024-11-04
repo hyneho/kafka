@@ -122,25 +122,29 @@ public class DescribeClassicGroupsHandler extends AdminApiHandler.Batched<Coordi
             final List<MemberDescription> memberDescriptions = new ArrayList<>(describedGroup.members().size());
             final Set<AclOperation> authorizedOperations = validAclOperations(describedGroup.authorizedOperations());
 
+            final String protocolType = describedGroup.protocolType();
+            final boolean isConsumerGroup = protocolType.equals(ConsumerProtocol.PROTOCOL_TYPE) || protocolType.isEmpty();
             describedGroup.members().forEach(groupMember -> {
                 Set<TopicPartition> partitions = Collections.emptySet();
-                if (groupMember.memberAssignment().length > 0) {
+                if (isConsumerGroup && groupMember.memberAssignment().length > 0) {
+                    // We can only deserialize the assignment for a classic consumer group
                     final Assignment assignment = ConsumerProtocol.deserializeAssignment(ByteBuffer.wrap(groupMember.memberAssignment()));
                     partitions = new HashSet<>(assignment.partitions());
                 }
                 memberDescriptions.add(new MemberDescription(
                     groupMember.memberId(),
-                    Optional.of(groupMember.groupInstanceId()),
+                    Optional.ofNullable(groupMember.groupInstanceId()),
                     groupMember.clientId(),
                     groupMember.clientHost(),
                     new MemberAssignment(partitions)));
             });
+
             final ClassicGroupDescription classicGroupDescription =
                 new ClassicGroupDescription(
                     groupIdKey.idValue,
-                    describedGroup.protocolType(),
-                    memberDescriptions,
+                    protocolType,
                     describedGroup.protocolData(),
+                    memberDescriptions,
                     ClassicGroupState.parse(describedGroup.groupState()),
                     coordinator,
                     authorizedOperations);

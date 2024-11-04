@@ -33,32 +33,32 @@ import java.util.stream.Collectors;
 public class ClassicGroupDescription {
     private final String groupId;
     private final String protocol;
+    private final String protocolData;
     private final Collection<MemberDescription> members;
-    private final String partitionAssignor;
     private final ClassicGroupState state;
     private final Node coordinator;
     private final Set<AclOperation> authorizedOperations;
 
     public ClassicGroupDescription(String groupId,
                                    String protocol,
+                                   String protocolData,
                                    Collection<MemberDescription> members,
-                                   String partitionAssignor,
                                    ClassicGroupState state,
                                    Node coordinator) {
-        this(groupId, protocol, members, partitionAssignor, state, coordinator, Set.of());
+        this(groupId, protocol, protocolData, members, state, coordinator, Set.of());
     }
 
     public ClassicGroupDescription(String groupId,
                                    String protocol,
+                                   String protocolData,
                                    Collection<MemberDescription> members,
-                                   String partitionAssignor,
                                    ClassicGroupState state,
                                    Node coordinator,
                                    Set<AclOperation> authorizedOperations) {
         this.groupId = groupId == null ? "" : groupId;
         this.protocol = protocol;
+        this.protocolData = protocolData == null ? "" : protocolData;
         this.members = members == null ? List.of() : List.copyOf(members);
-        this.partitionAssignor = partitionAssignor == null ? "" : partitionAssignor;
         this.state = state;
         this.coordinator = coordinator;
         this.authorizedOperations = authorizedOperations;
@@ -71,8 +71,8 @@ public class ClassicGroupDescription {
         final ClassicGroupDescription that = (ClassicGroupDescription) o;
         return Objects.equals(groupId, that.groupId) &&
             Objects.equals(protocol, that.protocol) &&
+            Objects.equals(protocolData, that.protocolData) &&
             Objects.equals(members, that.members) &&
-            Objects.equals(partitionAssignor, that.partitionAssignor) &&
             state == that.state &&
             Objects.equals(coordinator, that.coordinator) &&
             Objects.equals(authorizedOperations, that.authorizedOperations);
@@ -80,7 +80,7 @@ public class ClassicGroupDescription {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupId, protocol, members, partitionAssignor, state, coordinator, authorizedOperations);
+        return Objects.hash(groupId, protocol, protocolData, members, state, coordinator, authorizedOperations);
     }
 
     /**
@@ -88,6 +88,22 @@ public class ClassicGroupDescription {
      */
     public String groupId() {
         return groupId;
+    }
+
+    /**
+     * The group protocol type.
+     */
+    public String protocol() {
+        return protocol;
+    }
+
+    /**
+     * The group protocol data. The meaning depends on the group protocol type.
+     * For a classic consumer group, this is the partition assignor name.
+     * For a classic connect group, this indicates which Connect protocols are enabled.
+     */
+    public String protocolData() {
+        return protocolData;
     }
 
     /**
@@ -102,13 +118,6 @@ public class ClassicGroupDescription {
      */
     public Collection<MemberDescription> members() {
         return members;
-    }
-
-    /**
-     * The classic group partition assignor.
-     */
-    public String partitionAssignor() {
-        return partitionAssignor;
     }
 
     /**
@@ -136,8 +145,8 @@ public class ClassicGroupDescription {
     public String toString() {
         return "(groupId=" + groupId +
             ", protocol='" + protocol + '\'' +
+            ", protocolData=" + protocolData +
             ", members=" + members.stream().map(MemberDescription::toString).collect(Collectors.joining(",")) +
-            ", partitionAssignor=" + partitionAssignor +
             ", state=" + state +
             ", coordinator=" + coordinator +
             ", authorizedOperations=" + authorizedOperations +
