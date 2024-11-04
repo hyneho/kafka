@@ -286,5 +286,5 @@ public interface ClusterInstance {
             }, "expected acls: " + entries + ", actual acls: " + actualEntries.get());
         }
     }
-    
+
 }
