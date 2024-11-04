@@ -853,6 +853,9 @@ public class ShareConsumerTest {
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testMultipleConsumersWithDifferentGroupIds(String persister) throws InterruptedException {
+        ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
+        KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
+
         KafkaShareConsumer<byte[], byte[]> shareConsumer1 = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
         shareConsumer1.subscribe(Collections.singleton(tp.topic()));
         alterShareAutoOffsetReset("group1", "earliest");
@@ -860,9 +863,6 @@ public class ShareConsumerTest {
         KafkaShareConsumer<byte[], byte[]> shareConsumer2 = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group2");
         shareConsumer2.subscribe(Collections.singleton(tp.topic()));
         alterShareAutoOffsetReset("group2", "earliest");
-
-        ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
-        KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
 
         // producing 3 records to the topic
         producer.send(record);
@@ -904,14 +904,13 @@ public class ShareConsumerTest {
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testMultipleConsumersInGroupSequentialConsumption(String persister) {
+        ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
+        KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         KafkaShareConsumer<byte[], byte[]> shareConsumer1 = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
         shareConsumer1.subscribe(Collections.singleton(tp.topic()));
         KafkaShareConsumer<byte[], byte[]> shareConsumer2 = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
         shareConsumer2.subscribe(Collections.singleton(tp.topic()));
         alterShareAutoOffsetReset("group1", "earliest");
-
-        ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
-        KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
 
         int totalMessages = 2000;
         for (int i = 0; i < totalMessages; i++) {
@@ -1281,12 +1280,11 @@ public class ShareConsumerTest {
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testAcknowledgeCommitCallbackCallsShareConsumerDisallowed(String persister) {
-        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
-        alterShareAutoOffsetReset("group1", "earliest");
-
         ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
         KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         producer.send(record);
+        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
+        alterShareAutoOffsetReset("group1", "earliest");
 
         shareConsumer.setAcknowledgementCommitCallback(new TestableAcknowledgeCommitCallbackWithShareConsumer<>(shareConsumer));
         shareConsumer.subscribe(Collections.singleton(tp.topic()));
@@ -1324,12 +1322,11 @@ public class ShareConsumerTest {
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testAcknowledgeCommitCallbackCallsShareConsumerWakeup(String persister) {
-        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
-        alterShareAutoOffsetReset("group1", "earliest");
-
         ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
         KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         producer.send(record);
+        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
+        alterShareAutoOffsetReset("group1", "earliest");
 
         // The acknowledgment commit callback will try to call a method of KafkaShareConsumer
         shareConsumer.setAcknowledgementCommitCallback(new TestableAcknowledgeCommitCallbackWakeup<>(shareConsumer));
@@ -1365,12 +1362,11 @@ public class ShareConsumerTest {
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testAcknowledgeCommitCallbackThrowsException(String persister) {
-        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
-        alterShareAutoOffsetReset("group1", "earliest");
-
         ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
         KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         producer.send(record);
+        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
+        alterShareAutoOffsetReset("group1", "earliest");
 
         shareConsumer.setAcknowledgementCommitCallback(new TestableAcknowledgeCommitCallbackThrows<>());
         shareConsumer.subscribe(Collections.singleton(tp.topic()));
@@ -1442,13 +1438,12 @@ public class ShareConsumerTest {
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testWakeupWithFetchedRecordsAvailable(String persister) {
-        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
-        shareConsumer.subscribe(Collections.singleton(tp.topic()));
-        alterShareAutoOffsetReset("group1", "earliest");
-
         ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
         KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         producer.send(record);
+        KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
+        shareConsumer.subscribe(Collections.singleton(tp.topic()));
+        alterShareAutoOffsetReset("group1", "earliest");
 
         shareConsumer.wakeup();
         assertThrows(WakeupException.class, () -> shareConsumer.poll(Duration.ZERO));
