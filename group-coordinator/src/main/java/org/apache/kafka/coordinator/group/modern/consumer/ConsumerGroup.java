@@ -135,6 +135,11 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
      */
     private final TimelineHashMap<String, Integer> subscribedRegularExpressions;
 
+    /**
+     * The resolved regular expressions.
+     */
+    private final TimelineHashMap<String, ResolvedRegularExpression> resolvedRegularExpressions;
+
     public ConsumerGroup(
         SnapshotRegistry snapshotRegistry,
         String groupId,
@@ -149,6 +154,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         this.classicProtocolMembersSupportedProtocols = new TimelineHashMap<>(snapshotRegistry, 0);
         this.currentPartitionEpoch = new TimelineHashMap<>(snapshotRegistry, 0);
         this.subscribedRegularExpressions = new TimelineHashMap<>(snapshotRegistry, 0);
+        this.resolvedRegularExpressions = new TimelineHashMap<>(snapshotRegistry, 0);
     }
 
     /**
@@ -340,6 +346,47 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         if (oldMember != null && oldMember.instanceId() != null) {
             staticMembers.remove(oldMember.instanceId());
         }
+    }
+
+    /**
+     * Update the regular expression.
+     *
+     * @param regex         The regular expression.
+     * @param newMetadata   The regular expression's metadata.
+     */
+    public void updateRegularExpression(
+        String regex,
+        ResolvedRegularExpression newMetadata
+    ) {
+        removeRegularExpression(regex);
+        if (newMetadata != null) {
+            resolvedRegularExpressions.put(regex, newMetadata);
+            newMetadata.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::incValue));
+        }
+    }
+
+    /**
+     * Remove the regular expression.
+     *
+     * @param regex The regular expression.
+     */
+    public void removeRegularExpression(
+        String regex
+    ) {
+        ResolvedRegularExpression oldMetadata = resolvedRegularExpressions.remove(regex);
+        if (oldMetadata != null) {
+            oldMetadata.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::decValue));
+        }
+    }
+
+    /**
+     * @return An optional containing the resolved regular expression corresponding to the provided regex
+     * or an empty optional.
+     */
+    public Optional<ResolvedRegularExpression> regularExpression(
+        String regex
+    ) {
+        return Optional.ofNullable(resolvedRegularExpressions.get(regex));
     }
 
     /**
