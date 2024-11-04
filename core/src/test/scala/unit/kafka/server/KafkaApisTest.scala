@@ -2582,16 +2582,18 @@ class KafkaApisTest extends Logging {
       val producerId = 15L
       val epoch = 0.toShort
 
+      val clientTransactionVersion = if (version > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
+      val isTransactionV2Enabled = clientTransactionVersion.equals(TransactionVersion.TV_2)
+
       val endTxnRequest = new EndTxnRequest.Builder(
         new EndTxnRequestData()
           .setTransactionalId(transactionalId)
           .setProducerId(producerId)
           .setProducerEpoch(epoch)
-          .setCommitted(true)
+          .setCommitted(true),
+        isTransactionV2Enabled
       ).build(version.toShort)
       val request = buildRequest(endTxnRequest)
-
-      val clientTransactionVersion = if (version > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
 
       val requestLocal = RequestLocal.withThreadConfinedCaching
       when(txnCoordinator.handleEndTransaction(
@@ -11105,7 +11107,8 @@ class KafkaApisTest extends Logging {
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequestData().setGroupId("group")
 
     val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest, true).build())
-    kafkaApis = createKafkaApis()
+    metadataCache = MetadataCache.kRaftMetadataCache(brokerId, () => KRaftVersion.KRAFT_VERSION_1)
+    kafkaApis = createKafkaApis(raftSupport = true)
     kafkaApis.handle(requestChannelRequest, RequestLocal.noCaching)
 
     val expectedHeartbeatResponse = new ConsumerGroupHeartbeatResponseData()
@@ -11247,7 +11250,8 @@ class KafkaApisTest extends Logging {
     val expectedDescribedGroup = new DescribedGroup().setGroupId(groupId).setErrorCode(errorCode)
     val expectedResponse = new ConsumerGroupDescribeResponseData()
     expectedResponse.groups.add(expectedDescribedGroup)
-    kafkaApis = createKafkaApis()
+    metadataCache = MetadataCache.kRaftMetadataCache(brokerId, () => KRaftVersion.KRAFT_VERSION_1)
+    kafkaApis = createKafkaApis(raftSupport = true)
     kafkaApis.handle(requestChannelRequest, RequestLocal.noCaching)
     val response = verifyNoThrottling[ConsumerGroupDescribeResponse](requestChannelRequest)
 
