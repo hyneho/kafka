@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -216,5 +217,22 @@ public class DelayedShareFetch extends DelayedOperation {
             }
             sharePartition.releaseFetchLock();
         });
+    }
+
+    public ShareFetchData shareFetchData() {
+        return shareFetchData;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DelayedShareFetch that = (DelayedShareFetch) o;
+        return shareFetchData.equals(that.shareFetchData) && sharePartitionManager == that.sharePartitionManager && replicaManager.equals(that.replicaManager);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shareFetchData, sharePartitionManager, replicaManager);
     }
 }

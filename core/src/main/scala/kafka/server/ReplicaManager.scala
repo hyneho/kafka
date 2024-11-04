@@ -323,6 +323,7 @@ class ReplicaManager(val config: KafkaConfig,
       purgatoryName = "ShareFetch", brokerId = config.brokerId,
       purgeInterval = config.shareGroupConfig.shareFetchPurgatoryPurgeIntervalRequests))
 
+  private val delayedShareFetchPurgatoryEntries: mutable.Map[DelayedShareFetch, Seq[DelayedShareFetchKey]] = new mutable.HashMap[DelayedShareFetch, Seq[DelayedShareFetchKey]]()
   /* epoch of the controller that last changed the leader */
   @volatile private[server] var controllerEpoch: Int = KafkaController.InitialControllerEpoch
   protected val localBrokerId = config.brokerId
@@ -507,7 +508,21 @@ class ReplicaManager(val config: KafkaConfig,
    */
   private[server] def addDelayedShareFetchRequest(delayedShareFetch: DelayedShareFetch,
                                                   delayedShareFetchKeys : Seq[DelayedShareFetchKey]): Unit = {
+    delayedShareFetchPurgatoryEntries.addOne(delayedShareFetch, delayedShareFetchKeys)
     delayedShareFetchPurgatory.tryCompleteElseWatch(delayedShareFetch, delayedShareFetchKeys)
+  }
+
+  private[server] def removeCompletedDelayedShareFetchRequest(delayedShareFetch: DelayedShareFetch): Unit = {
+    delayedShareFetchPurgatoryEntries.remove(delayedShareFetch)
+  }
+
+  /**
+   * Complete the futures of all the pending delayed share fetch requests in the purgatory on replica manager shutdown.
+   */
+  private def completePendingDelayedShareFetchRequests(): Unit = {
+    delayedShareFetchPurgatoryEntries.keys.foreach(delayedShareFetchRequest => {
+      delayedShareFetchRequest.shareFetchData.future().completeExceptionally(Errors.BROKER_NOT_AVAILABLE.exception())
+    })
   }
 
   /**
@@ -2719,6 +2734,7 @@ class ReplicaManager(val config: KafkaConfig,
     delayedDeleteRecordsPurgatory.shutdown()
     delayedElectLeaderPurgatory.shutdown()
     delayedShareFetchPurgatory.shutdown()
+    completePendingDelayedShareFetchRequests()
     if (checkpointHW)
       checkpointHighWatermarks()
     replicaSelectorOpt.foreach(_.close)

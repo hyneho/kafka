@@ -6836,9 +6836,9 @@ class ReplicaManagerTest {
     assertEquals(6, replicaManager.delayedShareFetchPurgatory.watched)
 
     replicaManager.shutdown()
-    assertTrue(future1.isDone)
-    assertTrue(future2.isDone)
-    assertEquals(0, replicaManager.delayedShareFetchPurgatory.watched)
+    assertTrue(future1.isCompletedExceptionally)
+    assertTrue(future2.isCompletedExceptionally)
+    assertEquals(6, replicaManager.delayedShareFetchPurgatory.watched)
   }
 
   private def readFromLogWithOffsetOutOfRange(tp: TopicPartition): Seq[(TopicIdPartition, LogReadResult)] = {
