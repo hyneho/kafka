@@ -69,7 +69,7 @@ public class NetworkClientDelegate implements AutoCloseable {
     private final int requestTimeoutMs;
     private final Queue<UnsentRequest> unsentRequests;
     private final long retryBackoffMs;
-    private final CompletableFuture<Exception> metadataException = new CompletableFuture<>();
+    private CompletableFuture<Exception> metadataException;
 
     public NetworkClientDelegate(
             final Time time,
@@ -86,6 +86,7 @@ public class NetworkClientDelegate implements AutoCloseable {
         this.unsentRequests = new ArrayDeque<>();
         this.requestTimeoutMs = config.getInt(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG);
         this.retryBackoffMs = config.getLong(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG);
+        this.metadataException = new CompletableFuture<>();
     }
 
     // Visible for testing
@@ -150,7 +151,7 @@ public class NetworkClientDelegate implements AutoCloseable {
     private void maybePropagateMetadataError() {
         try {
             metadata.maybeThrowAnyException();
-            metadataException.newIncompleteFuture();
+            metadataException = metadataException.newIncompleteFuture();
         } catch (Exception e) {
             metadataException.completeExceptionally(e);
             backgroundEventHandler.add(new ErrorEvent(e));
