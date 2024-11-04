@@ -31,6 +31,7 @@ import org.apache.kafka.common.ClusterResourceListener;
 import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.AuthorizationException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.message.ListOffsetsRequestData;
 import org.apache.kafka.common.requests.AbstractRequest;
@@ -232,7 +233,7 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
      * on {@link SubscriptionState#hasAllFetchPositions()}). It will complete immediately, with true, if all positions
      * are already available. If some positions are missing, the future will complete once the offsets are retrieved and positions are updated.
      */
-    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs) {
+    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs, CompletableFuture<Exception> metadataError) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -254,6 +255,15 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
                     result.completeExceptionally(error);
                 } else {
                     result.complete(subscriptionState.hasAllFetchPositions());
+                }
+            });
+            
+            metadataError.whenComplete((__, error) -> {
+                if (error instanceof AuthorizationException) {
+                    if (pendingOffsetFetchEvent != null) {
+                        pendingOffsetFetchEvent.result.completeExceptionally(error);
+                        result.completeExceptionally(error);
+                    }
                 }
             });
 

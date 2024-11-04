@@ -56,6 +56,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     private final SubscriptionState subscriptions;
     private final RequestManagers requestManagers;
     private int metadataVersionSnapshot;
+    private CompletableFuture<Exception> metadataError;
 
     public ApplicationEventProcessor(final LogContext logContext,
                                      final RequestManagers requestManagers,
@@ -348,7 +349,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * them to update positions in the subscription state.
      */
     private void process(final CheckAndUpdatePositionsEvent event) {
-        CompletableFuture<Boolean> future = requestManagers.offsetsRequestManager.updateFetchPositions(event.deadlineMs());
+        CompletableFuture<Boolean> future = requestManagers.offsetsRequestManager.updateFetchPositions(event.deadlineMs(), metadataError);
         future.whenComplete(complete(event.future()));
     }
 
@@ -561,5 +562,9 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     // Visible for testing
     int metadataVersionSnapshot() {
         return metadataVersionSnapshot;
+    }
+    
+    public void setMetadataError(CompletableFuture<Exception> metadataError) {
+        this.metadataError = metadataError;
     }
 }
