@@ -2771,6 +2771,26 @@ project(':streams:integration-tests') {
 
     testRuntimeOnly runtimeTestLibs
   }
+
+  sourceSets {
+    // Set java/scala source folders in the `scala` block to enable joint compilation
+    main {
+      java {
+        srcDirs = []
+      }
+      scala {
+        srcDirs = []
+      }
+    }
+    test {
+      java {
+        srcDirs = []
+      }
+      scala {
+        srcDirs = ["src/test/java", "src/test/scala"]
+      }
+    }
+  }
 }
 
 project(':streams:test-utils') {
