@@ -1645,7 +1645,7 @@ class KafkaApis(val requestChannel: RequestChannel,
           return (Errors.INVALID_REQUEST, Node.noNode)
         }
         try {
-          val _ = SharePartitionKey.getInstance(key)
+          SharePartitionKey.validate(key)
         } catch {
           case e: IllegalArgumentException =>
             error(s"Share coordinator key is invalid", e)
