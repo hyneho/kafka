@@ -16,8 +16,8 @@
  */
 package kafka.server.share;
 
-import kafka.log.OffsetResultHolder;
 import kafka.cluster.Partition;
+import kafka.log.OffsetResultHolder;
 import kafka.server.DelayedOperationPurgatory;
 import kafka.server.LogReadResult;
 import kafka.server.ReplicaManager;
