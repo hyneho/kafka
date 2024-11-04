@@ -16,9 +16,7 @@
  */
 package kafka.server
 
-import org.apache.kafka.common.test.api.ClusterInstance
-import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterTest, ClusterTestDefaults, Type}
-import org.apache.kafka.common.test.api.ClusterTestExtensions
+import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterInstance, ClusterTest, ClusterTestDefaults, ClusterTestExtensions, ClusterTests, Type}
 import org.apache.kafka.common.message.ShareFetchResponseData.AcquiredRecords
 import org.apache.kafka.common.message.{ShareAcknowledgeRequestData, ShareAcknowledgeResponseData, ShareFetchRequestData, ShareFetchResponseData}
 import org.apache.kafka.common.protocol.Errors
@@ -33,13 +31,16 @@ import java.util.Collections
 import scala.collection.convert.ImplicitConversions.`list asScalaBuffer`
 import scala.jdk.CollectionConverters._
 
-@Timeout(120)
+@Timeout(1200)
 @ExtendWith(value = Array(classOf[ClusterTestExtensions]))
-@ClusterTestDefaults(types = Array(Type.KRAFT), brokers = 1)
+@ClusterTestDefaults(types = Array(Type.KRAFT), brokers = 1, serverProperties = Array(
+  new ClusterConfigProperty(key = "group.share.persister.class.name", value = "")
+))
 @Tag("integration")
 class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCoordinatorBaseRequestTest(cluster){
   
   private final val MAX_PARTITION_BYTES = 10000
+  private final val MAX_WAIT_MS = 5000
 
   @AfterEach
   def tearDown(): Unit = {
@@ -80,14 +81,31 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(Errors.UNSUPPORTED_VERSION.code(), shareAcknowledgeResponse.data().errorCode())
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
-    ),
-    brokers = 2
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        ),
+        brokers = 2
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        ),
+        brokers = 2
+      ),
+    )
   )
   @Disabled
   def testShareFetchRequestToNonLeaderReplica(): Unit = {
@@ -118,18 +136,33 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(leader, partitionData.currentLeader().leaderId())
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      )
     )
   )
   def testShareFetchRequestSuccess(): Unit = {
     val groupId: String = "group"
     val memberId = Uuid.randomUuid()
-
     val topic = "topic"
     val partition = 0
 
@@ -143,7 +176,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the first share fetch request to initialize the share partition
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, ShareRequestMetadata.INITIAL_EPOCH)
     var acknowledgementsMap: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -172,12 +205,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedPartitionData, partitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      )
     )
   )
   def testShareFetchRequestSuccessMultiplePartitions(): Unit = {
@@ -198,7 +247,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the first share fetch request to initialize the share partitions
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, ShareRequestMetadata.INITIAL_EPOCH)
     var acknowledgementsMap: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -246,14 +295,31 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     })
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
-    ),
-    brokers = 3
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        ),
+        brokers = 3
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        ),
+        brokers = 3
+      ),
+    )
   )
   def testShareFetchRequestSuccessMultiplePartitionsMultipleBrokers(): Unit = {
     val groupId: String = "group"
@@ -281,9 +347,9 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
 
     // Send the first share fetch request to initialize the share partitions
     // Create different share fetch requests for different partitions as they may have leaders on separate brokers
-    var shareFetchRequest1 = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send1, Seq.empty, acknowledgementsMap, 10)
-    var shareFetchRequest2 = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send2, Seq.empty, acknowledgementsMap, 10)
-    var shareFetchRequest3 = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send3, Seq.empty, acknowledgementsMap, 10)
+    var shareFetchRequest1 = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send1, Seq.empty, acknowledgementsMap)
+    var shareFetchRequest2 = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send2, Seq.empty, acknowledgementsMap)
+    var shareFetchRequest3 = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send3, Seq.empty, acknowledgementsMap)
 
     var shareFetchResponse1 = connectAndReceive[ShareFetchResponse](shareFetchRequest1, destination = leader1)
     var shareFetchResponse2 = connectAndReceive[ShareFetchResponse](shareFetchRequest2, destination = leader2)
@@ -349,12 +415,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedPartitionData3, partitionData3)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareAcknowledgeRequestSuccessAccept(): Unit = {
@@ -375,7 +457,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     val acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -385,7 +467,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the second share fetch request to fetch the records produced above
     shareSessionEpoch = ShareRequestMetadata.nextEpoch(ShareRequestMetadata.INITIAL_EPOCH)
     metadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
-    shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     var shareFetchResponseData = shareFetchResponse.data()
@@ -452,12 +534,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedFetchPartitionData, fetchPartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchRequestPiggybackedAccept(): Unit = {
@@ -478,7 +576,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     var acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -560,12 +658,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedFetchPartitionData, fetchPartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareAcknowledgeRequestSuccessRelease(): Unit = {
@@ -586,7 +700,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     var acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -661,12 +775,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedFetchPartitionData, fetchPartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchRequestPiggybackedRelease(): Unit = {
@@ -687,7 +817,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     var acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -747,12 +877,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedFetchPartitionData, fetchPartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareAcknowledgeRequestSuccessReject(): Unit = {
@@ -773,7 +919,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     val acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -850,12 +996,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedFetchPartitionData, fetchPartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchRequestPiggybackedReject(): Unit = {
@@ -876,7 +1038,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     var acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -958,13 +1120,30 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedFetchPartitionData, fetchPartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
-      new ClusterConfigProperty(key = "group.share.delivery.count.limit", value = "2") // Setting max delivery count config to 2
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.delivery.count.limit", value = "2") // Setting max delivery count config to 2
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true"),
+          new ClusterConfigProperty(key = "group.share.delivery.count.limit", value = "2") // Setting max delivery count config to 2
+        )
+      ),
     )
   )
   def testShareAcknowledgeRequestMaxDeliveryAttemptExhausted(): Unit = {
@@ -985,7 +1164,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     val acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1106,12 +1285,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedFetchPartitionData, fetchPartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchBrokerRespectsPartitionsSizeLimit(): Unit = {
@@ -1131,7 +1326,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the first share fetch request to initialize the share partition
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, ShareRequestMetadata.INITIAL_EPOCH)
     var acknowledgementsMap: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1166,12 +1361,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedPartitionData, partitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchRequestSuccessfulSharingBetweenMultipleConsumers(): Unit = {
@@ -1195,7 +1406,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Sending a dummy share fetch request to initialize the share partition
     val metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, ShareRequestMetadata.INITIAL_EPOCH)
     val acknowledgementsMap: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    val shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap, 10)
+    val shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap)
 
     connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
@@ -1251,12 +1462,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertTrue(partitionData2.acquiredRecords().get(0).lastOffset() < partitionData3.acquiredRecords().get(0).firstOffset())
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchRequestNoSharingBetweenMultipleConsumersFromDifferentGroups(): Unit = {
@@ -1281,15 +1508,15 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Sending 3 dummy share Fetch Requests with to inititlaize the share partitions for each share group
     var metadata1: ShareRequestMetadata = new ShareRequestMetadata(memberId1, ShareRequestMetadata.INITIAL_EPOCH)
     val acknowledgementsMap1: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest1 = createShareFetchRequest(groupId1, metadata1, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap1, 10)
+    var shareFetchRequest1 = createShareFetchRequest(groupId1, metadata1, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap1)
 
     var metadata2: ShareRequestMetadata = new ShareRequestMetadata(memberId2, ShareRequestMetadata.INITIAL_EPOCH)
     val acknowledgementsMap2: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest2 = createShareFetchRequest(groupId2, metadata2, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap2, 10)
+    var shareFetchRequest2 = createShareFetchRequest(groupId2, metadata2, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap2)
 
     var metadata3: ShareRequestMetadata = new ShareRequestMetadata(memberId3, ShareRequestMetadata.INITIAL_EPOCH)
     val acknowledgementsMap3: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest3 = createShareFetchRequest(groupId3, metadata3, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap3, 10)
+    var shareFetchRequest3 = createShareFetchRequest(groupId3, metadata3, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap3)
 
     var shareFetchResponse1 = connectAndReceive[ShareFetchResponse](shareFetchRequest1)
     var shareFetchResponse2 = connectAndReceive[ShareFetchResponse](shareFetchRequest2)
@@ -1345,12 +1572,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(partitionData3.acquiredRecords(), expectedAcquiredRecords(Collections.singletonList(0), Collections.singletonList(9), Collections.singletonList(1)))
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareSessionCloseWithShareFetch(): Unit = {
@@ -1371,7 +1614,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     var acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1443,12 +1686,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(0, shareFetchResponseData.responses().size()) // responses list will be empty because there are no responses for the final fetch request
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareSessionCloseWithShareAcknowledge(): Unit = {
@@ -1469,7 +1728,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     var acknowledgementsMapForFetch: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMapForFetch)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1551,12 +1810,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareAcknowledgeResponsePartitions(expectedAcknowledgePartitionData, acknowledgePartitionData)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchInitialEpochWithAcknowledgements(): Unit = {
@@ -1591,12 +1866,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(Errors.INVALID_REQUEST.code(), shareFetchResponseData.errorCode)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareAcknowledgeInitialRequestError(): Unit = {
@@ -1651,7 +1942,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the first share fetch request to initialize the share partition
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1689,12 +1980,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(Errors.INVALID_SHARE_SESSION_EPOCH.code, shareFetchResponseData.errorCode)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareAcknowledgeRequestInvalidShareSessionEpoch(): Unit = {
@@ -1714,7 +2021,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the first share fetch request to initialize the share partition
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1757,12 +2064,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(Errors.INVALID_SHARE_SESSION_EPOCH.code, shareAcknowledgeResponseData.errorCode)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchRequestShareSessionNotFound(): Unit = {
@@ -1783,7 +2106,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the first share fetch request to initialize the share partition
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1821,12 +2144,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(Errors.SHARE_SESSION_NOT_FOUND.code, shareFetchResponseData.errorCode)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareAcknowledgeRequestShareSessionNotFound(): Unit = {
@@ -1847,7 +2186,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     // Send the first share fetch request to initialize the share partition
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, Map.empty)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1890,12 +2229,28 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     assertEquals(Errors.SHARE_SESSION_NOT_FOUND.code, shareAcknowledgeResponseData.errorCode)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
-      new ClusterConfigProperty(key = "group.share.enable", value = "true"),
-      new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
-      new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+  @ClusterTests(
+    Array(
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1")
+        )
+      ),
+      new ClusterTest(
+        serverProperties = Array(
+          new ClusterConfigProperty(key = "group.coordinator.rebalance.protocols", value = "classic,consumer,share"),
+          new ClusterConfigProperty(key = "group.share.enable", value = "true"),
+          new ClusterConfigProperty(key = "offsets.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "offsets.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "group.share.persister.class.name", value = "org.apache.kafka.server.share.persister.DefaultStatePersister"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.replication.factor", value = "1"),
+          new ClusterConfigProperty(key = "share.coordinator.state.topic.num.partitions", value = "1"),
+          new ClusterConfigProperty(key = "unstable.api.versions.enable", value = "true")
+        )
+      ),
     )
   )
   def testShareFetchRequestForgetTopicPartitions(): Unit = {
@@ -1918,7 +2273,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     var shareSessionEpoch = ShareRequestMetadata.INITIAL_EPOCH
     var metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, shareSessionEpoch)
     var acknowledgementsMap: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]] = Map.empty
-    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap, 10)
+    var shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, send, Seq.empty, acknowledgementsMap)
     var shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
 
     initProducer()
@@ -1998,7 +2353,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
                                       send: Seq[TopicIdPartition],
                                       forget: Seq[TopicIdPartition],
                                       acknowledgementsMap: Map[TopicIdPartition, util.List[ShareFetchRequestData.AcknowledgementBatch]],
-                                      maxWaitMs: Int = Int.MaxValue,
+                                      maxWaitMs: Int = MAX_WAIT_MS,
                                       minBytes: Int = 0,
                                       maxBytes: Int = Int.MaxValue): ShareFetchRequest = {
     ShareFetchRequest.Builder.forConsumer(groupId, metadata, maxWaitMs, minBytes, maxBytes, maxPartitionBytes, send.asJava, forget.asJava, acknowledgementsMap.asJava)

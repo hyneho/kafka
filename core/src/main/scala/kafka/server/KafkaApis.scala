@@ -20,7 +20,7 @@ package kafka.server
 import kafka.controller.ReplicaAssignment
 import kafka.coordinator.transaction.{InitProducerIdResult, TransactionCoordinator}
 import kafka.network.RequestChannel
-import kafka.server.QuotaFactory.{QuotaManagers, UnboundedQuota}
+import kafka.server.QuotaFactory.{QuotaManagers, UNBOUNDED_QUOTA}
 import kafka.server.handlers.DescribeTopicPartitionsRequestHandler
 import kafka.server.metadata.{ConfigRepository, KRaftMetadataCache}
 import kafka.server.share.SharePartitionManager
@@ -406,7 +406,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         }
       }
 
-      quotas.clientQuotaCallback.foreach { callback =>
+      quotas.clientQuotaCallback.ifPresent { callback =>
         if (callback.updateClusterMetadata(metadataCache.getClusterMetadata(clusterId, request.context.listenerName))) {
           quotas.fetch.updateQuotaMetricConfigs()
           quotas.produce.updateQuotaMetricConfigs()
@@ -1073,7 +1073,7 @@ class KafkaApis(val requestChannel: RequestChannel,
   }
 
   def replicationQuota(fetchRequest: FetchRequest): ReplicaQuota =
-    if (fetchRequest.isFromFollower) quotas.leader else UnboundedQuota
+    if (fetchRequest.isFromFollower) quotas.leader else UNBOUNDED_QUOTA
 
   def handleListOffsetRequest(request: RequestChannel.Request): Unit = {
     val version = request.header.apiVersion
@@ -2321,7 +2321,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         requestHelper.sendResponseMaybeThrottle(request, createResponse)
       }
 
-      // If the request is version 4, we know the client supports transaction version 2.
+      // If the request is greater than version 4, we know the client supports transaction version 2.
       val clientTransactionVersion = if (endTxnRequest.version() > 4) TransactionVersion.TV_2 else TransactionVersion.TV_0
 
       txnCoordinator.handleEndTransaction(endTxnRequest.data.transactionalId,
@@ -4249,7 +4249,8 @@ class KafkaApis(val requestChannel: RequestChannel,
         fetchMinBytes,
         fetchMaxBytes,
         FetchIsolation.HIGH_WATERMARK,
-        clientMetadata
+        clientMetadata,
+        true
       )
 
       // call the share partition manager to fetch messages from the local replica.

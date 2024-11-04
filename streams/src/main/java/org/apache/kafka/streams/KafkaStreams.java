@@ -92,6 +92,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -181,6 +182,7 @@ public class KafkaStreams implements AutoCloseable {
     protected final TopologyMetadata topologyMetadata;
     private final QueryableStoreProvider queryableStoreProvider;
     private final DelegatingStandbyUpdateListener delegatingStandbyUpdateListener;
+    private final LogContext logContext;
 
     GlobalStreamThread globalStreamThread;
     protected StateDirectory stateDirectory = null;
@@ -677,6 +679,9 @@ public class KafkaStreams implements AutoCloseable {
                 return;
             }
 
+            // all (alive) threads have received their assignment, close any remaining startup tasks, they're not needed
+            stateDirectory.closeStartupTasks();
+
             setState(State.RUNNING);
         }
 
@@ -999,7 +1004,7 @@ public class KafkaStreams implements AutoCloseable {
         } else {
             clientId = userClientId;
         }
-        final LogContext logContext = new LogContext(String.format("stream-client [%s] ", clientId));
+        logContext = new LogContext(String.format("stream-client [%s] ", clientId));
         this.log = logContext.logger(getClass());
         topologyMetadata.setLog(logContext);
 
@@ -1411,6 +1416,9 @@ public class KafkaStreams implements AutoCloseable {
      */
     public synchronized void start() throws IllegalStateException, StreamsException {
         if (setState(State.REBALANCING)) {
+            log.debug("Initializing STANDBY tasks for existing local state");
+            stateDirectory.initializeStartupTasks(topologyMetadata, streamsMetrics, logContext);
+
             log.debug("Starting Streams client");
 
             if (globalStreamThread != null) {
@@ -1922,10 +1930,18 @@ public class KafkaStreams implements AutoCloseable {
 
             // could be `null` if telemetry is disabled on the consumer itself
             if (instanceId != null) {
-                clientInstanceIds.addConsumerInstanceId(
-                    clientFuture.getKey(),
-                    instanceId
-                );
+                final String clientFutureKey = clientFuture.getKey();
+                if (clientFutureKey.toLowerCase(Locale.getDefault()).endsWith("-producer")) {
+                    clientInstanceIds.addProducerInstanceId(
+                            clientFutureKey,
+                            instanceId
+                    );
+                } else {
+                    clientInstanceIds.addConsumerInstanceId(
+                            clientFutureKey,
+                            instanceId
+                    );
+                }
             } else {
                 log.debug(String.format("Telemetry is disabled for %s.", clientFuture.getKey()));
             }
