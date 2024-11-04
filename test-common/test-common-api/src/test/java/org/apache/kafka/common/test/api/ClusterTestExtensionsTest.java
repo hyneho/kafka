@@ -157,12 +157,12 @@ public class ClusterTestExtensionsTest {
         @ClusterTest(types = {Type.KRAFT, Type.CO_KRAFT}, disksPerBroker = 2),
     })
     public void testClusterTestWithDisksPerBroker() throws ExecutionException, InterruptedException {
-        Admin admin = clusterInstance.admin();
-
-        DescribeLogDirsResult result = admin.describeLogDirs(clusterInstance.brokerIds());
-        result.allDescriptions().get().forEach((brokerId, logDirDescriptionMap) -> {
-            assertEquals(clusterInstance.config().numDisksPerBroker(), logDirDescriptionMap.size());
-        });
+        try (Admin admin = clusterInstance.admin()) {
+            DescribeLogDirsResult result = admin.describeLogDirs(clusterInstance.brokerIds());
+            result.allDescriptions().get().forEach((brokerId, logDirDescriptionMap) -> {
+                assertEquals(clusterInstance.config().numDisksPerBroker(), logDirDescriptionMap.size());
+            });
+        }
     }
 
     @ClusterTest(autoStart = AutoStart.NO)
