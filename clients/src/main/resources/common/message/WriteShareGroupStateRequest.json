@@ -47,7 +47,8 @@
             "about": "The state - 0:Available,2:Acked,4:Archived" },
           { "name": "DeliveryCount", "type": "int16", "versions": "0+",
             "about": "The delivery count." }
-        ]}
+        ],
+        "about": "The state batches for the partition."}
       ]}
     ]}
   ]

@@ -36,9 +36,11 @@
             { "name": "ErrorCode", "type": "int16", "versions": "0+",
               "about": "The error code, or 0 if there was no fetch error." },
             { "name": "SnapshotId", "type": "SnapshotId", "versions": "0+",
-              "about": "The snapshot endOffset and epoch fetched", "fields": [
-                { "name": "EndOffset", "type": "int64", "versions": "0+" },
-                { "name": "Epoch", "type": "int32", "versions": "0+" }
+              "about": "The snapshot endOffset and epoch fetched.", "fields": [
+                { "name": "EndOffset", "type": "int64", "versions": "0+",
+                  "about": "The snapshot end offset."},
+                { "name": "Epoch", "type": "int32", "versions": "0+",
+                  "about": "The snapshot epoch."}
               ]
             },
             { "name": "CurrentLeader", "type": "LeaderIdAndEpoch",
@@ -46,25 +48,26 @@
                 { "name": "LeaderId", "type": "int32", "versions": "0+", "entityType": "brokerId",
                   "about": "The ID of the current leader or -1 if the leader is unknown."},
                 { "name": "LeaderEpoch", "type": "int32", "versions": "0+",
-                  "about": "The latest known leader epoch"}
-              ]
+                  "about": "The latest known leader epoch."}
+              ],
+                "about": "The leader of the partition at the time of the snapshot."
             },
             { "name": "Size", "type": "int64", "versions": "0+",
               "about": "The total size of the snapshot." },
             { "name": "Position", "type": "int64", "versions": "0+",
               "about": "The starting byte position within the snapshot included in the Bytes field." },
             { "name": "UnalignedRecords", "type": "records", "versions": "0+",
-              "about": "Snapshot data in records format which may not be aligned on an offset boundary" }
+              "about": "Snapshot data in records format which may not be aligned on an offset boundary." }
           ]
         }
       ]
     },
     { "name": "NodeEndpoints", "type": "[]NodeEndpoint", "versions": "1+", "taggedVersions": "1+", "tag": 0,
-      "about": "Endpoints for all current-leaders enumerated in PartitionSnapshot", "fields": [
+      "about": "Endpoints for all current-leaders enumerated in PartitionSnapshot.", "fields": [
         { "name": "NodeId", "type": "int32", "versions": "1+",
-          "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node" },
-        { "name": "Host", "type": "string", "versions": "1+", "about": "The node's hostname" },
-        { "name": "Port", "type": "uint16", "versions": "1+", "about": "The node's port" }
+          "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node." },
+        { "name": "Host", "type": "string", "versions": "1+", "about": "The node's hostname." },
+        { "name": "Port", "type": "uint16", "versions": "1+", "about": "The node's port." }
       ]
     }
   ]

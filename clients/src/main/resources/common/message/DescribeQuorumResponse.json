@@ -34,18 +34,24 @@
         "versions": "0+", "fields": [
         { "name": "PartitionIndex", "type": "int32", "versions": "0+",
           "about": "The partition index." },
-        { "name": "ErrorCode", "type": "int16", "versions": "0+"},
+        { "name": "ErrorCode", "type": "int16", "versions": "0+",
+          "about": "The partition error code."},
         { "name": "ErrorMessage", "type": "string", "versions": "2+", "nullableVersions": "2+", "ignorable": true,
           "about": "The error message, or null if there was no error." },
         { "name": "LeaderId", "type": "int32", "versions": "0+", "entityType": "brokerId",
           "about": "The ID of the current leader or -1 if the leader is unknown."},
         { "name": "LeaderEpoch", "type": "int32", "versions": "0+",
           "about": "The latest known leader epoch"},
-        { "name": "HighWatermark", "type": "int64", "versions": "0+"},
-        { "name": "CurrentVoters", "type": "[]ReplicaState", "versions": "0+" },
-        { "name": "Observers", "type": "[]ReplicaState", "versions": "0+" }
-      ]}
-    ]},
+        { "name": "HighWatermark", "type": "int64", "versions": "0+",
+          "about": "The high watermark of the partition."},
+        { "name": "CurrentVoters", "type": "[]ReplicaState", "versions": "0+",
+          "about": "The current voters of the partition."},
+        { "name": "Observers", "type": "[]ReplicaState", "versions": "0+",
+          "about": "The observers of the partition."}
+      ],
+      "about": "The partition data."}
+    ],
+    "about": "The response from the describe quorum API."},
     { "name": "Nodes", "type": "[]Node", "versions": "2+", "fields": [
       { "name": "NodeId", "type": "int32", "versions": "2+",
         "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node" },
@@ -58,12 +64,15 @@
         { "name": "Port", "type": "uint16", "versions": "2+",
           "about": "The port" }
       ]}
-    ]}
+    ],
+    "about": "The nodes in the quorum."}
   ],
   "commonStructs": [
     { "name": "ReplicaState", "versions": "0+", "fields": [
-      { "name": "ReplicaId", "type": "int32", "versions": "0+", "entityType": "brokerId" },
-      { "name": "ReplicaDirectoryId", "type": "uuid", "versions": "2+" },
+      { "name": "ReplicaId", "type": "int32", "versions": "0+", "entityType": "brokerId",
+      "about": "The ID of the replica."},
+      { "name": "ReplicaDirectoryId", "type": "uuid", "versions": "2+",
+      "about": "The replica directory ID of the replica."},
       { "name": "LogEndOffset", "type": "int64", "versions": "0+",
         "about": "The last known log end offset of the follower or -1 if it is unknown"},
       { "name": "LastFetchTimestamp", "type": "int64", "versions": "1+", "ignorable": true, "default": -1,

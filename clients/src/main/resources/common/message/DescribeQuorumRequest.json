@@ -32,8 +32,10 @@
         "versions": "0+", "fields": [
         { "name": "PartitionIndex", "type": "int32", "versions": "0+",
           "about": "The partition index." }
-      ]
-      }]
+      ],
+      "about": "The partitions to describe."
+      }],
+      "about": "The topics to describe."
     }
   ]
 }

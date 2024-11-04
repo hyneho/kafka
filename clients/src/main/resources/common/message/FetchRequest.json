@@ -71,7 +71,8 @@
         "about": "The replica ID of the follower, or -1 if this request is from a consumer." },
       { "name": "ReplicaEpoch", "type": "int64", "versions": "15+", "default": "-1",
         "about": "The epoch of this follower, or -1 if not available." }
-    ]},
+    ],
+      "about": "The state of the replica in the follower."},
     { "name": "MaxWaitMs", "type": "int32", "versions": "0+",
       "about": "The maximum time in milliseconds to wait for the response." },
     { "name": "MinBytes", "type": "int32", "versions": "0+",

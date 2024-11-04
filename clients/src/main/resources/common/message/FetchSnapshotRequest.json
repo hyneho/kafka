@@ -40,8 +40,10 @@
               "about": "The current leader epoch of the partition, -1 for unknown leader epoch" },
             { "name": "SnapshotId", "type": "SnapshotId", "versions": "0+",
               "about": "The snapshot endOffset and epoch to fetch", "fields": [
-                { "name": "EndOffset", "type": "int64", "versions": "0+" },
-                { "name": "Epoch", "type": "int32", "versions": "0+" }
+                { "name": "EndOffset", "type": "int64", "versions": "0+",
+                  "about": "The end offset of the snapshot"},
+                { "name": "Epoch", "type": "int32", "versions": "0+",
+                  "about": "The epoch of the snapshot"}
               ]
             },
             { "name": "Position", "type": "int64", "versions": "0+",

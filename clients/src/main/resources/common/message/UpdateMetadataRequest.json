@@ -77,7 +77,8 @@
         ]},
         { "name": "Rack", "type": "string", "versions": "2+", "nullableVersions": "0+", "ignorable": true,
           "about": "The rack which this broker belongs to." }
-    ]}
+    ],
+    "about": "The brokers that we know about."}
   ],
   "commonStructs": [
     { "name": "UpdateMetadataPartitionState", "versions": "0+", "fields": [
