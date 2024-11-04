@@ -1263,8 +1263,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *     <li>
      *         If the application thread was interrupted <em>prior</em> to the execution of the
      *         {@link ConsumerRebalanceListener} callback <em>but</em> the callback cleared out the interrupt state,
-     *         the {@link #close()} method will <em>re-interrupt</em> the application thread so that its interrupt
-     *         state is preserved for the remainder of the execution of {@link #close()}.
+     *         the {@link #close()} method will not make any effort to restore the application thread's interrupt
+     *         state for the remainder of the execution of {@link #close()}.
      *     </li>
      *     <li>
      *         The consumer will attempt to leave the group on a “best-case” basis. There is no stated guarantee
@@ -1381,12 +1381,6 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             if (error != null)
                 throw ConsumerUtils.maybeWrapAsKafkaException(error);
         } finally {
-            if (Thread.currentThread().isInterrupted() && !isThreadInterrupted) {
-                // This is the case where the thread was interrupted before invoking the handler, but it apparently
-                // cleared the interrupt flag, so we restore it to maintain a consistent view of the thread's state.
-                Thread.currentThread().interrupt();
-            }
-
             timer.update();
         }
     }
