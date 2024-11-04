@@ -1654,7 +1654,7 @@ public class ShareConsumerTest {
 
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
-    public void testShareAutoOffsetResetEarliestAfterLsoMovement(String persister) {
+    public void testShareAutoOffsetResetEarliestAfterLsoMovement(String persister) throws Exception {
         KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
         shareConsumer.subscribe(Collections.singleton(tp.topic()));
         // Changing the value of share.auto.offset.reset value to "earliest"
@@ -1678,11 +1678,7 @@ public class ShareConsumerTest {
         consumeMessages(totalMessagesConsumed, 5, "group1", 1, 10, true, future);
         // The records returned belong to offsets 5-9.
         assertEquals(5, totalMessagesConsumed.get());
-        try {
-            assertEquals(5, future.get());
-        } catch (Exception e) {
-            fail("Exception occurred : " + e.getMessage());
-        }
+        assertEquals(5, future.get());
 
         shareConsumer.close();
         producer.close();

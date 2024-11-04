@@ -418,7 +418,7 @@ public class SharePartition {
                 }
 
                 try {
-                    startOffset = updateStartOffsetDuringInitialization(partitionData.startOffset());
+                    startOffset = startOffsetDuringInitialization(partitionData.startOffset());
                 } catch (Exception e) {
                     completeInitializationWithException(future, e);
                     return;
@@ -2032,7 +2032,7 @@ public class SharePartition {
         }
     }
 
-    private long updateStartOffsetDuringInitialization(long partitionDataStartOffset) throws Exception {
+    private long startOffsetDuringInitialization(long partitionDataStartOffset) throws Exception {
         // Set the state epoch and end offset from the persisted state.
         if (partitionDataStartOffset != PartitionFactory.UNINITIALIZED_START_OFFSET) {
             return partitionDataStartOffset;

@@ -107,7 +107,7 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
       ),
     )
   )
-  @Disabled
+  @Disabled // TODO: Enable the share partition to throw only a partition level error code and not a top level error code in the case when the request is sent to a replica
   def testShareFetchRequestToNonLeaderReplica(): Unit = {
     val groupId: String = "group"
     val metadata: ShareRequestMetadata = new ShareRequestMetadata(Uuid.randomUuid(), ShareRequestMetadata.INITIAL_EPOCH)
