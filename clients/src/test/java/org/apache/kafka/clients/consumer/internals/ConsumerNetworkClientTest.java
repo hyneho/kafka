@@ -278,11 +278,11 @@ public class ConsumerNetworkClientTest {
         consumerClient.pollNoWakeup(); // dequeue and send the request
 
         client.enableBlockingUntilWakeup(2);
-        Thread t1 = new Thread(() -> assertDoesNotThrow(() -> {
+        Thread t1 = new Thread(() ->  {
             t1TheardCountDownLatch.countDown();
             consumerClient.pollNoWakeup();
             t2ThreadCountDownLatch.countDown();
-        }));
+        });
         
         t1.start();
 
