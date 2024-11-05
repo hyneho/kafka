@@ -537,6 +537,10 @@ public class EosIntegrationTest {
             errorInjected.set(true);
             writeInputData(dataAfterFailure);
 
+            waitForCondition(
+                () -> uncaughtException != null, MAX_WAIT_TIME_MS,
+                "Should receive uncaught exception from one StreamThread.");
+
             // expected end state per output partition (C == COMMIT; A == ABORT; ---> indicate the changes):
             //
             // p-0: ---> 10 rec + C  + 5 rec + C    + 5 rec + C
@@ -1102,8 +1106,8 @@ public class EosIntegrationTest {
 
         streams.setUncaughtExceptionHandler(e -> {
             if (uncaughtException != null ||
-                    !(e instanceof StreamsException) ||
-                    !e.getCause().getMessage().equals("Injected test exception.")) {
+                !(e instanceof StreamsException) ||
+                !e.getCause().getMessage().equals("Injected test exception.")) {
                 e.printStackTrace(System.err);
                 hasUnexpectedError = true;
             }
