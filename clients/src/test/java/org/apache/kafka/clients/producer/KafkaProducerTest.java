@@ -129,6 +129,7 @@ import javax.management.ObjectName;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.apache.kafka.test.TestUtils.assertFutureThrows;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1109,6 +1110,7 @@ public class KafkaProducerTest {
     public void testHeadersFailure() {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+        props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 500);
         props.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, ProducerInterceptorForHeaders.class.getName());
         Serializer<String> keySerializer = mock(Serializer.class);
         Serializer<String> valueSerializer = mock(Serializer.class);
@@ -1117,7 +1119,7 @@ public class KafkaProducerTest {
         ProducerRecord<String, String> record = new ProducerRecord<>("topic", "key", "value");
         Future<RecordMetadata> future = producer.send(record, (recordMetadata, exception) -> { });
         try {
-            assertInstanceOf(TimeoutException.class, assertThrows(ExecutionException.class, future::get).getCause());
+            assertFutureThrows(future, TimeoutException.class);
             //ensure headers are writable if send failure
             RecordHeaders recordHeaders = (RecordHeaders) record.headers();
             assertFalse(recordHeaders.isReadOnly());
@@ -1290,7 +1292,7 @@ public class KafkaProducerTest {
                 "Timed out while waiting for expected `InitProducerId` request to be sent");
 
             time.sleep(maxBlockMs);
-            TestUtils.assertFutureThrows(future, TimeoutException.class);
+            assertFutureThrows(future, TimeoutException.class);
 
             client.respond(initProducerIdResponse(1L, (short) 5, Errors.NONE));
 
