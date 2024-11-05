@@ -425,8 +425,7 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
         return adminDelegate.listShareGroups(options);
     }
 
-
-    @Overrride
+    @Override
     public DescribeClassicGroupsResult describeClassicGroups(final Collection<String> groupIds, final DescribeClassicGroupsOptions options) {
         return adminDelegate.describeClassicGroups(groupId, options);
     }
