@@ -23,7 +23,6 @@ import kafka.server.QuotaFactory;
 import kafka.server.ReplicaManager;
 
 import org.apache.kafka.common.TopicIdPartition;
-import org.apache.kafka.common.message.ShareFetchResponseData;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.server.share.fetch.ShareFetchData;
@@ -117,17 +116,16 @@ public class DelayedShareFetch extends DelayedOperation {
             if (partitionsAlreadyFetched.isEmpty())
                 responseData = readFromLog(topicPartitionData);
             else
-                // There can't be a case when we have a non-empty logReadResponse, and we have a fresh topicPartitionData
-                // using tryComplete because purgatory ensures that 2 tryCompletes calls do not happen at the same time.
+                // There can't be a case when we have a partitionsAlreadyFetched value here and this variable is getting
+                // updated in a different tryComplete thread.
                 responseData = combineLogReadResponse(topicPartitionData, partitionsAlreadyFetched);
 
             Map<TopicIdPartition, FetchPartitionData> fetchPartitionsData = new LinkedHashMap<>();
             for (Map.Entry<TopicIdPartition, LogReadResult> entry : responseData.entrySet())
                 fetchPartitionsData.put(entry.getKey(), entry.getValue().toFetchPartitionData(false));
 
-            Map<TopicIdPartition, ShareFetchResponseData.PartitionData> result =
-                ShareFetchUtils.processFetchResponse(partitionsToComplete, fetchPartitionsData, sharePartitionManager, replicaManager);
-            partitionsToComplete.future().complete(result);
+            partitionsToComplete.future().complete(ShareFetchUtils.processFetchResponse(partitionsToComplete, fetchPartitionsData,
+                sharePartitionManager, replicaManager));
         } catch (Exception e) {
             log.error("Error processing delayed share fetch request", e);
             sharePartitionManager.handleFetchException(partitionsToComplete.groupId(), topicPartitionData.keySet(), partitionsToComplete.future(), e);
@@ -160,7 +158,7 @@ public class DelayedShareFetch extends DelayedOperation {
                 // replicaManager.readFromLog to populate the offset metadata and update the fetch offset metadata for
                 // those topic partitions.
                 Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse = maybeReadFromLog(topicPartitionData);
-                updateFetchOffsetMetadata(replicaManagerReadResponse);
+                maybeUpdateFetchOffsetMetadata(replicaManagerReadResponse);
                 if (anyTopicIdPartitionHasLogReadError(replicaManagerReadResponse) || isMinBytesSatisfied(topicPartitionData)) {
                     partitionsAcquired = topicPartitionData;
                     partitionsAlreadyFetched = replicaManagerReadResponse;
@@ -191,7 +189,7 @@ public class DelayedShareFetch extends DelayedOperation {
             // If invocation of forceComplete is not successful, then that means the request is already completed
             // hence release the acquired locks.
             if (!completedByMe) {
-                releasePartitionLocks(partitionsAcquired.keySet());
+                releasePartitionLocks(topicPartitionData.keySet());
             }
             return completedByMe;
         }
@@ -259,15 +257,15 @@ public class DelayedShareFetch extends DelayedOperation {
         return readFromLog(missingFetchOffsetMetadataTopicPartitions);
     }
 
-    private void updateFetchOffsetMetadata(
+    private void maybeUpdateFetchOffsetMetadata(
         Map<TopicIdPartition, LogReadResult> replicaManagerReadResponseData) {
         for (Map.Entry<TopicIdPartition, LogReadResult> entry : replicaManagerReadResponseData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
             SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             LogReadResult replicaManagerLogReadResult = entry.getValue();
             if (replicaManagerLogReadResult.error().code() != Errors.NONE.code()) {
-                log.debug("Replica manager read log result {} does not contain topic partition {}",
-                    replicaManagerReadResponseData, topicIdPartition);
+                log.debug("Replica manager read log result {} errored out for topic partition {}",
+                    replicaManagerLogReadResult, topicIdPartition);
                 continue;
             }
             sharePartition.updateFetchOffsetMetadata(Optional.of(replicaManagerLogReadResult.info().fetchOffsetMetadata));
@@ -316,7 +314,7 @@ public class DelayedShareFetch extends DelayedOperation {
         Partition partition = replicaManager.getPartitionOrException(topicIdPartition.topicPartition());
         LogOffsetSnapshot offsetSnapshot = partition.fetchOffsetSnapshot(Optional.empty(), true);
         // The FetchIsolation type that we use for share fetch is FetchIsolation.HIGH_WATERMARK. In the future, we can
-        // extend it other FetchIsolation types.
+        // extend it to support other FetchIsolation types.
         FetchIsolation isolationType = partitionsToComplete.fetchParams().isolation;
         if (isolationType == FetchIsolation.LOG_END)
             return offsetSnapshot.logEndOffset;
