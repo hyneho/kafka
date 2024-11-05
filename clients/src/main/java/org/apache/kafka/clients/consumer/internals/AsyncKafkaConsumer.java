@@ -238,7 +238,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     private final ConsumerInterceptors<K, V> interceptors;
     private final IsolationLevel isolationLevel;
 
-    private final SubscriptionState subscriptions;
+    private volatile SubscriptionStateSnapshot subscriptionSnapshot;
     private final ConsumerMetadata metadata;
     private final Metrics metrics;
     private final long retryBackoffMs;
@@ -274,6 +274,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             CompletableEventReaper::new,
             FetchCollector::new,
             ConsumerMetadata::new,
+            SubscriptionState::new,
             new LinkedBlockingQueue<>()
         );
     }
@@ -287,6 +288,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                        final CompletableEventReaperFactory backgroundEventReaperFactory,
                        final FetchCollectorFactory<K, V> fetchCollectorFactory,
                        final ConsumerMetadataFactory metadataFactory,
+                       final SubscriptionStateFactory subscriptionStateFactory,
                        final LinkedBlockingQueue<BackgroundEvent> backgroundEventQueue) {
         try {
             GroupRebalanceConfig groupRebalanceConfig = new GroupRebalanceConfig(
@@ -311,7 +313,12 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             List<ConsumerInterceptor<K, V>> interceptorList = configuredConsumerInterceptors(config);
             this.interceptors = new ConsumerInterceptors<>(interceptorList);
             this.deserializers = new Deserializers<>(config, keyDeserializer, valueDeserializer);
-            this.subscriptions = createSubscriptionState(config, logContext);
+            this.subscriptionSnapshot = new SubscriptionStateSnapshot();
+            SubscriptionState subscriptions = subscriptionStateFactory.build(
+                logContext,
+                ConsumerUtils.configuredOffsetResetStrategy(config)
+            );
+            subscriptions.setSubscriptionStateChangedListener(this::updateSubscriptionState);
             ClusterResourceListeners clusterResourceListeners = ClientUtils.configureClusterResourceListeners(metrics.reporters(),
                     interceptorList,
                     Arrays.asList(deserializers.keyDeserializer, deserializers.valueDeserializer));
@@ -430,7 +437,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                        String groupId,
                        boolean autoCommitEnabled) {
         this.log = logContext.logger(getClass());
-        this.subscriptions = subscriptions;
+        this.subscriptionSnapshot = new SubscriptionStateSnapshot();
+        subscriptions.setSubscriptionStateChangedListener(this::updateSubscriptionState);
         this.clientId = clientId;
         this.fetchBuffer = fetchBuffer;
         this.fetchCollector = fetchCollector;
@@ -463,7 +471,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                        SubscriptionState subscriptions,
                        ConsumerMetadata metadata) {
         this.log = logContext.logger(getClass());
-        this.subscriptions = subscriptions;
+        this.subscriptionSnapshot = new SubscriptionStateSnapshot();
+        subscriptions.setSubscriptionStateChangedListener(this::updateSubscriptionState);
         this.clientId = config.getString(ConsumerConfig.CLIENT_ID_CONFIG);
         this.autoCommitEnabled = config.getBoolean(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG);
         this.fetchBuffer = new FetchBuffer(logContext);
@@ -598,6 +607,17 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     }
 
+    // auxiliary interface for testing
+    interface SubscriptionStateFactory {
+
+        SubscriptionState build(final LogContext logContext, final OffsetResetStrategy defaultResetStrategy);
+
+    }
+
+    private void updateSubscriptionState(SubscriptionState subscriptions) {
+        this.subscriptionSnapshot = subscriptions.snapshot();
+    }
+
     private Optional<ConsumerGroupMetadata> initializeGroupMetadata(final ConsumerConfig config,
                                                                     final GroupRebalanceConfig groupRebalanceConfig) {
         final Optional<ConsumerGroupMetadata> groupMetadata = initializeGroupMetadata(
@@ -693,7 +713,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         try {
             kafkaConsumerMetrics.recordPollStart(timer.currentTimeMs());
 
-            if (subscriptions.hasNoSubscriptionOrUserAssignment()) {
+            if (subscriptionSnapshot.hasNoSubscriptionOrUserAssignment()) {
                 throw new IllegalStateException("Consumer is not subscribed to any topics or assigned any partitions");
             }
 
@@ -755,7 +775,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public void commitAsync(OffsetCommitCallback callback) {
-        commitAsync(subscriptions.allConsumed(), callback);
+        commitAsync(subscriptionSnapshot.allConsumed(), callback);
     }
 
     @Override
@@ -880,12 +900,12 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public long position(TopicPartition partition, Duration timeout) {
         acquireAndEnsureOpen();
         try {
-            if (!subscriptions.isAssigned(partition))
+            if (!subscriptionSnapshot.isAssigned(partition))
                 throw new IllegalStateException("You can only check the position for partitions assigned to this consumer.");
 
             Timer timer = time.timer(timeout);
             do {
-                SubscriptionState.FetchPosition position = subscriptions.validPosition(partition);
+                SubscriptionState.FetchPosition position = subscriptionSnapshot.validPosition(partition);
                 if (position != null)
                     return position.offset;
 
@@ -1012,7 +1032,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public Set<TopicPartition> paused() {
         acquireAndEnsureOpen();
         try {
-            return Collections.unmodifiableSet(subscriptions.pausedPartitions());
+            return Collections.unmodifiableSet(subscriptionSnapshot.pausedPartitions());
         } finally {
             release();
         }
@@ -1282,7 +1302,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     // Visible for testing
     void commitSyncAllConsumed(final Timer timer) {
-        Map<TopicPartition, OffsetAndMetadata> allConsumed = subscriptions.allConsumed();
+        Map<TopicPartition, OffsetAndMetadata> allConsumed = subscriptionSnapshot.allConsumed();
         log.debug("Sending synchronous auto-commit of offsets {} on closing", allConsumed);
         try {
             commitSync(allConsumed, Duration.ofMillis(timer.remainingMs()));
@@ -1306,7 +1326,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      */
     @Override
     public void commitSync(final Duration timeout) {
-        commitSync(subscriptions.allConsumed(), timeout);
+        commitSync(subscriptionSnapshot.allConsumed(), timeout);
     }
 
     @Override
@@ -1373,7 +1393,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public Set<TopicPartition> assignment() {
         acquireAndEnsureOpen();
         try {
-            return Collections.unmodifiableSet(subscriptions.assignedPartitions());
+            return Collections.unmodifiableSet(subscriptionSnapshot.assignedPartitions());
         } finally {
             release();
         }
@@ -1388,7 +1408,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public Set<String> subscription() {
         acquireAndEnsureOpen();
         try {
-            return Collections.unmodifiableSet(subscriptions.subscription());
+            return Collections.unmodifiableSet(subscriptionSnapshot.subscription());
         } finally {
             release();
         }
@@ -1416,7 +1436,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             // Clear the buffered data which are not a part of newly assigned topics
             final Set<TopicPartition> currentTopicPartitions = new HashSet<>();
 
-            for (TopicPartition tp : subscriptions.assignedPartitions()) {
+            for (TopicPartition tp : subscriptionSnapshot.assignedPartitions()) {
                 if (partitions.contains(tp))
                     currentTopicPartitions.add(tp);
             }
@@ -1445,7 +1465,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             UnsubscribeEvent unsubscribeEvent = new UnsubscribeEvent(calculateDeadlineMs(timer));
             applicationEventHandler.add(unsubscribeEvent);
             log.info("Unsubscribing all topics or patterns and assigned partitions {}",
-                    subscriptions.assignedPartitions());
+                    subscriptionSnapshot.assignedPartitions());
 
             try {
                 // If users subscribe to an invalid topic name, they will get InvalidTopicException in error events,
@@ -1752,7 +1772,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 // Clear the buffered data which are not a part of newly assigned topics
                 final Set<TopicPartition> currentTopicPartitions = new HashSet<>();
 
-                for (TopicPartition tp : subscriptions.assignedPartitions()) {
+                for (TopicPartition tp : subscriptionSnapshot.assignedPartitions()) {
                     if (topics.contains(tp.topic()))
                         currentTopicPartitions.add(tp);
                 }
@@ -1935,10 +1955,5 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             }
             throw new FencedInstanceIdException("Get fenced exception for group.instance.id " + groupInstanceId);
         }
-    }
-
-    // Visible for testing
-    SubscriptionState subscriptions() {
-        return subscriptions;
     }
 }

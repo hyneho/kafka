@@ -129,9 +129,13 @@ public final class ConsumerUtils {
         return IsolationLevel.valueOf(s);
     }
 
-    public static SubscriptionState createSubscriptionState(ConsumerConfig config, LogContext logContext) {
+    public static OffsetResetStrategy configuredOffsetResetStrategy(ConsumerConfig config) {
         String s = config.getString(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG).toUpperCase(Locale.ROOT);
-        OffsetResetStrategy strategy = OffsetResetStrategy.valueOf(s);
+        return OffsetResetStrategy.valueOf(s);
+    }
+
+    public static SubscriptionState createSubscriptionState(ConsumerConfig config, LogContext logContext) {
+        OffsetResetStrategy strategy = configuredOffsetResetStrategy(config);
         return new SubscriptionState(logContext, strategy);
     }
 
