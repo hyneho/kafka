@@ -65,7 +65,7 @@ public class SubscriptionStateSnapshot {
         SnapshotState state = assignment.get(tp);
 
         if (state == null)
-            throw new IllegalStateException("No current assignment for partition " + tp);
+            throw new IllegalStateException("You can only check the position for partitions assigned to this consumer.");
 
         return state.validPosition.orElse(null);
     }
