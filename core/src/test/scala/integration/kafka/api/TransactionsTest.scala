@@ -568,6 +568,8 @@ class TransactionsTest extends IntegrationTestHarness {
     val consumer = transactionalConsumers(0)
 
     consumer.subscribe(List(topic1, topic2).asJava)
+    TestUtils.waitUntilLeaderIsKnown(brokers, new TopicPartition(topic1, 0))
+    TestUtils.waitUntilLeaderIsKnown(brokers, new TopicPartition(topic2, 0))
 
     producer1.initTransactions()
     producer1.beginTransaction()
@@ -780,7 +782,7 @@ class TransactionsTest extends IntegrationTestHarness {
   }
 
   @ParameterizedTest
-  @CsvSource(Array("kraft, false"))
+  @CsvSource(Array("kraft, true"))
   def testBumpTransactionalEpochWithTV2Enabled(quorum: String, isTV2Enabled: Boolean): Unit = {
     val producer = createTransactionalProducer("transactionalProducer",
       deliveryTimeoutMs = 5000, requestTimeoutMs = 5000)
@@ -807,6 +809,8 @@ class TransactionsTest extends IntegrationTestHarness {
       var producerStateEntry = activeProducersIter.next().getValue
       val producerId = producerStateEntry.producerId
       var previousProducerEpoch = producerStateEntry.producerEpoch
+
+      Thread.sleep(3000) // Wait for the markers to be persisted and the transaction state to be updated.
 
       // Second transaction: abort
       producer.beginTransaction()
