@@ -46,7 +46,7 @@
     { "name": "Topics", "type": "[]ListOffsetsTopicResponse", "versions": "0+",
       "about": "Each topic in the response.", "fields": [
       { "name": "Name", "type": "string", "versions": "0+", "entityType": "topicName",
-        "about": "The topic name" },
+        "about": "The topic name." },
       { "name": "Partitions", "type": "[]ListOffsetsPartitionResponse", "versions": "0+",
         "about": "Each partition in the response.", "fields": [
         { "name": "PartitionIndex", "type": "int32", "versions": "0+",

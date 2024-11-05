@@ -42,7 +42,7 @@
     { "name": "Responses", "type": "[]TopicProduceResponse", "versions": "0+",
       "about": "Each produce response.", "fields": [
       { "name": "Name", "type": "string", "versions": "0+", "entityType": "topicName", "mapKey": true,
-        "about": "The topic name" },
+        "about": "The topic name." },
       { "name": "PartitionResponses", "type": "[]PartitionProduceResponse", "versions": "0+",
         "about": "Each partition that we produced to within the topic.", "fields": [
         { "name": "Index", "type": "int32", "versions": "0+",

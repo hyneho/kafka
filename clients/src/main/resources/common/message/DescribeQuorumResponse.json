@@ -41,7 +41,7 @@
         { "name": "LeaderId", "type": "int32", "versions": "0+", "entityType": "brokerId",
           "about": "The ID of the current leader or -1 if the leader is unknown."},
         { "name": "LeaderEpoch", "type": "int32", "versions": "0+",
-          "about": "The latest known leader epoch"},
+          "about": "The latest known leader epoch."},
         { "name": "HighWatermark", "type": "int64", "versions": "0+",
           "about": "The high watermark of the partition."},
         { "name": "CurrentVoters", "type": "[]ReplicaState", "versions": "0+",
@@ -54,15 +54,15 @@
     "about": "The response from the describe quorum API."},
     { "name": "Nodes", "type": "[]Node", "versions": "2+", "fields": [
       { "name": "NodeId", "type": "int32", "versions": "2+",
-        "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node" },
+        "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node." },
       { "name": "Listeners", "type": "[]Listener",
-        "about": "The listeners of this controller", "versions": "2+", "fields": [
+        "about": "The listeners of this controller.", "versions": "2+", "fields": [
         { "name": "Name", "type": "string", "versions": "2+", "mapKey": true,
-          "about": "The name of the endpoint" },
+          "about": "The name of the endpoint." },
         { "name": "Host", "type": "string", "versions": "2+",
-          "about": "The hostname" },
+          "about": "The hostname." },
         { "name": "Port", "type": "uint16", "versions": "2+",
-          "about": "The port" }
+          "about": "The port." }
       ]}
     ],
     "about": "The nodes in the quorum."}
@@ -74,11 +74,11 @@
       { "name": "ReplicaDirectoryId", "type": "uuid", "versions": "2+",
       "about": "The replica directory ID of the replica."},
       { "name": "LogEndOffset", "type": "int64", "versions": "0+",
-        "about": "The last known log end offset of the follower or -1 if it is unknown"},
+        "about": "The last known log end offset of the follower or -1 if it is unknown."},
       { "name": "LastFetchTimestamp", "type": "int64", "versions": "1+", "ignorable": true, "default": -1,
-        "about": "The last known leader wall clock time time when a follower fetched from the leader. This is reported as -1 both for the current leader or if it is unknown for a voter"},
+        "about": "The last known leader wall clock time time when a follower fetched from the leader. This is reported as -1 both for the current leader or if it is unknown for a voter."},
       { "name": "LastCaughtUpTimestamp", "type": "int64", "versions": "1+", "ignorable": true, "default": -1,
-        "about": "The leader wall clock append time of the offset for which the follower made the most recent fetch request. This is reported as the current time for the leader and -1 if unknown for a voter"}
+        "about": "The leader wall clock append time of the offset for which the follower made the most recent fetch request. This is reported as the current time for the leader and -1 if unknown for a voter."}
     ]}
   ]
 }

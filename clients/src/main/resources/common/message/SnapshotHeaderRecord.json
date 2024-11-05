@@ -20,8 +20,8 @@
   "flexibleVersions": "0+",
   "fields": [
     {"name": "Version", "type": "int16", "versions": "0+",
-      "about": "The version of the snapshot header record"},
+      "about": "The version of the snapshot header record."},
     {"name": "LastContainedLogTimestamp", "type": "int64", "versions": "0+",
-      "about": "The append time of the last record from the log contained in this snapshot"}
+      "about": "The append time of the last record from the log contained in this snapshot."}
   ]
 }

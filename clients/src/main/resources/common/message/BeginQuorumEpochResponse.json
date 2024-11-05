@@ -36,7 +36,7 @@
             { "name": "LeaderId", "type": "int32", "versions": "0+", "entityType": "brokerId",
               "about": "The ID of the current leader or -1 if the leader is unknown."},
             { "name": "LeaderEpoch", "type": "int32", "versions": "0+",
-              "about": "The latest known leader epoch"}
+              "about": "The latest known leader epoch."}
           ],
           "about": "The partition data."
         }
@@ -44,11 +44,11 @@
       "about": "The topic data."
     },
     { "name": "NodeEndpoints", "type": "[]NodeEndpoint", "versions": "1+", "taggedVersions": "1+", "tag": 0,
-      "about": "Endpoints for all leaders enumerated in PartitionData", "fields": [
+      "about": "Endpoints for all leaders enumerated in PartitionData.", "fields": [
         { "name": "NodeId", "type": "int32", "versions": "1+",
-          "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node" },
-        { "name": "Host", "type": "string", "versions": "1+", "about": "The node's hostname" },
-        { "name": "Port", "type": "uint16", "versions": "1+", "about": "The node's port" }
+          "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node." },
+        { "name": "Host", "type": "string", "versions": "1+", "about": "The node's hostname." },
+        { "name": "Port", "type": "uint16", "versions": "1+", "about": "The node's port." }
       ]
     }
   ]

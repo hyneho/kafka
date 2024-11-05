@@ -74,6 +74,6 @@
     },
     { "name":  "ZkMigrationReady", "type": "bool", "versions": "3+", "taggedVersions": "3+",
       "tag": 3, "ignorable": true, "default": "false",
-      "about": "Set by a KRaft controller if the required configurations for ZK migration are present" }
+      "about": "Set by a KRaft controller if the required configurations for ZK migration are present." }
   ]
 }

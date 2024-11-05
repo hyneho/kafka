@@ -33,7 +33,7 @@
       { "name": "LastOffset", "type": "int64", "versions": "0",
         "about": "The last offset of this state batch." },
       { "name": "DeliveryState", "type": "int8", "versions": "0",
-        "about": "The delivery state - 0:Available,2:Acked,4:Archived" },
+        "about": "The delivery state - 0:Available,2:Acked,4:Archived." },
       { "name": "DeliveryCount", "type": "int16", "versions": "0",
         "about": "The delivery count." }
     ],
