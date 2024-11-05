@@ -343,19 +343,18 @@ public class StandbyTaskEOSIntegrationTest {
 
                     @Override
                     public void process(final Record<Integer, Integer> record) {
-                        final var key = record.key();
-                        final var value = record.value();
+                        final int key = record.key();
+                        final int value = record.value();
 
                         if (skipRecord.get()) {
                             // we only forward so we can verify the skipping by reading the output topic
                             // the goal is skipping is to not modify the state store
-                            store.put(key, value);
                             context.forward(record);
                             return;
                         }
 
                         if (store.get(key) != null) {
-                            store.delete(key);
+                            return;
                         }
 
                         store.put(key, value);
@@ -367,7 +366,6 @@ public class StandbyTaskEOSIntegrationTest {
                             throw new RuntimeException("Injected test error");
                         }
 
-                        store.put(key, value);
                         context.forward(record);
                     }
                 },
