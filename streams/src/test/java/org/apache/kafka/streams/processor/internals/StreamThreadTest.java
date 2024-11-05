@@ -2296,7 +2296,7 @@ public class StreamThreadTest {
         final ProcessorSupplier<Object, Object, Object, Object> punctuateProcessor = () -> new Processor<>() {
             @Override
             public void init(final ProcessorContext<Object, Object> context) {
-                final var duration = Duration.ofMillis(100L);
+                final Duration duration = Duration.ofMillis(100L);
                 final Punctuator punctuator = timestamp -> context.forward(new Record<>("key", "value", timestamp));
                 context.schedule(duration, PunctuationType.WALL_CLOCK_TIME, punctuator);
                 context.schedule(duration, PunctuationType.STREAM_TIME, punctuator);
