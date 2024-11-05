@@ -23,6 +23,7 @@ import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException;
+import org.apache.kafka.common.errors.OffsetNotAvailableException;
 import org.apache.kafka.common.message.ShareFetchResponseData;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.FileRecords;
@@ -131,7 +132,10 @@ public class ShareFetchUtils {
         Option<FileRecords.TimestampAndOffset> timestampAndOffset = replicaManager.fetchOffsetForTimestamp(
                 topicIdPartition.topicPartition(), ListOffsetsRequest.EARLIEST_TIMESTAMP, Option.empty(),
                 Optional.empty(), true).timestampAndOffsetOpt();
-        return timestampAndOffset.isEmpty() ? (long) 0 : timestampAndOffset.get().offset;
+        if (timestampAndOffset.isEmpty()) {
+            throw new OffsetNotAvailableException("offset for Earliest timestamp not found for topic partition: " + topicIdPartition);
+        }
+        return timestampAndOffset.get().offset;
     }
 
     /**
@@ -144,7 +148,10 @@ public class ShareFetchUtils {
         Option<FileRecords.TimestampAndOffset> timestampAndOffset = replicaManager.fetchOffsetForTimestamp(
             topicIdPartition.topicPartition(), ListOffsetsRequest.LATEST_TIMESTAMP, new Some<>(IsolationLevel.READ_UNCOMMITTED),
             Optional.empty(), true).timestampAndOffsetOpt();
-        return timestampAndOffset.isEmpty() ? (long) 0 : timestampAndOffset.get().offset;
+        if (timestampAndOffset.isEmpty()) {
+            throw new OffsetNotAvailableException("offset for Latest timestamp not found for topic partition: " + topicIdPartition);
+        }
+        return timestampAndOffset.get().offset;
     }
 
     static int leaderEpoch(ReplicaManager replicaManager, TopicPartition tp) {
