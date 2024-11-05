@@ -1552,7 +1552,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
         private final String recordLogString;
         private volatile int partition = RecordMetadata.UNKNOWN_PARTITION;
         private volatile TopicPartition topicPartition;
-        private Headers headers;
+        private final Headers headers;
 
         private AppendCallbacks(Callback userCallback, ProducerInterceptors<K, V> interceptors, ProducerRecord<K, V> record) {
             this.userCallback = userCallback;

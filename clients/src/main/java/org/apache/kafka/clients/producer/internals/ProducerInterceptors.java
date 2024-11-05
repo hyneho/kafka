@@ -76,7 +76,7 @@ public class ProducerInterceptors<K, V> implements Closeable {
 
     /**
      * This method is called when the record sent to the server has been acknowledged, or when sending the record fails before
-     * it gets sent to the server. This method calls {@link ProducerInterceptor#onAcknowledgement(RecordMetadata, Exception)}
+     * it gets sent to the server. This method calls {@link ProducerInterceptor#onAcknowledgement(RecordMetadata, Exception, Headers)}
      * method for each interceptor.
      *
      * This method does not throw exceptions. Exceptions thrown by any of interceptor methods are caught and ignored.
@@ -111,7 +111,7 @@ public class ProducerInterceptors<K, V> implements Closeable {
         for (ProducerInterceptor<K, V> interceptor : this.interceptors) {
             try {
                 Headers headers = record != null ? record.headers() : null;
-                if (headers instanceof RecordHeaders) {
+                if (headers instanceof RecordHeaders && !((RecordHeaders) headers).isReadOnly()) {
                     // make a copy of the headers to make sure it is read-only
                     RecordHeaders recordHeaders = (RecordHeaders) headers;
                     headers = new RecordHeaders(recordHeaders);
