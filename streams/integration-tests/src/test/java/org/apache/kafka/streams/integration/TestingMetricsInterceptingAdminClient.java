@@ -100,6 +100,8 @@ import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsSpec;
 import org.apache.kafka.clients.admin.ListConsumerGroupsOptions;
 import org.apache.kafka.clients.admin.ListConsumerGroupsResult;
+import org.apache.kafka.clients.admin.ListGroupsOptions;
+import org.apache.kafka.clients.admin.ListGroupsResult;
 import org.apache.kafka.clients.admin.ListOffsetsOptions;
 import org.apache.kafka.clients.admin.ListOffsetsResult;
 import org.apache.kafka.clients.admin.ListPartitionReassignmentsOptions;
@@ -269,6 +271,11 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
     }
 
     @Override
+    public ListGroupsResult listGroups(final ListGroupsOptions options) {
+        return adminDelegate.listGroups(options);
+    }
+
+    @Override
     public DescribeConsumerGroupsResult describeConsumerGroups(final Collection<String> groupIds, final DescribeConsumerGroupsOptions options) {
         return adminDelegate.describeConsumerGroups(groupIds, options);
     }
@@ -420,12 +427,14 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
 
     @Override
     public void registerMetricForSubscription(final KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        passedMetrics.add(metric);
+        adminDelegate.registerMetricForSubscription(metric);
     }
 
     @Override
     public void unregisterMetricFromSubscription(final KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        passedMetrics.remove(metric);
+        adminDelegate.unregisterMetricFromSubscription(metric);
     }
 
     @Override
