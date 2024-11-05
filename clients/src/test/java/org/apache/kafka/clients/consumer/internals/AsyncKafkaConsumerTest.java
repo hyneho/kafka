@@ -150,6 +150,7 @@ import static org.mockito.Mockito.when;
 public class AsyncKafkaConsumerTest {
 
     private AsyncKafkaConsumer<String, String> consumer = null;
+    private SubscriptionState subscriptions = null;
     private Time time = new MockTime(0);
     private final FetchCollector<String, String> fetchCollector = mock(FetchCollector.class);
     private final ApplicationEventHandler applicationEventHandler = mock(ApplicationEventHandler.class);
@@ -191,6 +192,7 @@ public class AsyncKafkaConsumerTest {
     }
 
     private AsyncKafkaConsumer<String, String> newConsumer(ConsumerConfig config) {
+        subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
         return new AsyncKafkaConsumer<>(
             config,
             new StringDeserializer(),
@@ -200,6 +202,7 @@ public class AsyncKafkaConsumerTest {
             a -> backgroundEventReaper,
             (a, b, c, d, e, f, g) -> fetchCollector,
             (a, b, c, d) -> metadata,
+            (a, b) -> subscriptions,
             backgroundEventQueue
         );
     }
@@ -567,7 +570,7 @@ public class AsyncKafkaConsumerTest {
 
     @Test
     public void testCommitAsyncLeaderEpochUpdate() {
-        SubscriptionState subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
+        subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
         consumer = newConsumer(
             mock(FetchBuffer.class),
             new ConsumerInterceptors<>(Collections.emptyList()),
@@ -837,7 +840,7 @@ public class AsyncKafkaConsumerTest {
     @Test
     public void testAutoCommitSyncEnabled() {
         completeCommitSyncApplicationEventSuccessfully();
-        SubscriptionState subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
+        subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
         consumer = newConsumer(
             mock(FetchBuffer.class),
             mock(ConsumerInterceptors.class),
@@ -856,7 +859,7 @@ public class AsyncKafkaConsumerTest {
 
     @Test
     public void testAutoCommitSyncDisabled() {
-        SubscriptionState subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
+        subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
         consumer = newConsumer(
             mock(FetchBuffer.class),
             mock(ConsumerInterceptors.class),
@@ -1669,7 +1672,7 @@ public class AsyncKafkaConsumerTest {
 
     @Test
     public void testEnsurePollEventSentOnConsumerPoll() {
-        SubscriptionState subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
+        subscriptions = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
         consumer = newConsumer(
                 mock(FetchBuffer.class),
                 new ConsumerInterceptors<>(Collections.emptyList()),
@@ -1733,7 +1736,7 @@ public class AsyncKafkaConsumerTest {
         // On the first iteration, return no data; on the second, return two records
         doAnswer(invocation -> {
             // Mock the subscription being assigned as the first fetch is collected
-            consumer.subscriptions().assignFromSubscribed(Collections.singleton(tp));
+            subscriptions.assignFromSubscribed(Collections.singleton(tp));
             return Fetch.empty();
         }).doAnswer(invocation ->
             Fetch.forPartition(tp, records, true, nextOffsetAndMetadata)
@@ -2029,7 +2032,7 @@ public class AsyncKafkaConsumerTest {
     private void completeAssignmentChangeEventSuccessfully() {
         doAnswer(invocation -> {
             AssignmentChangeEvent event = invocation.getArgument(0);
-            consumer.subscriptions().assignFromUser(new HashSet<>(event.partitions()));
+            subscriptions.assignFromUser(new HashSet<>(event.partitions()));
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(AssignmentChangeEvent.class));
@@ -2038,7 +2041,7 @@ public class AsyncKafkaConsumerTest {
     private void completeTopicSubscriptionChangeEventSuccessfully() {
         doAnswer(invocation -> {
             TopicSubscriptionChangeEvent event = invocation.getArgument(0);
-            consumer.subscriptions().subscribe(event.topics(), event.listener());
+            subscriptions.subscribe(event.topics(), event.listener());
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(TopicSubscriptionChangeEvent.class));
@@ -2047,7 +2050,7 @@ public class AsyncKafkaConsumerTest {
     private void completeTopicPatternSubscriptionChangeEventSuccessfully() {
         doAnswer(invocation -> {
             TopicPatternSubscriptionChangeEvent event = invocation.getArgument(0);
-            consumer.subscriptions().subscribe(event.pattern(), event.listener());
+            subscriptions.subscribe(event.pattern(), event.listener());
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(TopicPatternSubscriptionChangeEvent.class));
@@ -2061,7 +2064,7 @@ public class AsyncKafkaConsumerTest {
                     event.offsetEpoch(),
                     metadata.currentLeader(event.partition())
             );
-            consumer.subscriptions().seekUnvalidated(event.partition(), newPosition);
+            subscriptions.seekUnvalidated(event.partition(), newPosition);
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(SeekUnvalidatedEvent.class));
