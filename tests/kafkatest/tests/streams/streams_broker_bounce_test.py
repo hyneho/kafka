@@ -249,10 +249,10 @@ class StreamsBrokerBounceTest(Test):
 
         return self.collect_results(sleep_time_secs)
 
-    @cluster(num_nodes=7)
+    @cluster(num_nodes=10)
     @matrix(failure_mode=["clean_shutdown", "hard_shutdown", "clean_bounce", "hard_bounce"],
             num_failures=[2],
-            metadata_quorum=[quorum.combined_kraft])
+            metadata_quorum=[quorum.isolated_kraft])
     def test_many_brokers_bounce(self, failure_mode, num_failures, metadata_quorum):
         """
         Start a smoke test client, then kill a few brokers and ensure data is still received
@@ -268,10 +268,10 @@ class StreamsBrokerBounceTest(Test):
 
         return self.collect_results(120)
 
-    @cluster(num_nodes=7)
+    @cluster(num_nodes=10)
     @matrix(failure_mode=["clean_bounce", "hard_bounce"],
             num_failures=[3],
-            metadata_quorum=[quorum.combined_kraft])
+            metadata_quorum=[quorum.isolated_kraft])
     def test_all_brokers_bounce(self, failure_mode, num_failures, metadata_quorum):
         """
         Start a smoke test client, then kill a few brokers and ensure data is still received
