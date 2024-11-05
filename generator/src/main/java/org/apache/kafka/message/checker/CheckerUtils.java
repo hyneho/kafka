@@ -111,11 +111,11 @@ class CheckerUtils {
      */
     static MessageSpec readMessageSpecFromString(String contents) {
         try {
-            File myObj = new File("temp.txt");
-            myObj.createNewFile();
+            File tempFile = new File("temp.txt");
+            tempFile.createNewFile();
             Files.write(Paths.get("temp.txt"), contents.getBytes());
-            MessageSpec messageSpec = MessageGenerator.JSON_SERDE.readValue(myObj, MessageSpec.class);
-            myObj.deleteOnExit();
+            MessageSpec messageSpec = MessageGenerator.JSON_SERDE.readValue(tempFile, MessageSpec.class);
+            tempFile.deleteOnExit();
             return messageSpec;
         } catch (Exception e) {
             throw new RuntimeException("Unable to parse file as MessageSpec: " + contents, e);

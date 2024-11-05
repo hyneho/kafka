@@ -1851,8 +1851,6 @@ project(':generator') {
     testImplementation libs.junitJupiter
 
     testRuntimeOnly libs.junitPlatformLanucher
-
-
   }
 
   javadoc {
