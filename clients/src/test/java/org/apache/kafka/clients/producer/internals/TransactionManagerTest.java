@@ -947,7 +947,7 @@ public class TransactionManagerTest {
     }
 
     @Test
-    public void testBasicTransactionV2() throws InterruptedException {
+    public void testTransactionV2AddPartitionAndOffsets() throws InterruptedException {
         initializeTransactionManager(Optional.of(transactionalId), true);
         doInitTransactions();
 
