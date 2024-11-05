@@ -94,10 +94,10 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
         replicationFactor = replicationFactor,
         topicConfig = topicConfig
       )
+      partitionToLeader.map { case (partition, leader) => new TopicIdPartition(getTopicIds(topic), new TopicPartition(topic, partition)) -> leader }
     } finally {
       admin.close()
     }
-    partitionToLeader.map { case (partition, leader) => new TopicIdPartition(getTopicIds(topic), new TopicPartition(topic, partition)) -> leader }
   }
 
   protected def isUnstableApiEnabled: Boolean = {
