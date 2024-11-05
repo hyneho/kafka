@@ -749,6 +749,7 @@ public class AsyncKafkaConsumerTest {
             subscriptions,
             "group-id",
             "client-id"));
+        consumer.setAssignmentSnapshot(partitions);
 
         Throwable t = assertThrows(KafkaException.class, () -> consumer.close(Duration.ZERO));
         assertNotNull(t.getCause());
@@ -1683,9 +1684,11 @@ public class AsyncKafkaConsumerTest {
         final OffsetAndMetadata nextOffsetAndMetadata = new OffsetAndMetadata(4, Optional.of(0), "");
 
         // On the first iteration, return no data; on the second, return two records
+        Set<TopicPartition> partitions = singleton(tp);
         doAnswer(invocation -> {
             // Mock the subscription being assigned as the first fetch is collected
-            consumer.subscriptions().assignFromSubscribed(Collections.singleton(tp));
+            consumer.subscriptions().assignFromSubscribed(partitions);
+            consumer.setAssignmentSnapshot(partitions);
             return Fetch.empty();
         }).doAnswer(invocation ->
             Fetch.forPartition(tp, records, true, nextOffsetAndMetadata)
@@ -1699,7 +1702,7 @@ public class AsyncKafkaConsumerTest {
         assertEquals(Optional.of(0), returnedRecords.nextOffsets().get(tp).leaderEpoch());
 
         assertEquals(singleton(topicName), consumer.subscription());
-        assertEquals(singleton(tp), consumer.assignment());
+        assertEquals(partitions, consumer.assignment());
     }
 
     /**
@@ -1969,7 +1972,9 @@ public class AsyncKafkaConsumerTest {
     private void completeAssignmentChangeEventSuccessfully() {
         doAnswer(invocation -> {
             AssignmentChangeEvent event = invocation.getArgument(0);
-            consumer.subscriptions().assignFromUser(new HashSet<>(event.partitions()));
+            HashSet<TopicPartition> partitions = new HashSet<>(event.partitions());
+            consumer.subscriptions().assignFromUser(partitions);
+            consumer.setAssignmentSnapshot(partitions);
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(AssignmentChangeEvent.class));

@@ -564,6 +564,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
                 transitionTo(MemberState.UNSUBSCRIBED);
             }
             subscriptions.unsubscribe();
+            notifyAssignmentChange(Collections.emptySet());
             return CompletableFuture.completedFuture(null);
         }
 
@@ -591,6 +592,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             // Clear the subscription, no matter if the callback execution failed or succeeded.
             subscriptions.unsubscribe();
             clearAssignment();
+            notifyAssignmentChange(Collections.emptySet());
 
             // Transition to ensure that a heartbeat request is sent out to effectively leave the
             // group (even in the case where the member had no assignment to release or when the
@@ -643,6 +645,15 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      */
     void notifyEpochChange(Optional<Integer> epoch) {
         stateUpdatesListeners.forEach(stateListener -> stateListener.onMemberEpochUpdated(epoch, memberId));
+    }
+
+    /**
+     * Invokes the {@link MemberStateListener#onAssignmentUpdated(Set)} callback for each listener when the
+     * set of assigned partitions changes. This includes on assignment changes, unsubscribing, and when leaving
+     * the group.
+     */
+    public void notifyAssignmentChange(Set<TopicPartition> partitions) {
+        stateUpdatesListeners.forEach(stateListener -> stateListener.onAssignmentUpdated(partitions));
     }
 
     /**
@@ -1158,6 +1169,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             if (exception == null) {
                 // Enable newly added partitions to start fetching and updating positions for them.
                 subscriptions.enablePartitionsAwaitingCallback(addedPartitions);
+                notifyAssignmentChange(addedPartitions);
             } else {
                 // Keeping newly added partitions as non-fetchable after the callback failure.
                 // They will be retried on the next reconciliation loop, until it succeeds or the
