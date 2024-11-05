@@ -130,7 +130,7 @@ public class DelayedShareFetchTest {
     }
 
     @Test
-    public void testDelayedShareFetchTryCompleteReturnsFalseDueToMinBytesOnFirstSharePartitionFetch() {
+    public void testTryCompleteReturnsFalseWhenMinBytesNotSatisfiedOnFirstFetch() {
         String groupId = "grp";
         Uuid topicId = Uuid.randomUuid();
         ReplicaManager replicaManager = mock(ReplicaManager.class);
@@ -160,11 +160,16 @@ public class DelayedShareFetchTest {
         when(sp0.acquire(any(), anyInt(), any())).thenReturn(
             ShareAcquiredRecords.fromAcquiredRecords(new ShareFetchResponseData.AcquiredRecords().setFirstOffset(0).setLastOffset(3).setDeliveryCount((short) 1)));
 
-        // We are testing the case when the share partition is getting fetched for the first time, hence we are using 1
-        // as the file position, so it doesn't satisfy the minBytes(2).
-        when(sp0.fetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
+        // We are testing the case when the share partition is getting fetched for the first time, so for the first time
+        // the fetchOffsetMetadata will return empty. Post the readFromLog call, the fetchOffsetMetadata will be
+        // populated for the share partition, which has 1 as the positional difference, so it doesn't satisfy the minBytes(2).
+        when(sp0.fetchOffsetMetadata())
+            .thenReturn(Optional.empty())
+            .thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
         LogOffsetMetadata hwmOffsetMetadata = new LogOffsetMetadata(1, 1, 1);
         mockTopicIdPartitionFetchBytes(replicaManager, tp0, hwmOffsetMetadata);
+
+        doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp0))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
 
         DelayedShareFetch delayedShareFetch = spy(DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetchData)
@@ -173,14 +178,14 @@ public class DelayedShareFetchTest {
             .build());
         assertFalse(delayedShareFetch.isCompleted());
 
-        // Since sp1 can be acquired, tryComplete should return true.
+        // Since sp1 cannot be acquired, tryComplete should return false.
         assertFalse(delayedShareFetch.tryComplete());
         assertFalse(delayedShareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
     }
 
     @Test
-    public void testDelayedShareFetchTryCompleteReturnsFalseDueToMinBytesOnLatestSharePartitionFetch() {
+    public void testTryCompleteReturnsFalseWhenMinBytesNotSatisfiedOnLatestFetch() {
         String groupId = "grp";
         Uuid topicId = Uuid.randomUuid();
         ReplicaManager replicaManager = mock(ReplicaManager.class);
@@ -224,7 +229,7 @@ public class DelayedShareFetchTest {
             .build());
         assertFalse(delayedShareFetch.isCompleted());
 
-        // Since sp1 can be acquired, tryComplete should return true.
+        // Since sp1 cannot be acquired, tryComplete should return false.
         assertFalse(delayedShareFetch.tryComplete());
         assertFalse(delayedShareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
@@ -529,13 +534,11 @@ public class DelayedShareFetchTest {
         topicPartitionData.put(tp1, mock(FetchRequest.PartitionData.class));
 
         // Case 1 - logReadResponse contains tp0.
-
         Map<TopicIdPartition, LogReadResult> logReadResponse = Collections.singletonMap(
             tp0, mock(LogReadResult.class));
-        delayedShareFetch.updateLogReadResponse(logReadResponse);
 
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp1))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
-        Map<TopicIdPartition, LogReadResult> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData);
+        Map<TopicIdPartition, LogReadResult> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
         assertEquals(combinedLogReadResponse.get(tp0), logReadResponse.get(tp0));
 
@@ -543,8 +546,7 @@ public class DelayedShareFetchTest {
         logReadResponse = new HashMap<>();
         logReadResponse.put(tp0, mock(LogReadResult.class));
         logReadResponse.put(tp1, mock(LogReadResult.class));
-        delayedShareFetch.updateLogReadResponse(logReadResponse);
-        combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData);
+        combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
         assertEquals(combinedLogReadResponse.get(tp0), logReadResponse.get(tp0));
         assertEquals(combinedLogReadResponse.get(tp1), logReadResponse.get(tp1));
