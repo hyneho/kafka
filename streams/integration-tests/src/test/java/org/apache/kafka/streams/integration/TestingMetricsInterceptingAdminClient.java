@@ -429,7 +429,7 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
 
     @Override
     public DescribeClassicGroupsResult describeClassicGroups(final Collection<String> groupIds, final DescribeClassicGroupsOptions options) {
-        return adminDelegate.describeClassicGroups(groupId, options);
+        return adminDelegate.describeClassicGroups(groupIds, options);
     }
 
     @Override
