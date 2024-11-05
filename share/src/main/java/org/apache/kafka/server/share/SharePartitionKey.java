@@ -104,13 +104,13 @@ public class SharePartitionKey {
 
         try {
             Uuid.fromString(tokens[1]);
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("Invalid topic ID: " + tokens[1], e);
         }
 
         try {
             Integer.parseInt(tokens[2]);
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("Invalid partition: " + tokens[2], e);
         }
     }
