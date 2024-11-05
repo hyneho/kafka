@@ -48,12 +48,15 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
 
   protected def createOffsetsTopic(): Unit = {
     val admin = cluster.admin()
-    TestUtils.createOffsetsTopicWithAdmin(
-      admin = admin,
-      brokers = brokers(),
-      controllers = controllerServers()
-    )
-    admin.close()
+    try {
+      TestUtils.createOffsetsTopicWithAdmin(
+        admin = admin,
+        brokers = brokers(),
+        controllers = controllerServers()
+      )
+    } finally {
+      admin.close()
+    }
   }
 
   protected def createTopic(
@@ -61,14 +64,17 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     numPartitions: Int
   ): Unit = {
     val admin = cluster.admin()
-    TestUtils.createTopicWithAdmin(
-      admin = admin,
-      brokers = brokers(),
-      controllers = controllerServers(),
-      topic = topic,
-      numPartitions = numPartitions
-    )
-    admin.close()
+    try {
+      TestUtils.createTopicWithAdmin(
+        admin = admin,
+        brokers = brokers(),
+        controllers = controllerServers(),
+        topic = topic,
+        numPartitions = numPartitions
+      )
+    } finally {
+      admin.close()
+    }
   }
 
   protected def createTopicAndReturnLeaders(
@@ -78,16 +84,19 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     topicConfig: Properties = new Properties
   ): Map[TopicIdPartition, Int] = {
     val admin = cluster.admin()
-    val partitionToLeader = TestUtils.createTopicWithAdmin(
-      admin = admin,
-      topic = topic,
-      brokers = brokers(),
-      controllers = controllerServers(),
-      numPartitions = numPartitions,
-      replicationFactor = replicationFactor,
-      topicConfig = topicConfig
-    )
-    admin.close()
+    try {
+      val partitionToLeader = TestUtils.createTopicWithAdmin(
+        admin = admin,
+        topic = topic,
+        brokers = brokers(),
+        controllers = controllerServers(),
+        numPartitions = numPartitions,
+        replicationFactor = replicationFactor,
+        topicConfig = topicConfig
+      )
+    } finally {
+      admin.close()
+    }
     partitionToLeader.map { case (partition, leader) => new TopicIdPartition(getTopicIds(topic), new TopicPartition(topic, partition)) -> leader }
   }
 
