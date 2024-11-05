@@ -18,6 +18,7 @@ package org.apache.kafka.clients.producer;
 
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.Utils;
 
 import java.util.List;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class RoundRobinPartitioner implements Partitioner {
     private final ConcurrentMap<String, AtomicInteger> topicCounterMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, TopicPartition> previousPartitions = new ConcurrentHashMap<>();
 
     public void configure(Map<String, ?> configs) {}
 
@@ -51,6 +53,11 @@ public class RoundRobinPartitioner implements Partitioner {
      */
     @Override
     public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
+        TopicPartition prevPartition = previousPartitions.remove(Thread.currentThread().getId());
+        if (prevPartition != null && topic.equals(prevPartition.topic())) {
+            return prevPartition.partition();
+        }
+
         int nextValue = nextValue(topic);
         List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);
         if (!availablePartitions.isEmpty()) {
@@ -71,16 +78,8 @@ public class RoundRobinPartitioner implements Partitioner {
     @SuppressWarnings("deprecation")
     @Override
     public void onNewBatch(String topic, Cluster cluster, int prevPartition) {
-        topicCounterMap.compute(topic, (k, counter) -> {
-            if (counter != null) {
-                // On new batches, partition() will be called again, effectively incrementing the counter twice
-                // To avoid skipping partitions, decrement once
-                counter.decrementAndGet();
-            }
-            return counter;
-        });
+        previousPartitions.put(Thread.currentThread().getId(), new TopicPartition(topic, prevPartition));
     }
 
     public void close() {}
-
 }
