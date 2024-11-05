@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Test
 import java.util
 import java.util.Collections
 import scala.annotation.nowarn
+import scala.jdk.CollectionConverters._
 
 class KStreamTest extends TestDriver {
 
@@ -478,27 +479,51 @@ class KStreamTest extends TestDriver {
     assertEquals("my-name", joinNode.name())
   }
 
-//  @nowarn
-//  @Test
-//  def testSettingNameOnTransform(): Unit = {
-//    class TestTransformer extends Transformer[String, String, KeyValue[String, String]] {
-//      override def init(context: ProcessorContext): Unit = {}
-//
-//      override def transform(key: String, value: String): KeyValue[String, String] =
-//        new KeyValue(s"$key-transformed", s"$value-transformed")
-//
-//      override def close(): Unit = {}
-//    }
-//    val builder = new StreamsBuilder()
-//    val sourceTopic = "source"
-//    val sinkTopic = "sink"
-//
-//    val stream = builder.stream[String, String](sourceTopic)
-//    stream
-//      .transform(() => new TestTransformer, Named.as("my-name"))
-//      .to(sinkTopic)
-//
-//    val transformNode = builder.build().describe().subtopologies().asScala.head.nodes().asScala.toList(1)
-//    assertEquals("my-name", transformNode.name())
-//  }
+  @Test
+  def testSettingNameOnTransform(): Unit = {
+    val processorSupplier: ProcessorSupplier[String, String, String, String] =
+      new api.ProcessorSupplier[String, String, String, String] {
+        private val storeName = "store-name"
+
+        override def stores: util.Set[StoreBuilder[_]] = {
+          val keyValueStoreBuilder = Stores.keyValueStoreBuilder(
+            Stores.persistentKeyValueStore(storeName),
+            Serdes.stringSerde,
+            Serdes.stringSerde
+          )
+          Collections.singleton(keyValueStoreBuilder)
+        }
+
+        override def get(): Processor[String, String, String, String] =
+          new api.Processor[String, String, String, String] {
+            private var context: api.ProcessorContext[String, String] = _
+            private var store: KeyValueStore[String, String] = _
+
+            override def init(context: api.ProcessorContext[String, String]): Unit = {
+              this.context = context
+              store = context.getStateStore(storeName)
+            }
+
+            override def process(record: api.Record[String, String]): Unit = {
+              val key = record.key()
+              val value = record.value()
+              val processedKey = s"$key-processed"
+              val processedValue = s"$value-processed"
+              store.put(processedKey, processedValue)
+              context.forward(new api.Record(processedKey, processedValue, record.timestamp()))
+            }
+          }
+      }
+    val builder = new StreamsBuilder()
+    val sourceTopic = "source"
+    val sinkTopic = "sink"
+
+    val stream = builder.stream[String, String](sourceTopic)
+    stream
+      .process(processorSupplier, Named.as("my-name"))
+      .to(sinkTopic)
+
+    val transformNode = builder.build().describe().subtopologies().asScala.head.nodes().asScala.toList(1)
+    assertEquals("my-name", transformNode.name())
+  }
 }
