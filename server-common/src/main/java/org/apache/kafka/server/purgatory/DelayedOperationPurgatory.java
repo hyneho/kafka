@@ -153,7 +153,6 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
             return true;
         }
 
-
         // if it cannot be completed by now and hence is watched, add to the timeout queue also
         if (!operation.isCompleted()) {
             if (timerEnabled)
@@ -281,7 +280,7 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
     /**
      * A list of operation watching keys
      */
-    class WatcherList {
+    private class WatcherList {
         private final ConcurrentHashMap<DelayedOperationKey, Watchers> watchersByKey = new ConcurrentHashMap<>();
 
         private final ReentrantLock watchersLock = new ReentrantLock();
@@ -298,7 +297,7 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
     /**
      * A linked list of watched delayed operations based on some key
      */
-    class Watchers {
+    private class Watchers {
 
         private final ConcurrentLinkedQueue<T> operations = new ConcurrentLinkedQueue<>();
 
@@ -398,7 +397,7 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
     /**
      * A background reaper to expire delayed operations that have timed out
      */
-    class ExpiredOperationReaper extends ShutdownableThread {
+    private class ExpiredOperationReaper extends ShutdownableThread {
         ExpiredOperationReaper() {
             super("ExpirationReaper-" + brokerId + "-" + purgatoryName, false);
         }

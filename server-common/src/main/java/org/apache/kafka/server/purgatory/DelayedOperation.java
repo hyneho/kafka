@@ -45,13 +45,17 @@ public abstract class DelayedOperation extends TimerTask {
     // Visible for testing
     final Lock lock;
 
-    public DelayedOperation(long delayMs) {
-        this(delayMs, Optional.empty());
+    public DelayedOperation(long delayMs, Optional<Lock> lockOpt) {
+        this(delayMs, lockOpt.orElse(new ReentrantLock()));
     }
 
-    public DelayedOperation(long delayMs, Optional<Lock> lockOpt) {
+    public DelayedOperation(long delayMs) {
+        this(delayMs, new ReentrantLock());
+    }
+
+    public DelayedOperation(long delayMs, Lock lock) {
         super(delayMs);
-        lock = lockOpt.orElse(new ReentrantLock());
+        this.lock = lock;
     }
 
     /*
@@ -106,15 +110,15 @@ public abstract class DelayedOperation extends TimerTask {
 
     /**
      * Thread-safe variant of tryComplete() and call extra function if first tryComplete returns false
-     * @param runnable else function to be executed after first tryComplete returns false
+     * @param action else function to be executed after first tryComplete returns false
      * @return result of tryComplete
      */
-    boolean safeTryCompleteOrElse(Runnable runnable) {
+    boolean safeTryCompleteOrElse(Action action) {
         lock.lock();
         try {
             if (tryComplete()) return true;
             else {
-                runnable.run();
+                action.run();
                 // last completion check
                 return tryComplete();
             }
@@ -129,7 +133,8 @@ public abstract class DelayedOperation extends TimerTask {
     boolean safeTryComplete() {
         lock.lock();
         try {
-            return tryComplete();
+            if (isCompleted()) return false;
+            else return tryComplete();
         } finally {
             lock.unlock();
         }
@@ -142,5 +147,10 @@ public abstract class DelayedOperation extends TimerTask {
     public void run() {
         if (forceComplete())
             onExpiration();
+    }
+
+    @FunctionalInterface
+    public interface Action {
+        void run();
     }
 }

@@ -60,7 +60,7 @@ class DelayedProduce(delayMs: Long,
                      produceMetadata: ProduceMetadata,
                      replicaManager: ReplicaManager,
                      responseCallback: Map[TopicPartition, PartitionResponse] => Unit,
-                     lockOpt: Option[Lock] = None)
+                     lockOpt: Option[Lock])
   extends DelayedOperation(delayMs, lockOpt.toJava) with Logging {
 
   override lazy val logger: Logger = DelayedProduce.logger

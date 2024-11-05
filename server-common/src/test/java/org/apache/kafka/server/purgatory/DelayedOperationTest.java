@@ -263,11 +263,11 @@ public class DelayedOperationTest {
         boolean completable = false;
 
         MockDelayedOperation(long delayMs) {
-            this(delayMs, Optional.empty(), Optional.empty());
+            this(delayMs, Optional.empty());
         }
 
-        MockDelayedOperation(long delayMs, Optional<Lock> lockOpt, Optional<Lock> responseLockOpt) {
-            super(delayMs, lockOpt);
+        MockDelayedOperation(long delayMs, Optional<Lock> responseLockOpt) {
+            super(delayMs);
             this.responseLockOpt = responseLockOpt;
         }
 
@@ -308,7 +308,7 @@ public class DelayedOperationTest {
         final int maxDelayMs;
 
         TestDelayOperation(int index, int completionAttempts, int maxDelayMs) {
-            super(10000L, Optional.empty(), Optional.empty());
+            super(10000L, Optional.empty());
             key = new MockKey("key" + index);
             completionAttemptsRemaining = new AtomicInteger(completionAttempts);
             this.maxDelayMs = maxDelayMs;

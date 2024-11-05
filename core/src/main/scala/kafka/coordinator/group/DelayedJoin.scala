@@ -85,7 +85,7 @@ private[group] class InitialDelayedJoin(
           configuredRebalanceDelay,
           delay,
           remaining
-        ), util.Collections.singletonList(new GroupJoinKey(group.groupId)))
+        ), util.List.of(new GroupJoinKey(group.groupId)))
       } else
         super.onComplete()
     }
