@@ -480,47 +480,17 @@ class KStreamTest extends TestDriver {
   }
 
   @Test
-  def testSettingNameOnTransform(): Unit = {
-    val processorSupplier: ProcessorSupplier[String, String, String, String] =
-      new api.ProcessorSupplier[String, String, String, String] {
-        private val storeName = "store-name"
-
-        override def stores: util.Set[StoreBuilder[_]] = {
-          val keyValueStoreBuilder = Stores.keyValueStoreBuilder(
-            Stores.persistentKeyValueStore(storeName),
-            Serdes.stringSerde,
-            Serdes.stringSerde
-          )
-          Collections.singleton(keyValueStoreBuilder)
-        }
-
-        override def get(): Processor[String, String, String, String] =
-          new api.Processor[String, String, String, String] {
-            private var context: api.ProcessorContext[String, String] = _
-            private var store: KeyValueStore[String, String] = _
-
-            override def init(context: api.ProcessorContext[String, String]): Unit = {
-              this.context = context
-              store = context.getStateStore(storeName)
-            }
-
-            override def process(record: api.Record[String, String]): Unit = {
-              val key = record.key()
-              val value = record.value()
-              val processedKey = s"$key-processed"
-              val processedValue = s"$value-processed"
-              store.put(processedKey, processedValue)
-              context.forward(new api.Record(processedKey, processedValue, record.timestamp()))
-            }
-          }
-      }
+  def testSettingNameOnProcess(): Unit = {
+    class TestProcessor extends api.Processor[String, String, String, String] {
+      override def process(record: api.Record[String, String]): Unit = {}
+    }
     val builder = new StreamsBuilder()
     val sourceTopic = "source"
     val sinkTopic = "sink"
 
     val stream = builder.stream[String, String](sourceTopic)
     stream
-      .process(processorSupplier, Named.as("my-name"))
+      .process(() => new TestProcessor, Named.as("my-name"))
       .to(sinkTopic)
 
     val transformNode = builder.build().describe().subtopologies().asScala.head.nodes().asScala.toList(1)
