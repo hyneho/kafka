@@ -1191,7 +1191,7 @@ public class EosIntegrationTest {
             }
             if (tries >= maxTries) {
                 throw new AssertionError("No committed records in topic " + topic
-                        + ", partition " + partition + " after " + maxTries + " retries.");
+                    + ", partition " + partition + " after " + maxTries + " retries.");
             }
             final long now = System.currentTimeMillis();
             if (now > deadline) {
