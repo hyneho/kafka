@@ -58,6 +58,8 @@ import org.apache.kafka.clients.admin.DeleteTopicsOptions;
 import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.DescribeAclsOptions;
 import org.apache.kafka.clients.admin.DescribeAclsResult;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsOptions;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsResult;
 import org.apache.kafka.clients.admin.DescribeClientQuotasOptions;
 import org.apache.kafka.clients.admin.DescribeClientQuotasResult;
 import org.apache.kafka.clients.admin.DescribeClusterOptions;
