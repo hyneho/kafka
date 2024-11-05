@@ -142,6 +142,33 @@ public class SubscriptionState {
         this.subscriptionType = SubscriptionType.NONE;
     }
 
+    public synchronized SubscriptionStateSnapshot snapshot() {
+        Map<TopicPartition, SubscriptionStateSnapshot.SnapshotState> assignment = new HashMap<>();
+
+        for (Map.Entry<TopicPartition, TopicPartitionState> entry : this.assignment.partitionStateMap().entrySet()) {
+            TopicPartition tp = entry.getKey();
+            TopicPartitionState tps = entry.getValue();
+            OffsetAndMetadata offsetAndMetadata = null;
+
+            if (tps.hasValidPosition())
+                offsetAndMetadata = new OffsetAndMetadata(tps.position.offset, tps.position.offsetEpoch, "");
+
+            SubscriptionStateSnapshot.SnapshotState snapshotState = new SubscriptionStateSnapshot.SnapshotState(
+                tps.paused,
+                Optional.ofNullable(tps.validPosition()),
+                Optional.ofNullable(offsetAndMetadata)
+            );
+
+            assignment.put(tp, snapshotState);
+        }
+
+        return new SubscriptionStateSnapshot(
+            assignment,
+            subscription(),
+            hasNoSubscriptionOrUserAssignment()
+        );
+    }
+
     /**
      * Monotonically increasing id which is incremented after every assignment change. This can
      * be used to check when an assignment has changed.

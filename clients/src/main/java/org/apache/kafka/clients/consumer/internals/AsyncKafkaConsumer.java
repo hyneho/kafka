@@ -51,12 +51,15 @@ import org.apache.kafka.clients.consumer.internals.events.CompletableEventReaper
 import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackCompletedEvent;
 import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackNeededEvent;
 import org.apache.kafka.clients.consumer.internals.events.CreateFetchRequestsEvent;
+import org.apache.kafka.clients.consumer.internals.events.CurrentLagEvent;
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.clients.consumer.internals.events.EventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.FetchCommittedOffsetsEvent;
 import org.apache.kafka.clients.consumer.internals.events.ListOffsetsEvent;
+import org.apache.kafka.clients.consumer.internals.events.PausePartitionsEvent;
 import org.apache.kafka.clients.consumer.internals.events.PollEvent;
 import org.apache.kafka.clients.consumer.internals.events.ResetOffsetEvent;
+import org.apache.kafka.clients.consumer.internals.events.ResumePartitionsEvent;
 import org.apache.kafka.clients.consumer.internals.events.SeekUnvalidatedEvent;
 import org.apache.kafka.clients.consumer.internals.events.SyncCommitEvent;
 import org.apache.kafka.clients.consumer.internals.events.TopicMetadataEvent;
@@ -1019,10 +1022,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public void pause(Collection<TopicPartition> partitions) {
         acquireAndEnsureOpen();
         try {
-            log.debug("Pausing partitions {}", partitions);
-            for (TopicPartition partition : partitions) {
-                subscriptions.pause(partition);
-            }
+            Timer timer = time.timer(defaultApiTimeoutMs);
+            applicationEventHandler.addAndGet(new PausePartitionsEvent(partitions, calculateDeadlineMs(timer)));
         } finally {
             release();
         }
@@ -1032,10 +1033,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public void resume(Collection<TopicPartition> partitions) {
         acquireAndEnsureOpen();
         try {
-            log.debug("Resuming partitions {}", partitions);
-            for (TopicPartition partition : partitions) {
-                subscriptions.resume(partition);
-            }
+            Timer timer = time.timer(defaultApiTimeoutMs);
+            applicationEventHandler.addAndGet(new ResumePartitionsEvent(partitions, calculateDeadlineMs(timer)));
         } finally {
             release();
         }
@@ -1157,25 +1156,9 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public OptionalLong currentLag(TopicPartition topicPartition) {
         acquireAndEnsureOpen();
         try {
-            final Long lag = subscriptions.partitionLag(topicPartition, isolationLevel);
-
-            // if the log end offset is not known and hence cannot return lag and there is
-            // no in-flight list offset requested yet,
-            // issue a list offset request for that partition so that next time
-            // we may get the answer; we do not need to wait for the return value
-            // since we would not try to poll the network client synchronously
-            if (lag == null) {
-                if (subscriptions.partitionEndOffset(topicPartition, isolationLevel) == null &&
-                    !subscriptions.partitionEndOffsetRequested(topicPartition)) {
-                    log.info("Requesting the log end offset for {} in order to compute lag", topicPartition);
-                    subscriptions.requestPartitionEndOffset(topicPartition);
-                    endOffsets(Collections.singleton(topicPartition), Duration.ofMillis(0));
-                }
-
-                return OptionalLong.empty();
-            }
-
-            return OptionalLong.of(lag);
+            Timer timer = time.timer(defaultApiTimeoutMs);
+            CurrentLagEvent event = new CurrentLagEvent(topicPartition, isolationLevel, calculateDeadlineMs(timer));
+            return applicationEventHandler.addAndGet(event);
         } finally {
             release();
         }
