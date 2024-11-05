@@ -83,7 +83,7 @@ public class DeleteTopicTest {
         try (Admin admin = cluster.createAdminClient()) {
             admin.createTopics(List.of(new NewTopic(DEFAULT_TOPIC, expectedReplicaAssignment))).all().get();
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
         }
     }
 
@@ -106,7 +106,7 @@ public class DeleteTopicTest {
                 "Online replicas have not deleted log.");
 
             follower.startup();
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
         }
     }
 
@@ -132,7 +132,7 @@ public class DeleteTopicTest {
             }
 
             follower.startup();
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
         }
     }
 
@@ -160,7 +160,7 @@ public class DeleteTopicTest {
             }
 
             follower.startup();
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1, partitionHostingBrokers.values());
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
         }
     }
 
@@ -180,7 +180,7 @@ public class DeleteTopicTest {
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
             follower.startup();
             // test if topic deletion is resumed
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
             waitForReplicaDeleted(cluster.brokers(), newTopicPartition, "Replica logs not for new partition [" + DEFAULT_TOPIC + ",1] not deleted after delete topic is complete.");
         }
     }
@@ -193,7 +193,7 @@ public class DeleteTopicTest {
             TopicPartition newTopicPartition = new TopicPartition(DEFAULT_TOPIC, 1);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
             increasePartitions(admin, DEFAULT_TOPIC, 3, Collections.emptyList());
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
             waitForReplicaDeleted(cluster.brokers(), newTopicPartition, "Replica logs not deleted after delete topic is complete");
         }
     }
@@ -204,7 +204,7 @@ public class DeleteTopicTest {
             admin.createTopics(List.of(new NewTopic(DEFAULT_TOPIC, expectedReplicaAssignment))).all().get();
             TopicPartition topicPartition = new TopicPartition(DEFAULT_TOPIC, 0);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
             // re-create topic on same replicas
             admin.createTopics(List.of(new NewTopic(DEFAULT_TOPIC, expectedReplicaAssignment))).all().get();
             waitForReplicaCreated(cluster.brokers(), topicPartition, "Replicas for topic " + DEFAULT_TOPIC + " not created.");
@@ -225,7 +225,7 @@ public class DeleteTopicTest {
                 }
             }, "Topic test2 should not exist.");
 
-            cluster.verifyTopicDeletion(topic, 1);
+            cluster.waitForTopicDeletion(topic, 1);
 
             waitForReplicaCreated(cluster.brokers(), topicPartition, "Replicas for topic test not created.");
             TestUtils.waitUntilLeaderIsElectedOrChangedWithAdmin(admin, DEFAULT_TOPIC, 0, 1000);
@@ -252,7 +252,7 @@ public class DeleteTopicTest {
             server.logManager().cleaner().awaitCleaned(topicPartition, 0, 60000);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
 
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
         }
     }
 
@@ -271,7 +271,7 @@ public class DeleteTopicTest {
                 }
             }, "Topic " + DEFAULT_TOPIC + " should be marked for deletion or already deleted.");
 
-            cluster.verifyTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
         }
     }
 

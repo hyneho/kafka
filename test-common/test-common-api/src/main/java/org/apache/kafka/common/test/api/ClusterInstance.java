@@ -235,11 +235,8 @@ public interface ClusterInstance {
         }
     }
 
-    default <B extends KafkaBroker> void verifyTopicDeletion(String topic, int numPartitions) throws Exception {
-        verifyTopicDeletion(topic, numPartitions, brokers().values());
-    }
-
-    default <B extends KafkaBroker> void verifyTopicDeletion(String topic, int numPartitions, Collection<B> brokers) throws Exception {
+    default void waitForTopicDeletion(String topic, int numPartitions) throws Exception {
+        Collection<KafkaBroker> brokers = aliveBrokers().values();
         List<TopicPartition> topicPartitions = IntStream.range(0, numPartitions)
             .mapToObj(partition -> new TopicPartition(topic, partition))
             .collect(Collectors.toList());
