@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class RoundRobinPartitioner implements Partitioner {
     private final ConcurrentMap<String, AtomicInteger> topicCounterMap = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Long, TopicPartition> previousPartitions = new ConcurrentHashMap<>();
+    private final ThreadLocal<TopicPartition> previousPartition = new ThreadLocal<>();
 
     public void configure(Map<String, ?> configs) {}
 
@@ -53,9 +53,12 @@ public class RoundRobinPartitioner implements Partitioner {
      */
     @Override
     public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
-        TopicPartition prevPartition = previousPartitions.remove(Thread.currentThread().getId());
-        if (prevPartition != null && topic.equals(prevPartition.topic())) {
-            return prevPartition.partition();
+        TopicPartition prevPartition = previousPartition.get();
+        if (prevPartition != null) {
+            previousPartition.remove();
+            if (topic.equals(prevPartition.topic())) {
+                return prevPartition.partition();
+            }
         }
 
         int nextValue = nextValue(topic);
@@ -78,7 +81,7 @@ public class RoundRobinPartitioner implements Partitioner {
     @SuppressWarnings("deprecation")
     @Override
     public void onNewBatch(String topic, Cluster cluster, int prevPartition) {
-        previousPartitions.put(Thread.currentThread().getId(), new TopicPartition(topic, prevPartition));
+        previousPartition.set(new TopicPartition(topic, prevPartition));
     }
 
     public void close() {}
