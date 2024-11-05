@@ -122,7 +122,7 @@ public class ClusterTool {
                     boolean includeFencedBrokers = Optional.of(namespace.getBoolean("include_fenced_brokers")).orElse(false);
                     boolean listControllerEndpoints = namespace.getString("bootstrap_controller") != null;
                     if (includeFencedBrokers && listControllerEndpoints) {
-                        throw new RuntimeException("Cannot use --include-fenced-brokers with command " + command);
+                        throw new IllegalArgumentException("The option --include-fenced-brokers is only supported with --bootstrap-server option");
                     }
                     listEndpoints(System.out, adminClient, listControllerEndpoints, includeFencedBrokers);
                 }

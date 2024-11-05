@@ -160,20 +160,21 @@ class SslAdminIntegrationTest extends SaslSslAdminIntegrationTest {
 
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  def testDescribeClusterIncludingFencedBrokers(quorum: String): Unit = {
+  def testListNodesFromControllersIncludingFencedBrokers(quorum: String): Unit = {
+    useBoostrapControllers()
     client = createAdminClient
-    val result = client.describeCluster(new DescribeClusterOptions().includeFencedBrokers(true));
-    assertTrue(result.nodes().get().size().equals(3))
+    val result = client.describeCluster(new DescribeClusterOptions().includeFencedBrokers(true))
+    val exception = assertThrows(classOf[Exception], () => { result.nodes().get()})
+    assertTrue(exception.getCause.getCause.getMessage.contains("Cannot request fenced brokers from controller endpoint"))
   }
 
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  def testDescribeClusterFromControllersIncludingFencedBrokers(quorum: String): Unit = {
+  def testListNodesFromControllers(quorum: String): Unit = {
     useBoostrapControllers()
     client = createAdminClient
-    val result = client.describeCluster(new DescribeClusterOptions().includeFencedBrokers(true));
-    val exception = assertThrows(classOf[Exception], () => { result.nodes().get()})
-    assertTrue(exception.getCause.getCause.getMessage.contains("Cannot request fenced brokers from controller endpoint"))
+    val result = client.describeCluster(new DescribeClusterOptions())
+    assertTrue(result.nodes().get().size().equals(controllerServers.size))
   }
 
   @ParameterizedTest

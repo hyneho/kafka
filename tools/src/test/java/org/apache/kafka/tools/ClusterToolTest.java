@@ -129,7 +129,7 @@ public class ClusterToolTest {
         RuntimeException exception =
                 assertThrows(RuntimeException.class,
                         () -> ClusterTool.execute("list-endpoints", "--bootstrap-controller", clusterInstance.bootstrapControllers(), "--include-fenced-brokers"));
-        assertEquals("Cannot use --include-fenced-brokers with command list-endpoints", exception.getMessage());
+        assertEquals("The option --include-fenced-brokers is only supported with --bootstrap-server option", exception.getMessage());
     }
 
     @Test
