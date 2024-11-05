@@ -53,6 +53,7 @@ import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler;
 import org.apache.kafka.streams.errors.UnknownStateStoreException;
 import org.apache.kafka.streams.internals.ClientInstanceIdsImpl;
 import org.apache.kafka.streams.internals.metrics.ClientMetrics;
+import org.apache.kafka.streams.internals.metrics.StreamsClientMetricsDelegatingReporter;
 import org.apache.kafka.streams.processor.StandbyUpdateListener;
 import org.apache.kafka.streams.processor.StateRestoreListener;
 import org.apache.kafka.streams.processor.StateStore;
@@ -92,6 +93,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -181,6 +183,7 @@ public class KafkaStreams implements AutoCloseable {
     protected final TopologyMetadata topologyMetadata;
     private final QueryableStoreProvider queryableStoreProvider;
     private final DelegatingStandbyUpdateListener delegatingStandbyUpdateListener;
+    private final LogContext logContext;
 
     GlobalStreamThread globalStreamThread;
     protected StateDirectory stateDirectory = null;
@@ -677,6 +680,9 @@ public class KafkaStreams implements AutoCloseable {
                 return;
             }
 
+            // all (alive) threads have received their assignment, close any remaining startup tasks, they're not needed
+            stateDirectory.closeStartupTasks();
+
             setState(State.RUNNING);
         }
 
@@ -999,7 +1005,7 @@ public class KafkaStreams implements AutoCloseable {
         } else {
             clientId = userClientId;
         }
-        final LogContext logContext = new LogContext(String.format("stream-client [%s] ", clientId));
+        logContext = new LogContext(String.format("stream-client [%s] ", clientId));
         this.log = logContext.logger(getClass());
         topologyMetadata.setLog(logContext);
 
@@ -1011,6 +1017,9 @@ public class KafkaStreams implements AutoCloseable {
         log.info("Kafka Streams commit ID: {}", ClientMetrics.commitId());
 
         metrics = createMetrics(applicationConfigs, time, clientId);
+        final StreamsClientMetricsDelegatingReporter reporter = new StreamsClientMetricsDelegatingReporter(adminClient, clientId);
+        metrics.addReporter(reporter);
+        
         streamsMetrics = new StreamsMetricsImpl(
             metrics,
             clientId,
@@ -1411,6 +1420,9 @@ public class KafkaStreams implements AutoCloseable {
      */
     public synchronized void start() throws IllegalStateException, StreamsException {
         if (setState(State.REBALANCING)) {
+            log.debug("Initializing STANDBY tasks for existing local state");
+            stateDirectory.initializeStartupTasks(topologyMetadata, streamsMetrics, logContext);
+
             log.debug("Starting Streams client");
 
             if (globalStreamThread != null) {
@@ -1880,12 +1892,10 @@ public class KafkaStreams implements AutoCloseable {
         // (1) fan-out calls to threads
 
         // StreamThread for main/restore consumers and producer(s)
-        final Map<String, KafkaFuture<Uuid>> consumerFutures = new HashMap<>();
-        final Map<String, KafkaFuture<Map<String, KafkaFuture<Uuid>>>> producerFutures = new HashMap<>();
+        final Map<String, KafkaFuture<Uuid>> clientFutures = new HashMap<>();
         synchronized (changeThreadCount) {
             for (final StreamThread streamThread : threads) {
-                consumerFutures.putAll(streamThread.consumerClientInstanceIds(timeout));
-                producerFutures.put(streamThread.getName(), streamThread.producersClientInstanceIds(timeout));
+                clientFutures.putAll(streamThread.clientInstanceIds(timeout));
             }
         }
 
@@ -1910,65 +1920,38 @@ public class KafkaStreams implements AutoCloseable {
 
         // (3) collect client instance ids from threads
 
-        // (3a) collect consumers from StreamsThread
-        for (final Map.Entry<String, KafkaFuture<Uuid>> consumerFuture : consumerFutures.entrySet()) {
+        // (3a) collect consumers and producer from StreamsThread
+        for (final Map.Entry<String, KafkaFuture<Uuid>> clientFuture : clientFutures.entrySet()) {
             final Uuid instanceId = getOrThrowException(
-                consumerFuture.getValue(),
+                clientFuture.getValue(),
                 remainingTime.remainingMs(),
                 () -> String.format(
-                    "Could not retrieve consumer instance id for %s.",
-                    consumerFuture.getKey()
+                    "Could not retrieve consumer/producer instance id for %s.",
+                    clientFuture.getKey()
                 )
             );
             remainingTime.update(time.milliseconds());
 
             // could be `null` if telemetry is disabled on the consumer itself
             if (instanceId != null) {
-                clientInstanceIds.addConsumerInstanceId(
-                    consumerFuture.getKey(),
-                    instanceId
-                );
-            } else {
-                log.debug(String.format("Telemetry is disabled for %s.", consumerFuture.getKey()));
-            }
-        }
-
-        // (3b) collect producers from StreamsThread
-        for (final Map.Entry<String, KafkaFuture<Map<String, KafkaFuture<Uuid>>>> threadProducerFuture : producerFutures.entrySet()) {
-            final Map<String, KafkaFuture<Uuid>> streamThreadProducerFutures = getOrThrowException(
-                threadProducerFuture.getValue(),
-                remainingTime.remainingMs(),
-                () -> String.format(
-                    "Could not retrieve producer instance id for %s.",
-                    threadProducerFuture.getKey()
-                )
-            );
-            remainingTime.update(time.milliseconds());
-
-            for (final Map.Entry<String, KafkaFuture<Uuid>> producerFuture : streamThreadProducerFutures.entrySet()) {
-                final Uuid instanceId = getOrThrowException(
-                    producerFuture.getValue(),
-                    remainingTime.remainingMs(),
-                    () -> String.format(
-                        "Could not retrieve producer instance id for %s.",
-                        producerFuture.getKey()
-                    )
-                );
-                remainingTime.update(time.milliseconds());
-
-                // could be `null` if telemetry is disabled on the producer itself
-                if (instanceId != null) {
+                final String clientFutureKey = clientFuture.getKey();
+                if (clientFutureKey.toLowerCase(Locale.getDefault()).endsWith("-producer")) {
                     clientInstanceIds.addProducerInstanceId(
-                        producerFuture.getKey(),
-                        instanceId
+                            clientFutureKey,
+                            instanceId
                     );
                 } else {
-                    log.debug(String.format("Telemetry is disabled for %s.", producerFuture.getKey()));
+                    clientInstanceIds.addConsumerInstanceId(
+                            clientFutureKey,
+                            instanceId
+                    );
                 }
+            } else {
+                log.debug(String.format("Telemetry is disabled for %s.", clientFuture.getKey()));
             }
         }
 
-        // (3c) collect from GlobalThread
+        // (3b) collect from GlobalThread
         if (globalThreadFuture != null) {
             final Uuid instanceId = getOrThrowException(
                 globalThreadFuture,

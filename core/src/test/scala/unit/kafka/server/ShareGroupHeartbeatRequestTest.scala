@@ -16,14 +16,12 @@
  */
 package kafka.server
 
-import org.apache.kafka.common.test.api.ClusterInstance
-import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterTest, Type}
-import org.apache.kafka.common.test.api.ClusterTestExtensions
+import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterInstance, ClusterTest, ClusterTestDefaults, ClusterTestExtensions, Type}
 import org.apache.kafka.common.test.api.RaftClusterInvocationContext.RaftClusterInstance
 import kafka.utils.TestUtils
 import kafka.utils.TestUtils.waitForAllPartitionsMetadata
 import org.apache.kafka.clients.admin.{Admin, NewPartitions}
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{TopicPartition, Uuid}
 import org.apache.kafka.common.message.{ShareGroupHeartbeatRequestData, ShareGroupHeartbeatResponseData}
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.requests.{ShareGroupHeartbeatRequest, ShareGroupHeartbeatResponse}
@@ -35,6 +33,9 @@ import scala.jdk.CollectionConverters._
 
 @Timeout(120)
 @ExtendWith(value = Array(classOf[ClusterTestExtensions]))
+@ClusterTestDefaults(types = Array(Type.KRAFT), brokers = 1, serverProperties = Array(
+  new ClusterConfigProperty(key = "group.share.persister.class.name", value = "")
+))
 @Tag("integration")
 class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
 
@@ -76,6 +77,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
+        .setMemberId(Uuid.randomUuid.toString)
         .setMemberEpoch(0)
         .setSubscribedTopicNames(List("foo").asJava),
       true
@@ -168,6 +170,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
+        .setMemberId(Uuid.randomUuid.toString)
         .setMemberEpoch(0)
         .setSubscribedTopicNames(List("foo").asJava),
       true
@@ -186,6 +189,16 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     assertNotNull(memberId1)
     assertEquals(1, shareGroupHeartbeatResponse.data.memberEpoch)
     assertEquals(new ShareGroupHeartbeatResponseData.Assignment(), shareGroupHeartbeatResponse.data.assignment)
+
+    // The second member request to join the group.
+    shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
+      new ShareGroupHeartbeatRequestData()
+        .setGroupId("grp")
+        .setMemberId(Uuid.randomUuid.toString)
+        .setMemberEpoch(0)
+        .setSubscribedTopicNames(List("foo").asJava),
+      true
+    ).build()
 
     // Send the second member request until receiving a successful response.
     TestUtils.waitUntilTrue(() => {
@@ -301,6 +314,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
+        .setMemberId(Uuid.randomUuid.toString)
         .setMemberEpoch(0)
         .setSubscribedTopicNames(List("foo").asJava),
       true
@@ -407,10 +421,11 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       controllers = raftCluster.controllers().values().asScala.toSeq
     )
     // Heartbeat request to join the group. Note that the member subscribes
-    // to an nonexistent topic.
+    // to a nonexistent topic.
     var shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
+        .setMemberId(Uuid.randomUuid.toString)
         .setMemberEpoch(0)
         .setSubscribedTopicNames(List("foo", "bar", "baz").asJava),
       true
@@ -457,6 +472,9 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       true
     ).build()
 
+    cluster.waitForTopic("foo", 2)
+    cluster.waitForTopic("bar", 3)
+
     TestUtils.waitUntilTrue(() => {
       shareGroupHeartbeatResponse = connectAndReceive(shareGroupHeartbeatRequest)
       shareGroupHeartbeatResponse.data.errorCode == Errors.NONE.code &&
@@ -465,7 +483,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
     }, msg = s"Could not get partitions for topic foo and bar assigned. Last response $shareGroupHeartbeatResponse.")
     // Verify the response.
-    assertEquals(3, shareGroupHeartbeatResponse.data.memberEpoch)
+    assertEquals(2, shareGroupHeartbeatResponse.data.memberEpoch)
     // Create the topic baz.
     val bazTopicId = TestUtils.createTopicWithAdminRaw(
       admin = admin,
@@ -489,7 +507,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
         .setMemberId(memberId)
-        .setMemberEpoch(3),
+        .setMemberEpoch(2),
       true
     ).build()
 
@@ -501,7 +519,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
     }, msg = s"Could not get partitions for topic baz assigned. Last response $shareGroupHeartbeatResponse.")
     // Verify the response.
-    assertEquals(4, shareGroupHeartbeatResponse.data.memberEpoch)
+    assertEquals(3, shareGroupHeartbeatResponse.data.memberEpoch)
     // Increasing the partitions of topic bar which is already being consumed in the share group.
     increasePartitions(admin, "bar", 6, Seq.empty)
 
@@ -521,7 +539,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
         .setMemberId(memberId)
-        .setMemberEpoch(4),
+        .setMemberEpoch(3),
       true
     ).build()
 
@@ -533,7 +551,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
     }, msg = s"Could not update partitions assignment for topic bar. Last response $shareGroupHeartbeatResponse.")
     // Verify the response.
-    assertEquals(5, shareGroupHeartbeatResponse.data.memberEpoch)
+    assertEquals(4, shareGroupHeartbeatResponse.data.memberEpoch)
     // Delete the topic foo.
     TestUtils.deleteTopicWithAdmin(
       admin = admin,
@@ -555,7 +573,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
         .setMemberId(memberId)
-        .setMemberEpoch(5),
+        .setMemberEpoch(4),
       true
     ).build()
 
@@ -567,7 +585,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
         shareGroupHeartbeatResponse.data.assignment.topicPartitions.containsAll(expectedAssignment.topicPartitions)
     }, msg = s"Could not update partitions assignment for topic foo. Last response $shareGroupHeartbeatResponse.")
     // Verify the response.
-    assertEquals(6, shareGroupHeartbeatResponse.data.memberEpoch)
+    assertEquals(5, shareGroupHeartbeatResponse.data.memberEpoch)
   }
 
   @ClusterTest(
@@ -599,6 +617,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
+        .setMemberId(Uuid.randomUuid.toString)
         .setMemberEpoch(0)
         .setSubscribedTopicNames(List("foo").asJava),
       true
@@ -766,6 +785,7 @@ class ShareGroupHeartbeatRequestTest(cluster: ClusterInstance) {
     var shareGroupHeartbeatRequest = new ShareGroupHeartbeatRequest.Builder(
       new ShareGroupHeartbeatRequestData()
         .setGroupId("grp")
+        .setMemberId(Uuid.randomUuid.toString)
         .setMemberEpoch(0)
         .setSubscribedTopicNames(List("foo").asJava),
       true

@@ -136,6 +136,7 @@ import static java.util.Collections.singletonMap;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.common.requests.FetchMetadata.INVALID_SESSION_ID;
+import static org.apache.kafka.test.TestUtils.assertFutureThrows;
 import static org.apache.kafka.test.TestUtils.assertOptional;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -3433,7 +3434,7 @@ public class FetchRequestManagerTest {
         assertFalse(future.isDone());
 
         assertDoesNotThrow(() -> sendFetches(false));
-        assertTrue(future.isCompletedExceptionally());
+        assertFutureThrows(future, AuthenticationException.class);
     }
 
     @Test
