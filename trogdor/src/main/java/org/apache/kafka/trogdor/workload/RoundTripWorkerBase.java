@@ -66,14 +66,23 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 
-public abstract class RoundTripWorkerHelper<T> implements TaskWorker {
+/**
+ * A base class for a round-trip worker which will produce and consume equal number of messages.
+ *
+ * This is used to create a round-trip trogdor agent which will spawn producers and consumers to
+ * produce and consume equal number of messages based on the workload it is executing.
+ *
+ * Currently, there are 2 inheritors, one which uses {@link org.apache.kafka.clients.consumer.KafkaConsumer}
+ * and another which uses {@link org.apache.kafka.clients.consumer.KafkaShareConsumer} as the consumer.
+ */
+public abstract class RoundTripWorkerBase implements TaskWorker {
     private static final int THROTTLE_PERIOD_MS = 100;
 
     private static final int LOG_INTERVAL_MS = 5000;
 
     private static final int LOG_NUM_MESSAGES = 10;
 
-    private static final Logger log = LoggerFactory.getLogger(RoundTripWorkerHelper.class);
+    private static final Logger log = LoggerFactory.getLogger(RoundTripWorkerBase.class);
 
     private static final PayloadGenerator KEY_GENERATOR = new SequentialPayloadGenerator(4, 0);
 

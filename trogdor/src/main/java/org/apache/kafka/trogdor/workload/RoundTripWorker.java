@@ -28,7 +28,7 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Properties;
 
-public class RoundTripWorker extends RoundTripWorkerHelper<KafkaConsumer<byte[], byte[]>> {
+public class RoundTripWorker extends RoundTripWorkerBase {
 
     KafkaConsumer<byte[], byte[]> consumer;
 

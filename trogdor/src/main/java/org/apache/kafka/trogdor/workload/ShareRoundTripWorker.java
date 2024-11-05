@@ -31,7 +31,7 @@ import java.util.HashSet;
 import java.util.Properties;
 
 
-public class ShareRoundTripWorker extends RoundTripWorkerHelper<KafkaConsumer<byte[], byte[]>> {
+public class ShareRoundTripWorker extends RoundTripWorkerBase {
     KafkaShareConsumer<byte[], byte[]> consumer;
 
     ShareRoundTripWorker(String id, RoundTripWorkloadSpec spec) {
