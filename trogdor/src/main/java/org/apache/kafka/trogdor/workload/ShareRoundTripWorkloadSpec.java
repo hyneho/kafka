@@ -16,9 +16,10 @@
  */
 package org.apache.kafka.trogdor.workload;
 
+import org.apache.kafka.trogdor.task.TaskWorker;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.apache.kafka.trogdor.task.TaskWorker;
 
 import java.util.Map;
 
