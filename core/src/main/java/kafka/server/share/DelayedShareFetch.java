@@ -116,7 +116,7 @@ public class DelayedShareFetch extends DelayedOperation {
             if (partitionsAlreadyFetched.isEmpty())
                 responseData = readFromLog(topicPartitionData);
             else
-                // There can't be a case when we have a partitionsAlreadyFetched value here and this variable is getting
+                // There shouldn't be a case when we have a partitionsAlreadyFetched value here and this variable is getting
                 // updated in a different tryComplete thread.
                 responseData = combineLogReadResponse(topicPartitionData, partitionsAlreadyFetched);
 
@@ -125,7 +125,7 @@ public class DelayedShareFetch extends DelayedOperation {
                 fetchPartitionsData.put(entry.getKey(), entry.getValue().toFetchPartitionData(false));
 
             partitionsToComplete.future().complete(ShareFetchUtils.processFetchResponse(partitionsToComplete, fetchPartitionsData,
-                sharePartitionManager, replicaManager));
+                sharePartitions, replicaManager));
         } catch (Exception e) {
             log.error("Error processing delayed share fetch request", e);
             sharePartitionManager.handleFetchException(partitionsToComplete.groupId(), topicPartitionData.keySet(), partitionsToComplete.future(), e);
@@ -147,9 +147,6 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public boolean tryComplete() {
-        if (anySharePartitionNoLongerExists()) {
-            return forceComplete();
-        }
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = acquirablePartitions();
 
         try {
@@ -174,13 +171,13 @@ public class DelayedShareFetch extends DelayedOperation {
                 } else {
                     log.debug("minBytes is not satisfied for the share fetch request for group {}, member {}, " +
                             "topic partitions {}", partitionsToComplete.groupId(), partitionsToComplete.memberId(),
-                        partitionsToComplete.partitionMaxBytes().keySet());
+                        sharePartitions.keySet());
                     releasePartitionLocks(topicPartitionData.keySet());
                 }
             } else {
                 log.trace("Can't acquire records for any partition in the share fetch request for group {}, member {}, " +
                         "topic partitions {}", partitionsToComplete.groupId(), partitionsToComplete.memberId(),
-                    partitionsToComplete.partitionMaxBytes().keySet());
+                    sharePartitions.keySet());
             }
             return false;
         } catch (Exception e) {
@@ -203,13 +200,7 @@ public class DelayedShareFetch extends DelayedOperation {
         // Initialize the topic partitions for which the fetch should be attempted.
         Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = new LinkedHashMap<>();
 
-        partitionsToComplete.partitionMaxBytes().keySet().forEach(topicIdPartition -> {
-            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
-            if (sharePartition == null) {
-                log.debug("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", partitionsToComplete.groupId(), topicIdPartition);
-                return;
-            }
-
+        sharePartitions.forEach((topicIdPartition, sharePartition) -> {
             int partitionMaxBytes = partitionsToComplete.partitionMaxBytes().getOrDefault(topicIdPartition, 0);
             // Add the share partition to the list of partitions to be fetched only if we can
             // acquire the fetch lock on it.
@@ -343,17 +334,6 @@ public class DelayedShareFetch extends DelayedOperation {
 
         log.trace("Data successfully retrieved by replica manager: {}", responseData);
         return responseData;
-    }
-
-    private boolean anySharePartitionNoLongerExists() {
-        for (TopicIdPartition topicIdPartition: partitionsToComplete.partitionMaxBytes().keySet()) {
-            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
-            if (sharePartition == null) {
-                log.debug("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", partitionsToComplete.groupId(), topicIdPartition);
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean anyTopicIdPartitionHasLogReadError(Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse) {

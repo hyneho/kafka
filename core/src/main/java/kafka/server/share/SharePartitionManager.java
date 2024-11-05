@@ -65,6 +65,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -574,7 +575,7 @@ public class SharePartitionManager implements AutoCloseable {
         // Initialize lazily, if required.
         Map<TopicIdPartition, Throwable> erroneous = null;
         Set<DelayedShareFetchKey> delayedShareFetchWatchKeys = new HashSet<>();
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        Map<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         for (TopicIdPartition topicIdPartition : shareFetchData.partitionMaxBytes().keySet()) {
             SharePartitionKey sharePartitionKey = sharePartitionKey(
                 shareFetchData.groupId(),

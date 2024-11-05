@@ -53,7 +53,7 @@ public class ShareFetchUtils {
     static Map<TopicIdPartition, ShareFetchResponseData.PartitionData> processFetchResponse(
             ShareFetchData shareFetchData,
             Map<TopicIdPartition, FetchPartitionData> responseData,
-            SharePartitionManager sharePartitionManager,
+            Map<TopicIdPartition, SharePartition> sharePartitions,
             ReplicaManager replicaManager
     ) {
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> response = new HashMap<>();
@@ -64,11 +64,7 @@ public class ShareFetchUtils {
             TopicIdPartition topicIdPartition = entry.getKey();
             FetchPartitionData fetchPartitionData = entry.getValue();
 
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
-            if (sharePartition == null) {
-                log.error("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), topicIdPartition);
-                continue;
-            }
+            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             ShareFetchResponseData.PartitionData partitionData = new ShareFetchResponseData.PartitionData()
                 .setPartitionIndex(topicIdPartition.partition());
 
