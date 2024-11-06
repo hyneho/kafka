@@ -117,24 +117,15 @@ object KafkaDockerWrapper extends Logging {
                                            mountedConfigsPath: Path,
                                            finalConfigsPath: Path,
                                            env: Map[String, String]): Unit = {
-    val propsToAdd = addNewlinePadding(getServerConfigsFromEnv(env).mkString(NewlineChar))
-
     val defaultFilePath = defaultConfigsPath.resolve(s"$ServerPropsFilename")
     val mountedFilePath = mountedConfigsPath.resolve(s"$ServerPropsFilename")
     val finalFilePath = finalConfigsPath.resolve(s"$ServerPropsFilename")
+    
+    val sourceFilePath = if (Files.exists(mountedFilePath)) mountedFilePath else defaultFilePath
+    copyFile(sourceFilePath, finalFilePath)
 
-    if (Files.exists(mountedFilePath)) {
-      copyFile(mountedFilePath, finalFilePath)
-      addToFile(propsToAdd, finalFilePath, StandardOpenOption.APPEND)
-    } else {
-      addToFile(propsToAdd, finalFilePath, StandardOpenOption.TRUNCATE_EXISTING)
-    }
-
-    val source = scala.io.Source.fromFile(finalFilePath.toString)
-    val data = try source.mkString finally source.close()
-    if (data.trim.isEmpty) {
-      copyFile(defaultFilePath, finalFilePath)
-    }
+    val propsFromEnv = addNewlinePadding(getServerConfigsFromEnv(env).mkString(NewlineChar))
+    appendToFile(propsFromEnv, finalFilePath)
   }
 
   private[docker] def prepareLog4jConfigs(defaultConfigsPath: Path,
@@ -150,7 +141,7 @@ object KafkaDockerWrapper extends Logging {
     copyFile(defaultFilePath, finalFilePath)
     copyFile(mountedFilePath, finalFilePath)
 
-    addToFile(propsToAdd, finalFilePath, StandardOpenOption.APPEND)
+    appendToFile(propsToAdd, finalFilePath)
   }
 
   private[docker] def prepareToolsLog4jConfigs(defaultConfigsPath: Path,
@@ -166,7 +157,7 @@ object KafkaDockerWrapper extends Logging {
     copyFile(defaultFilePath, finalFilePath)
     copyFile(mountedFilePath, finalFilePath)
 
-    addToFile(propToAdd, finalFilePath, StandardOpenOption.APPEND)
+    appendToFile(propToAdd, finalFilePath)
   }
 
   private[docker] def getServerConfigsFromEnv(env: Map[String, String]): List[String] = {
@@ -211,12 +202,14 @@ object KafkaDockerWrapper extends Logging {
       .getOrElse("")
   }
 
-  private def addToFile(properties: String, filepath: Path, mode: StandardOpenOption): Unit = {
+  private def appendToFile(properties: String, filepath: Path): Unit = {
     val path = filepath
     if (!Files.exists(path)) {
       Files.createFile(path)
     }
-    Files.write(filepath, properties.getBytes(StandardCharsets.UTF_8), mode)
+    Files.write(filepath, 
+      properties.getBytes(StandardCharsets.UTF_8), 
+      StandardOpenOption.APPEND)
   }
 
   private def copyFile(source: Path, destination: Path) = {
