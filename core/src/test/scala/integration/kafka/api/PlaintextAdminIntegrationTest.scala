@@ -617,31 +617,19 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  def testListNodesNotIncludingFencedBrokers(quorum: String): Unit = {
+  def testListNodesWithFencedBroker(quorum: String): Unit = {
     client = createAdminClient
     val fencedBrokerId = brokers.last.config.brokerId
     killBroker(fencedBrokerId)
-    Thread.sleep(10000) //sleep is needed to ensure the broker is fenced after the shutdown
+    // It takes a few seconds for a broker to get fenced after being killed
+    // So we retry until only 2 of 3 brokers returned in the result or the max wait is reached
+    TestUtils.retry(20000) {
+      assertTrue(client.describeCluster().nodes().get().asScala.size.equals(brokers.size - 1))
+    }
 
-    val nodes = client.describeCluster().nodes().get().asScala
-    assertTrue(nodes.size.equals(brokers.size - 1))
-    nodes.foreach(node => {
-      assertFalse(node.isFenced)
-      assertFalse(node.id().equals(fencedBrokerId))
-    })
-  }
-
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testListNodesIncludingFencedBrokers(quorum: String): Unit = {
-    client = createAdminClient
-    val fencedBrokerId = brokers.last.config.brokerId
-    killBroker(fencedBrokerId)
-    Thread.sleep(10000) //sleep is needed to ensure the broker is fenced after the shutdown
-
+    // List nodes again but this time include the fenced broker
     val nodes = client.describeCluster(new DescribeClusterOptions().includeFencedBrokers(true)).nodes().get().asScala
     assertTrue(nodes.size.equals(brokers.size))
-
     nodes.foreach(node => {
       if (node.id().equals(fencedBrokerId)) {
         assertTrue(node.isFenced)
