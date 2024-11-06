@@ -735,6 +735,24 @@ class ReplicaManager(val config: KafkaConfig,
     }
   }
 
+  def getPartitionOrException(topicIdPartition: TopicIdPartition): Partition = {
+    getPartitionOrError(topicIdPartition.topicPartition()) match {
+      case Left(Errors.KAFKA_STORAGE_ERROR) =>
+        throw new KafkaStorageException(s"Partition ${topicIdPartition.topicPartition()} is in an offline log directory")
+
+      case Left(error) =>
+        throw error.exception(s"Error while fetching partition state for ${topicIdPartition.topicPartition()}")
+
+      case Right(partition) =>
+        val topicId = partition.topicId
+        if (topicId.contains(topicIdPartition.topicId())) {
+          partition
+        } else {
+          throw new UnknownTopicIdException(s"Partition $topicIdPartition's topic id doesn't match the one on disk $topicId.'")
+        }
+    }
+  }
+
   def getPartitionOrError(topicPartition: TopicPartition): Either[Errors, Partition] = {
     getPartition(topicPartition) match {
       case HostedPartition.Online(partition) =>
@@ -1468,7 +1486,7 @@ class ReplicaManager(val config: KafkaConfig,
           hasCustomErrorMessage = false))
       } else {
         try {
-          val partition: Partition = getPartitionOrException(topicIdPartition.topicPartition())
+          val partition = getPartitionOrException(topicIdPartition)
           val info = partition.appendRecordsToLeader(records, origin, requiredAcks, requestLocal,
             verificationGuards.getOrElse(topicIdPartition.topicPartition(), VerificationGuard.SENTINEL))
           val numAppendedMessages = info.numMessages
@@ -1494,7 +1512,8 @@ class ReplicaManager(val config: KafkaConfig,
                    _: RecordTooLargeException |
                    _: RecordBatchTooLargeException |
                    _: CorruptRecordException |
-                   _: KafkaStorageException) =>
+                   _: KafkaStorageException |
+                   _: UnknownTopicIdException) =>
             (new TopicOptionalIdPartition(Optional.ofNullable(topicIdPartition.topicId()), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.UNKNOWN_LOG_APPEND_INFO, Some(e), hasCustomErrorMessage = false))
           case rve: RecordValidationException =>
             val logStartOffset = processFailedRecord(topicIdPartition, rve.invalidException)
