@@ -88,8 +88,7 @@ public class ShareFetchUtils {
                 }
             } else {
                 ShareAcquiredRecords shareAcquiredRecords = sharePartition.acquire(shareFetchData.memberId(), shareFetchData.maxFetchRecords() - acquiredRecordsCount, fetchPartitionData);
-                log.trace("Acquired records for topicIdPartition: {} with share fetch data: {}, records: {}",
-                    topicIdPartition, shareFetchData, shareAcquiredRecords);
+                log.trace("Acquired records: {} for topicIdPartition: {}", shareAcquiredRecords, topicIdPartition);
                 // Maybe, in the future, check if no records are acquired, and we want to retry
                 // replica manager fetch. Depends on the share partition manager implementation,
                 // if we want parallel requests for the same share partition or not.

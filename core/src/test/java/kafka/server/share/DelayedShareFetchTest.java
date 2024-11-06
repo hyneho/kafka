@@ -130,7 +130,7 @@ public class DelayedShareFetchTest {
     }
 
     @Test
-    public void testTryCompleteReturnsFalseWhenMinBytesNotSatisfiedOnFirstFetch() {
+    public void testTryCompleteWhenMinBytesNotSatisfiedOnFirstFetch() {
         String groupId = "grp";
         Uuid topicId = Uuid.randomUuid();
         ReplicaManager replicaManager = mock(ReplicaManager.class);
@@ -185,7 +185,7 @@ public class DelayedShareFetchTest {
     }
 
     @Test
-    public void testTryCompleteReturnsFalseWhenMinBytesNotSatisfiedOnLatestFetch() {
+    public void testTryCompleteWhenMinBytesNotSatisfiedOnSubsequentFetch() {
         String groupId = "grp";
         Uuid topicId = Uuid.randomUuid();
         ReplicaManager replicaManager = mock(ReplicaManager.class);
@@ -595,7 +595,8 @@ public class DelayedShareFetchTest {
         assertTrue(delayedShareFetch.isCompleted());
         Mockito.verify(replicaManager, times(2)).readFromLog(
             any(), any(), any(ReplicaQuota.class), anyBoolean());
-        Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
+        // releasePartitionLocks will be called twice, once from tryComplete and then from onComplete.
+        Mockito.verify(delayedShareFetch, times(2)).releasePartitionLocks(any());
     }
 
     @Test
