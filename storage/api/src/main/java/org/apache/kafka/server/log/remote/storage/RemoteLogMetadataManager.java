@@ -211,19 +211,18 @@ public interface RemoteLogMetadataManager extends Configurable, Closeable {
     long remoteLogSize(TopicIdPartition topicIdPartition, int leaderEpoch) throws RemoteStorageException;
 
     /**
-     * Returns the next segment that contains the aborted txn entries for the given topic partition, epoch and offset.
+     * Returns the next segment metadata that contains the aborted transaction entries for the given topic partition, epoch and offset.
      * <ul>
      *     <li>The default implementation returns the segment metadata that matches the given epoch and offset
-     *     irrespective of the presence of the txn index.</li>
+     *     irrespective of the presence of the transaction index.</li>
      *     <li>The custom implementation can optimize by returning the next segment metadata that contains the txn index
      *     in the given epoch. If there are no segments with txn index in the given epoch, then return empty.</li>
      * </ul>
      * @param topicIdPartition topic partition to search for the next segment.
      * @param epoch leader epoch of the txn index.
      * @param offset offset
-     * @return The next segment metadata that contains the transaction index. The transaction index may or may not exist
-     * in that segment metadata which depends on the RLMM plugin implementation. The caller of this method should handle
-     * for both the cases.
+     * @return The next segment metadata. The transaction index may or may not exist in the returned segment metadata
+     * which depends on the RLMM plugin implementation. The caller of this method handles for both the cases.
      * @throws RemoteStorageException if there are any storage related errors occurred.
      */
     default Optional<RemoteLogSegmentMetadata> nextSegmentWithTxnIndex(TopicIdPartition topicIdPartition,
