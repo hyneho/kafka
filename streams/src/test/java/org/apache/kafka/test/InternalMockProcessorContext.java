@@ -105,8 +105,8 @@ public class InternalMockProcessorContext<KOut, VOut>
             null,
             new StreamsMetricsImpl(
                 new Metrics(),
-            "mock",
-            "processId",
+                "mock",
+                "processId",
                 new MockTime()
             ),
             config,
@@ -138,8 +138,8 @@ public class InternalMockProcessorContext<KOut, VOut>
             null,
             new StreamsMetricsImpl(
                 new Metrics(),
-            "mock",
-            "processId",
+                "mock",
+                "processId",
                 new MockTime()
             ),
             config,

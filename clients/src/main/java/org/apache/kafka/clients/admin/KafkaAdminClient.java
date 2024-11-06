@@ -582,6 +582,7 @@ public class KafkaAdminClient extends AdminClient {
         Metrics metrics = null;
         String clientId = generateClientId(config);
         Optional<ClientTelemetryReporter> clientTelemetryReporter = CommonClientConfigs.telemetryReporter(clientId, config);
+
         try {
             metrics = new Metrics(new MetricConfig(), new LinkedList<>(), time);
             LogContext logContext = createLogContext(clientId);
