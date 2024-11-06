@@ -218,8 +218,8 @@ public interface RemoteLogMetadataManager extends Configurable, Closeable {
      *     <li>The custom implementation can optimize by returning the next segment metadata that contains the txn index
      *     in the given epoch. If there are no segments with txn index in the given epoch, then return empty.</li>
      * </ul>
-     * @param topicIdPartition topic partition to search for the next segment.
-     * @param epoch leader epoch of the txn index.
+     * @param topicIdPartition topic partition to search for.
+     * @param epoch leader epoch for the given offset.
      * @param offset offset
      * @return The next segment metadata. The transaction index may or may not exist in the returned segment metadata
      * which depends on the RLMM plugin implementation. The caller of this method handles for both the cases.
