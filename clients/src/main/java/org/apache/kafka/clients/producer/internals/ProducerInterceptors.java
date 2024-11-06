@@ -113,6 +113,7 @@ public class ProducerInterceptors<K, V> implements Closeable {
                 Headers headers = record != null ? record.headers() : null;
                 if (headers instanceof RecordHeaders && !((RecordHeaders) headers).isReadOnly()) {
                     // make a copy of the headers to make sure it is read-only
+                    // original headers is still writable because client might want to mutate it before retry
                     RecordHeaders recordHeaders = (RecordHeaders) headers;
                     headers = new RecordHeaders(recordHeaders);
                     ((RecordHeaders) headers).setReadOnly();
