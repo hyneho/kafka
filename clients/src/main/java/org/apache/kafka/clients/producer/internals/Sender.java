@@ -896,10 +896,10 @@ public class Sender implements Runnable {
             // which is supporting the new magic version to one which doesn't, then we will need to convert.
             if (!records.hasMatchingMagic(minUsedMagic))
                 records = batch.records().downConvert(minUsedMagic, 0, time).records();
-            ProduceRequestData.TopicProduceData tpData = tpd.find(tp.topic(), topicIds.get(tp.topic()));
+            Uuid topicId = topicIds.get(tp.topic());
+            ProduceRequestData.TopicProduceData tpData = tpd.find(tp.topic(), topicId);
 
             if (tpData == null) {
-                Uuid topicId = metadata.topicIds().getOrDefault(tp.topic(), Uuid.ZERO_UUID);
                 tpData = new ProduceRequestData.TopicProduceData()
                         .setTopicId(topicId).setName(tp.topic());
                 tpd.add(tpData);
