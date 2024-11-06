@@ -373,6 +373,7 @@ public class TransactionManager {
                 "(currentState= " + currentState + ")");
         }
 
+        // In transaction V2, the client will skip sending AddOffsetsToTxn before sending txnOffsetCommit.
         TxnRequestHandler handler;
         if (isTransactionV2Enabled()) {
             log.debug("Begin adding offsets {} for consumer group {} to transaction with transaction protocol V2", offsets, groupMetadata);
@@ -1190,6 +1191,10 @@ public class TransactionManager {
         } else {
             transitionTo(State.READY);
         }
+        clearAllStates();
+    }
+
+    private void clearAllStates() {
         lastError = null;
         epochBumpRequired = false;
         transactionStarted = false;
@@ -1339,7 +1344,8 @@ public class TransactionManager {
                         initProducerIdResponse.data().producerEpoch());
                 setProducerIdAndEpoch(producerIdAndEpoch);
                 transitionTo(State.READY);
-                lastError = null;
+                // Clear all the states especially epochBumpRequired to make sure it does not confuse the following transactions.
+                clearAllStates();
                 if (this.isEpochBump) {
                     resetSequenceNumbers();
                 }

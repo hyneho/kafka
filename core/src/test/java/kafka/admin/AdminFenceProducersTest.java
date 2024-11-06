@@ -95,9 +95,11 @@ public class AdminFenceProducersTest {
                     ExecutionException.class,
                     () -> producer.send(RECORD).get(), "expected ProducerFencedException"
             );
-            assertInstanceOf(ProducerFencedException.class, exceptionDuringSend.getCause());
+            assertInstanceOf(InvalidProducerEpochException.class, exceptionDuringSend.getCause());
 
-            assertThrows(ProducerFencedException.class, producer::commitTransaction);
+            // InvalidProducerEpochException is treated as fatal error. The commitTransaction will return this last
+            // fatal error.
+            assertThrows(InvalidProducerEpochException.class, producer::commitTransaction);
         }
     }
 

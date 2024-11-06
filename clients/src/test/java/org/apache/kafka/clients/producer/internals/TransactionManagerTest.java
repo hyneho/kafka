@@ -1007,11 +1007,11 @@ public class TransactionManagerTest {
             new ApiVersion()
                 .setApiKey(ApiKeys.PRODUCE.id)
                 .setMinVersion((short) 5)
-                .setMaxVersion((short) (ProduceRequest.LAST_BEFORE_TRANSACTION_V2_VERSION + 1)),
+                .setMaxVersion((short) (ProduceRequest.LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2 + 1)),
             new ApiVersion()
                 .setApiKey(ApiKeys.TXN_OFFSET_COMMIT.id)
                 .setMinVersion((short) 1)
-                .setMaxVersion((short) (TxnOffsetCommitRequest.LAST_BEFORE_TRANSACTION_V2_VERSION + 1))),
+                .setMaxVersion((short) (TxnOffsetCommitRequest.LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2 + 1))),
             Arrays.asList(new ApiVersionsResponseData.SupportedFeatureKey()
                 .setName("transaction.version")
                 .setMaxVersion((short) 1)

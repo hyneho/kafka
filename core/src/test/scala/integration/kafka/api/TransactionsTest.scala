@@ -19,7 +19,7 @@ package kafka.api
 
 import kafka.utils.TestUtils
 import kafka.utils.TestUtils.{consumeRecords, waitUntilTrue}
-import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig, ConsumerGroupMetadata, ConsumerRecord, OffsetAndMetadata}
+import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{InvalidProducerEpochException, ProducerFencedException, TimeoutException}
@@ -38,8 +38,8 @@ import java.util
 import java.util.concurrent.TimeUnit
 import java.util.{Optional, Properties}
 import scala.annotation.nowarn
-import scala.collection.{Seq, mutable}
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.{Seq, mutable}
 import scala.concurrent.ExecutionException
 import scala.jdk.CollectionConverters._
 
@@ -573,8 +573,8 @@ class TransactionsTest extends IntegrationTestHarness {
 
     producer1.initTransactions()
     producer1.beginTransaction()
-    producer1.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "1", "1", willBeCommitted = false)).get()
-    producer1.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic2, null, "3", "3", willBeCommitted = false)).get()
+    producer1.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "1", "1", willBeCommitted = false))
+    producer1.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic2, null, "3", "3", willBeCommitted = false))
     producer1.abortTransaction()
 
     producer2.initTransactions()  // ok, will abort the open transaction.
@@ -921,7 +921,7 @@ class TransactionsTest extends IntegrationTestHarness {
       producer1.close()
     }
 
-    val producer3 = createTransactionalProducer("transactional-producer", maxBlockMs = 5000)
+    val producer3 = createTransactionalProducer("transactional-producer")
     producer3.initTransactions()
 
     producer3.beginTransaction()

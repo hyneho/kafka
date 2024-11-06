@@ -904,6 +904,11 @@ public class Sender implements Runnable {
         }
 
         String transactionalId = null;
+
+        // To determine what produce version to use:
+        //   If it is not transactional, produce version = latest
+        //   If it is transactional but transaction V2 disabled, produce version = min(latest, LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2)
+        //   If it is transactional and transaction V2 enabled, produce version = latest
         boolean canUseTransactionV2AboveVersion = true;
         if (transactionManager != null && transactionManager.isTransactional()) {
             transactionalId = transactionManager.transactionalId();

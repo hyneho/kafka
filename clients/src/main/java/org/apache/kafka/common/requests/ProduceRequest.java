@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 import static org.apache.kafka.common.requests.ProduceResponse.INVALID_OFFSET;
 
 public class ProduceRequest extends AbstractRequest {
-    public static final short LAST_BEFORE_TRANSACTION_V2_VERSION = 11;
+    public static final short LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2 = 11;
 
     public static Builder forMagic(byte magic, ProduceRequestData data, boolean canUseTransactionV2AboveVersion) {
         // Message format upgrades correspond with a bump in the produce request version. Older
@@ -56,7 +56,7 @@ public class ProduceRequest extends AbstractRequest {
             minVersion = 3;
             short latestVersion = ApiKeys.PRODUCE.latestVersion();
             maxVersion = canUseTransactionV2AboveVersion ?
-                latestVersion : (short) Math.min(latestVersion, LAST_BEFORE_TRANSACTION_V2_VERSION);
+                latestVersion : (short) Math.min(latestVersion, LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2);
         }
         return new Builder(minVersion, maxVersion, data);
     }
@@ -259,7 +259,7 @@ public class ProduceRequest extends AbstractRequest {
     }
 
     public static boolean isTransactionV2Requested(short version) {
-        return version > LAST_BEFORE_TRANSACTION_V2_VERSION;
+        return version > LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2;
     }
 
     public static byte requiredMagicForVersion(short produceRequestVersion) {
