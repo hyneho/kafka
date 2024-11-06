@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * This class manages the fetching process with the brokers.
@@ -208,5 +209,35 @@ public class Fetcher<K, V> extends AbstractFetch {
         }
 
         return requestFutures;
+    }
+
+    /**
+     * Create fetch requests for all nodes for which we have assigned partitions
+     * that have no existing requests in flight.
+     */
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
+        // Update metrics in case there was an assignment change
+        metricsManager.maybeUpdateAssignment(subscriptions);
+
+        FetchRequestPreparationState fetchRequestPreparationState = new FetchRequestPreparationState();
+
+        // Loop over all the assigned partitions and create requests if the partition has a valid position and the
+        // node is valid to contact.
+        for (TopicPartition partition : fetchRequestPreparationState.unbuffered()) {
+            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+
+            if (position == null)
+                throw new IllegalStateException("Missing position for fetchable partition " + partition);
+
+            Optional<Node> nodeOpt = fetchRequestPreparationState.maybeLeaderOrReadReplica(partition, position, true);
+
+            if (nodeOpt.isEmpty())
+                continue;
+
+            Node node = nodeOpt.get();
+            fetchRequestPreparationState.createSessionHandlerBuilder(node, partition, position, fetchConfig.fetchSize);
+        }
+
+        return fetchRequestPreparationState.requests();
     }
 }

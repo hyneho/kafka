@@ -24,6 +24,8 @@ import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate.PollRes
 import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate.UnsentRequest;
 import org.apache.kafka.clients.consumer.internals.events.CreateFetchRequestsEvent;
 import org.apache.kafka.common.Node;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.requests.FetchMetadata;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
@@ -170,6 +172,73 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         } finally {
             pendingFetchRequestFuture = null;
         }
+    }
+
+    /**
+     * Create fetch requests for all nodes for which we have assigned partitions that have no existing requests
+     * in flight.
+     */
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
+        // Update metrics in case there was an assignment change
+        metricsManager.maybeUpdateAssignment(subscriptions);
+
+        FetchRequestPreparationState fetchRequestPreparationState = new FetchRequestPreparationState();
+
+        // Loop over all the assigned partitions and create requests if the partition has a valid position and the
+        // node is valid to contact.
+        for (TopicPartition partition : fetchRequestPreparationState.unbuffered()) {
+            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+
+            if (position == null)
+                throw new IllegalStateException("Missing position for fetchable partition " + partition);
+
+            Optional<Node> nodeOpt = fetchRequestPreparationState.maybeLeaderOrReadReplica(partition, position, true);
+
+            if (nodeOpt.isEmpty())
+                continue;
+
+            Node node = nodeOpt.get();
+            fetchRequestPreparationState.createSessionHandlerBuilder(node, partition, position, fetchConfig.fetchSize);
+        }
+
+        // In the second loop, iterate over all partitions with buffered data. If the criteria below is met,
+        // these partitions will be included in the request with a nominal fetch size of 1 byte. These are
+        // included in the fetch requests so that partitions with buffered data aren't inadvertently put into
+        // the "remove" set of the FetchRequest, whereby they are removed from the broker's fetch session. In
+        // some cases this could lead to the eviction of the fetch session.
+        for (TopicPartition partition : fetchRequestPreparationState.buffered()) {
+            if (!subscriptions.isAssigned(partition)) {
+                // It's possible that a partition with buffered data from a previous request is now no longer
+                // assigned to the consumer, in which case just skip this partition.
+                continue;
+            }
+
+            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+            Optional<Node> nodeOpt = fetchRequestPreparationState.maybeLeaderOrReadReplica(partition, position, false);
+
+            if (nodeOpt.isEmpty())
+                continue;
+
+            Node node = nodeOpt.get();
+
+            if (!fetchRequestPreparationState.isRequesting(node)) {
+                // If the first for loop above did not end up including this node, there's no need to make a request
+                // just for the sake of the buffered partition.
+                continue;
+            }
+
+            FetchSessionHandler fsh = sessionHandler(node.id());
+
+            if (fsh == null || fsh.sessionId() == FetchMetadata.INVALID_SESSION_ID) {
+                // If there's no pre-existing fetch session OR it has an invalid session ID, that means that a
+                // FULL request is being created, in which case don't add it to the requests.
+                continue;
+            }
+
+            fetchRequestPreparationState.createSessionHandlerBuilder(node, partition, position, 1);
+        }
+
+        return fetchRequestPreparationState.requests();
     }
 
     /**
