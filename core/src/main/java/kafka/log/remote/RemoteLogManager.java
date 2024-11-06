@@ -1700,11 +1700,12 @@ public class RemoteLogManager implements Closeable {
             }
             buffer.flip();
 
+            startPos = startPos + enrichedRecordBatch.skippedBytes;
             FetchDataInfo fetchDataInfo = new FetchDataInfo(
-                    new LogOffsetMetadata(offset, remoteLogSegmentMetadata.startOffset(), startPos),
+                    new LogOffsetMetadata(firstBatch.baseOffset(), remoteLogSegmentMetadata.startOffset(), startPos),
                     MemoryRecords.readableRecords(buffer));
             if (includeAbortedTxns) {
-                fetchDataInfo = addAbortedTransactions(firstBatch.baseOffset(), remoteLogSegmentMetadata, fetchDataInfo, logOptional.get(), enrichedRecordBatch.getSkippedBytes());
+                fetchDataInfo = addAbortedTransactions(firstBatch.baseOffset(), remoteLogSegmentMetadata, fetchDataInfo, logOptional.get());
             }
 
             return fetchDataInfo;
@@ -1725,14 +1726,13 @@ public class RemoteLogManager implements Closeable {
     private FetchDataInfo addAbortedTransactions(long startOffset,
                                                  RemoteLogSegmentMetadata segmentMetadata,
                                                  FetchDataInfo fetchInfo,
-                                                 UnifiedLog log,
-                                                 int skippedBytes) throws RemoteStorageException {
+                                                 UnifiedLog log) throws RemoteStorageException {
         int fetchSize = fetchInfo.records.sizeInBytes();
         OffsetPosition startOffsetPosition = new OffsetPosition(fetchInfo.fetchOffsetMetadata.messageOffset,
                 fetchInfo.fetchOffsetMetadata.relativePositionInSegment);
 
         OffsetIndex offsetIndex = indexCache.getIndexEntry(segmentMetadata).offsetIndex();
-        long upperBoundOffset = offsetIndex.fetchUpperBoundOffset(startOffsetPosition, fetchSize + skippedBytes)
+        long upperBoundOffset = offsetIndex.fetchUpperBoundOffset(startOffsetPosition, fetchSize)
                 .map(position -> position.offset).orElse(segmentMetadata.endOffset() + 1);
 
         final Set<FetchResponseData.AbortedTransaction> abortedTransactions = new HashSet<>();
