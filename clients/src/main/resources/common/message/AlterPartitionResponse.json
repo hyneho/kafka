@@ -30,12 +30,14 @@
       "about": "The duration in milliseconds for which the request was throttled due to a quota violation, or zero if the request did not violate any quota." },
     { "name": "ErrorCode", "type": "int16", "versions": "0+",
       "about": "The top level response error code." },
-    { "name": "Topics", "type": "[]TopicData", "versions": "0+", "fields": [
+    { "name": "Topics", "type": "[]TopicData", "versions": "0+",
+      "about": "The responses for each topic.", "fields": [
       { "name": "TopicName", "type": "string", "versions": "0-1", "ignorable": true, "entityType": "topicName",
         "about": "The name of the topic." },
       { "name":  "TopicId", "type": "uuid", "versions": "2+", "ignorable": true,
         "about": "The ID of the topic." },
-      { "name": "Partitions", "type": "[]PartitionData", "versions": "0+", "fields": [
+      { "name": "Partitions", "type": "[]PartitionData", "versions": "0+",
+        "about": "The responses for each partition.", "fields": [
         { "name": "PartitionIndex", "type": "int32", "versions": "0+",
           "about": "The partition index." },
         { "name": "ErrorCode", "type": "int16", "versions": "0+",
@@ -50,9 +52,7 @@
           "about": "1 if the partition is recovering from an unclean leader election; 0 otherwise." },
         { "name": "PartitionEpoch", "type": "int32", "versions": "0+",
           "about": "The current epoch for the partition for KRaft controllers. The current ZK version for the legacy controllers." }
-      ],
-      "about": "The responses for each partition."}
-    ],
-    "about": "The responses for each topic."}
+      ]}
+    ]}
   ]
 }

@@ -21,7 +21,8 @@
   "fields": [
     { "name": "Version", "type": "int16", "versions": "0+",
       "about": "The version of the voters record." },
-    { "name": "Voters", "type": "[]Voter", "versions": "0+", "fields": [
+    { "name": "Voters", "type": "[]Voter", "versions": "0+",
+      "about": "The set of voters in the quorum for this epoch.", "fields": [
       { "name": "VoterId", "type": "int32", "versions": "0+", "entityType": "brokerId",
         "about": "The replica id of the voter in the topic partition." },
       { "name": "VoterDirectoryId", "type": "uuid", "versions": "0+",
@@ -42,7 +43,6 @@
         { "name": "MaxSupportedVersion", "type": "int16", "versions": "0+",
           "about": "The maximum supported KRaft protocol version." }
       ]}
-    ],
-    "about": "The set of voters in the quorum for this epoch."}
+    ]}
   ]
 }

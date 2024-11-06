@@ -25,7 +25,7 @@
       { "name": "TopicId", "versions": "0+", "type": "uuid",
       "about": "The topic id."},
       { "name": "Partitions", "versions": "0+", "type": "[]int32",
-      "about": "The partition ids."}
+      "about": "The partition indexes."}
     ]}
   ]
 }

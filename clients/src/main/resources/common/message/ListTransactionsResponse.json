@@ -27,14 +27,14 @@
         "about": "The error code, or 0 if there was no error."},
       { "name": "UnknownStateFilters", "type": "[]string", "versions": "0+",
         "about": "Set of state filters provided in the request which were unknown to the transaction coordinator." },
-      { "name": "TransactionStates", "type": "[]TransactionState", "versions": "0+", "fields": [
+      { "name": "TransactionStates", "type": "[]TransactionState", "versions": "0+",
+        "about": "The current state of the transaction for the transactional id.", "fields": [
         { "name": "TransactionalId", "type": "string", "versions": "0+", "entityType": "transactionalId",
           "about":  "The transactional id associated with the transaction."},
         { "name": "ProducerId", "type": "int64", "versions": "0+", "entityType": "producerId",
           "about": "The producer id associated with the transaction."},
         { "name": "TransactionState", "type": "string", "versions": "0+",
           "about": "The current transaction state of the producer." }
-    ],
-    "about": "The current state of the transaction for the transactional id."}
+    ]}
   ]
 }

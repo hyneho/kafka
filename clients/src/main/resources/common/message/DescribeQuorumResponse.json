@@ -26,12 +26,12 @@
       "about": "The top level error code."},
     { "name": "ErrorMessage", "type": "string", "versions": "2+", "nullableVersions": "2+", "ignorable": true,
       "about": "The error message, or null if there was no error." },
-    { "name": "Topics", "type": "[]TopicData",
-      "versions": "0+", "fields": [
+    { "name": "Topics", "type": "[]TopicData", "versions": "0+",
+      "about": "The response from the describe quorum API.", "fields": [
       { "name": "TopicName", "type": "string", "versions": "0+", "entityType": "topicName",
         "about": "The topic name." },
-      { "name": "Partitions", "type": "[]PartitionData",
-        "versions": "0+", "fields": [
+      { "name": "Partitions", "type": "[]PartitionData", "versions": "0+",
+        "about": "The partition data.", "fields": [
         { "name": "PartitionIndex", "type": "int32", "versions": "0+",
           "about": "The partition index." },
         { "name": "ErrorCode", "type": "int16", "versions": "0+",
@@ -48,11 +48,10 @@
           "about": "The current voters of the partition."},
         { "name": "Observers", "type": "[]ReplicaState", "versions": "0+",
           "about": "The observers of the partition."}
-      ],
-      "about": "The partition data."}
-    ],
-    "about": "The response from the describe quorum API."},
-    { "name": "Nodes", "type": "[]Node", "versions": "2+", "fields": [
+      ]}
+    ]},
+    { "name": "Nodes", "type": "[]Node", "versions": "2+",
+      "about": "The nodes in the quorum.", "fields": [
       { "name": "NodeId", "type": "int32", "versions": "2+",
         "mapKey": true, "entityType": "brokerId", "about": "The ID of the associated node." },
       { "name": "Listeners", "type": "[]Listener",
@@ -64,8 +63,7 @@
         { "name": "Port", "type": "uint16", "versions": "2+",
           "about": "The port." }
       ]}
-    ],
-    "about": "The nodes in the quorum."}
+    ]}
   ],
   "commonStructs": [
     { "name": "ReplicaState", "versions": "0+", "fields": [

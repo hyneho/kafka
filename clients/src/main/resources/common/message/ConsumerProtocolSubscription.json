@@ -34,13 +34,12 @@
       "default": "null", "zeroCopy": true,
       "about": "User data that will be passed back to the consumer."},
     { "name": "OwnedPartitions", "type": "[]TopicPartition", "versions": "1+", "ignorable": true,
-      "fields": [
+      "about": "The partitions that the member owns.", "fields": [
         { "name": "Topic", "type": "string", "mapKey": true, "versions": "1+", "entityType": "topicName",
           "about": "The topic name."},
         { "name": "Partitions", "type": "[]int32", "versions": "1+",
           "about": "The partition ids."}
-      ],
-      "about": "The partitions that the member owns."
+      ]
     },
     { "name": "GenerationId", "type": "int32", "versions": "2+", "default": "-1", "ignorable": true,
       "about": "The generation id of the member."},

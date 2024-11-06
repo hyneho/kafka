@@ -54,13 +54,13 @@
           "about": "The acknowledge error code, or 0 if there was no acknowledge error." },
         { "name": "AcknowledgeErrorMessage", "type": "string", "versions": "0+", "nullableVersions": "0+", "default": "null",
           "about": "The acknowledge error message, or null if there was no acknowledge error." },
-        { "name": "CurrentLeader", "type": "LeaderIdAndEpoch", "versions": "0+", "fields": [
+        { "name": "CurrentLeader", "type": "LeaderIdAndEpoch", "versions": "0+",
+          "about": "The current leader for this partition.", "fields": [
           { "name": "LeaderId", "type": "int32", "versions": "0+",
             "about": "The ID of the current leader or -1 if the leader is unknown." },
           { "name": "LeaderEpoch", "type": "int32", "versions": "0+",
             "about": "The latest known leader epoch." }
-        ],
-        "about": "The current leader for this partition."},
+        ]},
         { "name": "Records", "type": "records", "versions": "0+", "nullableVersions": "0+", "about": "The record data."},
         { "name": "AcquiredRecords", "type": "[]AcquiredRecords", "versions": "0+", "about": "The acquired records.", "fields":  [
           {"name": "FirstOffset", "type":  "int64", "versions": "0+", "about": "The earliest offset in this batch of acquired records."},

@@ -31,10 +31,10 @@
     "about": "The voted directory id."},
     { "name": "AppliedOffset", "type": "int64", "versions": "0",
     "about": "The applied offset."},
-    { "name": "CurrentVoters", "type": "[]Voter", "versions": "0", "nullableVersions": "0", "fields": [
+    { "name": "CurrentVoters", "type": "[]Voter", "versions": "0", "nullableVersions": "0",
+      "about": "The current voters.", "fields": [
       { "name": "VoterId", "type": "int32", "versions": "0",
       "about": "The voter id."}
-    ],
-    "about": "The current voters."}
+    ]}
   ]
 }

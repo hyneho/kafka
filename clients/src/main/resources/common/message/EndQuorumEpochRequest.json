@@ -26,12 +26,12 @@
     { "name": "ClusterId", "type": "string", "versions": "0+",
       "nullableVersions": "0+", "default": "null",
       "about": "The cluster id."},
-    { "name": "Topics", "type": "[]TopicData",
-      "versions": "0+", "fields": [
+    { "name": "Topics", "type": "[]TopicData", "versions": "0+",
+      "about": "The topics to end epoch on.", "fields": [
         { "name": "TopicName", "type": "string", "versions": "0+", "entityType": "topicName",
           "about": "The topic name." },
-        { "name": "Partitions", "type": "[]PartitionData",
-          "versions": "0+", "fields": [
+        { "name": "Partitions", "type": "[]PartitionData", "versions": "0+",
+          "about": "The partitions to end epoch on.", "fields": [
             { "name": "PartitionIndex", "type": "int32", "versions": "0+",
               "about": "The partition index." },
             { "name": "LeaderId", "type": "int32", "versions": "0+", "entityType": "brokerId",
@@ -48,11 +48,9 @@
                   "about": "The directory ID of the candidate replica."}
               ]
             }
-          ],
-          "about": "The partitions to end epoch on."
+          ]
         }
-      ],
-      "about": "The topics to end epoch on."
+      ]
     },
     { "name": "LeaderEndpoints", "type": "[]LeaderEndpoint", "versions": "1+", "ignorable": true,
       "about": "Endpoints for the leader.", "fields": [

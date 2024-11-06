@@ -55,7 +55,8 @@
       { "name": "PartitionStates", "type": "[]UpdateMetadataPartitionState", "versions": "5+",
         "about": "The partition that we would like to update." }
     ]},
-    { "name": "LiveBrokers", "type": "[]UpdateMetadataBroker", "versions": "0+", "fields": [
+    { "name": "LiveBrokers", "type": "[]UpdateMetadataBroker", "versions": "0+",
+      "about": "The brokers that we know about.", "fields": [
         { "name": "Id", "type": "int32", "versions": "0+", "entityType": "brokerId",
           "about": "The broker id." },
         // Version 0 of the protocol only allowed specifying a single host and
@@ -77,8 +78,7 @@
         ]},
         { "name": "Rack", "type": "string", "versions": "2+", "nullableVersions": "0+", "ignorable": true,
           "about": "The rack which this broker belongs to." }
-    ],
-    "about": "The brokers that we know about."}
+    ]}
   ],
   "commonStructs": [
     { "name": "UpdateMetadataPartitionState", "versions": "0+", "fields": [
