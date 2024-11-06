@@ -1368,6 +1368,7 @@ project(':metadata') {
     testImplementation project(':server-common').sourceSets.test.output
 
     testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly project(':test-common')
 
     generator project(':generator')
   }
@@ -1548,7 +1549,7 @@ project(':test-common') {
     implementation project(':storage')
     implementation project(':server-common')
     implementation libs.slf4jApi
-    testImplementation libs.junitJupiter
+    implementation libs.junitJupiter
     testImplementation libs.mockitoCore
     
     testRuntimeOnly runtimeTestLibs
