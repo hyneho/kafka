@@ -148,7 +148,8 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
         // holding an exclusive lock to make the call is often unnecessary.
         if (operation.safeTryCompleteOrElse(() -> {
             watchKeys.forEach(key -> watchForOperation(key, operation));
-            if (!watchKeys.isEmpty()) estimatedTotalOperations.incrementAndGet();
+            if (!watchKeys.isEmpty())
+                estimatedTotalOperations.incrementAndGet();
         })) {
             return true;
         }
@@ -196,7 +197,7 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
     public int watched() {
         int sum = 0;
         for (WatcherList watcherList : watcherLists) {
-            sum += watcherList.allWatchers().stream().map(Watchers::countWatched).mapToInt(c -> c).sum();
+            sum += watcherList.allWatchers().stream().mapToInt(Watchers::countWatched).sum();
         }
         return sum;
     }
@@ -226,8 +227,7 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
     }
 
     /*
-     * Return the watch list of the given key, note that we need to
-     * grab the removeWatchersLock to avoid the operation being added to a removed watcher list
+     * Watch the operation
      */
     private void watchForOperation(DelayedOperationKey key, T operation) {
         WatcherList wl = watcherList(key);
@@ -388,7 +388,7 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
             LOG.debug("Begin purging watch lists");
             int purged = 0;
             for (WatcherList watcherList : watcherLists) {
-                purged += watcherList.allWatchers().stream().map(Watchers::purgeCompleted).mapToInt(i -> i).sum();
+                purged += watcherList.allWatchers().stream().mapToInt(Watchers::purgeCompleted).sum();
             }
             LOG.debug("Purged {} elements from watch lists.", purged);
         }

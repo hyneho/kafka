@@ -80,8 +80,7 @@ class DelayedFuturePurgatory(purgatoryName: String, brokerId: Int) {
       override def newThread(r: Runnable): Thread = new KafkaThread(s"DelayedExecutor-$purgatoryName", r, true)
     })
   private val purgatoryKey = new DelayedOperationKey() {
-
-    override def keyLabel(): String = new Object().toString
+    override def keyLabel(): String = "delayed-future-key"
   }
 
   def tryCompleteElseWatch[T](timeoutMs: Long,

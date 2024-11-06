@@ -462,7 +462,7 @@ public class TestPurgatoryPerformance {
         final CountDownLatch latch;
 
         public FakeOperation(long delayMs, long latencyMs, CountDownLatch latch) {
-            super(delayMs, Optional.empty());
+            super(delayMs);
             this.latencyMs = latencyMs;
             this.latch = latch;
             completesAt = System.currentTimeMillis() + delayMs;

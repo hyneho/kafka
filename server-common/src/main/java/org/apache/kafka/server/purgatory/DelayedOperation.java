@@ -118,7 +118,7 @@ public abstract class DelayedOperation extends TimerTask {
         try {
             if (tryComplete()) return true;
             else {
-                action.run();
+                action.apply();
                 // last completion check
                 return tryComplete();
             }
@@ -151,6 +151,6 @@ public abstract class DelayedOperation extends TimerTask {
 
     @FunctionalInterface
     public interface Action {
-        void run();
+        void apply();
     }
 }

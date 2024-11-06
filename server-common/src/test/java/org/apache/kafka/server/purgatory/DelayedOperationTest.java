@@ -65,7 +65,7 @@ public class DelayedOperationTest {
             executorService.shutdown();
     }
 
-    static class MockKey implements DelayedOperationKey {
+    private static class MockKey implements DelayedOperationKey {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -112,7 +112,7 @@ public class DelayedOperationTest {
         purgatory.tryCompleteElseWatch(op, Collections.singletonList(new MockKey("key")));
     }
 
-    DelayedOperation op(boolean shouldComplete) {
+    private DelayedOperation op(boolean shouldComplete) {
         return new DelayedOperation(100000L) {
             @Override
             public void onExpiration() {}
@@ -248,7 +248,7 @@ public class DelayedOperationTest {
         ops.forEach(op -> assertTrue(op.isCompleted(), "Operation " + op.key.keyLabel() + " should have completed"));
     }
 
-    Future<?> scheduleTryComplete(ScheduledExecutorService executorService, TestDelayOperation op, long delayMs) {
+    private Future<?> scheduleTryComplete(ScheduledExecutorService executorService, TestDelayOperation op, long delayMs) {
         return executorService.schedule(() -> {
             if (op.completionAttemptsRemaining.decrementAndGet() == 0) {
                 op.completable = true;
@@ -257,7 +257,7 @@ public class DelayedOperationTest {
         }, delayMs, TimeUnit.MILLISECONDS);
     }
 
-    static class MockDelayedOperation extends DelayedOperation {
+    private static class MockDelayedOperation extends DelayedOperation {
 
         private final Optional<Lock> responseLockOpt;
         boolean completable = false;
@@ -301,11 +301,11 @@ public class DelayedOperationTest {
         }
     }
 
-    class TestDelayOperation extends MockDelayedOperation {
+    private class TestDelayOperation extends MockDelayedOperation {
 
-        final MockKey key;
-        final AtomicInteger completionAttemptsRemaining;
-        final int maxDelayMs;
+        private final MockKey key;
+        private final AtomicInteger completionAttemptsRemaining;
+        private final int maxDelayMs;
 
         TestDelayOperation(int index, int completionAttempts, int maxDelayMs) {
             super(10000L, Optional.empty());
