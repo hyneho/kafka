@@ -72,7 +72,7 @@ import java.util.stream.Collectors;
  * This is used to create a round-trip trogdor agent which will spawn producers and consumers to
  * produce and consume equal number of messages based on the workload it is executing.
  *
- * Currently, there are 2 inheritors, one which uses {@link org.apache.kafka.clients.consumer.KafkaConsumer}
+ * Currently, there are 2 subclasses, one which uses {@link org.apache.kafka.clients.consumer.KafkaConsumer}
  * and another which uses {@link org.apache.kafka.clients.consumer.KafkaShareConsumer} as the consumer.
  */
 public abstract class RoundTripWorkerBase implements TaskWorker {
