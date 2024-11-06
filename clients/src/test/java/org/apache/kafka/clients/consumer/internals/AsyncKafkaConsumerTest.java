@@ -40,6 +40,7 @@ import org.apache.kafka.clients.consumer.internals.events.CompletableApplication
 import org.apache.kafka.clients.consumer.internals.events.CompletableBackgroundEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableEventReaper;
 import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackNeededEvent;
+import org.apache.kafka.clients.consumer.internals.events.CreateFetchRequestsEvent;
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.clients.consumer.internals.events.EventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.FetchCommittedOffsetsEvent;
@@ -47,16 +48,15 @@ import org.apache.kafka.clients.consumer.internals.events.ListOffsetsEvent;
 import org.apache.kafka.clients.consumer.internals.events.PollEvent;
 import org.apache.kafka.clients.consumer.internals.events.ResetOffsetEvent;
 import org.apache.kafka.clients.consumer.internals.events.SeekUnvalidatedEvent;
-import org.apache.kafka.clients.consumer.internals.events.SubscriptionChangeEvent;
 import org.apache.kafka.clients.consumer.internals.events.SyncCommitEvent;
+import org.apache.kafka.clients.consumer.internals.events.TopicPatternSubscriptionChangeEvent;
+import org.apache.kafka.clients.consumer.internals.events.TopicSubscriptionChangeEvent;
 import org.apache.kafka.clients.consumer.internals.events.UnsubscribeEvent;
-import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
-import org.apache.kafka.common.errors.FencedInstanceIdException;
 import org.apache.kafka.common.errors.GroupAuthorizationException;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.InvalidGroupIdException;
@@ -135,7 +135,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -335,23 +334,6 @@ public class AsyncKafkaConsumerTest {
     }
 
     @Test
-    public void testCommitAsyncWithFencedException() {
-        consumer = newConsumer();
-        completeCommitSyncApplicationEventSuccessfully();
-        final Map<TopicPartition, OffsetAndMetadata> offsets = mockTopicPartitionOffset();
-        MockCommitCallback callback = new MockCommitCallback();
-
-        assertDoesNotThrow(() -> consumer.commitAsync(offsets, callback));
-
-        final ArgumentCaptor<AsyncCommitEvent> commitEventCaptor = ArgumentCaptor.forClass(AsyncCommitEvent.class);
-        verify(applicationEventHandler).add(commitEventCaptor.capture());
-        final AsyncCommitEvent commitEvent = commitEventCaptor.getValue();
-        commitEvent.future().completeExceptionally(Errors.FENCED_INSTANCE_ID.exception());
-
-        assertThrows(Errors.FENCED_INSTANCE_ID.exception().getClass(), () -> consumer.commitAsync());
-    }
-
-    @Test
     public void testCommitted() {
         time = new MockTime(1);
         consumer = newConsumer();
@@ -491,46 +473,10 @@ public class AsyncKafkaConsumerTest {
             }
         };
 
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(Collections.singletonList(topicName), listener);
         consumer.poll(Duration.ZERO);
         assertTrue(callbackExecuted.get());
-    }
-
-    @Test
-    public void testSubscriptionRegexEvalOnPollOnlyIfMetadataChanges() {
-        SubscriptionState subscriptions = mock(SubscriptionState.class);
-        Cluster cluster = mock(Cluster.class);
-
-        consumer = newConsumer(
-                mock(FetchBuffer.class),
-                mock(ConsumerInterceptors.class),
-                mock(ConsumerRebalanceListenerInvoker.class),
-                subscriptions,
-                "group-id",
-                "client-id");
-
-        final String topicName = "foo";
-        final int partition = 3;
-        final TopicPartition tp = new TopicPartition(topicName, partition);
-        doReturn(Fetch.empty()).when(fetchCollector).collectFetch(any(FetchBuffer.class));
-        when(applicationEventHandler.addAndGet(any(CheckAndUpdatePositionsEvent.class))).thenReturn(true);
-        doReturn(LeaderAndEpoch.noLeaderOrEpoch()).when(metadata).currentLeader(any());
-        doReturn(cluster).when(metadata).fetch();
-        doReturn(Collections.singleton(topicName)).when(cluster).topics();
-
-        consumer.subscribe(Pattern.compile("f*"));
-        verify(metadata).requestUpdateForNewTopics();
-        verify(subscriptions).matchesSubscribedPattern(topicName);
-        clearInvocations(subscriptions);
-
-        when(subscriptions.hasPatternSubscription()).thenReturn(true);
-        consumer.poll(Duration.ZERO);
-        verify(subscriptions, never()).matchesSubscribedPattern(topicName);
-
-        when(metadata.updateVersion()).thenReturn(2);
-        when(subscriptions.hasPatternSubscription()).thenReturn(true);
-        consumer.poll(Duration.ZERO);
-        verify(subscriptions).matchesSubscribedPattern(topicName);
     }
 
     @Test
@@ -647,52 +593,6 @@ public class AsyncKafkaConsumerTest {
     }
 
     @Test
-    public void testCommitAsyncTriggersFencedExceptionFromCommitAsync() {
-        final String groupId = "consumerGroupA";
-        final String groupInstanceId = "groupInstanceId1";
-        final Properties props = requiredConsumerConfigAndGroupId(groupId);
-        props.put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, groupInstanceId);
-        final ConsumerConfig config = new ConsumerConfig(props);
-        consumer = newConsumer(config);
-        completeCommitAsyncApplicationEventExceptionally(Errors.FENCED_INSTANCE_ID.exception());
-        doReturn(Fetch.empty()).when(fetchCollector).collectFetch(any(FetchBuffer.class));
-        doReturn(LeaderAndEpoch.noLeaderOrEpoch()).when(metadata).currentLeader(any());
-        final TopicPartition tp = new TopicPartition("foo", 0);
-        completeAssignmentChangeEventSuccessfully();
-        consumer.assign(Collections.singleton(tp));
-        completeSeekUnvalidatedEventSuccessfully();
-        consumer.seek(tp, 20);
-
-        assertDoesNotThrow(() -> consumer.commitAsync());
-
-        Exception e = assertThrows(FencedInstanceIdException.class, () -> consumer.commitAsync());
-        assertEquals("Get fenced exception for group.instance.id groupInstanceId1", e.getMessage());
-    }
-
-    @Test
-    public void testCommitSyncTriggersFencedExceptionFromCommitAsync() {
-        final String groupId = "consumerGroupA";
-        final String groupInstanceId = "groupInstanceId1";
-        final Properties props = requiredConsumerConfigAndGroupId(groupId);
-        props.put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, groupInstanceId);
-        final ConsumerConfig config = new ConsumerConfig(props);
-        consumer = newConsumer(config);
-        completeCommitAsyncApplicationEventExceptionally(Errors.FENCED_INSTANCE_ID.exception());
-        doReturn(Fetch.empty()).when(fetchCollector).collectFetch(any(FetchBuffer.class));
-        doReturn(LeaderAndEpoch.noLeaderOrEpoch()).when(metadata).currentLeader(any());
-        final TopicPartition tp = new TopicPartition("foo", 0);
-        completeAssignmentChangeEventSuccessfully();
-        consumer.assign(Collections.singleton(tp));
-        completeSeekUnvalidatedEventSuccessfully();
-        consumer.seek(tp, 20);
-
-        assertDoesNotThrow(() -> consumer.commitAsync());
-
-        Exception e =  assertThrows(FencedInstanceIdException.class, () -> consumer.commitSync());
-        assertEquals("Get fenced exception for group.instance.id groupInstanceId1", e.getMessage());
-    }
-
-    @Test
     public void testCommitSyncAwaitsCommitAsyncCompletionWithEmptyOffsets() {
         final TopicPartition tp = new TopicPartition("foo", 0);
         final CompletableFuture<Void> asyncCommitFuture = setUpConsumerWithIncompleteAsyncCommit(tp);
@@ -773,29 +673,6 @@ public class AsyncKafkaConsumerTest {
         verify(applicationEventHandler, atLeast(1)).addAndGet(eventArgumentCaptor.capture());
         final List<CompletableApplicationEvent<T>> allValues = eventArgumentCaptor.getAllValues();
         return allValues.get(allValues.size() - 1);
-    }
-
-    @Test
-    public void testPollTriggersFencedExceptionFromCommitAsync() {
-        final String groupId = "consumerGroupA";
-        final String groupInstanceId = "groupInstanceId1";
-        final Properties props = requiredConsumerConfigAndGroupId(groupId);
-        props.put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, groupInstanceId);
-        final ConsumerConfig config = new ConsumerConfig(props);
-        consumer = newConsumer(config);
-        completeCommitAsyncApplicationEventExceptionally(Errors.FENCED_INSTANCE_ID.exception());
-        doReturn(Fetch.empty()).when(fetchCollector).collectFetch(any(FetchBuffer.class));
-        doReturn(LeaderAndEpoch.noLeaderOrEpoch()).when(metadata).currentLeader(any());
-        final TopicPartition tp = new TopicPartition("foo", 0);
-        completeAssignmentChangeEventSuccessfully();
-        consumer.assign(Collections.singleton(tp));
-        completeSeekUnvalidatedEventSuccessfully();
-        consumer.seek(tp, 20);
-
-        assertDoesNotThrow(() -> consumer.commitAsync());
-
-        Exception e = assertThrows(FencedInstanceIdException.class, () -> consumer.poll(Duration.ZERO));
-        assertEquals("Get fenced exception for group.instance.id groupInstanceId1", e.getMessage());
     }
 
     @Test
@@ -881,6 +758,7 @@ public class AsyncKafkaConsumerTest {
             subscriptions,
             "group-id",
             "client-id");
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(singleton("topic"), mock(ConsumerRebalanceListener.class));
         subscriptions.assignFromSubscribed(singleton(new TopicPartition("topic", 0)));
         completeSeekUnvalidatedEventSuccessfully();
@@ -899,6 +777,7 @@ public class AsyncKafkaConsumerTest {
             subscriptions,
             "group-id",
             "client-id");
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(singleton("topic"), mock(ConsumerRebalanceListener.class));
         subscriptions.assignFromSubscribed(singleton(new TopicPartition("topic", 0)));
         completeSeekUnvalidatedEventSuccessfully();
@@ -1319,10 +1198,20 @@ public class AsyncKafkaConsumerTest {
     public void testSubscribeGeneratesEvent() {
         consumer = newConsumer();
         String topic = "topic1";
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(singletonList(topic));
         assertEquals(singleton(topic), consumer.subscription());
         assertTrue(consumer.assignment().isEmpty());
-        verify(applicationEventHandler).add(ArgumentMatchers.isA(SubscriptionChangeEvent.class));
+        verify(applicationEventHandler).addAndGet(ArgumentMatchers.isA(TopicSubscriptionChangeEvent.class));
+    }
+
+    @Test
+    public void testSubscribePatternGeneratesEvent() {
+        consumer = newConsumer();
+        Pattern pattern = Pattern.compile("topic.*");
+        completeTopicPatternSubscriptionChangeEventSuccessfully();
+        consumer.subscribe(pattern);
+        verify(applicationEventHandler).addAndGet(ArgumentMatchers.isA(TopicPatternSubscriptionChangeEvent.class));
     }
 
     @Test
@@ -1453,7 +1342,7 @@ public class AsyncKafkaConsumerTest {
             final String expectedMemberId = "memberId";
             groupMetadataUpdateListener.onMemberEpochUpdated(
                 Optional.of(expectedMemberEpoch),
-                Optional.of(expectedMemberId)
+                expectedMemberId
             );
             final ConsumerGroupMetadata newGroupMetadata = consumer.groupMetadata();
             assertEquals(oldGroupMetadata.groupId(), newGroupMetadata.groupId());
@@ -1473,7 +1362,7 @@ public class AsyncKafkaConsumerTest {
             consumer.subscribe(singletonList("topic"));
             final int memberEpoch = 42;
             final String memberId = "memberId";
-            groupMetadataUpdateListener.onMemberEpochUpdated(Optional.of(memberEpoch), Optional.of(memberId));
+            groupMetadataUpdateListener.onMemberEpochUpdated(Optional.of(memberEpoch), memberId);
             final ConsumerGroupMetadata groupMetadata = consumer.groupMetadata();
             assertNotEquals(JoinGroupRequest.UNKNOWN_GENERATION_ID, groupMetadata.generationId());
             assertNotEquals(JoinGroupRequest.UNKNOWN_MEMBER_ID, groupMetadata.memberId());
@@ -1519,6 +1408,7 @@ public class AsyncKafkaConsumerTest {
                 lostError
         );
         doReturn(Fetch.empty()).when(fetchCollector).collectFetch(any(FetchBuffer.class));
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(Collections.singletonList("topic"), consumerRebalanceListener);
         SortedSet<TopicPartition> partitions = Collections.emptySortedSet();
 
@@ -1708,9 +1598,11 @@ public class AsyncKafkaConsumerTest {
                 .collectFetch(Mockito.any(FetchBuffer.class));
         when(applicationEventHandler.addAndGet(any(CheckAndUpdatePositionsEvent.class))).thenReturn(true);
 
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(singletonList("topic1"));
         consumer.poll(Duration.ofMillis(100));
         verify(applicationEventHandler).add(any(PollEvent.class));
+        verify(applicationEventHandler).add(any(CreateFetchRequestsEvent.class));
     }
 
     private Properties requiredConsumerConfigAndGroupId(final String groupId) {
@@ -1737,6 +1629,7 @@ public class AsyncKafkaConsumerTest {
     public void testLongPollWaitIsLimited() {
         consumer = newConsumer();
         String topicName = "topic1";
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(singletonList(topicName));
 
         assertEquals(singleton(topicName), consumer.subscription());
@@ -1891,6 +1784,7 @@ public class AsyncKafkaConsumerTest {
     void testReaperInvokedInPoll() {
         consumer = newConsumer();
         doReturn(Fetch.empty()).when(fetchCollector).collectFetch(any(FetchBuffer.class));
+        completeTopicSubscriptionChangeEventSuccessfully();
         consumer.subscribe(Collections.singletonList("topic"));
         when(applicationEventHandler.addAndGet(any(CheckAndUpdatePositionsEvent.class))).thenReturn(true);
         consumer.poll(Duration.ZERO);
@@ -2052,6 +1946,24 @@ public class AsyncKafkaConsumerTest {
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(AssignmentChangeEvent.class));
+    }
+
+    private void completeTopicSubscriptionChangeEventSuccessfully() {
+        doAnswer(invocation -> {
+            TopicSubscriptionChangeEvent event = invocation.getArgument(0);
+            consumer.subscriptions().subscribe(event.topics(), event.listener());
+            event.future().complete(null);
+            return null;
+        }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(TopicSubscriptionChangeEvent.class));
+    }
+
+    private void completeTopicPatternSubscriptionChangeEventSuccessfully() {
+        doAnswer(invocation -> {
+            TopicPatternSubscriptionChangeEvent event = invocation.getArgument(0);
+            consumer.subscriptions().subscribe(event.pattern(), event.listener());
+            event.future().complete(null);
+            return null;
+        }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(TopicPatternSubscriptionChangeEvent.class));
     }
 
     private void completeSeekUnvalidatedEventSuccessfully() {

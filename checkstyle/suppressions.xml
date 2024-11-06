@@ -188,7 +188,7 @@
 
     <!-- Streams -->
     <suppress checks="ClassFanOutComplexity"
-              files="(KafkaStreams|KStreamImpl|KTableImpl|InternalTopologyBuilder|StreamsPartitionAssignor|StreamThread|IQv2StoreIntegrationTest|KStreamImplTest|RocksDBStore|StreamTask).java"/>
+              files="(KafkaStreams|KStreamImpl|KTableImpl|InternalTopologyBuilder|StreamsPartitionAssignor|StreamThread|IQv2StoreIntegrationTest|KStreamImplTest|RocksDBStore|StreamTask|TaskManager).java"/>
 
     <suppress checks="MethodLength"
               files="KTableImpl.java"/>
@@ -353,5 +353,5 @@
               files="(ReplicaFetcherThreadBenchmark).java"/>
 
      <!-- Add the new suppression rule for JaasTestUtils.java -->
-    <suppress checks="ImportControl" files="kafka/security/JaasTestUtils.java" />
+    <suppress checks="ImportControl" files="(JaasTestUtils).java" />
 </suppressions>
