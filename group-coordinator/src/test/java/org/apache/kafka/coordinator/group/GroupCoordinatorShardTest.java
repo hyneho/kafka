@@ -1303,7 +1303,7 @@ public class GroupCoordinatorShardTest {
             .setTimestamp(12345L);
 
         coordinator.replay(0L, RecordBatch.NO_PRODUCER_ID, RecordBatch.NO_PRODUCER_EPOCH, new CoordinatorRecord(
-            new ApiMessageAndVersion(key, (short) 15),
+            new ApiMessageAndVersion(key, (short) 16),
             new ApiMessageAndVersion(value, (short) 0)
         ));
 
@@ -1311,7 +1311,7 @@ public class GroupCoordinatorShardTest {
     }
 
     @Test
-    public void testReplayConsumerGroupRegularExpressionTombestone() {
+    public void testReplayConsumerGroupRegularExpressionTombstone() {
         GroupMetadataManager groupMetadataManager = mock(GroupMetadataManager.class);
         OffsetMetadataManager offsetMetadataManager = mock(OffsetMetadataManager.class);
         CoordinatorMetrics coordinatorMetrics = mock(CoordinatorMetrics.class);
@@ -1332,7 +1332,7 @@ public class GroupCoordinatorShardTest {
             .setRegularExpression("ab*");
 
         coordinator.replay(0L, RecordBatch.NO_PRODUCER_ID, RecordBatch.NO_PRODUCER_EPOCH, new CoordinatorRecord(
-            new ApiMessageAndVersion(key, (short) 15),
+            new ApiMessageAndVersion(key, (short) 16),
             null
         ));
 

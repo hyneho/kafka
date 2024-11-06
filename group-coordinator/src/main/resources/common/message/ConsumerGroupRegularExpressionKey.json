@@ -17,12 +17,12 @@
 {
   "type": "data",
   "name": "ConsumerGroupRegularExpressionKey",
-  "validVersions": "15",
+  "validVersions": "16",
   "flexibleVersions": "none",
   "fields": [
-    { "name": "GroupId", "type": "string", "versions": "15",
+    { "name": "GroupId", "type": "string", "versions": "16",
       "about": "The group id." },
-    { "name": "RegularExpression", "type": "string", "versions": "15",
+    { "name": "RegularExpression", "type": "string", "versions": "16",
       "about": "The regular expression." }
   ]
 }

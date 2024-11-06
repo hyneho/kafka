@@ -15115,7 +15115,7 @@ public class GroupMetadataManagerTest {
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
             .build();
 
-        // The group may not exist at all. Replaying the ConsumerGroupMetadata tombstone
+        // The group may not exist at all. Replaying the ConsumerGroupRegularExpression tombstone
         // should be a no-op.
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone("foo", "abc*"));
         assertThrows(GroupIdNotFoundException.class, () -> context.groupMetadataManager.consumerGroup("foo"));

@@ -432,7 +432,7 @@ public class GroupCoordinatorRecordHelpers {
                 new ConsumerGroupRegularExpressionKey()
                     .setGroupId(groupId)
                     .setRegularExpression(regex),
-                (short) 15
+                (short) 16
             ),
             new ApiMessageAndVersion(
                 new ConsumerGroupRegularExpressionValue()
@@ -460,7 +460,7 @@ public class GroupCoordinatorRecordHelpers {
                 new ConsumerGroupRegularExpressionKey()
                     .setGroupId(groupId)
                     .setRegularExpression(regex),
-                (short) 15
+                (short) 16
             ),
             null // Tombstone
         );

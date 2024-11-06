@@ -817,7 +817,7 @@ public class GroupCoordinatorRecordHelpersTest {
                 new ConsumerGroupRegularExpressionKey()
                     .setGroupId("group-id")
                     .setRegularExpression("ab*"),
-                (short) 15
+                (short) 16
             ),
             new ApiMessageAndVersion(
                 new ConsumerGroupRegularExpressionValue()
@@ -848,7 +848,7 @@ public class GroupCoordinatorRecordHelpersTest {
                 new ConsumerGroupRegularExpressionKey()
                     .setGroupId("group-id")
                     .setRegularExpression("ab*"),
-                (short) 15
+                (short) 16
             ),
             null
         );
