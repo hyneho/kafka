@@ -1078,7 +1078,7 @@ public class StreamTask extends AbstractTask implements ProcessorNodePunctuator,
             if (topology.isRepartitionTopic(tp.topic())) {
                 // committedOffsets map is initialized at -1 so no purging until there's a committed offset
                 if (entry.getValue() > -1) {
-                    purgeableConsumedOffsets.put(tp, entry.getValue() + 1);
+                    purgeableConsumedOffsets.put(tp, entry.getValue());
                 }
             }
         }
