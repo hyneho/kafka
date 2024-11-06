@@ -150,7 +150,6 @@ public final class GroupConfig extends AbstractConfig {
         int shareHeartbeatInterval = (Integer) valueMaps.get(SHARE_HEARTBEAT_INTERVAL_MS_CONFIG);
         int shareSessionTimeout = (Integer) valueMaps.get(SHARE_SESSION_TIMEOUT_MS_CONFIG);
         int shareRecordLockDurationMs = (Integer) valueMaps.get(SHARE_RECORD_LOCK_DURATION_MS_CONFIG);
-        String shareAutoOffsetReset = (String) valueMaps.get(SHARE_AUTO_OFFSET_RESET_CONFIG);
         if (consumerHeartbeatInterval < groupCoordinatorConfig.consumerGroupMinHeartbeatIntervalMs()) {
             throw new InvalidConfigurationException(CONSUMER_HEARTBEAT_INTERVAL_MS_CONFIG + " must be greater than or equal to " +
                 GroupCoordinatorConfig.CONSUMER_GROUP_MIN_HEARTBEAT_INTERVAL_MS_CONFIG);
@@ -198,10 +197,6 @@ public final class GroupConfig extends AbstractConfig {
         if (shareSessionTimeout <= shareHeartbeatInterval) {
             throw new InvalidConfigurationException(SHARE_SESSION_TIMEOUT_MS_CONFIG + " must be greater than " +
                 SHARE_HEARTBEAT_INTERVAL_MS_CONFIG);
-        }
-        if (ShareGroupAutoOffsetReset.valueOf(shareAutoOffsetReset.toUpperCase(Locale.ROOT)) == ShareGroupAutoOffsetReset.NONE) {
-            throw new InvalidConfigurationException(SHARE_AUTO_OFFSET_RESET_CONFIG + " must be " +
-                ShareGroupAutoOffsetReset.LATEST + " or " + ShareGroupAutoOffsetReset.EARLIEST);
         }
     }
 
@@ -275,7 +270,7 @@ public final class GroupConfig extends AbstractConfig {
     }
 
     public enum ShareGroupAutoOffsetReset {
-        LATEST, EARLIEST, NONE;
+        LATEST, EARLIEST;
 
         @Override
         public String toString() {

@@ -290,6 +290,8 @@ public class ShareConsumerTest {
 
         shareConsumer.subscribe(Collections.singleton(tp.topic()));
 
+        alterShareAutoOffsetReset("group1", "earliest");
+
         ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(5000));
         assertEquals(1, records.count());
 
@@ -1722,25 +1724,25 @@ public class ShareConsumerTest {
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testShareAutoOffsetResetMultipleGroupsWithDifferentValue(String persister) {
-        KafkaShareConsumer<byte[], byte[]> shareConsumer1 = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
-        shareConsumer1.subscribe(Collections.singleton(tp.topic()));
+        KafkaShareConsumer<byte[], byte[]> shareConsumerEarliest = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1");
+        shareConsumerEarliest.subscribe(Collections.singleton(tp.topic()));
         // Changing the value of share.auto.offset.reset value to "earliest" for group1
         alterShareAutoOffsetReset("group1", "earliest");
 
-        KafkaShareConsumer<byte[], byte[]> shareConsumer2 = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group2");
-        shareConsumer2.subscribe(Collections.singleton(tp.topic()));
+        KafkaShareConsumer<byte[], byte[]> shareConsumerLatest = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group2");
+        shareConsumerLatest.subscribe(Collections.singleton(tp.topic()));
         // Changing the value of share.auto.offset.reset value to "latest" for group2
         alterShareAutoOffsetReset("group2", "latest");
         ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
         KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         // Producing a record.
         producer.send(record);
-        ConsumerRecords<byte[], byte[]> records1 = shareConsumer1.poll(Duration.ofMillis(5000));
+        ConsumerRecords<byte[], byte[]> records1 = shareConsumerEarliest.poll(Duration.ofMillis(5000));
         // Since the value for share.auto.offset.reset has been altered to "earliest", the consumer should consume
         // all messages present on the partition
         assertEquals(1, records1.count());
 
-        ConsumerRecords<byte[], byte[]> records2 = shareConsumer2.poll(Duration.ofMillis(5000));
+        ConsumerRecords<byte[], byte[]> records2 = shareConsumerLatest.poll(Duration.ofMillis(5000));
         // Since the value for share.auto.offset.reset has been altered to "latest", the consumer should not consume
         // any message
         assertEquals(0, records2.count());
@@ -1748,16 +1750,16 @@ public class ShareConsumerTest {
         // Producing another record.
         producer.send(record);
 
-        records1 = shareConsumer1.poll(Duration.ofMillis(5000));
+        records1 = shareConsumerEarliest.poll(Duration.ofMillis(5000));
         // The next record should also be consumed successfully by group1
         assertEquals(1, records1.count());
 
-        records2 = shareConsumer2.poll(Duration.ofMillis(5000));
+        records2 = shareConsumerLatest.poll(Duration.ofMillis(5000));
         // The next record should also be consumed successfully by group2
         assertEquals(1, records2.count());
 
-        shareConsumer1.close();
-        shareConsumer2.close();
+        shareConsumerEarliest.close();
+        shareConsumerLatest.close();
         producer.close();
     }
 

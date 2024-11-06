@@ -2040,9 +2040,6 @@ public class SharePartition {
         GroupConfig.ShareGroupAutoOffsetReset offsetResetStrategy;
         if (groupConfigManager.groupConfig(groupId).isPresent()) {
             offsetResetStrategy = groupConfigManager.groupConfig(groupId).get().shareAutoOffsetReset();
-            if (offsetResetStrategy == GroupConfig.ShareGroupAutoOffsetReset.NONE) {
-                offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
-            }
         } else {
             offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
         }

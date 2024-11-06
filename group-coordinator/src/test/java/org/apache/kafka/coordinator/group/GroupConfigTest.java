@@ -146,11 +146,6 @@ public class GroupConfigTest {
         props = createValidGroupConfig();
 
         // Check for invalid shareAutoOffsetReset
-        props.put(GroupConfig.SHARE_AUTO_OFFSET_RESET_CONFIG, "none");
-        doTestInvalidProps(props, InvalidConfigurationException.class);
-        props = createValidGroupConfig();
-
-        // Check for invalid shareAutoOffsetReset
         props.put(GroupConfig.SHARE_AUTO_OFFSET_RESET_CONFIG, "hello");
         doTestInvalidProps(props, ConfigException.class);
     }
