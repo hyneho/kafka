@@ -414,17 +414,17 @@ public class GroupCoordinatorRecordHelpers {
     /**
      * Creates a ConsumerGroupRegularExpression record.
      *
-     * @param groupId   The consumer group id.
-     * @param regex     The regular expression.
-     * @param metadata  The metadata associated with the regular expression.
+     * @param groupId                       The consumer group id.
+     * @param regex                         The regular expression.
+     * @param resolvedRegularExpression     The metadata associated with the regular expression.
      * @return The record.
      */
     public static CoordinatorRecord newConsumerGroupRegularExpressionRecord(
         String groupId,
         String regex,
-        ResolvedRegularExpression metadata
+        ResolvedRegularExpression resolvedRegularExpression
     ) {
-        List<String> topics = new ArrayList<>(metadata.topics);
+        List<String> topics = new ArrayList<>(resolvedRegularExpression.topics);
         Collections.sort(topics);
 
         return new CoordinatorRecord(
@@ -437,8 +437,8 @@ public class GroupCoordinatorRecordHelpers {
             new ApiMessageAndVersion(
                 new ConsumerGroupRegularExpressionValue()
                     .setTopics(topics)
-                    .setVersion(metadata.version)
-                    .setTimestamp(metadata.timestamp),
+                    .setVersion(resolvedRegularExpression.version)
+                    .setTimestamp(resolvedRegularExpression.timestamp),
                 (short) 0
             )
         );

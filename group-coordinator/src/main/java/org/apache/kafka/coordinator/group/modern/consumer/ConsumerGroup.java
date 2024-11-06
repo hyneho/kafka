@@ -351,17 +351,17 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     /**
      * Update the regular expression.
      *
-     * @param regex         The regular expression.
-     * @param newMetadata   The regular expression's metadata.
+     * @param regex                         The regular expression.
+     * @param newResolvedRegularExpression  The regular expression's metadata.
      */
     public void updateRegularExpression(
         String regex,
-        ResolvedRegularExpression newMetadata
+        ResolvedRegularExpression newResolvedRegularExpression
     ) {
         removeRegularExpression(regex);
-        if (newMetadata != null) {
-            resolvedRegularExpressions.put(regex, newMetadata);
-            newMetadata.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::incValue));
+        if (newResolvedRegularExpression != null) {
+            resolvedRegularExpressions.put(regex, newResolvedRegularExpression);
+            newResolvedRegularExpression.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::incValue));
         }
     }
 
@@ -373,9 +373,9 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     public void removeRegularExpression(
         String regex
     ) {
-        ResolvedRegularExpression oldMetadata = resolvedRegularExpressions.remove(regex);
-        if (oldMetadata != null) {
-            oldMetadata.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::decValue));
+        ResolvedRegularExpression oldResolvedRegularExpression = resolvedRegularExpressions.remove(regex);
+        if (oldResolvedRegularExpression != null) {
+            oldResolvedRegularExpression.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::decValue));
         }
     }
 
