@@ -1462,13 +1462,13 @@ class ReplicaManager(val config: KafkaConfig,
 
       // reject appending to internal topics if it is not allowed
       if (Topic.isInternal(topicIdPartition.topic) && !internalTopicsAllowed) {
-        (new TopicOptionalIdPartition(Optional.empty(), topicIdPartition.topicPartition()), LogAppendResult(
+        (new TopicOptionalIdPartition(Optional.ofNullable(topicIdPartition.topicId()), topicIdPartition.topicPartition()), LogAppendResult(
           LogAppendInfo.UNKNOWN_LOG_APPEND_INFO,
           Some(new InvalidTopicException(s"Cannot append to internal topic ${topicIdPartition.topic}")),
           hasCustomErrorMessage = false))
       } else {
         try {
-          val partition = getPartitionOrException(topicIdPartition.topicPartition())
+          val partition: Partition = getPartitionOrException(topicIdPartition.topicPartition())
           val info = partition.appendRecordsToLeader(records, origin, requiredAcks, requestLocal,
             verificationGuards.getOrElse(topicIdPartition.topicPartition(), VerificationGuard.SENTINEL))
           val numAppendedMessages = info.numMessages
@@ -1483,10 +1483,9 @@ class ReplicaManager(val config: KafkaConfig,
             trace(s"${records.sizeInBytes} written to log $topicIdPartition beginning at offset " +
               s"${info.firstOffset} and ending at offset ${info.lastOffset}")
 
-          var topicId: Optional[Uuid] = Optional.empty()
-          if (partition.topicId.isDefined) topicId = Optional.of(partition.topicId.get)
-
+          val topicId: Optional[Uuid] = partition.topicId.toJava
           (new TopicOptionalIdPartition(topicId, topicIdPartition.topicPartition()), LogAppendResult(info, exception = None, hasCustomErrorMessage = false))
+
         } catch {
           // NOTE: Failed produce requests metric is not incremented for known exceptions
           // it is supposed to indicate un-expected failures of a broker in handling a produce request
@@ -1496,15 +1495,15 @@ class ReplicaManager(val config: KafkaConfig,
                    _: RecordBatchTooLargeException |
                    _: CorruptRecordException |
                    _: KafkaStorageException) =>
-            (new TopicOptionalIdPartition(Optional.empty(), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.UNKNOWN_LOG_APPEND_INFO, Some(e), hasCustomErrorMessage = false))
+            (new TopicOptionalIdPartition(Optional.ofNullable(topicIdPartition.topicId()), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.UNKNOWN_LOG_APPEND_INFO, Some(e), hasCustomErrorMessage = false))
           case rve: RecordValidationException =>
             val logStartOffset = processFailedRecord(topicIdPartition, rve.invalidException)
             val recordErrors = rve.recordErrors
-            (new TopicOptionalIdPartition(Optional.empty(), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithAdditionalInfo(logStartOffset, recordErrors),
+            (new TopicOptionalIdPartition(Optional.ofNullable(topicIdPartition.topicId()), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithAdditionalInfo(logStartOffset, recordErrors),
               Some(rve.invalidException), hasCustomErrorMessage = true))
           case t: Throwable =>
             val logStartOffset = processFailedRecord(topicIdPartition, t)
-            (new TopicOptionalIdPartition(Optional.empty(), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithLogStartOffset(logStartOffset),
+            (new TopicOptionalIdPartition(Optional.ofNullable(topicIdPartition.topicId()), topicIdPartition.topicPartition()), LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithLogStartOffset(logStartOffset),
               Some(t), hasCustomErrorMessage = false))
         }
       }
