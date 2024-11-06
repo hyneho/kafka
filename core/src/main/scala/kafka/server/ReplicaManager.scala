@@ -745,7 +745,9 @@ class ReplicaManager(val config: KafkaConfig,
 
       case Right(partition) =>
         val topicId = partition.topicId
-        if (topicId.contains(topicIdPartition.topicId())) {
+        // If topic id is set to zero fall back to non topic id aware behaviour
+        val topicIdNotProvided = topicIdPartition.topicId() == Uuid.ZERO_UUID || topicIdPartition.topicId() == null
+        if (topicIdNotProvided || topicId.contains(topicIdPartition.topicId())) {
           partition
         } else {
           throw new UnknownTopicIdException(s"Partition $topicIdPartition's topic id doesn't match the one on disk $topicId.'")
