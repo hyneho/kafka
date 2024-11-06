@@ -94,7 +94,7 @@ class ZkAdminManager(val config: KafkaConfig,
     * Try to complete delayed topic operations with the request key
     */
   def tryCompleteDelayedTopicOperations(topic: String): Unit = {
-    val key = new TopicKey(topic)
+    val key = TopicKey(topic)
     val completed = topicPurgatory.checkAndComplete(key)
     debug(s"Request key ${key.keyLabel} unblocked $completed topic requests.")
   }
@@ -251,7 +251,7 @@ class ZkAdminManager(val config: KafkaConfig,
       // 3. else pass the assignments and errors to the delayed operation and set the keys
       val delayedCreate = new DelayedCreatePartitions(timeout, metadata, this,
         responseCallback)
-      val delayedCreateKeys = toCreate.values.map(topic => new TopicKey(topic.name)).toList
+      val delayedCreateKeys = toCreate.values.map(topic => TopicKey(topic.name)).toList
       // try to complete the request immediately, otherwise put it into the purgatory
       topicPurgatory.tryCompleteElseWatch(delayedCreate, delayedCreateKeys.asJava)
     }
@@ -298,7 +298,7 @@ class ZkAdminManager(val config: KafkaConfig,
     } else {
       // 3. else pass the topics and errors to the delayed operation and set the keys
       val delayedDelete = new DelayedDeleteTopics(timeout, metadata.toSeq, this, responseCallback)
-      val delayedDeleteKeys = topics.map(new TopicKey(_)).toList
+      val delayedDeleteKeys = topics.map(TopicKey).toList
       // try to complete the request immediately, otherwise put it into the purgatory
       topicPurgatory.tryCompleteElseWatch(delayedDelete, delayedDeleteKeys.asJava)
     }
@@ -394,7 +394,7 @@ class ZkAdminManager(val config: KafkaConfig,
     } else {
       // 3. else pass the assignments and errors to the delayed operation and set the keys
       val delayedCreate = new DelayedCreatePartitions(timeoutMs, metadata, this, callback)
-      val delayedCreateKeys = newPartitions.map(createPartitionTopic => new TopicKey(createPartitionTopic.name)).toList
+      val delayedCreateKeys = newPartitions.map(createPartitionTopic => TopicKey(createPartitionTopic.name)).toList
       // try to complete the request immediately, otherwise put it into the purgatory
       topicPurgatory.tryCompleteElseWatch(delayedCreate, delayedCreateKeys.asJava)
     }

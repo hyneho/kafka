@@ -1015,7 +1015,7 @@ class ReplicaManager(val config: KafkaConfig,
       val delayedProduce = new DelayedProduce(timeoutMs, produceMetadata, this, responseCallback, delayedProduceLock)
 
       // create a list of (topic, partition) pairs to use as keys for this delayed produce operation
-      val producerRequestKeys = entriesPerPartition.keys.map(new TopicPartitionOperationKey(_)).toSeq
+      val producerRequestKeys = entriesPerPartition.keys.map(new TopicPartitionOperationKey(_)).toList
 
       // try to complete the request immediately, otherwise put it into the purgatory
       // this is because while the delayed produce operation is being created, new
