@@ -3627,7 +3627,7 @@ public class GroupMetadataManager {
 
         if (value != null) {
             ConsumerGroup group = getOrMaybeCreatePersistedConsumerGroup(groupId, true);
-            group.updateRegularExpression(
+            group.updateResolvedRegularExpression(
                 regex,
                 new ResolvedRegularExpression(
                     new HashSet<>(value.topics()),
@@ -3638,7 +3638,7 @@ public class GroupMetadataManager {
         } else {
             try {
                 ConsumerGroup group = getOrMaybeCreatePersistedConsumerGroup(groupId, false);
-                group.removeRegularExpression(regex);
+                group.removeResolvedRegularExpression(regex);
             } catch (GroupIdNotFoundException ex) {
                 // If the group does not exist, we can ignore the tombstone.
             }

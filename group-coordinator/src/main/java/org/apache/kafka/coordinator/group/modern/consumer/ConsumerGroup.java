@@ -349,16 +349,16 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
-     * Update the regular expression.
+     * Update the resolved regular expression.
      *
      * @param regex                         The regular expression.
      * @param newResolvedRegularExpression  The regular expression's metadata.
      */
-    public void updateRegularExpression(
+    public void updateResolvedRegularExpression(
         String regex,
         ResolvedRegularExpression newResolvedRegularExpression
     ) {
-        removeRegularExpression(regex);
+        removeResolvedRegularExpression(regex);
         if (newResolvedRegularExpression != null) {
             resolvedRegularExpressions.put(regex, newResolvedRegularExpression);
             newResolvedRegularExpression.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::incValue));
@@ -366,13 +366,11 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
-     * Remove the regular expression.
+     * Remove the resolved regular expression.
      *
      * @param regex The regular expression.
      */
-    public void removeRegularExpression(
-        String regex
-    ) {
+    public void removeResolvedRegularExpression(String regex) {
         ResolvedRegularExpression oldResolvedRegularExpression = resolvedRegularExpressions.remove(regex);
         if (oldResolvedRegularExpression != null) {
             oldResolvedRegularExpression.topics.forEach(topicName -> subscribedTopicNames.compute(topicName, Utils::decValue));
@@ -380,12 +378,13 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
-     * @return An optional containing the resolved regular expression corresponding to the provided regex
+     * Return an optional containing the resolved regular expression corresponding to the provided regex
      * or an empty optional.
+     *
+     * @param regex The regular expression.
+     * @return The optional containing the resolved regular expression or an empty optional.
      */
-    public Optional<ResolvedRegularExpression> regularExpression(
-        String regex
-    ) {
+    public Optional<ResolvedRegularExpression> regularExpression(String regex) {
         return Optional.ofNullable(resolvedRegularExpressions.get(regex));
     }
 

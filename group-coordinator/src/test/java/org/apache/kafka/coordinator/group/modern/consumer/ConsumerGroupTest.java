@@ -1692,7 +1692,7 @@ public class ConsumerGroupTest {
         );
 
         // Add a regex.
-        consumerGroup.updateRegularExpression(
+        consumerGroup.updateResolvedRegularExpression(
             "foo|bar",
             new ResolvedRegularExpression(
                 Set.of("foo", "bar"),
@@ -1711,7 +1711,7 @@ public class ConsumerGroupTest {
         );
 
         // Add a regex.
-        consumerGroup.updateRegularExpression(
+        consumerGroup.updateResolvedRegularExpression(
             "foobar",
             new ResolvedRegularExpression(
                 Set.of("foobar"),
@@ -1731,7 +1731,7 @@ public class ConsumerGroupTest {
         );
 
         // Update a regex.
-        consumerGroup.updateRegularExpression(
+        consumerGroup.updateResolvedRegularExpression(
             "foo|bar",
             new ResolvedRegularExpression(
                 Set.of("foo"),
@@ -1751,7 +1751,7 @@ public class ConsumerGroupTest {
         );
 
         // Remove a regex.
-        consumerGroup.removeRegularExpression("foo|bar");
+        consumerGroup.removeResolvedRegularExpression("foo|bar");
 
         assertEquals(
             Map.of(
@@ -1764,7 +1764,7 @@ public class ConsumerGroupTest {
         );
 
         // Remove another regex.
-        consumerGroup.removeRegularExpression("foobar");
+        consumerGroup.removeResolvedRegularExpression("foobar");
 
         assertEquals(
             Map.of(

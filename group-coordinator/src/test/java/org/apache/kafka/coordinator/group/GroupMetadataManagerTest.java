@@ -15092,7 +15092,7 @@ public class GroupMetadataManagerTest {
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
             .build();
 
-        ResolvedRegularExpression regex = new ResolvedRegularExpression(
+        ResolvedRegularExpression resolvedRegularExpression = new ResolvedRegularExpression(
             Set.of("abc", "abcd"),
             10L,
             12345L
@@ -15101,11 +15101,11 @@ public class GroupMetadataManagerTest {
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionRecord(
             "foo",
             "abc*",
-            regex
+            resolvedRegularExpression
         ));
 
         assertEquals(
-            Optional.of(regex),
+            Optional.of(resolvedRegularExpression),
             context.groupMetadataManager.consumerGroup("foo").regularExpression("abc*")
         );
     }
@@ -15121,7 +15121,7 @@ public class GroupMetadataManagerTest {
         assertThrows(GroupIdNotFoundException.class, () -> context.groupMetadataManager.consumerGroup("foo"));
 
         // Otherwise, it should remove the regular expression.
-        ResolvedRegularExpression regex = new ResolvedRegularExpression(
+        ResolvedRegularExpression resolvedRegularExpression = new ResolvedRegularExpression(
             Set.of("abc", "abcd"),
             10L,
             12345L
@@ -15130,7 +15130,7 @@ public class GroupMetadataManagerTest {
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionRecord(
             "foo",
             "abc*",
-            regex
+            resolvedRegularExpression
         ));
 
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone(

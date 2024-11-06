@@ -26,15 +26,15 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 public class ResolvedRegularExpressionTest {
     @Test
     public void testConstructor() {
-        ResolvedRegularExpression regex = new ResolvedRegularExpression(
+        ResolvedRegularExpression resolvedRegularExpression = new ResolvedRegularExpression(
             Set.of("foo", "bar"),
             10L,
             12345L
         );
 
-        assertEquals(Set.of("foo", "bar"), regex.topics);
-        assertEquals(10L, regex.version);
-        assertEquals(12345L, regex.timestamp);
+        assertEquals(Set.of("foo", "bar"), resolvedRegularExpression.topics);
+        assertEquals(10L, resolvedRegularExpression.version);
+        assertEquals(12345L, resolvedRegularExpression.timestamp);
     }
 
     @Test
