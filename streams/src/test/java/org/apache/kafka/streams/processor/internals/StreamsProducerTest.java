@@ -279,7 +279,7 @@ public class StreamsProducerTest {
             () -> nonEosStreamsProducer.resetProducer(null)
         );
 
-        assertThat(thrown.getMessage(), is("Expected EOS to be enabled"));
+        assertThat(thrown.getMessage(), is("Expected EOS to be enabled, but processing mode is at_least_once"));
     }
 
 

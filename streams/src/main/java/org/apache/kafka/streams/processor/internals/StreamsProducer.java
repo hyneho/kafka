@@ -135,7 +135,7 @@ public class StreamsProducer {
 
     public void resetProducer(final Producer<byte[], byte[]> producer) {
         if (!eosEnabled()) {
-            throw new IllegalStateException("Expected EOS to be enabled");
+            throw new IllegalStateException("Expected EOS to be enabled, but processing mode is " + processingMode);
         }
 
         oldProducerTotalBlockedTime += totalBlockedTime(this.producer);
