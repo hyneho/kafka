@@ -27,7 +27,7 @@ import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.FileRecords;
 import org.apache.kafka.common.requests.ListOffsetsRequest;
 import org.apache.kafka.server.share.fetch.ShareAcquiredRecords;
-import org.apache.kafka.server.share.fetch.ShareFetchData;
+import org.apache.kafka.server.share.fetch.ShareFetch;
 import org.apache.kafka.server.storage.log.FetchPartitionData;
 
 import org.slf4j.Logger;
@@ -51,7 +51,7 @@ public class ShareFetchUtils {
      * by acquiring records from the share partition.
      */
     static Map<TopicIdPartition, ShareFetchResponseData.PartitionData> processFetchResponse(
-            ShareFetchData shareFetchData,
+            ShareFetch shareFetch,
             Map<TopicIdPartition, FetchPartitionData> responseData,
             SharePartitionManager sharePartitionManager,
             ReplicaManager replicaManager
@@ -64,9 +64,9 @@ public class ShareFetchUtils {
             TopicIdPartition topicIdPartition = entry.getKey();
             FetchPartitionData fetchPartitionData = entry.getValue();
 
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
+            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetch.groupId(), topicIdPartition);
             if (sharePartition == null) {
-                log.error("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), topicIdPartition);
+                log.error("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetch.groupId(), topicIdPartition);
                 continue;
             }
             ShareFetchResponseData.PartitionData partitionData = new ShareFetchResponseData.PartitionData()
@@ -91,9 +91,9 @@ public class ShareFetchUtils {
                     partitionData.setErrorMessage(Errors.NONE.message());
                 }
             } else {
-                ShareAcquiredRecords shareAcquiredRecords = sharePartition.acquire(shareFetchData.memberId(), shareFetchData.maxFetchRecords() - acquiredRecordsCount, fetchPartitionData);
+                ShareAcquiredRecords shareAcquiredRecords = sharePartition.acquire(shareFetch.memberId(), shareFetch.maxFetchRecords() - acquiredRecordsCount, fetchPartitionData);
                 log.trace("Acquired records for topicIdPartition: {} with share fetch data: {}, records: {}",
-                    topicIdPartition, shareFetchData, shareAcquiredRecords);
+                    topicIdPartition, shareFetch, shareAcquiredRecords);
                 // Maybe, in the future, check if no records are acquired, and we want to retry
                 // replica manager fetch. Depends on the share partition manager implementation,
                 // if we want parallel requests for the same share partition or not.
