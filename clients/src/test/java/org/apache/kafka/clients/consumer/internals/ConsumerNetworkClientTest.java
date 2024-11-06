@@ -286,10 +286,14 @@ public class ConsumerNetworkClientTest {
         
         t1.start();
 
-        Thread t2 = new Thread(() -> assertDoesNotThrow(() -> {
-            t2ThreadCountDownLatch.await();
-            consumerClient.poll(future);
-        }));
+        Thread t2 = new Thread(() -> {
+            try {
+                t2ThreadCountDownLatch.await();
+                consumerClient.poll(future);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
         t2.start();
         
         // Simulate a network response and return from the poll in t1
