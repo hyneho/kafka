@@ -3901,7 +3901,11 @@ class KafkaApis(val requestChannel: RequestChannel,
               ++ (subtopology.stateChangelogTopics().iterator().asScala.map(_.name()):Iterator[String])
           ).toSeq
 
-        // Checking early for valid topology names, since we don't want to pass those to `authHelper`.
+        // While correctness of the heartbeat request is checked inside the group coordinator,
+        // we are checking early that topics in the topology have valid names and are not internal
+        // kafka topics, since we need to pass it to the authorization helper before passing the
+        // request to the group coordinator.
+
         val prohibitedTopics = requiredTopics.filter(Topic.isInternal)
         if (prohibitedTopics.nonEmpty) {
           val errorResponse = new StreamsGroupHeartbeatResponseData()

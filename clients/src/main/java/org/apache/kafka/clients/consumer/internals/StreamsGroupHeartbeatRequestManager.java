@@ -283,7 +283,8 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
         membershipManager.onHeartbeatSuccess(new ConsumerGroupHeartbeatResponse(cgData));
     }
 
-    private void setTargetAssignmentForConsumerGroup(final StreamsGroupHeartbeatResponseData data, final ConsumerGroupHeartbeatResponseData cgData) {
+    private void setTargetAssignmentForConsumerGroup(final StreamsGroupHeartbeatResponseData data,
+                                                     final ConsumerGroupHeartbeatResponseData cgData) {
         Map<String, TopicPartitions> tps = new HashMap<>();
         data.activeTasks().forEach(taskId -> Stream.concat(
                 streamsInterface.subtopologyMap().get(taskId.subtopologyId()).sourceTopics.stream(),
@@ -318,7 +319,8 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
         streamsInterface.targetAssignment.set(targetAssignment);
     }
 
-    private static Map<StreamsAssignmentInterface.HostInfo, List<TopicPartition>> convertHostInfoMap(final StreamsGroupHeartbeatResponseData data) {
+    private static Map<StreamsAssignmentInterface.HostInfo, List<TopicPartition>> convertHostInfoMap(
+        final StreamsGroupHeartbeatResponseData data) {
         Map<StreamsAssignmentInterface.HostInfo, List<TopicPartition>> partitionsByHost = new HashMap<>();
         data.partitionsByUserEndpoint().forEach(endpoint -> {
             List<TopicPartition> topicPartitions = endpoint.partitions().stream()
@@ -467,7 +469,8 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
             final long retryBackoffMs,
             final long retryBackoffMaxMs,
             final double jitter) {
-            super(logContext, StreamsGroupHeartbeatRequestManager.HeartbeatRequestState.class.getName(), retryBackoffMs, 2, retryBackoffMaxMs,
+            super(logContext, StreamsGroupHeartbeatRequestManager.HeartbeatRequestState.class.getName(), retryBackoffMs, 2,
+                retryBackoffMaxMs,
                 jitter);
             this.heartbeatIntervalMs = heartbeatIntervalMs;
             this.heartbeatTimer = time.timer(heartbeatIntervalMs);
@@ -632,6 +635,7 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
             for (final Map.Entry<String, StreamsAssignmentInterface.Subtopology> subtopology : subTopologyMap.entrySet()) {
                 subtopologies.add(getSubtopologyFromStreams(subtopology.getKey(), subtopology.getValue()));
             }
+            subtopologies.sort(Comparator.comparing(StreamsGroupHeartbeatRequestData.Subtopology::subtopologyId));
             return subtopologies;
         }
 
@@ -652,9 +656,8 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
             return subtopologyData;
         }
 
-        private static List<CopartitionGroup> getCopartitionGroupsFromStreams(
-            final Collection<Set<String>> copartitionGroups,
-            final StreamsGroupHeartbeatRequestData.Subtopology subtopologyData) {
+        private static List<CopartitionGroup> getCopartitionGroupsFromStreams(final Collection<Set<String>> copartitionGroups,
+                                                                              final StreamsGroupHeartbeatRequestData.Subtopology subtopologyData) {
 
             final Map<String, Short> sourceTopicsMap =
                 IntStream.range(0, subtopologyData.sourceTopics().size())
@@ -673,10 +676,9 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
                 .collect(Collectors.toList());
         }
 
-        private static CopartitionGroup getCopartitionGroupFromStreams(
-            final Set<String> topicNames,
-            final Map<String, Short> sourceTopicsMap,
-            final Map<String, Short> repartitionSourceTopics) {
+        private static CopartitionGroup getCopartitionGroupFromStreams(final Set<String> topicNames,
+                                                                       final Map<String, Short> sourceTopicsMap,
+                                                                       final Map<String, Short> repartitionSourceTopics) {
             CopartitionGroup copartitionGroup = new CopartitionGroup();
 
             topicNames.forEach(topicName -> {
@@ -694,7 +696,8 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
             return copartitionGroup;
         }
 
-        private static List<StreamsGroupHeartbeatRequestData.TopicInfo> getRepartitionTopicsInfoFromStreams(final StreamsAssignmentInterface.Subtopology subtopologyDataFromStreams) {
+        private static List<StreamsGroupHeartbeatRequestData.TopicInfo> getRepartitionTopicsInfoFromStreams(
+            final StreamsAssignmentInterface.Subtopology subtopologyDataFromStreams) {
             final List<StreamsGroupHeartbeatRequestData.TopicInfo> repartitionTopicsInfo = new ArrayList<>();
             for (final Map.Entry<String, StreamsAssignmentInterface.TopicInfo> repartitionTopic : subtopologyDataFromStreams.repartitionSourceTopics.entrySet()) {
                 final StreamsGroupHeartbeatRequestData.TopicInfo repartitionTopicInfo = new StreamsGroupHeartbeatRequestData.TopicInfo();
@@ -707,7 +710,8 @@ public class StreamsGroupHeartbeatRequestManager implements RequestManager {
             return repartitionTopicsInfo;
         }
 
-        private static List<StreamsGroupHeartbeatRequestData.TopicInfo> getChangelogTopicsInfoFromStreams(final StreamsAssignmentInterface.Subtopology subtopologyDataFromStreams) {
+        private static List<StreamsGroupHeartbeatRequestData.TopicInfo> getChangelogTopicsInfoFromStreams(
+            final StreamsAssignmentInterface.Subtopology subtopologyDataFromStreams) {
             final List<StreamsGroupHeartbeatRequestData.TopicInfo> changelogTopicsInfo = new ArrayList<>();
             for (final Map.Entry<String, StreamsAssignmentInterface.TopicInfo> changelogTopic : subtopologyDataFromStreams.stateChangelogTopics.entrySet()) {
                 final StreamsGroupHeartbeatRequestData.TopicInfo changelogTopicInfo = new StreamsGroupHeartbeatRequestData.TopicInfo();

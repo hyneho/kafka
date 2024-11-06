@@ -263,7 +263,6 @@ class StreamsGroupHeartbeatRequestManagerTest {
             final StreamsAssignmentInterface.TopicInfo changelogTopic = changelogTopics.get(topicInfo.name());
             assertEquals(changelogTopic.replicationFactor.get(), topicInfo.replicationFactor());
         });
-
         assertEquals(2, subtopology.copartitionGroups().size());
         final StreamsGroupHeartbeatRequestData.CopartitionGroup expectedCopartitionGroupData1 =
             new StreamsGroupHeartbeatRequestData.CopartitionGroup()
