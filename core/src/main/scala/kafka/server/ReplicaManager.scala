@@ -744,10 +744,11 @@ class ReplicaManager(val config: KafkaConfig,
         throw error.exception(s"Error while fetching partition state for ${topicIdPartition.topicPartition()}")
 
       case Right(partition) =>
-        val topicId = partition.topicId
-        // If topic id is set to zero fall back to non topic id aware behaviour
+        // Get topic id for an existing partition from disk if topicId is none get it from the metadata cache
+        val topicId = partition.topicId.getOrElse(metadataCache.getTopicId(topicIdPartition.topic()))
+        // If topic id is set to zero or null fall back to non topic id aware behaviour
         val topicIdNotProvided = topicIdPartition.topicId() == Uuid.ZERO_UUID || topicIdPartition.topicId() == null
-        if (topicIdNotProvided || topicId.contains(topicIdPartition.topicId())) {
+        if (topicIdNotProvided || topicId == topicIdPartition.topicId()) {
           partition
         } else {
           throw new UnknownTopicIdException(s"Partition $topicIdPartition's topic id doesn't match the one on disk $topicId.'")
