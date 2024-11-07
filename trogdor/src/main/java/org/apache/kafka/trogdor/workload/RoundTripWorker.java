@@ -48,7 +48,7 @@ public class RoundTripWorker extends RoundTripWorkerBase {
         // user may over-write the defaults with common client config and consumer config
         WorkerUtils.addConfigsToProperties(props, spec.commonClientConf(), spec.consumerConf());
 
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "round-trip-share-group-" + id);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "round-trip-consumer-group-" + id);
         consumer = new KafkaConsumer<>(props, new ByteArrayDeserializer(),
                 new ByteArrayDeserializer());
         consumer.assign(partitions);
