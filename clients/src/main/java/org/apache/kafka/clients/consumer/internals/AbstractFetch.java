@@ -44,6 +44,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -376,6 +377,49 @@ public abstract class AbstractFetch implements Closeable {
     }
 
     /**
+     * Create fetch requests for all nodes for which we have assigned partitions
+     * that have no existing requests in flight.
+     */
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
+        // Update metrics in case there was an assignment change
+        metricsManager.maybeUpdateAssignment(subscriptions);
+
+        Map<Node, FetchSessionHandler.Builder> fetchable = new HashMap<>();
+        long currentTimeMs = time.milliseconds();
+        Map<String, Uuid> topicIds = metadata.topicIds();
+
+        // This is the set of partitions that have buffered data
+        final Set<TopicPartition> buffered = Collections.unmodifiableSet(fetchBuffer.bufferedPartitions());
+
+        // This is the set of partitions that does not have buffered data
+        final Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
+
+        // Loop over all the assigned partitions and create requests if the partition has a valid position and the
+        // node is valid to contact.
+        for (TopicPartition partition : unbuffered) {
+            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+
+            if (position == null)
+                throw new IllegalStateException("Missing position for fetchable partition " + partition);
+
+            Optional<Node> nodeOpt = maybeLeaderOrReadReplica(
+                partition,
+                position,
+                currentTimeMs,
+                true
+            );
+
+            if (nodeOpt.isEmpty())
+                continue;
+
+            Node node = nodeOpt.get();
+            createSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+        }
+
+        return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
+    }
+
+    /**
      * Returns a {@link Node}, if possible. It will either be the partition leader, a previously stored read
      * replica, or {@link Optional#empty()}.
      *
@@ -410,14 +454,12 @@ public abstract class AbstractFetch implements Closeable {
             // going to be failed anyway before being sent, so skip sending the request for now
             log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
             return Optional.empty();
-        }
-
-        if (nodesWithPendingFetchRequests.contains(node.id())) {
+        } else if (nodesWithPendingFetchRequests.contains(node.id())) {
             log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
             return Optional.empty();
+        } else {
+            return Optional.of(node);
         }
-
-        return Optional.of(node);
     }
 
     /**
