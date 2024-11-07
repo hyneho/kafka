@@ -51,15 +51,12 @@ import org.apache.kafka.clients.consumer.internals.events.CompletableEventReaper
 import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackCompletedEvent;
 import org.apache.kafka.clients.consumer.internals.events.ConsumerRebalanceListenerCallbackNeededEvent;
 import org.apache.kafka.clients.consumer.internals.events.CreateFetchRequestsEvent;
-import org.apache.kafka.clients.consumer.internals.events.CurrentLagEvent;
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.clients.consumer.internals.events.EventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.FetchCommittedOffsetsEvent;
 import org.apache.kafka.clients.consumer.internals.events.ListOffsetsEvent;
-import org.apache.kafka.clients.consumer.internals.events.PausePartitionsEvent;
 import org.apache.kafka.clients.consumer.internals.events.PollEvent;
 import org.apache.kafka.clients.consumer.internals.events.ResetOffsetEvent;
-import org.apache.kafka.clients.consumer.internals.events.ResumePartitionsEvent;
 import org.apache.kafka.clients.consumer.internals.events.SeekUnvalidatedEvent;
 import org.apache.kafka.clients.consumer.internals.events.SyncCommitEvent;
 import org.apache.kafka.clients.consumer.internals.events.TopicMetadataEvent;
@@ -237,6 +234,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     private final ConsumerInterceptors<K, V> interceptors;
     private final IsolationLevel isolationLevel;
 
+    private final SubscriptionState subscriptions;
     private volatile SubscriptionStateSnapshot subscriptionSnapshot;
     private final ConsumerMetadata metadata;
     private final Metrics metrics;
@@ -313,7 +311,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             this.interceptors = new ConsumerInterceptors<>(interceptorList);
             this.deserializers = new Deserializers<>(config, keyDeserializer, valueDeserializer);
             this.subscriptionSnapshot = new SubscriptionStateSnapshot();
-            SubscriptionState subscriptions = subscriptionStateFactory.build(
+            this.subscriptions = subscriptionStateFactory.build(
                 logContext,
                 ConsumerUtils.configuredOffsetResetStrategy(config)
             );
@@ -436,8 +434,9 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                        String groupId,
                        boolean autoCommitEnabled) {
         this.log = logContext.logger(getClass());
+        this.subscriptions = subscriptions;
         this.subscriptionSnapshot = new SubscriptionStateSnapshot();
-        subscriptions.setSubscriptionStateChangedListener(this::updateSubscriptionState);
+        this.subscriptions.setSubscriptionStateChangedListener(this::updateSubscriptionState);
         this.clientId = clientId;
         this.fetchBuffer = fetchBuffer;
         this.fetchCollector = fetchCollector;
@@ -470,6 +469,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                        SubscriptionState subscriptions,
                        ConsumerMetadata metadata) {
         this.log = logContext.logger(getClass());
+        this.subscriptions = subscriptions;
         this.subscriptionSnapshot = new SubscriptionStateSnapshot();
         subscriptions.setSubscriptionStateChangedListener(this::updateSubscriptionState);
         this.clientId = config.getString(ConsumerConfig.CLIENT_ID_CONFIG);
@@ -1046,8 +1046,13 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public void pause(Collection<TopicPartition> partitions) {
         acquireAndEnsureOpen();
         try {
-            Timer timer = time.timer(defaultApiTimeoutMs);
-            applicationEventHandler.addAndGet(new PausePartitionsEvent(partitions, calculateDeadlineMs(timer)));
+            log.debug("Pausing partitions {}", partitions);
+            for (TopicPartition partition : partitions) {
+                subscriptions.pause(partition);
+            }
+
+            // TODO: remove this once pause() is moved to the background thread (KAFKA-17947).
+            subscriptionSnapshot = subscriptions.snapshot();
         } finally {
             release();
         }
@@ -1057,8 +1062,13 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public void resume(Collection<TopicPartition> partitions) {
         acquireAndEnsureOpen();
         try {
-            Timer timer = time.timer(defaultApiTimeoutMs);
-            applicationEventHandler.addAndGet(new ResumePartitionsEvent(partitions, calculateDeadlineMs(timer)));
+            log.debug("Resuming partitions {}", partitions);
+            for (TopicPartition partition : partitions) {
+                subscriptions.resume(partition);
+            }
+
+            // TODO: remove this once resume() is moved to the background thread (KAFKA-17947).
+            subscriptionSnapshot = subscriptions.snapshot();
         } finally {
             release();
         }
@@ -1180,10 +1190,29 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public OptionalLong currentLag(TopicPartition topicPartition) {
         acquireAndEnsureOpen();
         try {
-            Timer timer = time.timer(defaultApiTimeoutMs);
-            CurrentLagEvent event = new CurrentLagEvent(topicPartition, isolationLevel, calculateDeadlineMs(timer));
-            return applicationEventHandler.addAndGet(event);
+            final Long lag = subscriptions.partitionLag(topicPartition, isolationLevel);
+
+            // if the log end offset is not known and hence cannot return lag and there is
+            // no in-flight list offset requested yet,
+            // issue a list offset request for that partition so that next time
+            // we may get the answer; we do not need to wait for the return value
+            // since we would not try to poll the network client synchronously
+            if (lag == null) {
+                if (subscriptions.partitionEndOffset(topicPartition, isolationLevel) == null &&
+                    !subscriptions.partitionEndOffsetRequested(topicPartition)) {
+                    log.info("Requesting the log end offset for {} in order to compute lag", topicPartition);
+                    subscriptions.requestPartitionEndOffset(topicPartition);
+                    endOffsets(Collections.singleton(topicPartition), Duration.ofMillis(0));
+                }
+
+                return OptionalLong.empty();
+            }
+
+            return OptionalLong.of(lag);
         } finally {
+            // TODO: remove this once currentLag() is moved to the background thread (KAFKA-17947).
+            subscriptionSnapshot = subscriptions.snapshot();
+
             release();
         }
     }

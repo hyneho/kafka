@@ -27,22 +27,18 @@ import org.apache.kafka.clients.consumer.internals.RequestManagers;
 import org.apache.kafka.clients.consumer.internals.ShareConsumeRequestManager;
 import org.apache.kafka.clients.consumer.internals.SubscriptionState;
 import org.apache.kafka.common.Cluster;
-import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.requests.ListOffsetsRequest;
 import org.apache.kafka.common.utils.LogContext;
 
 import org.slf4j.Logger;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -174,18 +170,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
 
             case SEEK_UNVALIDATED:
                 process((SeekUnvalidatedEvent) event);
-                return;
-
-            case PAUSE_PARTITIONS:
-                process((PausePartitionsEvent) event);
-                return;
-
-            case RESUME_PARTITIONS:
-                process((ResumePartitionsEvent) event);
-                return;
-
-            case CURRENT_LAG:
-                process((CurrentLagEvent) event);
                 return;
 
             default:
@@ -546,74 +530,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
             );
             subscriptions.seekUnvalidated(event.partition(), newPosition);
             event.future().complete(null);
-        } catch (Exception e) {
-            event.future().completeExceptionally(e);
-        }
-    }
-
-    private void process(final PausePartitionsEvent event) {
-        try {
-            Collection<TopicPartition> partitions = event.partitions();
-            log.debug("Pausing partitions {}", partitions);
-
-            for (TopicPartition partition : partitions) {
-                subscriptions.pause(partition);
-            }
-
-            event.future().complete(null);
-        } catch (Exception e) {
-            event.future().completeExceptionally(e);
-        }
-    }
-
-    private void process(final ResumePartitionsEvent event) {
-        try {
-            Collection<TopicPartition> partitions = event.partitions();
-            log.debug("Resuming partitions {}", partitions);
-
-            for (TopicPartition partition : partitions) {
-                subscriptions.resume(partition);
-            }
-
-            event.future().complete(null);
-        } catch (Exception e) {
-            event.future().completeExceptionally(e);
-        }
-    }
-
-    private void process(final CurrentLagEvent event) {
-        try {
-            final TopicPartition topicPartition = event.partition();
-            final IsolationLevel isolationLevel = event.isolationLevel();
-            final Long lag = subscriptions.partitionLag(topicPartition, isolationLevel);
-
-            // if the log end offset is not known and hence cannot return lag and there is
-            // no in-flight list offset requested yet,
-            // issue a list offset request for that partition so that next time
-            // we may get the answer; we do not need to wait for the return value
-            // since we would not try to poll the network client synchronously
-            final OptionalLong lagOpt;
-            if (lag == null) {
-                if (subscriptions.partitionEndOffset(topicPartition, isolationLevel) == null &&
-                    !subscriptions.partitionEndOffsetRequested(topicPartition)) {
-                    log.info("Requesting the log end offset for {} in order to compute lag", topicPartition);
-                    subscriptions.requestPartitionEndOffset(topicPartition);
-
-                    // Emulates the Consumer.endOffsets() logic...
-                    Map<TopicPartition, Long> timestampToSearch = Collections.singletonMap(
-                        topicPartition,
-                        ListOffsetsRequest.LATEST_TIMESTAMP
-                    );
-
-                    requestManagers.offsetsRequestManager.fetchOffsets(timestampToSearch, false);
-                }
-
-                lagOpt = OptionalLong.empty();
-            } else {
-                lagOpt = OptionalLong.of(lag);
-            }
-
-            event.future().complete(lagOpt);
         } catch (Exception e) {
             event.future().completeExceptionally(e);
         }
