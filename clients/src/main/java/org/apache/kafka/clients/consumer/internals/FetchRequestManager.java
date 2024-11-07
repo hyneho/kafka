@@ -30,7 +30,6 @@ import org.apache.kafka.common.requests.FetchMetadata;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
-import org.slf4j.Logger;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,7 +49,6 @@ import java.util.stream.Collectors;
  */
 public class FetchRequestManager extends AbstractFetch implements RequestManager {
 
-    private final Logger log;
     private final NetworkClientDelegate networkClientDelegate;
     private CompletableFuture<Void> pendingFetchRequestFuture;
 
@@ -64,7 +62,6 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
                         final NetworkClientDelegate networkClientDelegate,
                         final ApiVersions apiVersions) {
         super(logContext, metadata, subscriptions, fetchConfig, fetchBuffer, metricsManager, time, apiVersions);
-        this.log = logContext.logger(FetchRequestManager.class);
         this.networkClientDelegate = networkClientDelegate;
     }
 
@@ -200,38 +197,11 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         // This is the set of partitions that does not have buffered data
         final Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
 
-        // In the first loop, iterate over all the assigned partitions and create requests if the partition has a
-        // valid position and the node is valid to contact. This is the same logic as in the ClassicKafkaConsumer.
-        for (TopicPartition partition : unbuffered) {
-            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+        // The first loop is the same logic as in the ClassicKafkaConsumer.
+        addFetchables(unbuffered, currentTimeMs, fetchable, topicIds);
 
-            if (position == null)
-                throw new IllegalStateException("Missing position for fetchable partition " + partition);
-
-            Optional<Node> leaderOpt = position.currentLeader.leader;
-
-            if (!leaderOpt.isPresent()) {
-                log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
-                metadata.requestUpdate(false);
-            }
-
-            // Use the preferred read replica if set, otherwise the partition's leader
-            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
-
-            if (isUnavailable(node)) {
-                maybeThrowAuthFailure(node);
-
-                // If we try to send during the reconnect backoff window, then the request is just
-                // going to be failed anyway before being sent, so skip sending the request for now
-                log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
-            } else if (nodesWithPendingFetchRequests.contains(node.id())) {
-                log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
-            } else {
-                addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
-            }
-        }
-
-        // Now the AsyncKafkaConsumer does something a little different from the ClassicKafkaConsumer...
+        // In the second loop, the AsyncKafkaConsumer does something a little different from the
+        // ClassicKafkaConsumer...
         //
         // Make a second pass to loop over all the partitions *with* buffered data. These partitions are included
         // in the fetch requests so that they aren't inadvertently put into the "remove" set. Partitions in the
@@ -250,7 +220,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
             Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (!leaderOpt.isPresent())
+            if (leaderOpt.isEmpty())
                 continue;
 
             // Use the preferred read replica if set, otherwise the partition's leader

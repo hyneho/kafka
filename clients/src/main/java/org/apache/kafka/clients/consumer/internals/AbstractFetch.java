@@ -44,6 +44,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -426,19 +427,11 @@ public abstract class AbstractFetch implements Closeable {
             partition, position, node);
     }
 
-    /**
-     * Create fetch requests for all nodes for which we have assigned partitions
-     * that have no existing requests in flight.
-     */
-    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
-        // Update metrics in case there was an assignment change
-        metricsManager.maybeUpdateAssignment(subscriptions);
-
-        Map<Node, FetchSessionHandler.Builder> fetchable = new HashMap<>();
-        long currentTimeMs = time.milliseconds();
-        Map<String, Uuid> topicIds = metadata.topicIds();
-
-        for (TopicPartition partition : fetchablePartitions()) {
+    protected void addFetchables(final Collection<TopicPartition> partitions,
+                                 final long currentTimeMs,
+                                 final Map<Node, FetchSessionHandler.Builder> fetchable,
+                                 final Map<String, Uuid> topicIds) {
+        for (TopicPartition partition : partitions) {
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
 
             if (position == null)
@@ -446,9 +439,10 @@ public abstract class AbstractFetch implements Closeable {
 
             Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (!leaderOpt.isPresent()) {
+            if (leaderOpt.isEmpty()) {
                 log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
                 metadata.requestUpdate(false);
+                continue;
             }
 
             // Use the preferred read replica if set, otherwise the partition's leader
@@ -466,6 +460,21 @@ public abstract class AbstractFetch implements Closeable {
                 addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
             }
         }
+    }
+
+    /**
+     * Create fetch requests for all nodes for which we have assigned partitions
+     * that have no existing requests in flight.
+     */
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
+        // Update metrics in case there was an assignment change
+        metricsManager.maybeUpdateAssignment(subscriptions);
+
+        Map<Node, FetchSessionHandler.Builder> fetchable = new HashMap<>();
+        long currentTimeMs = time.milliseconds();
+        Map<String, Uuid> topicIds = metadata.topicIds();
+
+        addFetchables(fetchablePartitions(), currentTimeMs, fetchable, topicIds);
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
     }
