@@ -16,36 +16,19 @@
  */
 package org.apache.kafka.clients.consumer.internals.events;
 
-import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface;
 
 import java.util.Objects;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
-public class StreamsOnAssignmentCallbackCompletedEvent extends ApplicationEvent {
+public class StreamsOnAllTasksLostCallbackNeededEvent extends CompletableBackgroundEvent<Void> {
 
-    private final CompletableFuture<Void> future;
-    private final Optional<KafkaException> error;
-
-    public StreamsOnAssignmentCallbackCompletedEvent(final CompletableFuture<Void> future,
-                                                     final Optional<KafkaException> error) {
-        super(Type.STREAMS_ON_ASSIGNMENT_CALLBACK_COMPLETED);
-        this.future = Objects.requireNonNull(future);
-        this.error = Objects.requireNonNull(error);
-    }
-
-    public CompletableFuture<Void> future() {
-        return future;
-    }
-
-    public Optional<KafkaException> error() {
-        return error;
+    public StreamsOnAllTasksLostCallbackNeededEvent() {
+        super(Type.STREAMS_ON_ALL_TASKS_LOST_CALLBACK_NEEDED, Long.MAX_VALUE);
     }
 
     @Override
     protected String toStringBase() {
-        return super.toStringBase() +
-            ", future=" + future +
-            ", error=" + error;
+        return super.toStringBase();
     }
 }
+

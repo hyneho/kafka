@@ -25,7 +25,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.InvalidOffsetException;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface;
-import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface.Assignment;
 import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface.Subtopology;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.KafkaFuture;
@@ -709,6 +708,9 @@ public class StreamThread extends Thread implements ProcessingThread {
         this.streamsUncaughtExceptionHandler = streamsUncaughtExceptionHandler;
         this.cacheResizer = cacheResizer;
         this.streamsAssignmentInterface = streamsAssignmentInterface;
+        streamsAssignmentInterface.setOnTasksRevokedCallback(this::onTasksRevoked);
+        streamsAssignmentInterface.setOnTasksAssignedCallback(this::onTasksAssigned);
+        streamsAssignmentInterface.setOnAllTasksLostCallback(this::onAllTasksLost);
         this.streamsMetadataState = streamsMetadataState;
 
         // The following sensors are created here but their references are not stored in this object, since within
@@ -1074,6 +1076,8 @@ public class StreamThread extends Thread implements ProcessingThread {
         taskManager.resumePollingForPartitionsWithAvailableSpace();
         pollLatency = pollPhase();
 
+        maybeHandleAssignmentFromStreamsRebalanceProtocol();
+
         // Shutdown hook could potentially be triggered and transit the thread state to PENDING_SHUTDOWN during #pollRequests().
         // The task manager internal states could be uninitialized if the state transition happens during #onPartitionsAssigned().
         // Should only proceed when the thread is still running after #pollRequests(), because no external state mutation
@@ -1397,23 +1401,60 @@ public class StreamThread extends Thread implements ProcessingThread {
             );
 
             // Process assignment from Streams Rebalance Protocol
-            final Assignment newAssignment = streamsAssignmentInterface.targetAssignment.get();
-            if (!newAssignment.equals(streamsAssignmentInterface.reconciledAssignment.get())) {
-
-                final Map<TaskId, Set<TopicPartition>> activeTasksWithPartitions =
-                    pairWithTopicPartitions(newAssignment.activeTasks.stream());
-                final Map<TaskId, Set<TopicPartition>> standbyTasksWithPartitions =
-                    pairWithTopicPartitions(Stream.concat(newAssignment.standbyTasks.stream(), newAssignment.warmupTasks.stream()));
-
-                log.info("Processing new assignment {} from Streams Rebalance Protocol", newAssignment);
-
-                taskManager.handleAssignment(
-                    activeTasksWithPartitions,
-                    standbyTasksWithPartitions
-                );
-                streamsAssignmentInterface.reconciledAssignment.set(newAssignment);
-            }
+//            final Assignment newAssignment = streamsAssignmentInterface.targetAssignment.get();
+            streamsAssignmentInterface.processStreamsRebalanceEvents();
         }
+    }
+
+    private Optional<Exception> onTasksRevoked(final Set<StreamsAssignmentInterface.TaskId> activeTasksToRevoke) {
+        try {
+            final Map<TaskId, Set<TopicPartition>> activeTasksToRevokeWithPartitions =
+                pairWithTopicPartitions(activeTasksToRevoke.stream());
+            final Set<TopicPartition> partitionsToRevoke = activeTasksToRevokeWithPartitions.values().stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+
+            final long start = time.milliseconds();
+            try {
+                log.info("Revoking active tasks {}.", activeTasksToRevoke);
+                taskManager.handleRevocation(partitionsToRevoke);
+            } finally {
+                log.info("partition revocation took {} ms.", time.milliseconds() - start);
+            }
+            if (state() != State.PENDING_SHUTDOWN) {
+                setState(State.PARTITIONS_REVOKED);
+            }
+        } catch (final Exception exception) {
+            return Optional.of(exception);
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Exception> onTasksAssigned(final StreamsAssignmentInterface.Assignment assignment) {
+        try {
+            final Map<TaskId, Set<TopicPartition>> activeTasksWithPartitions =
+                pairWithTopicPartitions(assignment.activeTasks.stream());
+            final Map<TaskId, Set<TopicPartition>> standbyTasksWithPartitions =
+                pairWithTopicPartitions(Stream.concat(assignment.standbyTasks.stream(), assignment.warmupTasks.stream()));
+
+            log.info("Processing new assignment {} from Streams Rebalance Protocol", assignment);
+
+            taskManager.handleAssignment(activeTasksWithPartitions, standbyTasksWithPartitions);
+            setState(State.PARTITIONS_ASSIGNED);
+            taskManager.handleRebalanceComplete();
+        } catch (final Exception exception) {
+            return Optional.of(exception);
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Exception> onAllTasksLost() {
+        try {
+            taskManager.handleLostAll();
+        } catch (final Exception exception) {
+            return Optional.of(exception);
+        }
+        return Optional.empty();
     }
 
     static Map<TopicPartition, PartitionInfo> getTopicPartitionInfo(final Map<HostInfo, Set<TopicPartition>> partitionsByHost) {

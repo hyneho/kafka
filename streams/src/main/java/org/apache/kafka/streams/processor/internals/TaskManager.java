@@ -324,6 +324,43 @@ public class TaskManager {
         }
     }
 
+    public void handleAssignedTasks(final Map<TaskId, Set<TopicPartition>> activeTasks,
+                                    final Map<TaskId, Set<TopicPartition>> standbyTasks) {
+        handleAssignment(activeTasks, standbyTasks);
+    }
+
+    public boolean handleRevokedActiveTasks(final Map<TaskId, Set<TopicPartition>> activeTasks) {
+        final Set<Task> currentlyAssignedActiveTasks = new HashSet<>();
+        if (stateUpdater != null) {
+            for (final Task task : stateUpdater.tasks()) {
+                if (task.isActive()) {
+                    currentlyAssignedActiveTasks.add(task);
+                }
+            }
+        }
+        for (final Task task : tasks.allTasks()) {
+            if (task.isActive()) {
+                currentlyAssignedActiveTasks.add(task);
+            }
+        }
+
+        final Set<Task> activeTasksToRevoke = new HashSet<>();
+        for (final Task task : currentlyAssignedActiveTasks) {
+            if (!activeTasks.containsKey(task.id())) {
+                activeTasksToRevoke.add(task);
+            }
+        }
+        Set<TopicPartition> partitionsToRevoke = activeTasksToRevoke.stream()
+            .flatMap(task -> task.inputPartitions().stream())
+            .collect(Collectors.toSet());
+
+        if (!partitionsToRevoke.isEmpty()) {
+            handleRevocation(partitionsToRevoke);
+            return true;
+        }
+        return false;
+    }
+
     /**
      * @throws TaskMigratedException if the task producer got fenced (EOS only)
      * @throws StreamsException fatal error while creating / initializing the task
