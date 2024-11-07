@@ -1654,22 +1654,23 @@ public class RemoteLogManager implements Closeable {
         InputStream remoteSegInputStream = null;
         try {
             int startPos = 0;
-            EnrichedRecordBatch enrichedRecordBatch = new EnrichedRecordBatch();
+            EnrichedRecordBatch enrichedRecordBatch = new EnrichedRecordBatch(null, 0);
             //  Iteration over multiple RemoteSegmentMetadata is required in case of log compaction.
             //  It may be possible the offset is log compacted in the current RemoteLogSegmentMetadata
             //  And we need to iterate over the next segment metadata to fetch messages higher than the given offset.
-            while (enrichedRecordBatch.getBatch() == null && rlsMetadataOptional.isPresent()) {
+            while (enrichedRecordBatch.batch == null && rlsMetadataOptional.isPresent()) {
                 remoteLogSegmentMetadata = rlsMetadataOptional.get();
                 // Search forward for the position of the last offset that is greater than or equal to the target offset
                 startPos = lookupPositionForOffset(remoteLogSegmentMetadata, offset);
                 remoteSegInputStream = remoteLogStorageManager.fetchLogSegment(remoteLogSegmentMetadata, startPos);
                 RemoteLogInputStream remoteLogInputStream = getRemoteLogInputStream(remoteSegInputStream);
                 enrichedRecordBatch = findFirstBatch(remoteLogInputStream, offset);
-                if (enrichedRecordBatch.getBatch() == null) {
+                if (enrichedRecordBatch.batch == null) {
+                    Utils.closeQuietly(remoteSegInputStream, "RemoteLogSegmentInputStream");
                     rlsMetadataOptional = findNextSegmentMetadata(rlsMetadataOptional.get(), logOptional.get().leaderEpochCache());
                 }
             }
-            RecordBatch firstBatch = enrichedRecordBatch.getBatch();
+            RecordBatch firstBatch = enrichedRecordBatch.batch;
             if (firstBatch == null)
                 return new FetchDataInfo(new LogOffsetMetadata(offset), MemoryRecords.EMPTY, false,
                         includeAbortedTxns ? Optional.of(Collections.emptyList()) : Optional.empty());
@@ -2172,21 +2173,9 @@ public class RemoteLogManager implements Closeable {
         private final RecordBatch batch;
         private final int skippedBytes;
 
-        public EnrichedRecordBatch() {
-            this(null, 0);
-        }
-
         public EnrichedRecordBatch(RecordBatch batch, int skippedBytes) {
             this.batch = batch;
             this.skippedBytes = skippedBytes;
-        }
-
-        public RecordBatch getBatch() {
-            return batch;
-        }
-
-        public int getSkippedBytes() {
-            return skippedBytes;
         }
     }
 }
