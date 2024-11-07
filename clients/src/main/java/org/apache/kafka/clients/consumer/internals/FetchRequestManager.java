@@ -30,6 +30,7 @@ import org.apache.kafka.common.requests.FetchMetadata;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
+import org.slf4j.Logger;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
  */
 public class FetchRequestManager extends AbstractFetch implements RequestManager {
 
+    private final Logger log;
     private final NetworkClientDelegate networkClientDelegate;
     private CompletableFuture<Void> pendingFetchRequestFuture;
 
@@ -62,6 +64,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
                         final NetworkClientDelegate networkClientDelegate,
                         final ApiVersions apiVersions) {
         super(logContext, metadata, subscriptions, fetchConfig, fetchBuffer, metricsManager, time, apiVersions);
+        this.log = logContext.logger(FetchRequestManager.class);
         this.networkClientDelegate = networkClientDelegate;
     }
 
@@ -205,13 +208,27 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
             if (position == null)
                 throw new IllegalStateException("Missing position for fetchable partition " + partition);
 
-            Optional<Node> nodeOpt = maybeLeaderOrReadReplica(partition, position, currentTimeMs, true);
+            Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (nodeOpt.isEmpty())
-                continue;
+            if (!leaderOpt.isPresent()) {
+                log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
+                metadata.requestUpdate(false);
+            }
 
-            Node node = nodeOpt.get();
-            addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+            // Use the preferred read replica if set, otherwise the partition's leader
+            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+
+            if (isUnavailable(node)) {
+                maybeThrowAuthFailure(node);
+
+                // If we try to send during the reconnect backoff window, then the request is just
+                // going to be failed anyway before being sent, so skip sending the request for now
+                log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
+            } else if (nodesWithPendingFetchRequests.contains(node.id())) {
+                log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
+            } else {
+                addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+            }
         }
 
         // Now the AsyncKafkaConsumer does something a little different from the ClassicKafkaConsumer...
@@ -231,28 +248,21 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
             }
 
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
-            Optional<Node> nodeOpt = maybeLeaderOrReadReplica(partition, position, currentTimeMs, false);
+            Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (nodeOpt.isEmpty())
+            if (!leaderOpt.isPresent())
                 continue;
 
-            Node node = nodeOpt.get();
-
-            if (!fetchable.containsKey(node)) {
-                // If the first for loop above did not end up including this node, there's no need to make a request
-                // just for the sake of the buffered partition.
-                continue;
-            }
-
+            // Use the preferred read replica if set, otherwise the partition's leader
+            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
             FetchSessionHandler fsh = sessionHandler(node.id());
 
-            if (fsh == null || fsh.sessionId() == FetchMetadata.INVALID_SESSION_ID) {
-                // If there's no pre-existing fetch session OR it has an invalid session ID, that means that a
-                // FULL request is being created, in which case don't add it to the requests.
-                continue;
+            if (!isUnavailable(node) &&
+                fetchable.containsKey(node) &&
+                fsh != null &&
+                fsh.sessionId() != FetchMetadata.INVALID_SESSION_ID) {
+                addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, 1);
             }
-
-            addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, 1);
         }
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));

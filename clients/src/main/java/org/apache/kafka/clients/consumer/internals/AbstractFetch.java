@@ -397,49 +397,6 @@ public abstract class AbstractFetch implements Closeable {
     }
 
     /**
-     * Returns a {@link Node}, if possible. It will either be the partition leader, a previously stored read
-     * replica, or {@link Optional#empty()}.
-     *
-     * @param partition                The partition from which the position was derived
-     * @param position                 Consumer's position for that partition
-     * @param currentTimeMs            Timestamp when the fetch request processing started
-     * @param requestMetadataIfMissing {@code true} if the client should request an update to the metadata in the
-     *                                 case that the leader node is not known for the partition
-     */
-    Optional<Node> maybeLeaderOrReadReplica(final TopicPartition partition,
-                                            final SubscriptionState.FetchPosition position,
-                                            final long currentTimeMs,
-                                            final boolean requestMetadataIfMissing) {
-        Optional<Node> leaderOpt = position.currentLeader.leader;
-
-        if (leaderOpt.isEmpty()) {
-            if (requestMetadataIfMissing) {
-                log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
-                metadata.requestUpdate(false);
-            }
-
-            return Optional.empty();
-        }
-
-        // Use the preferred read replica if set, otherwise the partition's leader
-        Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
-
-        if (isUnavailable(node)) {
-            maybeThrowAuthFailure(node);
-
-            // If we try to send during the reconnect backoff window, then the request is just
-            // going to be failed anyway before being sent, so skip sending the request for now
-            log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
-            return Optional.empty();
-        } else if (nodesWithPendingFetchRequests.contains(node.id())) {
-            log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
-            return Optional.empty();
-        } else {
-            return Optional.of(node);
-        }
-    }
-
-    /**
      * Creates and adds a new {@link FetchRequest.PartitionData} that represents the given partition, at the
      * given position, for the given amount of bytes.
      */
@@ -487,18 +444,27 @@ public abstract class AbstractFetch implements Closeable {
             if (position == null)
                 throw new IllegalStateException("Missing position for fetchable partition " + partition);
 
-            Optional<Node> nodeOpt = maybeLeaderOrReadReplica(
-                partition,
-                position,
-                currentTimeMs,
-                true
-            );
+            Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (nodeOpt.isEmpty())
-                continue;
+            if (!leaderOpt.isPresent()) {
+                log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
+                metadata.requestUpdate(false);
+            }
 
-            Node node = nodeOpt.get();
-            addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+            // Use the preferred read replica if set, otherwise the partition's leader
+            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+
+            if (isUnavailable(node)) {
+                maybeThrowAuthFailure(node);
+
+                // If we try to send during the reconnect backoff window, then the request is just
+                // going to be failed anyway before being sent, so skip sending the request for now
+                log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
+            } else if (nodesWithPendingFetchRequests.contains(node.id())) {
+                log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
+            } else {
+                addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+            }
         }
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
