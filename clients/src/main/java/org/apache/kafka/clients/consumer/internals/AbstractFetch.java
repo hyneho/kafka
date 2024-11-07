@@ -397,7 +397,6 @@ public abstract class AbstractFetch implements Closeable {
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
     }
 
-
     /**
      * Create fetch requests for all nodes for which we have assigned partitions
      * that have no existing requests in flight.
@@ -419,12 +418,12 @@ public abstract class AbstractFetch implements Closeable {
      * Creates and adds a new {@link FetchRequest.PartitionData} that represents the given partition, at the
      * given position, for the given amount of bytes.
      */
-    void addSessionHandlerBuilder(final Map<Node, FetchSessionHandler.Builder> fetchable,
-                                  final Map<String, Uuid> topicIds,
-                                  final Node node,
-                                  final TopicPartition partition,
-                                  final SubscriptionState.FetchPosition position,
-                                  final int fetchSize) {
+    void addFetchable(final Map<Node, FetchSessionHandler.Builder> fetchable,
+                      final Map<String, Uuid> topicIds,
+                      final Node node,
+                      final TopicPartition partition,
+                      final SubscriptionState.FetchPosition position,
+                      final int fetchSize) {
         // if there is a leader and no in-flight requests, issue a new fetch
         FetchSessionHandler.Builder builder = fetchable.computeIfAbsent(node, k -> {
             FetchSessionHandler fetchSessionHandler = sessionHandlers.computeIfAbsent(node.id(), n -> new FetchSessionHandler(logContext, n));
@@ -457,7 +456,7 @@ public abstract class AbstractFetch implements Closeable {
 
             Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (leaderOpt.isEmpty()) {
+            if (!leaderOpt.isPresent()) {
                 log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
                 metadata.requestUpdate(false);
                 continue;
@@ -475,7 +474,7 @@ public abstract class AbstractFetch implements Closeable {
             } else if (nodesWithPendingFetchRequests.contains(node.id())) {
                 log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
             } else {
-                addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+                addFetchable(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
             }
         }
     }

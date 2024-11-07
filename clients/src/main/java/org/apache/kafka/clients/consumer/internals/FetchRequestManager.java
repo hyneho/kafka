@@ -192,10 +192,10 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         Map<String, Uuid> topicIds = metadata.topicIds();
 
         // This is the set of partitions that have buffered data
-        final Set<TopicPartition> buffered = Collections.unmodifiableSet(fetchBuffer.bufferedPartitions());
+        Set<TopicPartition> buffered = Collections.unmodifiableSet(fetchBuffer.bufferedPartitions());
 
         // This is the set of partitions that does not have buffered data
-        final Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
+        Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
 
         // The first loop is the same logic as in the ClassicKafkaConsumer.
         addFetchables(unbuffered, currentTimeMs, fetchable, topicIds);
@@ -231,7 +231,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
                 fetchable.containsKey(node) &&
                 fsh != null &&
                 fsh.sessionId() != FetchMetadata.INVALID_SESSION_ID) {
-                addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, 1);
+                addFetchable(fetchable, topicIds, node, partition, position, 1);
             }
         }
 
