@@ -591,7 +591,7 @@ public class RemoteLogManager implements Closeable {
     }
 
     /**
-     * Returns the next segment that contains the aborted transaction entries. The search ensures that the returned
+     * Returns the next segment that may contain the aborted transaction entries. The search ensures that the returned
      * segment offsets are greater than or equal to the given offset and in the same epoch.
      * @param topicPartition topic partition to search
      * @param epochForOffset the epoch
@@ -1865,23 +1865,24 @@ public class RemoteLogManager implements Closeable {
     Optional<RemoteLogSegmentMetadata> findNextSegmentWithTxnIndex(TopicPartition tp,
                                                                    long offset,
                                                                    LeaderEpochFileCache leaderEpochCache) throws RemoteStorageException {
-        Optional<RemoteLogSegmentMetadata> metadataOpt = Optional.empty();
-        if (leaderEpochCache != null) {
-            OptionalInt initialEpochOpt = leaderEpochCache.epochForOffset(offset);
-            if (initialEpochOpt.isPresent()) {
-                int initialEpoch = initialEpochOpt.getAsInt();
-                for (EpochEntry epochEntry : leaderEpochCache.epochEntries()) {
-                    if (epochEntry.epoch >= initialEpoch) {
-                        long startOffset = Math.max(epochEntry.startOffset, offset);
-                        metadataOpt = fetchNextSegmentWithTxnIndex(tp, epochEntry.epoch, startOffset);
-                        if (metadataOpt.isPresent()) {
-                            break;
-                        }
-                    }
+        if (leaderEpochCache == null) {
+            return Optional.empty();
+        }
+        OptionalInt initialEpochOpt = leaderEpochCache.epochForOffset(offset);
+        if (initialEpochOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        int initialEpoch = initialEpochOpt.getAsInt();
+        for (EpochEntry epochEntry : leaderEpochCache.epochEntries()) {
+            if (epochEntry.epoch >= initialEpoch) {
+                long startOffset = Math.max(epochEntry.startOffset, offset);
+                Optional<RemoteLogSegmentMetadata> metadataOpt = fetchNextSegmentWithTxnIndex(tp, epochEntry.epoch, startOffset);
+                if (metadataOpt.isPresent()) {
+                    return metadataOpt;
                 }
             }
         }
-        return metadataOpt;
+        return Optional.empty();
     }
 
     // Visible for testing

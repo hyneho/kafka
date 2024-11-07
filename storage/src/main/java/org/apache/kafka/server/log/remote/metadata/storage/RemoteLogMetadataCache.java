@@ -158,6 +158,8 @@ public class RemoteLogMetadataCache {
             RemoteLogSegmentId remoteLogSegmentId = remoteLogLeaderEpochState.floorEntry(offset);
             if (remoteLogSegmentId != null) {
                 return idToSegmentMetadata.get(remoteLogSegmentId);
+            } else {
+                log.warn("No remote segment found for leaderEpoch: {}, offset: {}", leaderEpoch, offset);
             }
         }
         // If the offset is lower than the minimum offset available in metadata then return null.
