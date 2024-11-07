@@ -652,7 +652,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      * set of assigned partitions changes. This includes on assignment changes, unsubscribing, and when leaving
      * the group.
      */
-    public void notifyAssignmentChange(Set<TopicPartition> partitions) {
+    void notifyAssignmentChange(Set<TopicPartition> partitions) {
         stateUpdatesListeners.forEach(stateListener -> stateListener.onGroupAssignmentUpdated(partitions));
     }
 
