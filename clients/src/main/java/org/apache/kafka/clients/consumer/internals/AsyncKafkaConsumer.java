@@ -1581,7 +1581,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             UnsubscribeEvent unsubscribeEvent = new UnsubscribeEvent(calculateDeadlineMs(timer));
             applicationEventHandler.add(unsubscribeEvent);
             log.info("Unsubscribing all topics or patterns and assigned partitions {}",
-                subscriptions.assignedPartitions());
+                    subscriptions.assignedPartitions());
 
             try {
                 // If users subscribe to an invalid topic name, they will get InvalidTopicException in error events,

@@ -1078,6 +1078,7 @@ public class AsyncKafkaConsumerTest {
         assertEquals(1, cb.invoked);
     }
 
+
     @Test
     public void testInterceptorAutoCommitOnClose() {
         Properties props = requiredConsumerConfigAndGroupId("test-id");
