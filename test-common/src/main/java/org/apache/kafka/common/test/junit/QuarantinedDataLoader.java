@@ -39,14 +39,14 @@ public class QuarantinedDataLoader {
     public static QuarantinedTestSelector loadTestCatalog() {
         String name = System.getProperty("kafka.test.catalog.file");
         if (name == null || name.isEmpty()) {
-            log.debug("No test catalog loaded, will not quarantine any recently added tests.");
+            log.debug("No test catalog specified, will not quarantine any recently added tests.");
             return DEFAULT;
         }
         Path path = Paths.get(name);
         log.debug("Loading test catalog file {}.", path);
 
         if (!Files.exists(path)) {
-            log.error("Test catalog file {} does not exist.", path);
+            log.error("Test catalog file {} does not exist, will not quarantine any recently added tests.", path);
             return DEFAULT;
         }
 
@@ -59,7 +59,7 @@ public class QuarantinedDataLoader {
                 line = reader.readLine();
             }
         } catch (IOException e) {
-            log.error("Error while reading test catalog file.", e);
+            log.error("Error while reading test catalog file, will not quarantine any recently added tests.", e);
             return DEFAULT;
         }
 

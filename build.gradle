@@ -135,6 +135,7 @@ ext {
   runtimeTestLibs = [
     libs.slf4jReload4j,
     libs.junitPlatformLanucher,
+    project(":test-common")
   ]
 }
 
@@ -483,6 +484,7 @@ subprojects {
 
     // KAFKA-17433 Used by deflake.yml github action to repeat individual tests
     systemProperty("kafka.cluster.test.repeat", project.findProperty("kafka.cluster.test.repeat"))
+    systemProperty("kafka.test.catalog.file", project.findProperty("kafka.test.catalog.file"))
 
     testLogging {
       events = userTestLoggingEvents ?: testLoggingEvents
@@ -553,6 +555,7 @@ subprojects {
 
     // KAFKA-17433 Used by deflake.yml github action to repeat individual tests
     systemProperty("kafka.cluster.test.repeat", project.findProperty("kafka.cluster.test.repeat"))
+    systemProperty("kafka.test.catalog.file", project.findProperty("kafka.test.catalog.file"))
 
     testLogging {
       events = userTestLoggingEvents ?: testLoggingEvents
@@ -945,7 +948,7 @@ project(':server') {
     testImplementation libs.junitJupiter
     testImplementation libs.slf4jReload4j
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   task createVersionFile() {
@@ -1004,7 +1007,7 @@ project(':share') {
     testImplementation libs.mockitoCore
     testImplementation libs.slf4jReload4j
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   checkstyle {
@@ -1114,7 +1117,7 @@ project(':core') {
     testImplementation libs.slf4jReload4j
     testImplementation libs.caffeine
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   if (userEnableTestCoverage) {
@@ -1367,8 +1370,7 @@ project(':metadata') {
     testImplementation project(':raft').sourceSets.test.output
     testImplementation project(':server-common').sourceSets.test.output
 
-    testRuntimeOnly libs.junitPlatformLanucher
-    testRuntimeOnly project(':test-common')
+    testRuntimeOnly runtimeTestLibs
 
     generator project(':generator')
   }
@@ -1789,7 +1791,7 @@ project(':generator') {
     implementation libs.jacksonJaxrsJsonProvider
     testImplementation libs.junitJupiter
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   javadoc {
@@ -2094,7 +2096,6 @@ project(':server-common') {
     testImplementation libs.mockitoCore
 
     testRuntimeOnly runtimeTestLibs
-    testRuntimeOnly project(":test-common")
   }
 
   task createVersionFile() {
@@ -2325,7 +2326,7 @@ project(':tools:tools-api') {
   dependencies {
     implementation project(':clients')
     testImplementation libs.junitJupiter
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   task createVersionFile() {
@@ -2422,8 +2423,7 @@ project(':tools') {
     testImplementation libs.apachedsProtocolLdap
     testImplementation libs.apachedsLdifPartition
 
-    testRuntimeOnly libs.junitPlatformLanucher
-    testRuntimeOnly project(':test-common')
+    testRuntimeOnly runtimeTestLibs
   }
 
   javadoc {
@@ -2848,7 +2848,7 @@ project(':streams:examples') {
     testImplementation libs.junitJupiter
     testImplementation libs.hamcrest
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   javadoc {
