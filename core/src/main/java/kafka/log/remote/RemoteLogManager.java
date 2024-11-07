@@ -1813,7 +1813,9 @@ public class RemoteLogManager implements Closeable {
 
     private Optional<TransactionIndex> getTransactionIndex(RemoteLogSegmentMetadata currentMetadata) {
         return !currentMetadata.isTxnIdxEmpty() ?
-                // `ofNullable` is needed for backward compatibility for old events on which txnIdx may not be present.
+                // `ofNullable` is needed for backward compatibility for old events that were stored in the
+                // `__remote_log_metadata` topic. The old events will return the `txnIdxEmpty` as false, but the
+                // transaction index may not exist in the remote storage.
                 Optional.ofNullable(indexCache.getIndexEntry(currentMetadata).txnIndex()) : Optional.empty();
     }
 
