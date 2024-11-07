@@ -397,6 +397,24 @@ public abstract class AbstractFetch implements Closeable {
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
     }
 
+
+    /**
+     * Create fetch requests for all nodes for which we have assigned partitions
+     * that have no existing requests in flight.
+     */
+    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
+        // Update metrics in case there was an assignment change
+        metricsManager.maybeUpdateAssignment(subscriptions);
+
+        Map<Node, FetchSessionHandler.Builder> fetchable = new HashMap<>();
+        long currentTimeMs = time.milliseconds();
+        Map<String, Uuid> topicIds = metadata.topicIds();
+
+        addFetchables(fetchablePartitions(), currentTimeMs, fetchable, topicIds);
+
+        return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
+    }
+
     /**
      * Creates and adds a new {@link FetchRequest.PartitionData} that represents the given partition, at the
      * given position, for the given amount of bytes.
@@ -460,23 +478,6 @@ public abstract class AbstractFetch implements Closeable {
                 addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
             }
         }
-    }
-
-    /**
-     * Create fetch requests for all nodes for which we have assigned partitions
-     * that have no existing requests in flight.
-     */
-    protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
-        // Update metrics in case there was an assignment change
-        metricsManager.maybeUpdateAssignment(subscriptions);
-
-        Map<Node, FetchSessionHandler.Builder> fetchable = new HashMap<>();
-        long currentTimeMs = time.milliseconds();
-        Map<String, Uuid> topicIds = metadata.topicIds();
-
-        addFetchables(fetchablePartitions(), currentTimeMs, fetchable, topicIds);
-
-        return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
     }
 
     // Visible for testing
