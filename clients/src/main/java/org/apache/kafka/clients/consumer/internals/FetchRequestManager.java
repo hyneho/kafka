@@ -25,14 +25,18 @@ import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate.UnsentR
 import org.apache.kafka.clients.consumer.internals.events.CreateFetchRequestsEvent;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.requests.FetchMetadata;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -182,23 +186,31 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         // Update metrics in case there was an assignment change
         metricsManager.maybeUpdateAssignment(subscriptions);
 
-        FetchRequestPreparationState fetchRequestPreparationState = new FetchRequestPreparationState();
+        Map<Node, FetchSessionHandler.Builder> fetchable = new HashMap<>();
+        long currentTimeMs = time.milliseconds();
+        Map<String, Uuid> topicIds = metadata.topicIds();
+
+        // This is the set of partitions that have buffered data
+        final Set<TopicPartition> buffered = Collections.unmodifiableSet(fetchBuffer.bufferedPartitions());
+
+        // This is the set of partitions that does not have buffered data
+        final Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
 
         // Loop over all the assigned partitions and create requests if the partition has a valid position and the
         // node is valid to contact.
-        for (TopicPartition partition : fetchRequestPreparationState.unbuffered()) {
+        for (TopicPartition partition : unbuffered) {
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
 
             if (position == null)
                 throw new IllegalStateException("Missing position for fetchable partition " + partition);
 
-            Optional<Node> nodeOpt = fetchRequestPreparationState.maybeLeaderOrReadReplica(partition, position, true);
+            Optional<Node> nodeOpt = maybeLeaderOrReadReplica(partition, position, currentTimeMs, true);
 
             if (nodeOpt.isEmpty())
                 continue;
 
             Node node = nodeOpt.get();
-            fetchRequestPreparationState.createSessionHandlerBuilder(node, partition, position, fetchConfig.fetchSize);
+            createSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
         }
 
         // In the second loop, iterate over all partitions with buffered data. If the criteria below is met,
@@ -206,7 +218,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         // included in the fetch requests so that partitions with buffered data aren't inadvertently put into
         // the "remove" set of the FetchRequest, whereby they are removed from the broker's fetch session. In
         // some cases this could lead to the eviction of the fetch session.
-        for (TopicPartition partition : fetchRequestPreparationState.buffered()) {
+        for (TopicPartition partition : buffered) {
             if (!subscriptions.isAssigned(partition)) {
                 // It's possible that a partition with buffered data from a previous request is now no longer
                 // assigned to the consumer, in which case just skip this partition.
@@ -214,14 +226,14 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
             }
 
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
-            Optional<Node> nodeOpt = fetchRequestPreparationState.maybeLeaderOrReadReplica(partition, position, false);
+            Optional<Node> nodeOpt = maybeLeaderOrReadReplica(partition, position, currentTimeMs, false);
 
             if (nodeOpt.isEmpty())
                 continue;
 
             Node node = nodeOpt.get();
 
-            if (!fetchRequestPreparationState.isRequesting(node)) {
+            if (!fetchable.containsKey(node)) {
                 // If the first for loop above did not end up including this node, there's no need to make a request
                 // just for the sake of the buffered partition.
                 continue;
@@ -235,10 +247,10 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
                 continue;
             }
 
-            fetchRequestPreparationState.createSessionHandlerBuilder(node, partition, position, 1);
+            createSessionHandlerBuilder(fetchable, topicIds, node, partition, position, 1);
         }
 
-        return fetchRequestPreparationState.requests();
+        return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
     }
 
     /**

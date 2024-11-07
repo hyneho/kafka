@@ -44,7 +44,6 @@ import org.slf4j.helpers.MessageFormatter;
 
 import java.io.Closeable;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -376,6 +375,81 @@ public abstract class AbstractFetch implements Closeable {
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
     }
 
+    /**
+     * Returns a {@link Node}, if possible. It will either be the partition leader, a previously stored read
+     * replica, or {@link Optional#empty()}.
+     *
+     * @param partition                The partition from which the position was derived
+     * @param position                 Consumer's position for that partition
+     * @param currentTimeMs            Timestamp when the fetch request processing started
+     * @param requestMetadataIfMissing {@code true} if the client should request an update to the metadata in the
+     *                                 case that the leader node is not known for the partition
+     */
+    Optional<Node> maybeLeaderOrReadReplica(final TopicPartition partition,
+                                            final SubscriptionState.FetchPosition position,
+                                            final long currentTimeMs,
+                                            final boolean requestMetadataIfMissing) {
+        Optional<Node> leaderOpt = position.currentLeader.leader;
+
+        if (leaderOpt.isEmpty()) {
+            if (requestMetadataIfMissing) {
+                log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
+                metadata.requestUpdate(false);
+            }
+
+            return Optional.empty();
+        }
+
+        // Use the preferred read replica if set, otherwise the partition's leader
+        Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+
+        if (isUnavailable(node)) {
+            maybeThrowAuthFailure(node);
+
+            // If we try to send during the reconnect backoff window, then the request is just
+            // going to be failed anyway before being sent, so skip sending the request for now
+            log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
+            return Optional.empty();
+        }
+
+        if (nodesWithPendingFetchRequests.contains(node.id())) {
+            log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
+            return Optional.empty();
+        }
+
+        return Optional.of(node);
+    }
+
+    /**
+     * Creates and adds a new {@link FetchRequest.PartitionData} that represents the given partition, at the
+     * given position, for the given amount of bytes.
+     */
+    void createSessionHandlerBuilder(final Map<Node, FetchSessionHandler.Builder> fetchable,
+                                     final Map<String, Uuid> topicIds,
+                                     final Node node,
+                                     final TopicPartition partition,
+                                     final SubscriptionState.FetchPosition position,
+                                     final int fetchSize) {
+        // if there is a leader and no in-flight requests, issue a new fetch
+        FetchSessionHandler.Builder builder = fetchable.computeIfAbsent(node, k -> {
+            FetchSessionHandler fetchSessionHandler = sessionHandlers.computeIfAbsent(node.id(), n -> new FetchSessionHandler(logContext, n));
+            return fetchSessionHandler.newBuilder();
+        });
+        Uuid topicId = topicIds.getOrDefault(partition.topic(), Uuid.ZERO_UUID);
+        FetchRequest.PartitionData partitionData = new FetchRequest.PartitionData(
+            topicId,
+            position.offset,
+            FetchRequest.INVALID_LOG_START_OFFSET,
+            fetchSize,
+            position.currentLeader.epoch,
+            Optional.empty()
+        );
+        builder.add(partition, partitionData);
+
+        log.debug("Added {} fetch request for partition {} at position {} to node {}", fetchConfig.isolationLevel,
+            partition, position, node);
+    }
+
     // Visible for testing
     protected FetchSessionHandler sessionHandler(int node) {
         return sessionHandlers.get(node);
@@ -415,129 +489,5 @@ public abstract class AbstractFetch implements Closeable {
          * Handle the response from the given {@link Node target}
          */
         void handle(Node target, FetchSessionHandler.FetchRequestData data, T response);
-    }
-
-    /**
-     * This utility class aids in determining for which partitions to request data. There's a modicum of state
-     * that needs to be kept and maintaining it here allows it to be better localized to keep the intent of
-     * its users a little more clear.
-     */
-    class FetchRequestPreparationState {
-
-        private final long currentTimeMs;
-        private final Map<String, Uuid> topicIds;
-
-        // Map that contains the request builder objects that are keyed on their respective nodes.
-        // This is built up over the course of inspecting the partitions and then returned once they've
-        // all been reviewed.
-        private final Map<Node, FetchSessionHandler.Builder> fetchable;
-
-        // This is the set of partitions that have buffered data
-        private final Set<TopicPartition> buffered;
-
-        // This is the set of partitions that does not have buffered data
-        private final Set<TopicPartition> unbuffered;
-
-        FetchRequestPreparationState() {
-            this.currentTimeMs = time.milliseconds();
-            this.fetchable = new HashMap<>();
-            this.topicIds = metadata.topicIds();
-            this.buffered = Collections.unmodifiableSet(fetchBuffer.bufferedPartitions());
-            this.unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
-        }
-
-        Set<TopicPartition> buffered() {
-            return buffered;
-        }
-
-        Set<TopicPartition> unbuffered() {
-            return unbuffered;
-        }
-
-        /**
-         * Returns a {@link Node}, if possible. It will either be the partition leader, a previously stored read
-         * replica, or {@link Optional#empty()}.
-         *
-         * @param partition                The partition from which the position was derived
-         * @param position                 Consumer's position for that partition
-         * @param requestMetadataIfMissing {@code true} if the client should request an update to the metadata in the
-         *                                 case that the leader node is not known for the partition
-         */
-        Optional<Node> maybeLeaderOrReadReplica(final TopicPartition partition,
-                                                final SubscriptionState.FetchPosition position,
-                                                final boolean requestMetadataIfMissing) {
-            Optional<Node> leaderOpt = position.currentLeader.leader;
-
-            if (leaderOpt.isEmpty()) {
-                if (requestMetadataIfMissing) {
-                    log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
-                    metadata.requestUpdate(false);
-                }
-
-                return Optional.empty();
-            }
-
-            // Use the preferred read replica if set, otherwise the partition's leader
-            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
-
-            if (isUnavailable(node)) {
-                maybeThrowAuthFailure(node);
-
-                // If we try to send during the reconnect backoff window, then the request is just
-                // going to be failed anyway before being sent, so skip sending the request for now
-                log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
-                return Optional.empty();
-            }
-
-            if (nodesWithPendingFetchRequests.contains(node.id())) {
-                log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
-                return Optional.empty();
-            }
-
-            return Optional.of(node);
-        }
-
-        /**
-         * Determine if a request was previously created for the given node for another partition.
-         */
-        boolean isRequesting(Node node) {
-            return fetchable.containsKey(node);
-        }
-
-        /**
-         * Creates and adds a new {@link FetchRequest.PartitionData} that represents the given partition, at the
-         * given position, for the given amount of bytes.
-         */
-        void createSessionHandlerBuilder(final Node node,
-                                         final TopicPartition partition,
-                                         final SubscriptionState.FetchPosition position,
-                                         final int fetchSize) {
-            // if there is a leader and no in-flight requests, issue a new fetch
-            FetchSessionHandler.Builder builder = fetchable.computeIfAbsent(node, k -> {
-                FetchSessionHandler fetchSessionHandler = sessionHandlers.computeIfAbsent(node.id(), n -> new FetchSessionHandler(logContext, n));
-                return fetchSessionHandler.newBuilder();
-            });
-            Uuid topicId = topicIds.getOrDefault(partition.topic(), Uuid.ZERO_UUID);
-            FetchRequest.PartitionData partitionData = new FetchRequest.PartitionData(
-                topicId,
-                position.offset,
-                FetchRequest.INVALID_LOG_START_OFFSET,
-                fetchSize,
-                position.currentLeader.epoch,
-                Optional.empty()
-            );
-            builder.add(partition, partitionData);
-
-            log.debug("Added {} fetch request for partition {} at position {} to node {}", fetchConfig.isolationLevel,
-                partition, position, node);
-        }
-
-        /**
-         * Converts the {@link FetchSessionHandler.Builder}s for each node into a
-         * {@link FetchSessionHandler.FetchRequestData} that can later be used to create the RPC request.
-         */
-        Map<Node, FetchSessionHandler.FetchRequestData> requests() {
-            return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
-        }
     }
 }
