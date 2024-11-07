@@ -27,8 +27,7 @@ import java.time.Duration;
  * to perform the necessary steps to leave the consumer group cleanly, if possible. The event's timeout is based on
  * either the user-provided value to {@link Consumer#close(Duration)} or
  * {@link ConsumerUtils#DEFAULT_CLOSE_TIMEOUT_MS} if {@link Consumer#close()} was called. The event is considered
- * complete when the membership manager sends the heartbeat message to leave the group. The event does not wait on a
- * response from the coordinator, so there is no guarantee that the 'leave group' RPC call was received or executed.
+ * complete when the membership manager receives the heartbeat response that it has left the group.
  */
 public class LeaveGroupOnCloseEvent extends CompletableApplicationEvent<Void> {
 

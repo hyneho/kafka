@@ -39,13 +39,12 @@ public interface MemberStateListener {
     void onMemberEpochUpdated(Optional<Integer> memberEpoch, String memberId);
 
     /**
-     * This callback is invoked when the set of assigned partition changes. Assignments can change via updates to
-     * from the coordinator (includes assignment changes, unsubscribing, and when leaving the group) as well as when
-     * the user self-assigns partitions.
+     * This callback is invoked when a group member's assigned set of partitions changes. Assignments can change via
+     * group coordinator partition assignment changes, unsubscribing, and when leaving the group.
      *
      * @param partitions New assignment, can be empty, but not {@code null}
      */
-    default void onAssignmentUpdated(Set<TopicPartition> partitions) {
+    default void onGroupAssignmentUpdated(Set<TopicPartition> partitions) {
 
     }
 }

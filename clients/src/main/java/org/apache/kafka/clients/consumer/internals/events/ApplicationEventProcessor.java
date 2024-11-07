@@ -243,13 +243,10 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
             manager.maybeAutoCommitAsync();
         }
 
-        Collection<TopicPartition> partitions = event.partitions();
-        log.info("Assigned to partition(s): {}", partitions.stream().map(TopicPartition::toString).collect(Collectors.joining(", ")));
+        log.info("Assigned to partition(s): {}", event.partitions().stream().map(TopicPartition::toString).collect(Collectors.joining(", ")));
         try {
-            if (subscriptions.assignFromUser(new HashSet<>(partitions))) {
+            if (subscriptions.assignFromUser(new HashSet<>(event.partitions())))
                 metadata.requestUpdateForNewTopics();
-                requestManagers.consumerMembershipManager.ifPresent(cmm -> cmm.notifyAssignmentChange(new HashSet<>(partitions)));
-            }
 
             event.future().complete(null);
         } catch (Exception e) {

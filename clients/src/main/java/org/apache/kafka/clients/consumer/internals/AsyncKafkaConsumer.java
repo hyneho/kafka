@@ -231,7 +231,12 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     private final IsolationLevel isolationLevel;
 
     private final SubscriptionState subscriptions;
-    private final AtomicReference<Set<TopicPartition>> assignmentSnapshot = new AtomicReference<>(Collections.emptySet());
+
+    /**
+     * This is a snapshot of the partitions assigned to this consumer. HOWEVER, this is only populated and used in
+     * the case where this consumer is in a consumer group. Self-assigned partitions do not appear here.
+     */
+    private final AtomicReference<Set<TopicPartition>> groupAssignmentSnapshot = new AtomicReference<>(Collections.emptySet());
     private final ConsumerMetadata metadata;
     private final Metrics metrics;
     private final long retryBackoffMs;
@@ -262,8 +267,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         }
 
         @Override
-        public void onAssignmentUpdated(Set<TopicPartition> partitions) {
-            setAssignmentSnapshot(partitions);
+        public void onGroupAssignmentUpdated(Set<TopicPartition> partitions) {
+            setGroupAssignmentSnapshot(partitions);
         }
     };
 
@@ -649,8 +654,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         );
     }
 
-    void setAssignmentSnapshot(final Set<TopicPartition> partitions) {
-        assignmentSnapshot.set(Collections.unmodifiableSet(partitions));
+    void setGroupAssignmentSnapshot(final Set<TopicPartition> partitions) {
+        groupAssignmentSnapshot.set(Collections.unmodifiableSet(partitions));
     }
 
     @Override
@@ -1324,7 +1329,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         swallow(log, Level.ERROR, "Failed to auto-commit offsets",
             () -> autoCommitOnClose(closeTimer), firstException);
         swallow(log, Level.ERROR, "Failed to release group assignment",
-            () -> releaseAssignmentOnClose(closeTimer), firstException);
+            () -> runRebalanceCallbacksOnClose(closeTimer), firstException);
         swallow(log, Level.ERROR, "Failed to leave group while closing consumer",
             () -> leaveGroupOnClose(closeTimer), firstException);
         swallow(log, Level.ERROR, "Failed invoking asynchronous commit callbacks while closing consumer",
@@ -1365,13 +1370,13 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         applicationEventHandler.add(new CommitOnCloseEvent());
     }
 
-    private void releaseAssignmentOnClose(final Timer timer) {
-        ConsumerGroupMetadata cgm = groupMetadata.get().orElse(null);
-
-        if (cgm == null)
+    private void runRebalanceCallbacksOnClose(final Timer timer) {
+        if (groupMetadata.get().isEmpty())
             return;
 
-        Set<TopicPartition> assignedPartitions = assignmentSnapshot.get();
+        int memberEpoch = groupMetadata.get().get().generationId();
+
+        Set<TopicPartition> assignedPartitions = groupAssignmentSnapshot.get();
 
         if (assignedPartitions.isEmpty())
             // Nothing to revoke.
@@ -1383,7 +1388,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         try {
             final Exception error;
 
-            if (cgm.generationId() > 0)
+            if (memberEpoch > 0)
                 error = rebalanceListenerInvoker.invokePartitionsRevoked(droppedPartitions);
             else
                 error = rebalanceListenerInvoker.invokePartitionsLost(droppedPartitions);
@@ -1504,7 +1509,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public Set<TopicPartition> assignment() {
         acquireAndEnsureOpen();
         try {
-            return assignmentSnapshot.get();
+            return Collections.unmodifiableSet(subscriptions.assignedPartitions());
         } finally {
             release();
         }
@@ -1547,7 +1552,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             // Clear the buffered data which are not a part of newly assigned topics
             final Set<TopicPartition> currentTopicPartitions = new HashSet<>();
 
-            for (TopicPartition tp : assignmentSnapshot.get()) {
+            for (TopicPartition tp : subscriptions.assignedPartitions()) {
                 if (partitions.contains(tp))
                     currentTopicPartitions.add(tp);
             }
@@ -1575,7 +1580,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             Timer timer = time.timer(defaultApiTimeoutMs);
             UnsubscribeEvent unsubscribeEvent = new UnsubscribeEvent(calculateDeadlineMs(timer));
             applicationEventHandler.add(unsubscribeEvent);
-            log.info("Unsubscribing all topics or patterns and assigned partitions {}", assignmentSnapshot.get());
+            log.info("Unsubscribing all topics or patterns and assigned partitions {}",
+                subscriptions.assignedPartitions());
 
             try {
                 // If users subscribe to an invalid topic name, they will get InvalidTopicException in error events,
@@ -1881,7 +1887,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 // Clear the buffered data which are not a part of newly assigned topics
                 final Set<TopicPartition> currentTopicPartitions = new HashSet<>();
 
-                for (TopicPartition tp : assignmentSnapshot.get()) {
+                for (TopicPartition tp : subscriptions.assignedPartitions()) {
                     if (topics.contains(tp.topic()))
                         currentTopicPartitions.add(tp);
                 }

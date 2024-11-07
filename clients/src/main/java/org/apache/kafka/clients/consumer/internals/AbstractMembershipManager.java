@@ -648,12 +648,12 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     }
 
     /**
-     * Invokes the {@link MemberStateListener#onAssignmentUpdated(Set)} callback for each listener when the
+     * Invokes the {@link MemberStateListener#onGroupAssignmentUpdated(Set)} callback for each listener when the
      * set of assigned partitions changes. This includes on assignment changes, unsubscribing, and when leaving
      * the group.
      */
     public void notifyAssignmentChange(Set<TopicPartition> partitions) {
-        stateUpdatesListeners.forEach(stateListener -> stateListener.onAssignmentUpdated(partitions));
+        stateUpdatesListeners.forEach(stateListener -> stateListener.onGroupAssignmentUpdated(partitions));
     }
 
     /**
@@ -1169,7 +1169,12 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             if (exception == null) {
                 // Enable newly added partitions to start fetching and updating positions for them.
                 subscriptions.enablePartitionsAwaitingCallback(addedPartitions);
-                notifyAssignmentChange(addedPartitions);
+
+                Set<TopicPartition> allAssignedPartitions = assignedPartitions.stream()
+                    .map(tip -> new TopicPartition(tip.topic(), tip.partition()))
+                    .collect(Collectors.toSet());
+
+                notifyAssignmentChange(allAssignedPartitions);
             } else {
                 // Keeping newly added partitions as non-fetchable after the callback failure.
                 // They will be retried on the next reconciliation loop, until it succeeds or the

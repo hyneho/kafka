@@ -749,7 +749,7 @@ public class AsyncKafkaConsumerTest {
             subscriptions,
             "group-id",
             "client-id"));
-        consumer.setAssignmentSnapshot(partitions);
+        consumer.setGroupAssignmentSnapshot(partitions);
 
         Throwable t = assertThrows(KafkaException.class, () -> consumer.close(Duration.ZERO));
         assertNotNull(t.getCause());
@@ -1688,7 +1688,7 @@ public class AsyncKafkaConsumerTest {
         doAnswer(invocation -> {
             // Mock the subscription being assigned as the first fetch is collected
             consumer.subscriptions().assignFromSubscribed(partitions);
-            consumer.setAssignmentSnapshot(partitions);
+            consumer.setGroupAssignmentSnapshot(partitions);
             return Fetch.empty();
         }).doAnswer(invocation ->
             Fetch.forPartition(tp, records, true, nextOffsetAndMetadata)
@@ -1974,7 +1974,7 @@ public class AsyncKafkaConsumerTest {
             AssignmentChangeEvent event = invocation.getArgument(0);
             HashSet<TopicPartition> partitions = new HashSet<>(event.partitions());
             consumer.subscriptions().assignFromUser(partitions);
-            consumer.setAssignmentSnapshot(partitions);
+            consumer.setGroupAssignmentSnapshot(partitions);
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(AssignmentChangeEvent.class));
