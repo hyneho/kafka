@@ -62,14 +62,14 @@ public class DelayedShareFetch extends DelayedOperation {
     private Map<TopicIdPartition, LogReadResult> partitionsAlreadyFetched;
     private final SharePartitionManager sharePartitionManager;
     // The topic partitions that need to be completed for the share fetch request are given by sharePartitions.
-    // sharePartitions is a subset of shareFetchData.
-    private final Map<TopicIdPartition, SharePartition> sharePartitions;
+    // sharePartitions is a subset of shareFetchData. The order of insertion/deletion of entries in sharePartitions is important.
+    private final LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions;
 
     DelayedShareFetch(
             ShareFetchData shareFetchData,
             ReplicaManager replicaManager,
             SharePartitionManager sharePartitionManager,
-            Map<TopicIdPartition, SharePartition> sharePartitions) {
+            LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions) {
         super(shareFetchData.fetchParams().maxWaitMs, Option.empty());
         this.shareFetchData = shareFetchData;
         this.replicaManager = replicaManager;
@@ -182,6 +182,8 @@ public class DelayedShareFetch extends DelayedOperation {
             return false;
         } catch (Exception e) {
             log.error("Error processing delayed share fetch request", e);
+            partitionsAcquired.clear();
+            partitionsAlreadyFetched.clear();
             releasePartitionLocks(topicPartitionData.keySet());
             return forceComplete();
         }
@@ -258,6 +260,7 @@ public class DelayedShareFetch extends DelayedOperation {
         }
     }
 
+    // minByes estimation currently assumes the common case where all fetched data is acquirable.
     private boolean isMinBytesSatisfied(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         long accumulatedSize = 0;
         for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {

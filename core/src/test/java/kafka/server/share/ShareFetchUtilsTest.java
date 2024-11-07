@@ -97,7 +97,7 @@ public class ShareFetchUtilsTest {
         doNothing().when(sp1).updateCacheAndOffsets(any(Long.class));
         doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp0, sp0);
         sharePartitions.put(tp1, sp1);
 
@@ -163,7 +163,7 @@ public class ShareFetchUtilsTest {
         doNothing().when(sp1).updateCacheAndOffsets(any(Long.class));
         doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp0, sp0);
         sharePartitions.put(tp1, sp1);
 
@@ -205,7 +205,7 @@ public class ShareFetchUtilsTest {
         SharePartition sp0 = Mockito.mock(SharePartition.class);
         SharePartition sp1 = Mockito.mock(SharePartition.class);
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp0, sp0);
         sharePartitions.put(tp1, sp1);
 
@@ -300,7 +300,7 @@ public class ShareFetchUtilsTest {
         Map<TopicIdPartition, Integer> partitionMaxBytes = Collections.singletonMap(tp0, PARTITION_MAX_BYTES);
 
         SharePartition sp0 = Mockito.mock(SharePartition.class);
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp0, sp0);
 
         ShareFetchData shareFetchData = new ShareFetchData(FETCH_PARAMS, groupId, Uuid.randomUuid().toString(),
@@ -367,7 +367,7 @@ public class ShareFetchUtilsTest {
         SharePartition sp0 = Mockito.mock(SharePartition.class);
         SharePartition sp1 = Mockito.mock(SharePartition.class);
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp0, sp0);
         sharePartitions.put(tp1, sp1);
 

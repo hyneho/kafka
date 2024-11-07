@@ -1683,7 +1683,7 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build();
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp1, sp1);
         sharePartitions.put(tp2, sp2);
 
@@ -1784,7 +1784,7 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build();
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp1, sp1);
         sharePartitions.put(tp2, sp2);
         sharePartitions.put(tp3, sp3);
@@ -1882,7 +1882,7 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build());
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp1, sp1);
         sharePartitions.put(tp2, sp2);
 
@@ -1987,7 +1987,7 @@ public class SharePartitionManagerTest {
             .withTimer(mockTimer)
             .build());
 
-        Map<TopicIdPartition, SharePartition> sharePartitions = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp1, sp1);
         sharePartitions.put(tp2, sp2);
         sharePartitions.put(tp3, sp3);
