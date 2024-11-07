@@ -197,8 +197,8 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         // This is the set of partitions that does not have buffered data
         final Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
 
-        // Loop over all the assigned partitions and create requests if the partition has a valid position and the
-        // node is valid to contact.
+        // In the first loop, iterate over all the assigned partitions and create requests if the partition has a
+        // valid position and the node is valid to contact. This is the same logic as in the ClassicKafkaConsumer.
         for (TopicPartition partition : unbuffered) {
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
 
@@ -211,14 +211,18 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
                 continue;
 
             Node node = nodeOpt.get();
-            createSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+            addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
         }
 
-        // In the second loop, iterate over all partitions with buffered data. If the criteria below is met,
-        // these partitions will be included in the request with a nominal fetch size of 1 byte. These are
-        // included in the fetch requests so that partitions with buffered data aren't inadvertently put into
-        // the "remove" set of the FetchRequest, whereby they are removed from the broker's fetch session. In
-        // some cases this could lead to the eviction of the fetch session.
+        // Now the AsyncKafkaConsumer does something a little different from the ClassicKafkaConsumer...
+        //
+        // Make a second pass to loop over all the partitions *with* buffered data. These partitions are included
+        // in the fetch requests so that they aren't inadvertently put into the "remove" set. Partitions in the
+        // "remove" set are removed from the broker's mirrored cache of fetchable partitions. In some cases, that
+        // could then lead to the eviction of the broker's fetch session.
+        //
+        // In an effort to avoid buffering too much data locally, partitions that already have buffered data only
+        // request a nominal fetch size of 1 byte.
         for (TopicPartition partition : buffered) {
             if (!subscriptions.isAssigned(partition)) {
                 // It's possible that a partition with buffered data from a previous request is now no longer
@@ -248,7 +252,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
                 continue;
             }
 
-            createSessionHandlerBuilder(fetchable, topicIds, node, partition, position, 1);
+            addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, 1);
         }
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));

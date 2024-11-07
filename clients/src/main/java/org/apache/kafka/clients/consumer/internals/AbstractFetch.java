@@ -443,12 +443,12 @@ public abstract class AbstractFetch implements Closeable {
      * Creates and adds a new {@link FetchRequest.PartitionData} that represents the given partition, at the
      * given position, for the given amount of bytes.
      */
-    void createSessionHandlerBuilder(final Map<Node, FetchSessionHandler.Builder> fetchable,
-                                     final Map<String, Uuid> topicIds,
-                                     final Node node,
-                                     final TopicPartition partition,
-                                     final SubscriptionState.FetchPosition position,
-                                     final int fetchSize) {
+    void addSessionHandlerBuilder(final Map<Node, FetchSessionHandler.Builder> fetchable,
+                                  final Map<String, Uuid> topicIds,
+                                  final Node node,
+                                  final TopicPartition partition,
+                                  final SubscriptionState.FetchPosition position,
+                                  final int fetchSize) {
         // if there is a leader and no in-flight requests, issue a new fetch
         FetchSessionHandler.Builder builder = fetchable.computeIfAbsent(node, k -> {
             FetchSessionHandler fetchSessionHandler = sessionHandlers.computeIfAbsent(node.id(), n -> new FetchSessionHandler(logContext, n));
@@ -469,7 +469,6 @@ public abstract class AbstractFetch implements Closeable {
             partition, position, node);
     }
 
-
     /**
      * Create fetch requests for all nodes for which we have assigned partitions
      * that have no existing requests in flight.
@@ -482,8 +481,6 @@ public abstract class AbstractFetch implements Closeable {
         long currentTimeMs = time.milliseconds();
         Map<String, Uuid> topicIds = metadata.topicIds();
 
-        // Loop over all the assigned partitions and create requests if the partition has a valid position and the
-        // node is valid to contact.
         for (TopicPartition partition : fetchablePartitions()) {
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
 
@@ -501,7 +498,7 @@ public abstract class AbstractFetch implements Closeable {
                 continue;
 
             Node node = nodeOpt.get();
-            createSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
+            addSessionHandlerBuilder(fetchable, topicIds, node, partition, position, fetchConfig.fetchSize);
         }
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
