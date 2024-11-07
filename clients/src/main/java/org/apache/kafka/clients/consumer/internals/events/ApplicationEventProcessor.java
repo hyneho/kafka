@@ -506,43 +506,12 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         manager.setAcknowledgementCommitCallbackRegistered(event.isCallbackRegistered());
     }
 
-    private <T> BiConsumer<? super T, ? super Throwable> complete(final CompletableFuture<T> b) {
-        return (value, exception) -> {
-            if (exception != null)
-                b.completeExceptionally(exception);
-            else
-                b.complete(value);
-        };
-    }
-
-    /**
-     * Creates a {@link Supplier} for deferred creation during invocation by
-     * {@link ConsumerNetworkThread}.
-     */
-    public static Supplier<ApplicationEventProcessor> supplier(final LogContext logContext,
-                                                               final ConsumerMetadata metadata,
-                                                               final SubscriptionState subscriptions,
-                                                               final Supplier<RequestManagers> requestManagersSupplier) {
-        return new CachedSupplier<ApplicationEventProcessor>() {
-            @Override
-            protected ApplicationEventProcessor create() {
-                RequestManagers requestManagers = requestManagersSupplier.get();
-                return new ApplicationEventProcessor(
-                        logContext,
-                        requestManagers,
-                        metadata,
-                        subscriptions
-                );
-            }
-        };
-    }
-
     private void process(final SeekUnvalidatedEvent event) {
         try {
             SubscriptionState.FetchPosition newPosition = new SubscriptionState.FetchPosition(
-                    event.offset(),
-                    event.offsetEpoch(),
-                    metadata.currentLeader(event.partition())
+                event.offset(),
+                event.offsetEpoch(),
+                metadata.currentLeader(event.partition())
             );
             subscriptions.seekUnvalidated(event.partition(), newPosition);
             event.future().complete(null);
@@ -617,6 +586,37 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         } catch (Exception e) {
             event.future().completeExceptionally(e);
         }
+    }
+
+    private <T> BiConsumer<? super T, ? super Throwable> complete(final CompletableFuture<T> b) {
+        return (value, exception) -> {
+            if (exception != null)
+                b.completeExceptionally(exception);
+            else
+                b.complete(value);
+        };
+    }
+
+    /**
+     * Creates a {@link Supplier} for deferred creation during invocation by
+     * {@link ConsumerNetworkThread}.
+     */
+    public static Supplier<ApplicationEventProcessor> supplier(final LogContext logContext,
+                                                               final ConsumerMetadata metadata,
+                                                               final SubscriptionState subscriptions,
+                                                               final Supplier<RequestManagers> requestManagersSupplier) {
+        return new CachedSupplier<ApplicationEventProcessor>() {
+            @Override
+            protected ApplicationEventProcessor create() {
+                RequestManagers requestManagers = requestManagersSupplier.get();
+                return new ApplicationEventProcessor(
+                        logContext,
+                        requestManagers,
+                        metadata,
+                        subscriptions
+                );
+            }
+        };
     }
 
     /**
