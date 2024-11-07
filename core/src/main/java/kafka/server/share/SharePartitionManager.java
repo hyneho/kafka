@@ -65,6 +65,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -569,6 +570,7 @@ public class SharePartitionManager implements AutoCloseable {
         }
 
         Set<DelayedShareFetchKey> delayedShareFetchWatchKeys = new HashSet<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         for (TopicIdPartition topicIdPartition : shareFetch.partitionMaxBytes().keySet()) {
             SharePartitionKey sharePartitionKey = sharePartitionKey(
                 shareFetch.groupId(),
@@ -610,6 +612,7 @@ public class SharePartitionManager implements AutoCloseable {
                 if (!initialized)
                     replicaManager.completeDelayedShareFetchRequest(delayedShareFetchKey);
             });
+            sharePartitions.put(topicIdPartition, sharePartition);
         }
 
         // If all the partitions in the request errored out, then complete the fetch request with an exception.
@@ -622,7 +625,7 @@ public class SharePartitionManager implements AutoCloseable {
         // Add the share fetch to the delayed share fetch purgatory to process the fetch request.
         // The request will be added irrespective of whether the share partition is initialized or not.
         // Once the share partition is initialized, the delayed share fetch will be completed.
-        addDelayedShareFetch(new DelayedShareFetch(shareFetch, replicaManager, this), delayedShareFetchWatchKeys);
+        addDelayedShareFetch(new DelayedShareFetch(shareFetch, replicaManager, this, sharePartitions), delayedShareFetchWatchKeys);
     }
 
     private SharePartition getOrCreateSharePartition(SharePartitionKey sharePartitionKey) {
@@ -689,16 +692,6 @@ public class SharePartitionManager implements AutoCloseable {
 
     private SharePartitionKey sharePartitionKey(String groupId, TopicIdPartition topicIdPartition) {
         return new SharePartitionKey(groupId, topicIdPartition);
-    }
-
-    /**
-     *
-     * @param groupId The share group id, this is used to identify the share group.
-     * @param topicIdPartition The topic partition that the group is subscribed to.
-     * @return The share partition stored for the share group topic-partition.
-     */
-    protected SharePartition sharePartition(String groupId, TopicIdPartition topicIdPartition) {
-        return partitionCacheMap.get(sharePartitionKey(groupId, topicIdPartition));
     }
 
     static class ShareGroupMetrics {
