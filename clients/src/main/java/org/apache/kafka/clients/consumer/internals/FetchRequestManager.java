@@ -182,6 +182,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
      * Create fetch requests for all nodes for which we have assigned partitions that have no existing requests
      * in flight.
      */
+    @Override
     protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
         // Update metrics in case there was an assignment change
         metricsManager.maybeUpdateAssignment(subscriptions);
