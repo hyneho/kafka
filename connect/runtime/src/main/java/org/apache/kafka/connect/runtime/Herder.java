@@ -384,6 +384,12 @@ public interface Herder {
      */
     void setClusterLoggerLevel(String namespace, String level);
 
+    /**
+     * Get the worker for this herder
+     * @return the worker
+     */
+    Worker worker();
+
     enum ConfigReloadAction {
         NONE,
         RESTART

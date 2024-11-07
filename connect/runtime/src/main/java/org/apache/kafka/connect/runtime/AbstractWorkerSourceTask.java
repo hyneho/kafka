@@ -24,6 +24,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.header.internals.RecordHeaders;
+import org.apache.kafka.common.internals.Plugin;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.kafka.common.metrics.stats.CumulativeSum;
@@ -46,6 +47,7 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.apache.kafka.connect.source.SourceTaskContext;
 import org.apache.kafka.connect.storage.CloseableOffsetStorageReader;
+import org.apache.kafka.connect.storage.ClusterConfigState;
 import org.apache.kafka.connect.storage.ConnectorOffsetBackingStore;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.HeaderConverter;
@@ -184,15 +186,16 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
 
 
     protected final WorkerConfig workerConfig;
-    protected final WorkerSourceTaskContext sourceTaskContext;
     protected final ConnectorOffsetBackingStore offsetStore;
     protected final OffsetStorageWriter offsetWriter;
     protected final Producer<byte[], byte[]> producer;
 
     private final SourceTask task;
-    private final Converter keyConverter;
-    private final Converter valueConverter;
-    private final HeaderConverter headerConverter;
+    private final ClusterConfigState configState;
+    private final Plugin<Converter> keyConverterPlugin;
+    private final Plugin<Converter> valueConverterPlugin;
+    private final Plugin<HeaderConverter> headerConverterPlugin;
+    private final WorkerTransactionContext workerTransactionContext;
     private final TopicAdmin admin;
     private final CloseableOffsetStorageReader offsetReader;
     private final SourceTaskMetricsGroup sourceTaskMetricsGroup;
@@ -204,6 +207,7 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
     // Visible for testing
     List<SourceRecord> toSend;
     protected Map<String, String> taskConfig;
+    protected WorkerSourceTaskContext context;
     protected boolean started = false;
     private volatile boolean producerClosed = false;
 
@@ -211,11 +215,12 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
                                        SourceTask task,
                                        TaskStatus.Listener statusListener,
                                        TargetState initialState,
-                                       Converter keyConverter,
-                                       Converter valueConverter,
-                                       HeaderConverter headerConverter,
+                                       ClusterConfigState configState,
+                                       Plugin<Converter> keyConverterPlugin,
+                                       Plugin<Converter> valueConverterPlugin,
+                                       Plugin<HeaderConverter> headerConverterPlugin,
                                        TransformationChain<SourceRecord, SourceRecord> transformationChain,
-                                       WorkerSourceTaskContext sourceTaskContext,
+                                       WorkerTransactionContext workerTransactionContext,
                                        Producer<byte[], byte[]> producer,
                                        TopicAdmin admin,
                                        Map<String, TopicCreationGroup> topicGroups,
@@ -238,20 +243,22 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
 
         this.workerConfig = workerConfig;
         this.task = task;
-        this.keyConverter = keyConverter;
-        this.valueConverter = valueConverter;
-        this.headerConverter = headerConverter;
+        this.configState = configState;
+        this.keyConverterPlugin = keyConverterPlugin;
+        this.valueConverterPlugin = valueConverterPlugin;
+        this.headerConverterPlugin = headerConverterPlugin;
+        this.workerTransactionContext = workerTransactionContext;
         this.producer = producer;
         this.admin = admin;
         this.offsetReader = offsetReader;
         this.offsetWriter = offsetWriter;
         this.offsetStore = Objects.requireNonNull(offsetStore, "offset store cannot be null for source tasks");
         this.closeExecutor = closeExecutor;
-        this.sourceTaskContext = sourceTaskContext;
         this.stopRequestedLatch = new CountDownLatch(1);
         this.sourceTaskMetricsGroup = new SourceTaskMetricsGroup(id, connectMetrics);
         this.topicTrackingEnabled = workerConfig.getBoolean(TOPIC_TRACKING_ENABLE_CONFIG);
         this.topicCreation = TopicCreation.newTopicCreation(workerConfig, topicGroups);
+        this.context = new WorkerSourceTaskContext(offsetReader, id, configState, workerTransactionContext, pluginMetrics);
     }
 
     @Override
@@ -275,7 +282,7 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
         // the worst thing that happens is another exception gets logged for an already-
         // failed task
         started = true;
-        task.initialize(sourceTaskContext);
+        task.initialize(context);
         task.start(taskConfig);
         log.info("{} Source task finished initialization and start", this);
     }
@@ -320,7 +327,10 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
         }
         Utils.closeQuietly(offsetReader, "offset reader");
         Utils.closeQuietly(offsetStore::stop, "offset backing store");
-        Utils.closeQuietly(headerConverter, "header converter");
+        Utils.closeQuietly(headerConverterPlugin, "header converter");
+        Utils.closeQuietly(keyConverterPlugin, "key converter");
+        Utils.closeQuietly(valueConverterPlugin, "value converter");
+        Utils.closeQuietly(pluginMetrics, "pluginMetrics");
     }
 
     private void closeProducer(Duration duration) {
@@ -483,13 +493,13 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
             return null;
         }
 
-        RecordHeaders headers = retryWithToleranceOperator.execute(context, () -> convertHeaderFor(record), Stage.HEADER_CONVERTER, headerConverter.getClass());
+        RecordHeaders headers = retryWithToleranceOperator.execute(context, () -> convertHeaderFor(record), Stage.HEADER_CONVERTER, headerConverterPlugin.get().getClass());
 
-        byte[] key = retryWithToleranceOperator.execute(context, () -> keyConverter.fromConnectData(record.topic(), headers, record.keySchema(), record.key()),
-                Stage.KEY_CONVERTER, keyConverter.getClass());
+        byte[] key = retryWithToleranceOperator.execute(context, () -> keyConverterPlugin.get().fromConnectData(record.topic(), headers, record.keySchema(), record.key()),
+                Stage.KEY_CONVERTER, keyConverterPlugin.get().getClass());
 
-        byte[] value = retryWithToleranceOperator.execute(context, () -> valueConverter.fromConnectData(record.topic(), headers, record.valueSchema(), record.value()),
-                Stage.VALUE_CONVERTER, valueConverter.getClass());
+        byte[] value = retryWithToleranceOperator.execute(context, () -> valueConverterPlugin.get().fromConnectData(record.topic(), headers, record.valueSchema(), record.value()),
+                Stage.VALUE_CONVERTER, valueConverterPlugin.get().getClass());
 
         if (context.failed()) {
             return null;
@@ -545,7 +555,7 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
             String topic = record.topic();
             for (Header header : headers) {
                 String key = header.key();
-                byte[] rawHeader = headerConverter.fromConnectHeader(topic, key, header.schema(), header.value());
+                byte[] rawHeader = headerConverterPlugin.get().fromConnectHeader(topic, key, header.schema(), header.value());
                 result.add(key, rawHeader);
             }
         }

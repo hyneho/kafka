@@ -31,6 +31,10 @@ import java.io.Closeable;
  * {@code META-INF/services/org.apache.kafka.connect.transforms.Transformation}.
  *
  * @param <R> The type of record (must be an implementation of {@link ConnectRecord})
+ * <br/>
+ * Implement {@link org.apache.kafka.common.metrics.Monitorable} to enable the transformation to register metrics.
+ * The following tags are automatically added to all metrics registered: <code>connector</code> set to connector name,
+ * <code>task</code> set to the task id and <code>transformation</code> set to the transformation alias.
  */
 public interface Transformation<R extends ConnectRecord<R>> extends Configurable, Closeable {
 

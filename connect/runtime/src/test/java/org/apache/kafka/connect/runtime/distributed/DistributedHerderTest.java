@@ -314,6 +314,8 @@ public class DistributedHerderTest {
         metrics = new MockConnectMetrics(time);
         AutoCloseable uponShutdown = shutdownCalled::countDown;
 
+        when(worker.metrics()).thenReturn(new MockConnectMetrics());
+
         // Default to the old protocol unless specified otherwise
         connectProtocolVersion = CONNECT_PROTOCOL_V0;
 
