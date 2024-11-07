@@ -194,7 +194,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         // This is the set of partitions that have buffered data
         Set<TopicPartition> buffered = Collections.unmodifiableSet(fetchBuffer.bufferedPartitions());
 
-        // This is the set of partitions that does not have buffered data
+        // This is the set of partitions that do not have buffered data
         Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
 
         // The first loop is the same logic as in the ClassicKafkaConsumer.
