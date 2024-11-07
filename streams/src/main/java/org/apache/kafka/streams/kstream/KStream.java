@@ -436,7 +436,6 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @see #transformValues(ValueTransformerSupplier, String...)
      * @see #transformValues(ValueTransformerWithKeySupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
@@ -488,7 +487,6 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @see #transformValues(ValueTransformerSupplier, String...)
      * @see #transformValues(ValueTransformerWithKeySupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
@@ -532,7 +530,6 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @see #transformValues(ValueTransformerSupplier, String...)
      * @see #transformValues(ValueTransformerWithKeySupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
@@ -576,7 +573,6 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @see #transformValues(ValueTransformerSupplier, String...)
      * @see #transformValues(ValueTransformerWithKeySupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
@@ -625,7 +621,6 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @see #transformValues(ValueTransformerSupplier, String...)
      * @see #transformValues(ValueTransformerWithKeySupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
@@ -675,7 +670,6 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @see #transformValues(ValueTransformerSupplier, String...)
      * @see #transformValues(ValueTransformerWithKeySupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
@@ -3385,8 +3379,7 @@ public interface KStream<K, V> {
      * a schedule must be registered.
      * The {@link ValueTransformerWithKey} must return the new value in
      * {@link ValueTransformerWithKey#transform(Object, Object) transform()}.
-     * In contrast to {@link #flatTransform(TransformerSupplier, String...) flatTransform()}, no additional {@link
-     * KeyValue} pairs can be emitted via
+     * No additional {@link KeyValue} pairs can be emitted via
      * {@link org.apache.kafka.streams.processor.ProcessorContext#forward(Object, Object) ProcessorContext.forward()}.
      * A {@link org.apache.kafka.streams.errors.StreamsException} is thrown if the {@link ValueTransformerWithKey} tries
      * to emit a {@link KeyValue} pair.
@@ -3503,8 +3496,7 @@ public interface KStream<K, V> {
      * transform()}.
      * If the return value of {@link ValueTransformer#transform(Object) ValueTransformer#transform()} is an empty
      * {@link java.lang.Iterable Iterable} or {@code null}, no records are emitted.
-     * In contrast to {@link #flatTransform(TransformerSupplier, String...) flatTransform()}, no additional {@link
-     * KeyValue} pairs can be emitted via
+     * No additional {@link KeyValue} pairs can be emitted via
      * {@link org.apache.kafka.streams.processor.ProcessorContext#forward(Object, Object) ProcessorContext.forward()}.
      * A {@link org.apache.kafka.streams.errors.StreamsException} is thrown if the {@link ValueTransformer} tries to
      * emit a {@link KeyValue} pair.
@@ -3538,8 +3530,7 @@ public interface KStream<K, V> {
      * <p>
      * Setting a new value preserves data co-location with respect to the key.
      * Thus, <em>no</em> internal data redistribution is required if a key based operator (like an aggregation or join)
-     * is applied to the result {@code KStream}. (cf. {@link #flatTransform(TransformerSupplier, String...)
-     * flatTransform()})
+     * is applied to the result {@code KStream}.
      *
      * @param valueTransformerSupplier an instance of {@link ValueTransformerSupplier} that generates a newly constructed {@link ValueTransformer}
      *                                 The supplier should always generate a new instance. Creating a single {@link ValueTransformer} object
@@ -3552,7 +3543,6 @@ public interface KStream<K, V> {
      * different type)
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @deprecated Since 3.3. Use {@link KStream#processValues(FixedKeyProcessorSupplier, String...)} instead.
      */
     @Deprecated
@@ -3626,8 +3616,7 @@ public interface KStream<K, V> {
      * transform()}.
      * If the return value of {@link ValueTransformer#transform(Object) ValueTransformer#transform()} is an empty
      * {@link java.lang.Iterable Iterable} or {@code null}, no records are emitted.
-     * In contrast to {@link #flatTransform(TransformerSupplier, String...) flatTransform()}, no additional {@link
-     * KeyValue} pairs can be emitted via
+     * No additional {@link KeyValue} pairs can be emitted via
      * {@link org.apache.kafka.streams.processor.ProcessorContext#forward(Object, Object) ProcessorContext.forward()}.
      * A {@link org.apache.kafka.streams.errors.StreamsException} is thrown if the {@link ValueTransformer} tries to
      * emit a {@link KeyValue} pair.
@@ -3661,8 +3650,7 @@ public interface KStream<K, V> {
      * <p>
      * Setting a new value preserves data co-location with respect to the key.
      * Thus, <em>no</em> internal data redistribution is required if a key based operator (like an aggregation or join)
-     * is applied to the result {@code KStream}. (cf. {@link #flatTransform(TransformerSupplier, String...)
-     * flatTransform()})
+     * is applied to the result {@code KStream}.
      *
      * @param valueTransformerSupplier an instance of {@link ValueTransformerSupplier} that generates a newly constructed {@link ValueTransformer}
      *                                 The supplier should always generate a new instance. Creating a single {@link ValueTransformer} object
@@ -3676,7 +3664,6 @@ public interface KStream<K, V> {
      * different type)
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @deprecated Since 3.3. Use {@link KStream#processValues(FixedKeyProcessorSupplier, Named, String...)} instead.
      */
     @Deprecated
@@ -3751,8 +3738,7 @@ public interface KStream<K, V> {
      * transform()}.
      * If the return value of {@link ValueTransformerWithKey#transform(Object, Object) ValueTransformerWithKey#transform()}
      * is an empty {@link java.lang.Iterable Iterable} or {@code null}, no records are emitted.
-     * In contrast to {@link #flatTransform(TransformerSupplier, String...) flatTransform()}, no additional {@link
-     * KeyValue} pairs can be emitted via
+     * No additional {@link KeyValue} pairs can be emitted via
      * {@link org.apache.kafka.streams.processor.ProcessorContext#forward(Object, Object) ProcessorContext.forward()}.
      * A {@link org.apache.kafka.streams.errors.StreamsException} is thrown if the {@link ValueTransformerWithKey} tries
      * to emit a {@link KeyValue} pair.
@@ -3787,8 +3773,7 @@ public interface KStream<K, V> {
      * Note that the key is read-only and should not be modified, as this can lead to corrupt partitioning.
      * So, setting a new value preserves data co-location with respect to the key.
      * Thus, <em>no</em> internal data redistribution is required if a key based operator (like an aggregation or join)
-     * is applied to the result {@code KStream}. (cf. {@link #flatTransform(TransformerSupplier, String...)
-     * flatTransform()})
+     * is applied to the result {@code KStream}.
      *
      * @param valueTransformerSupplier an instance of {@link ValueTransformerWithKeySupplier} that generates a newly constructed {@link ValueTransformerWithKey}
      *                                 The supplier should always generate a new instance. Creating a single {@link ValueTransformerWithKey} object
@@ -3801,7 +3786,6 @@ public interface KStream<K, V> {
      * different type)
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @deprecated Since 3.3. Use {@link KStream#processValues(FixedKeyProcessorSupplier, String...)} instead.
      */
     @Deprecated
@@ -3875,8 +3859,7 @@ public interface KStream<K, V> {
      * transform()}.
      * If the return value of {@link ValueTransformerWithKey#transform(Object, Object) ValueTransformerWithKey#transform()}
      * is an empty {@link java.lang.Iterable Iterable} or {@code null}, no records are emitted.
-     * In contrast to {@link #flatTransform(TransformerSupplier, String...) flatTransform()}, no additional {@link
-     * KeyValue} pairs can be emitted via
+     * No additional {@link KeyValue} pairs can be emitted via
      * {@link org.apache.kafka.streams.processor.ProcessorContext#forward(Object, Object) ProcessorContext.forward()}.
      * A {@link org.apache.kafka.streams.errors.StreamsException} is thrown if the {@link ValueTransformerWithKey} tries
      * to emit a {@link KeyValue} pair.
@@ -3911,8 +3894,7 @@ public interface KStream<K, V> {
      * Note that the key is read-only and should not be modified, as this can lead to corrupt partitioning.
      * So, setting a new value preserves data co-location with respect to the key.
      * Thus, <em>no</em> internal data redistribution is required if a key based operator (like an aggregation or join)
-     * is applied to the result {@code KStream}. (cf. {@link #flatTransform(TransformerSupplier, String...)
-     * flatTransform()})
+     * is applied to the result {@code KStream}.
      *
      * @param valueTransformerSupplier an instance of {@link ValueTransformerWithKeySupplier} that generates a newly constructed {@link ValueTransformerWithKey}
      *                                 The supplier should always generate a new instance. Creating a single {@link ValueTransformerWithKey} object
@@ -3926,7 +3908,6 @@ public interface KStream<K, V> {
      * different type)
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
-     * @see #flatTransform(TransformerSupplier, String...)
      * @deprecated Since 3.3. Use {@link KStream#processValues(FixedKeyProcessorSupplier, Named, String...)} instead.
      */
     @Deprecated
