@@ -25,6 +25,7 @@ import org.apache.kafka.coordinator.group.api.assignor.PartitionAssignor;
 import org.apache.kafka.coordinator.group.api.assignor.PartitionAssignorException;
 import org.apache.kafka.coordinator.group.api.assignor.SubscriptionType;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
+import org.apache.kafka.coordinator.group.modern.consumer.ResolvedRegularExpression;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupMember;
 import org.apache.kafka.image.TopicsImage;
 
@@ -92,12 +93,31 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
     }
 
     public static class ConsumerTargetAssignmentBuilder extends TargetAssignmentBuilder<ConsumerGroupMember> {
+
+        /**
+         * The resolved regular expressions.
+         */
+        private Map<String, ResolvedRegularExpression> resolvedRegularExpressions = Collections.emptyMap();
+
         public ConsumerTargetAssignmentBuilder(
             String groupId,
             int groupEpoch,
             PartitionAssignor assignor
         ) {
             super(groupId, groupEpoch, assignor);
+        }
+
+        /**
+         * Adds all the existing resolved regular expressions.
+         *
+         * @param resolvedRegularExpressions The resolved regular expressions.
+         * @return This object.
+         */
+        public TargetAssignmentBuilder<ConsumerGroupMember> withResolvedRegularExpressions(
+            Map<String, ResolvedRegularExpression> resolvedRegularExpressions
+        ) {
+            this.resolvedRegularExpressions = resolvedRegularExpressions;
+            return this;
         }
 
         @Override
@@ -127,10 +147,29 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
             Assignment memberAssignment,
             TopicIds.TopicResolver topicResolver
         ) {
+            Set<String> subscriptions = member.subscribedTopicNames();
+
+            // Check whether the member is also subscribed to a regular expression. If it is,
+            // create the union of the two subscriptions.
+            String subscribedTopicRegex = member.subscribedTopicRegex();
+            if (subscribedTopicRegex != null && !subscribedTopicRegex.isEmpty()) {
+                ResolvedRegularExpression resolvedRegularExpression = resolvedRegularExpressions.get(subscribedTopicRegex);
+                if (resolvedRegularExpression != null) {
+                    if (subscriptions.isEmpty()) {
+                        subscriptions = resolvedRegularExpression.topics;
+                    } else if (!resolvedRegularExpression.topics.isEmpty()) {
+                        // We only use a UnionSet when the member uses both type of subscriptions. The
+                        // protocol allows it. However, the Apache Kafka Consumer does not support it.
+                        // Other clients such as librdkafka may support it.
+                        subscriptions = new UnionSet<>(subscriptions, resolvedRegularExpression.topics);
+                    }
+                }
+            }
+
             return new MemberSubscriptionAndAssignmentImpl(
                 Optional.ofNullable(member.rackId()),
                 Optional.ofNullable(member.instanceId()),
-                new TopicIds(member.subscribedTopicNames(), topicResolver),
+                new TopicIds(subscriptions, topicResolver),
                 memberAssignment
             );
         }
