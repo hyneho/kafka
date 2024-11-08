@@ -921,6 +921,7 @@ class TransactionsTest extends IntegrationTestHarness {
       producer1.close()
     }
 
+    // Make sure to leave this producer enough time before request timeout. The broker restart can take some time.
     val producer3 = createTransactionalProducer("transactional-producer")
     producer3.initTransactions()
 
