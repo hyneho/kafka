@@ -25,6 +25,7 @@ import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.server.purgatory.DelayedOperation;
+import org.apache.kafka.server.share.SharePartitionKey;
 import org.apache.kafka.server.share.fetch.ShareFetch;
 import org.apache.kafka.server.storage.log.FetchIsolation;
 import org.apache.kafka.server.storage.log.FetchPartitionData;
@@ -129,7 +130,7 @@ public class DelayedShareFetch extends DelayedOperation {
                 sharePartitions, replicaManager));
         } catch (Exception e) {
             log.error("Error processing delayed share fetch request", e);
-            sharePartitionManager.handleFetchException(shareFetch, topicPartitionData.keySet(), e);
+            handleFetchException(shareFetch, topicPartitionData.keySet(), e);
         } finally {
             // Releasing the lock to move ahead with the next request in queue.
             releasePartitionLocks(topicPartitionData.keySet());
@@ -265,7 +266,16 @@ public class DelayedShareFetch extends DelayedOperation {
         for (Map.Entry<TopicIdPartition, FetchRequest.PartitionData> entry : topicPartitionData.entrySet()) {
             TopicIdPartition topicIdPartition = entry.getKey();
             FetchRequest.PartitionData partitionData = entry.getValue();
-            LogOffsetMetadata endOffsetMetadata = endOffsetMetadataForTopicPartition(topicIdPartition);
+
+            LogOffsetMetadata endOffsetMetadata;
+            try {
+                endOffsetMetadata = endOffsetMetadataForTopicPartition(topicIdPartition);
+            } catch (Exception e) {
+                shareFetch.addErroneous(topicIdPartition, e);
+                sharePartitionManager.handleFencedSharePartitionException(
+                    new SharePartitionKey(shareFetch.groupId(), topicIdPartition), e);
+                continue;
+            }
 
             if (endOffsetMetadata == LogOffsetMetadata.UNKNOWN_OFFSET_METADATA)
                 continue;
@@ -299,7 +309,7 @@ public class DelayedShareFetch extends DelayedOperation {
     }
 
     private LogOffsetMetadata endOffsetMetadataForTopicPartition(TopicIdPartition topicIdPartition) {
-        Partition partition = replicaManager.getPartitionOrException(topicIdPartition.topicPartition());
+        Partition partition = ShareFetchUtils.partition(replicaManager, topicIdPartition.topicPartition());
         LogOffsetSnapshot offsetSnapshot = partition.fetchOffsetSnapshot(Optional.empty(), true);
         // The FetchIsolation type that we use for share fetch is FetchIsolation.HIGH_WATERMARK. In the future, we can
         // extend it to support other FetchIsolation types.
@@ -336,6 +346,29 @@ public class DelayedShareFetch extends DelayedOperation {
     private boolean anyPartitionHasLogReadError(Map<TopicIdPartition, LogReadResult> replicaManagerReadResponse) {
         return replicaManagerReadResponse.values().stream()
             .anyMatch(logReadResult -> logReadResult.error().code() != Errors.NONE.code());
+    }
+
+    /**
+     * The handleFetchException method is used to handle the exception that occurred while reading from log.
+     * The method will handle the exception for each topic-partition in the request. The share partition
+     * might get removed from the cache.
+     * <p>
+     * The replica read request might error out for one share partition
+     * but as we cannot determine which share partition errored out, we might remove all the share partitions
+     * in the request.
+     *
+     * @param shareFetch The share fetch request.
+     * @param topicIdPartitions The topic-partitions in the replica read request.
+     * @param throwable The exception that occurred while fetching messages.
+     */
+    private void handleFetchException(
+        ShareFetch shareFetch,
+        Set<TopicIdPartition> topicIdPartitions,
+        Throwable throwable
+    ) {
+        topicIdPartitions.forEach(topicIdPartition -> sharePartitionManager.handleFencedSharePartitionException(
+            new SharePartitionKey(shareFetch.groupId(), topicIdPartition), throwable));
+        shareFetch.maybeCompleteWithException(topicIdPartitions, throwable);
     }
 
     // Visible for testing.

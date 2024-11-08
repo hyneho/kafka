@@ -129,11 +129,15 @@ public class ShareFetchUtils {
     }
 
     static int leaderEpoch(ReplicaManager replicaManager, TopicPartition tp) {
+        return partition(replicaManager, tp).getLeaderEpoch();
+    }
+
+    static Partition partition(ReplicaManager replicaManager, TopicPartition tp) {
         Partition partition = replicaManager.getPartitionOrException(tp);
         if (!partition.isLeader()) {
             log.debug("The broker is not the leader for topic partition: {}-{}", tp.topic(), tp.partition());
             throw new NotLeaderOrFollowerException();
         }
-        return partition.getLeaderEpoch();
+        return partition;
     }
 }

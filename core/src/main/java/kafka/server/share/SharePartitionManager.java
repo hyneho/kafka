@@ -68,7 +68,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -495,29 +494,6 @@ public class SharePartitionManager implements AutoCloseable {
     }
 
     /**
-     * The handleFetchException method is used to handle the exception that occurred while reading from log.
-     * The method will handle the exception for each topic-partition in the request. The share partition
-     * might get removed from the cache.
-     * <p>
-     * The replica read request might error out for one share partition
-     * but as we cannot determine which share partition errored out, we might remove all the share partitions
-     * in the request.
-     *
-     * @param shareFetch The share fetch request.
-     * @param topicIdPartitions The topic-partitions in the replica read request.
-     * @param throwable The exception that occurred while fetching messages.
-     */
-    public void handleFetchException(
-        ShareFetch shareFetch,
-        Set<TopicIdPartition> topicIdPartitions,
-        Throwable throwable
-    ) {
-        topicIdPartitions.forEach(topicIdPartition -> handleFencedSharePartitionException(
-            sharePartitionKey(shareFetch.groupId(), topicIdPartition), throwable));
-        shareFetch.maybeCompleteWithException(topicIdPartitions, throwable);
-    }
-
-    /**
      * The cachedTopicIdPartitionsInShareSession method is used to get the cached topic-partitions in the share session.
      *
      * @param groupId The group id in the share fetch request.
@@ -670,7 +646,13 @@ public class SharePartitionManager implements AutoCloseable {
         shareFetch.addErroneous(sharePartitionKey.topicIdPartition(), throwable);
     }
 
-    private void handleFencedSharePartitionException(
+    /**
+     * The method is used to handle the share partition exception.
+     *
+     * @param sharePartitionKey The share partition key.
+     * @param throwable The exception.
+     */
+    public void handleFencedSharePartitionException(
         SharePartitionKey sharePartitionKey,
         Throwable throwable
     ) {

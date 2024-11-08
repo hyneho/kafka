@@ -584,20 +584,35 @@ public class DelayedShareFetchTest {
         when(replicaManager.getPartitionOrException(tp0.topicPartition())).thenReturn(partition);
         when(partition.fetchOffsetSnapshot(any(), anyBoolean())).thenThrow(new RuntimeException("Exception thrown"));
 
+        SharePartitionManager sharePartitionManager = mock(SharePartitionManager.class);
         DelayedShareFetch delayedShareFetch = spy(DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetch)
             .withSharePartitions(sharePartitions)
             .withReplicaManager(replicaManager)
+            .withSharePartitionManager(sharePartitionManager)
             .build());
-        assertFalse(delayedShareFetch.isCompleted());
 
-        // Since minBytes calculation throws an exception and returns true, tryComplete should return true.
-        assertTrue(delayedShareFetch.tryComplete());
-        assertTrue(delayedShareFetch.isCompleted());
-        Mockito.verify(replicaManager, times(2)).readFromLog(
+        // Try complete should return false as the share partition has errored out.
+        assertFalse(delayedShareFetch.tryComplete());
+        // Fetch should remain pending and should be completed on request timeout.
+        assertFalse(delayedShareFetch.isCompleted());
+        // The request should be errored out as topic partition should get added as erroneous.
+        assertTrue(shareFetch.isErrored());
+
+        Mockito.verify(sharePartitionManager, times(1)).handleFencedSharePartitionException(any(), any());
+        Mockito.verify(replicaManager, times(1)).readFromLog(
             any(), any(), any(ReplicaQuota.class), anyBoolean());
-        // releasePartitionLocks will be called twice, once from tryComplete and then from onComplete.
-        Mockito.verify(delayedShareFetch, times(2)).releasePartitionLocks(any());
+        Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
+
+        // Force complete the request as it's still pending. Return false from the share partition lock acquire.
+        when(sp0.maybeAcquireFetchLock()).thenReturn(false);
+        assertTrue(delayedShareFetch.forceComplete());
+        assertTrue(delayedShareFetch.isCompleted());
+
+        // Read from log and release partition locks should not be called as the request is errored out.
+        Mockito.verify(replicaManager, times(1)).readFromLog(
+            any(), any(), any(ReplicaQuota.class), anyBoolean());
+        Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
     }
 
     @Test
@@ -678,7 +693,7 @@ public class DelayedShareFetchTest {
     static class DelayedShareFetchBuilder {
         ShareFetch shareFetch = mock(ShareFetch.class);
         private ReplicaManager replicaManager = mock(ReplicaManager.class);
-        private final SharePartitionManager sharePartitionManager = mock(SharePartitionManager.class);
+        private SharePartitionManager sharePartitionManager = mock(SharePartitionManager.class);
         private LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = mock(LinkedHashMap.class);
 
         DelayedShareFetchBuilder withShareFetchData(ShareFetch shareFetch) {
@@ -688,6 +703,11 @@ public class DelayedShareFetchTest {
 
         DelayedShareFetchBuilder withReplicaManager(ReplicaManager replicaManager) {
             this.replicaManager = replicaManager;
+            return this;
+        }
+
+        DelayedShareFetchBuilder withSharePartitionManager(SharePartitionManager sharePartitionManager) {
+            this.sharePartitionManager = sharePartitionManager;
             return this;
         }
 
