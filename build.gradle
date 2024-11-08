@@ -520,9 +520,9 @@ subprojects {
     doLast {
       if (ext.isGithubActions) {
         def moduleDirPath = projectToJUnitXmlPath(project)
-        def dest = rootProject.layout.buildDirectory.dir("junit-xml/${moduleDirPath}").get().asFile
+        def dest = rootProject.layout.buildDirectory.dir("junit-xml/${moduleDirPath}/test").get().asFile
         println "Copy JUnit XML for ${project.name} to $dest"
-        ant.copy(todir: "$dest/test") {
+        ant.copy(todir: "$dest") {
           ant.fileset(dir: "${test.reports.junitXml.entryPoint}")
         }
 
@@ -581,9 +581,9 @@ subprojects {
     doLast {
       if (ext.isGithubActions) {
         def moduleDirPath = projectToJUnitXmlPath(project)
-        def dest = rootProject.layout.buildDirectory.dir("junit-xml/${moduleDirPath}").get().asFile
+        def dest = rootProject.layout.buildDirectory.dir("junit-xml/${moduleDirPath}/quarantinedTest").get().asFile
         println "Copy JUnit XML for ${project.name} to $dest"
-        ant.copy(todir: "$dest/quarantinedTest", failonerror: "false") {
+        ant.copy(todir: "$dest", failonerror: "false") {
           ant.fileset(dir: "${quarantinedTest.reports.junitXml.entryPoint}") {
             ant.include(name: "**/*.xml")
           }
@@ -1008,19 +1008,6 @@ project(':share') {
     testImplementation libs.slf4jLog4j2
 
     testRuntimeOnly libs.junitPlatformLanucher
-  }
-
-  sourceSets {
-    main {
-      java {
-        srcDirs = ["src/main/java"]
-      }
-    }
-    test {
-      java {
-        srcDirs = ["src/test/java"]
-      }
-    }
   }
 
   checkstyle {
@@ -1457,19 +1444,6 @@ project(':group-coordinator:group-coordinator-api') {
     }
   }
 
-  sourceSets {
-    main {
-      java {
-        srcDirs = ["src/main/java"]
-      }
-    }
-    test {
-      java {
-        srcDirs = ["src/test/java"]
-      }
-    }
-  }
-
   jar {
     dependsOn createVersionFile
     from("$buildDir") {
@@ -1583,19 +1557,6 @@ project(':test-common') {
     testRuntimeOnly runtimeTestLibs
   }
 
-  sourceSets {
-    main {
-      java {
-        srcDirs = ["src/main/java"]
-      }
-    }
-    test {
-      java {
-        srcDirs = ["src/test/java"]
-      }
-    }
-  }
-
   checkstyle {
     configProperties = checkstyleConfigProperties("import-control-test-common.xml")
   }
@@ -1626,19 +1587,6 @@ project(':test-common:test-common-api') {
     testImplementation libs.mockitoCore
 
     testRuntimeOnly runtimeTestLibs
-  }
-
-  sourceSets {
-    main {
-      java {
-        srcDirs = ["src/main/java"]
-      }
-    }
-    test {
-      java {
-        srcDirs = ["src/test/java"]
-      }
-    }
   }
 
   checkstyle {
@@ -1735,19 +1683,6 @@ project(':coordinator-common') {
     testImplementation libs.mockitoCore
 
     testRuntimeOnly runtimeTestLibs
-  }
-
-  sourceSets {
-    main {
-      java {
-        srcDirs = ["src/main/java"]
-      }
-    }
-    test {
-      java {
-        srcDirs = ["src/test/java"]
-      }
-    }
   }
 
   checkstyle {
@@ -2246,19 +2181,6 @@ project(':storage:storage-api') {
     }
   }
 
-  sourceSets {
-    main {
-      java {
-        srcDirs = ["src/main/java"]
-      }
-    }
-    test {
-      java {
-        srcDirs = ["src/test/java"]
-      }
-    }
-  }
-
   jar {
     dependsOn createVersionFile
     from("$buildDir") {
@@ -2432,19 +2354,6 @@ project(':tools:tools-api') {
     }
   }
 
-  sourceSets {
-    main {
-      java {
-        srcDirs = ["src/main/java"]
-      }
-    }
-    test {
-      java {
-        srcDirs = ["src/test/java"]
-      }
-    }
-  }
-
   jar {
     dependsOn createVersionFile
     from("$buildDir") {
@@ -2508,6 +2417,9 @@ project(':tools') {
     testImplementation project(':connect:runtime').sourceSets.test.output
     testImplementation project(':storage:storage-api').sourceSets.main.output
     testImplementation project(':storage').sourceSets.test.output
+    testImplementation project(':streams')
+    testImplementation project(':streams').sourceSets.test.output
+    testImplementation project(':streams:integration-tests').sourceSets.test.output
     testImplementation project(':test-common')
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
@@ -2524,6 +2436,7 @@ project(':tools') {
     testImplementation libs.apachedsLdifPartition
 
     testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly libs.hamcrest
     testRuntimeOnly project(':test-common')
   }
 
@@ -2655,7 +2568,7 @@ project(':streams') {
   }
 
   dependencies {
-    api project(':clients')
+    api project(path: ':clients', configuration: 'shadow')
     // `org.rocksdb.Options` is part of Kafka Streams public api via `RocksDBConfigSetter`
     api libs.rocksDBJni
 
@@ -2678,6 +2591,7 @@ project(':streams') {
     testImplementation libs.mockitoCore
     testImplementation libs.mockitoJunitJupiter // supports MockitoExtension
     testImplementation libs.junitPlatformSuiteEngine // supports suite test
+    testImplementation project(':group-coordinator')
 
     testRuntimeOnly project(':streams:test-utils')
     testRuntimeOnly runtimeTestLibs
