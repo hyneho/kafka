@@ -165,10 +165,38 @@ jobs:
       # If the load-catalog job failed, we won't be able to download the artifact. Since we don't want this to fail
       # the overall workflow, so we'll continue here without a test catalog.
       - name: Load Test Catalog
+        id: load-test-catalog
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: combined-test-catalog
+
+      - name: Quarantined Test
+        id: junit-quarantined-test
+        env:
+          TIMEOUT_MINUTES: 30
+        run: |
+          set +e
+          ./.github/scripts/thread-dump.sh &
+          timeout ${TIMEOUT_MINUTES}m ./gradlew --build-cache --continue --no-scan \
+          -PtestLoggingEvents=started,passed,skipped,failed \
+          -PmaxParallelForks=2 \
+          -PmaxTestRetries=1 -PmaxTestRetryFailures=3 \
+          -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=0 \
+          -Pkafka.test.catalog.file=${{ steps.load-test-catalog.outputs.download-path }}
+          -PcommitId=xxxxxxxxxxxxxxxx \
+          quarantinedTest
+          exitcode="$?"
+          echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
+
+      - name: Archive Quarantined Build Scan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-scan-quarantined-test-${{ matrix.java }}
+          path: ~/.gradle/build-scan-data
+          compression-level: 9
+          if-no-files-found: ignore
 
       - name: Test
         # Gradle flags
@@ -187,10 +215,12 @@ jobs:
           -PmaxParallelForks=2 \
           -PmaxTestRetries=1 -PmaxTestRetryFailures=3 \
           -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=0 \
+          -Pkafka.test.catalog.file=${{ steps.load-test-catalog.outputs.download-path }}
           -PcommitId=xxxxxxxxxxxxxxxx \
-          quarantinedTest test
+          test
           exitcode="$?"
           echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
+
       - name: Archive JUnit HTML reports
         uses: actions/upload-artifact@v4
         id: junit-upload-artifact
@@ -210,7 +240,7 @@ jobs:
           if-no-files-found: ignore
       - name: Archive Thread Dumps
         id: thread-dump-upload-artifact
-        if: always() && steps.junit-test.outputs.exitcode == '124'
+        if: always() && (steps.junit-test.outputs.exitcode == '124' || steps.junit-quarantined-test.outputs.exitcode == '124')
         uses: actions/upload-artifact@v4
         with:
           name: junit-thread-dumps-${{ matrix.java }}
