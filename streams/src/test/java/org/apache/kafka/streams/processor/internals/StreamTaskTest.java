@@ -263,7 +263,7 @@ public class StreamTaskTest {
     private static StreamsConfig createConfig(final Class<? extends DeserializationExceptionHandler> deserializationExceptionHandler) {
         return createConfig(
             AT_LEAST_ONCE,
-            "0",
+            "0", // max.task.idle.ms
             deserializationExceptionHandler,
             LogAndFailProcessingExceptionHandler.class,
             FailOnInvalidTimestamp.class
@@ -273,7 +273,7 @@ public class StreamTaskTest {
     private static StreamsConfig createConfigWithTsExtractor(final Class<? extends TimestampExtractor> timestampExtractor) {
         return createConfig(
             AT_LEAST_ONCE,
-            "0",
+            "0", // max.task.idle.ms
             LogAndFailExceptionHandler.class,
             LogAndFailProcessingExceptionHandler.class,
             timestampExtractor
