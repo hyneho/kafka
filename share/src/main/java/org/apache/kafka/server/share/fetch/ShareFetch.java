@@ -151,7 +151,7 @@ public class ShareFetch {
     }
 
     /**
-     * May be complete the share fetch request with the given exception for the topicIdPartitions.
+     * Maybe complete the share fetch request with the given exception for the topicIdPartitions.
      * If the request is already completed, this method does nothing. If there are any erroneous partitions,
      * they will be added to the response.
      *
