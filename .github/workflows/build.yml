@@ -183,7 +183,7 @@ jobs:
           -PmaxParallelForks=2 \
           -PmaxTestRetries=1 -PmaxTestRetryFailures=3 \
           -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=0 \
-          -Pkafka.test.catalog.file=${{ steps.load-test-catalog.outputs.download-path }}
+          -Pkafka.test.catalog.file=${{ steps.load-test-catalog.outputs.download-path }} \
           -PcommitId=xxxxxxxxxxxxxxxx \
           quarantinedTest
           exitcode="$?"
@@ -215,7 +215,7 @@ jobs:
           -PmaxParallelForks=2 \
           -PmaxTestRetries=1 -PmaxTestRetryFailures=3 \
           -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=0 \
-          -Pkafka.test.catalog.file=${{ steps.load-test-catalog.outputs.download-path }}
+          -Pkafka.test.catalog.file=${{ steps.load-test-catalog.outputs.download-path }} \
           -PcommitId=xxxxxxxxxxxxxxxx \
           test
           exitcode="$?"
