@@ -256,9 +256,9 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
       val shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
       val shareFetchResponseData = shareFetchResponse.data()
       assertEquals(Errors.NONE.code, shareFetchResponseData.errorCode)
+      assertEquals(1, shareFetchResponseData.responses().size())
       val partitionsCount = shareFetchResponseData.responses().get(0).partitions().size()
       if (partitionsCount > 0) {
-        assertEquals(1, shareFetchResponseData.responses().size())
         assertEquals(topicId, shareFetchResponseData.responses().get(0).topicId())
         shareFetchResponseData.responses().get(0).partitions().foreach(partitionData => {
           if (!partitionData.acquiredRecords().isEmpty) {
@@ -2155,9 +2155,9 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
       val shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
       val shareFetchResponseData = shareFetchResponse.data()
       assertEquals(Errors.NONE.code, shareFetchResponseData.errorCode)
+      assertEquals(1, shareFetchResponseData.responses().size())
       val partitionsCount = shareFetchResponseData.responses().get(0).partitions().size()
       if (partitionsCount > 0) {
-        assertEquals(1, shareFetchResponseData.responses().size())
         assertEquals(topicId, shareFetchResponseData.responses().get(0).topicId())
         shareFetchResponseData.responses().get(0).partitions().foreach(partitionData => {
           if (!partitionData.acquiredRecords().isEmpty) {

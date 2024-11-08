@@ -324,11 +324,17 @@ public class DelayedShareFetch extends DelayedOperation {
     }
 
     private Map<TopicIdPartition, LogReadResult> readFromLog(Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
+        // Filter if there already exists any erroneous topic partition.
+        Set<TopicIdPartition> partitionsToFetch = shareFetch.filterErroneousTopicPartitions(topicPartitionData.keySet());
+        if (partitionsToFetch.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         Seq<Tuple2<TopicIdPartition, LogReadResult>> responseLogResult = replicaManager.readFromLog(
             shareFetch.fetchParams(),
             CollectionConverters.asScala(
-                topicPartitionData.entrySet().stream().map(entry ->
-                    new Tuple2<>(entry.getKey(), entry.getValue())).collect(Collectors.toList())
+                partitionsToFetch.stream().map(topicIdPartition ->
+                    new Tuple2<>(topicIdPartition, topicPartitionData.get(topicIdPartition))).collect(Collectors.toList())
             ),
             QuotaFactory.UNBOUNDED_QUOTA,
             true);

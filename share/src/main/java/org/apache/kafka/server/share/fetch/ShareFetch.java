@@ -24,7 +24,9 @@ import org.apache.kafka.server.storage.log.FetchParams;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -61,7 +63,7 @@ public class ShareFetch {
     /**
      * The partitions that had an error during the fetch.
      */
-    private volatile Map<TopicIdPartition, Throwable> erroneous;
+    private Map<TopicIdPartition, Throwable> erroneous;
 
     public ShareFetch(
         FetchParams fetchParams,
@@ -129,7 +131,7 @@ public class ShareFetch {
      * Check if all the partitions in the request have errored.
      * @return true if all the partitions in the request have errored, false otherwise.
      */
-    public boolean isErrored() {
+    public synchronized boolean isErrored() {
         return erroneous != null && erroneous.size() == partitionMaxBytes().size();
     }
 
@@ -171,7 +173,22 @@ public class ShareFetch {
         future.complete(response);
     }
 
-    private void addErroneousToResponse(Map<TopicIdPartition, PartitionData> response) {
+    /**
+     * Filter out the erroneous partitions from the given set of topicIdPartitions.
+     *
+     * @param topicIdPartitions The topic id partitions to filter.
+     * @return The topic id partitions without the erroneous partitions.
+     */
+    public synchronized Set<TopicIdPartition> filterErroneousTopicPartitions(Set<TopicIdPartition> topicIdPartitions) {
+        if (erroneous != null) {
+            Set<TopicIdPartition> retain = new LinkedHashSet<>(topicIdPartitions);
+            retain.removeAll(erroneous.keySet());
+            return retain;
+        }
+        return topicIdPartitions;
+    }
+
+    private synchronized void addErroneousToResponse(Map<TopicIdPartition, PartitionData> response) {
         if (erroneous != null) {
             erroneous.forEach((topicIdPartition, throwable) -> {
                 response.put(topicIdPartition, new PartitionData()
