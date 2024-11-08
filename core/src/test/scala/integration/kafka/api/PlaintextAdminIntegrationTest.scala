@@ -620,7 +620,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
   def testListNodesWithFencedBroker(quorum: String): Unit = {
     client = createAdminClient
     val fencedBrokerId = brokers.last.config.brokerId
-    killBroker(fencedBrokerId)
+    killBroker(fencedBrokerId, JDuration.ofMillis(0))
     // It takes a few seconds for a broker to get fenced after being killed
     // So we retry until only 2 of 3 brokers returned in the result or the max wait is reached
     TestUtils.retry(20000) {

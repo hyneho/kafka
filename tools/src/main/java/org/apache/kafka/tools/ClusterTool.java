@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.tools;
 
-import java.util.Collection;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.DescribeClusterOptions;
 import org.apache.kafka.common.Node;
@@ -34,6 +33,7 @@ import net.sourceforge.argparse4j.inf.Subparsers;
 
 import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
@@ -72,7 +72,7 @@ public class ClusterTool {
                 .help("Get information about the ID of a cluster.");
         Subparser unregisterParser = subparsers.addParser("unregister")
                 .help("Unregister a broker.");
-        Subparser listEndpoints= subparsers.addParser("list-endpoints")
+        Subparser listEndpoints = subparsers.addParser("list-endpoints")
                 .help("List endpoints");
         for (Subparser subpparser : Arrays.asList(clusterIdParser, unregisterParser, listEndpoints)) {
             MutuallyExclusiveGroup connectionOptions = subpparser.addMutuallyExclusiveGroup().required(true);
@@ -165,7 +165,7 @@ public class ClusterTool {
             String maxRackLength = String.valueOf(nodes.stream().filter(node -> node.hasRack()).map(node -> node.rack().length()).max(Integer::compareTo).orElse(10));
 
             if (listControllerEndpoints) {
-                String format = "%-10s %-" + maxHostLength + "s %-10s %-"+ maxRackLength +"s %-15s%n";
+                String format = "%-10s %-" + maxHostLength + "s %-10s %-" + maxRackLength + "s %-15s%n";
                 stream.printf(format, "ID", "HOST", "PORT", "RACK", "ENDPOINT_TYPE");
                 nodes.stream().forEach(node -> stream.printf(format,
                         node.idString(),
@@ -175,7 +175,7 @@ public class ClusterTool {
                         "controller"
                 ));
             } else {
-                String format = "%-10s %-" + maxHostLength + "s %-10s %-"+ maxRackLength +"s %-10s %-15s%n";
+                String format = "%-10s %-" + maxHostLength + "s %-10s %-" + maxRackLength + "s %-10s %-15s%n";
                 stream.printf(format, "ID", "HOST", "PORT", "RACK", "STATE", "ENDPOINT_TYPE");
                 nodes.stream().forEach(node -> stream.printf(format,
                         node.idString(),
@@ -187,12 +187,12 @@ public class ClusterTool {
                 ));
             }
         } catch (ExecutionException ee) {
-                Throwable cause = ee.getCause();
-                if (cause instanceof UnsupportedVersionException) {
-                    stream.println(ee.getCause().getMessage());
-                } else {
-                    throw ee;
-                }
+            Throwable cause = ee.getCause();
+            if (cause instanceof UnsupportedVersionException) {
+                stream.println(ee.getCause().getMessage());
+            } else {
+                throw ee;
+            }
         }
     }
 }
