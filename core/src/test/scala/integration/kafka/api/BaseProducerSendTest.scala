@@ -81,7 +81,8 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
 
     consumer = TestUtils.createConsumer(
       bootstrapServers(listenerName = ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT)),
-      securityProtocol = SecurityProtocol.PLAINTEXT
+      groupProtocolFromTestParameters(),
+      securityProtocol = SecurityProtocol.PLAINTEXT,
     )
   }
 

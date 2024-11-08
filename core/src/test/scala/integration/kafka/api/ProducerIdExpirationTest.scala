@@ -60,6 +60,7 @@ class ProducerIdExpirationTest extends KafkaServerTestHarness {
   override def setUp(testInfo: TestInfo): Unit = {
     super.setUp(testInfo)
     consumer = TestUtils.createConsumer(bootstrapServers(),
+      groupProtocolFromTestParameters(),
       enableAutoCommit = false,
       readCommitted = true)
     admin = createAdminClient(brokers, listenerName)

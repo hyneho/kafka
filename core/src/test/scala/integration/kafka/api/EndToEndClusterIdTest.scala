@@ -151,6 +151,7 @@ class EndToEndClusterIdTest extends KafkaServerTestHarness {
     this.consumerConfig.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers())
     this.consumerConfig.setProperty(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, classOf[MockConsumerInterceptor].getName)
     this.consumerConfig.put(ConsumerConfig.METRIC_REPORTER_CLASSES_CONFIG, classOf[MockConsumerMetricsReporter].getName)
+    this.consumerConfig.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol)
     val testConsumer = new KafkaConsumer(this.consumerConfig, new MockDeserializer, new MockDeserializer)
     testConsumer.assign(List(tp).asJava)
     testConsumer.seek(tp, 0)

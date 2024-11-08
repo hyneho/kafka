@@ -195,6 +195,9 @@ abstract class IntegrationTestHarness extends KafkaServerTestHarness {
                            valueDeserializer: Deserializer[V] = new ByteArrayDeserializer,
                            configOverrides: Properties = new Properties,
                            configsToRemove: List[String] = List()): Consumer[K, V] = {
+    if (!consumerConfig.containsKey(ConsumerConfig.GROUP_PROTOCOL_CONFIG))
+      throw new IllegalStateException(s"Please specify the group.protocol configuration when creating a KafkaConsumer")
+
     val props = new Properties
     props ++= consumerConfig
     props ++= configOverrides

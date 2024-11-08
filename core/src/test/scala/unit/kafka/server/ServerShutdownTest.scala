@@ -98,6 +98,7 @@ class ServerShutdownTest extends KafkaServerTestHarness {
     def createConsumer(): Consumer[Integer, String] =
       TestUtils.createConsumer(
         bootstrapServers(),
+        groupProtocolFromTestParameters(),
         securityProtocol = SecurityProtocol.PLAINTEXT,
         keyDeserializer = new IntegerDeserializer,
         valueDeserializer = new StringDeserializer

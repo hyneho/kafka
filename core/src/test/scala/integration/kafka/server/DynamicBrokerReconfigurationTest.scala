@@ -73,7 +73,7 @@ import org.apache.kafka.test.{TestSslUtils, TestUtils => JTestUtils}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Disabled, Test, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.MethodSource
+import org.junit.jupiter.params.provider.{CsvSource, MethodSource}
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.nowarn
@@ -384,7 +384,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     val producer = ProducerBuilder().trustStoreProps(sslProperties2).maxRetries(0).build()
     // Start the new consumer in a separate group than the continuous consumer started at the beginning of the test so
     // that it is not disrupted by rebalance.
-    val consumer = ConsumerBuilder("group2").trustStoreProps(sslProperties2).topic(topic2).build()
+    val consumer = ConsumerBuilder("group2").trustStoreProps(sslProperties2).topic(topic2).groupProtocol(groupProtocol).build()
     verifyProduceConsume(producer, consumer, 10, topic2)
 
     // Broker keystore update for internal listener with incompatible keystore should fail without update
@@ -751,8 +751,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @Test
-  def testUncleanLeaderElectionEnable(): Unit = {
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
+  def testUncleanLeaderElectionEnable(groupProtocol: String): Unit = {
     val controller = servers.find(_.config.brokerId == TestUtils.waitUntilControllerElected(zkClient)).get
     val controllerId = controller.config.brokerId
 
@@ -762,7 +763,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     TestUtils.createTopic(zkClient, topic, assignment, servers)
 
     val producer = ProducerBuilder().acks(1).build()
-    val consumer = ConsumerBuilder("unclean-leader-test").enableAutoCommit(false).topic(topic).build()
+    val consumer = ConsumerBuilder("unclean-leader-test").enableAutoCommit(false).topic(topic).groupProtocol(groupProtocol).build()
     verifyProduceConsume(producer, consumer, numRecords = 10, topic)
     consumer.commitSync()
 
@@ -1108,9 +1109,10 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     servers.foreach(server => assertEquals(SecureInternal, server.config.interBrokerListenerName.value))
   }
 
-  @Test
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
   @Disabled // Re-enable once we make it less flaky (KAFKA-6824)
-  def testAddRemoveSslListener(): Unit = {
+  def testAddRemoveSslListener(groupProtocol: String): Unit = {
     verifyAddListener("SSL", SecurityProtocol.SSL, Seq.empty)
 
     // Restart servers and check secret rotation
@@ -1151,11 +1153,12 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
 
     verifyListener(SecurityProtocol.SSL, None, "add-ssl-listener-group2")
     createAdminClient(SecurityProtocol.SSL, SecureInternal)
-    verifyRemoveListener("SSL", SecurityProtocol.SSL, Seq.empty)
+    verifyRemoveListener("SSL", SecurityProtocol.SSL, Seq.empty, groupProtocol)
   }
 
-  @Test
-  def testAddRemoveSaslListeners(): Unit = {
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
+  def testAddRemoveSaslListeners(groupProtocol: String): Unit = {
     createScramCredentials(adminClients.head, JaasTestUtils.KAFKA_SCRAM_USER, JaasTestUtils.KAFKA_SCRAM_PASSWORD)
     createScramCredentials(adminClients.head, JaasTestUtils.KAFKA_SCRAM_ADMIN, JaasTestUtils.KAFKA_SCRAM_ADMIN_PASSWORD)
     initializeKerberos()
@@ -1172,7 +1175,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     //verifyAddListener("SASL_SSL", SecurityProtocol.SASL_SSL, Seq("SCRAM-SHA-512", "SCRAM-SHA-256", "PLAIN"))
     verifyAddListener("SASL_PLAINTEXT", SecurityProtocol.SASL_PLAINTEXT, Seq("GSSAPI"))
     //verifyRemoveListener("SASL_SSL", SecurityProtocol.SASL_SSL, Seq("SCRAM-SHA-512", "SCRAM-SHA-256", "PLAIN"))
-    verifyRemoveListener("SASL_PLAINTEXT", SecurityProtocol.SASL_PLAINTEXT, Seq("GSSAPI"))
+    verifyRemoveListener("SASL_PLAINTEXT", SecurityProtocol.SASL_PLAINTEXT, Seq("GSSAPI"), groupProtocol)
 
     // Verify that a listener added to a subset of servers doesn't cause any issues
     // when metadata is processed by the client.
@@ -1314,7 +1317,8 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
   }
 
   private def verifyRemoveListener(listenerName: String, securityProtocol: SecurityProtocol,
-                                   saslMechanisms: Seq[String]): Unit = {
+                                   saslMechanisms: Seq[String],
+                                   groupProtocol: String): Unit = {
     val saslMechanism = if (saslMechanisms.isEmpty) "" else saslMechanisms.head
     val producer1 = ProducerBuilder().listenerName(listenerName)
       .securityProtocol(securityProtocol)
@@ -1326,6 +1330,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       .securityProtocol(securityProtocol)
       .saslMechanism(saslMechanism)
       .autoOffsetReset("latest")
+      .groupProtocol(groupProtocol)
       .build()
     verifyProduceConsume(producer1, consumer1, numRecords = 10, topic)
 
@@ -1838,10 +1843,12 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     private var _autoOffsetReset = "earliest"
     private var _enableAutoCommit = false
     private var _topic = DynamicBrokerReconfigurationTest.this.topic
+    private var _groupProtocol = ""
 
     def autoOffsetReset(reset: String): ConsumerBuilder = { _autoOffsetReset = reset; this }
     def enableAutoCommit(enable: Boolean): ConsumerBuilder = { _enableAutoCommit = enable; this }
     def topic(topic: String): ConsumerBuilder = { _topic = topic; this }
+    def groupProtocol(groupProtocol: String): ConsumerBuilder = { _groupProtocol = groupProtocol; this }
 
     override def build(): Consumer[String, String] = {
       val consumerProps = propsOverride
@@ -1849,6 +1856,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, _autoOffsetReset)
       consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, group)
       consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, _enableAutoCommit.toString)
+      consumerProps.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, _groupProtocol)
 
       val consumer = new KafkaConsumer[String, String](consumerProps, new StringDeserializer, new StringDeserializer)
       consumers += consumer

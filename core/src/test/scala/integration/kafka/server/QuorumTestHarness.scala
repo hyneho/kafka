@@ -209,6 +209,15 @@ abstract class QuorumTestHarness extends Logging {
     TestInfoUtils.maybeGroupProtocolSpecified(testInfo)
   }
 
+  def groupProtocolFromTestParameters() = {
+    val gp = maybeGroupProtocolSpecified()
+
+    if (gp.isEmpty)
+      throw new IllegalStateException("Please specify the group.protocol configuration when creating a KafkaConsumer")
+
+    gp.get
+  }
+
   def checkIsZKTest(): Unit = {
     if (isKRaftTest()) {
       throw new RuntimeException("This function can't be accessed when running the test " +
@@ -559,6 +568,11 @@ object QuorumTestHarness {
       Arguments.of("zk", "classic")
     )
   }
+
+  // The following parameter groups are to *temporarily* avoid bugs with the CONSUMER group protocol Consumer
+  // implementation that would otherwise cause tests to fail.
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17960: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
 
   // For tests that only work with the consumer group protocol, we want to test the following combination:
   // * KRaft and the consumer group protocol

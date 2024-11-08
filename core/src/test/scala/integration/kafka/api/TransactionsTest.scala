@@ -849,7 +849,7 @@ class TransactionsTest extends IntegrationTestHarness {
     }
   }
 
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @ParameterizedTest(name = "{displayName}.quorum={0}.groupProtocol={1}.isTV2Enabled={2}")
   @CsvSource(Array(
     "kraft, classic, false",
     "kraft, consumer, false",
@@ -937,6 +937,7 @@ class TransactionsTest extends IntegrationTestHarness {
                                           maxPollRecords: Int = 500,
                                           props: Properties = new Properties) = {
     val consumer = TestUtils.createConsumer(bootstrapServers(),
+      groupProtocolFromTestParameters(),
       groupId = group,
       enableAutoCommit = false,
       readCommitted = true,
@@ -947,6 +948,7 @@ class TransactionsTest extends IntegrationTestHarness {
 
   private def createReadUncommittedConsumer(group: String) = {
     val consumer = TestUtils.createConsumer(bootstrapServers(),
+      groupProtocolFromTestParameters(),
       groupId = group,
       enableAutoCommit = false)
     nonTransactionalConsumers += consumer

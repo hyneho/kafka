@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Assertions._
 import kafka.integration.KafkaServerTestHarness
 import kafka.server._
 import kafka.utils._
+import org.apache.kafka.clients.consumer.GroupProtocol
 
 import scala.collection._
 import scala.jdk.CollectionConverters._
@@ -38,7 +39,7 @@ import org.apache.kafka.server.metrics.{KafkaMetricsGroup, KafkaYammerMetrics, L
 import org.apache.kafka.storage.log.metrics.BrokerTopicMetrics
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.{MethodSource, ValueSource}
 
 @Timeout(120)
 class MetricsTest extends KafkaServerTestHarness with Logging {
@@ -166,9 +167,9 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     assert(metric.getMBeanName.endsWith(expectedMBeanName))
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testBrokerTopicMetricsBytesInOut(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testBrokerTopicMetricsBytesInOut(quorum: String, groupProtocol: String): Unit = {
     val topic = "test-bytes-in-out"
     val replicationBytesIn = BrokerTopicMetrics.REPLICATION_BYTES_IN_PER_SEC
     val replicationBytesOut = BrokerTopicMetrics.REPLICATION_BYTES_OUT_PER_SEC
@@ -192,7 +193,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     }
 
     // Consume messages to make bytesOut tick
-    TestUtils.consumeTopicRecords(brokers, topic, nMessages)
+    TestUtils.consumeTopicRecords(brokers, topic, nMessages, GroupProtocol.of(groupProtocol))
     val initialReplicationBytesIn = TestUtils.meterCount(replicationBytesIn)
     val initialReplicationBytesOut = TestUtils.meterCount(replicationBytesOut)
     val initialBytesIn = TestUtils.meterCount(bytesIn)
@@ -208,7 +209,7 @@ class MetricsTest extends KafkaServerTestHarness with Logging {
     assertEquals(initialBytesOut, TestUtils.meterCount(bytesOut))
 
     // Consume messages to make bytesOut tick
-    TestUtils.consumeTopicRecords(brokers, topic, nMessages)
+    TestUtils.consumeTopicRecords(brokers, topic, nMessages, GroupProtocol.of(groupProtocol))
 
     assertTrue(TestUtils.meterCount(bytesOut) > initialBytesOut)
   }
