@@ -126,7 +126,7 @@ public class LogCaptureAppender extends AbstractAppender implements AutoCloseabl
     @Override
     public void append(final LogEvent event) {
         synchronized (events) {
-            events.add(event);
+            events.add(event.toImmutable());
         }
     }
 
