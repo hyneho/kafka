@@ -127,6 +127,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1721,11 +1722,12 @@ public class RemoteLogManagerTest {
         LogSegment logSegmentBaseOffset100 = mockLogSegment(100L, timestamp + 1, expectedLocalResult);
         LogSegment logSegmentBaseOffset101 = mockLogSegment(101L, timestamp + 1, expectedLocalResult);
 
-        final long twoSegmentsBaseOffsets50and100 = 0L;
-        final long oneSegmentBaseOffset100 = 1L;
-        final long oneSegmentBaseOffset101 = 2L;
+        // Constants representing the states of local log segments
+        final int twoSegmentsBaseOffsets50and100 = 0;
+        final int oneSegmentBaseOffset100 = 1;
+        final int oneSegmentBaseOffset101 = 2;
 
-        AtomicLong localLogOffsetState = new AtomicLong(twoSegmentsBaseOffsets50and100);
+        AtomicInteger localLogOffsetState = new AtomicInteger(twoSegmentsBaseOffsets50and100);
 
         when(mockLog.logSegments()).thenAnswer(invocation -> {
             if (localLogOffsetState.get() == twoSegmentsBaseOffsets50and100) {
