@@ -560,15 +560,6 @@ object QuorumTestHarness {
     )
   }
 
-  // For tests that only work with the classic group protocol because of relying on Zookeeper, we want to test the
-  // following combinations:
-  // * Zookeeper and the classic group protocol
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = {
-    stream.Stream.of(
-      Arguments.of("zk", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT))
-    )
-  }
-
   // For tests that only work with the consumer group protocol, we want to test the following combination:
   // * KRaft and the consumer group protocol
   def getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly: stream.Stream[Arguments] = {
@@ -576,6 +567,9 @@ object QuorumTestHarness {
       Arguments.of("kraft", GroupProtocol.CONSUMER.name.toLowerCase(Locale.ROOT))
     )
   }
+
+  // The following is for tests that only work with the classic group protocol because of relying on Zookeeper
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = stream.Stream.of(Arguments.of("zk", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT)))
 
   // The following parameter groups are to *temporarily* avoid bugs with the CONSUMER group protocol Consumer
   // implementation that would otherwise cause tests to fail.
