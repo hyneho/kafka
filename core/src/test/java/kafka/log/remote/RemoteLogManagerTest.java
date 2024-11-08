@@ -1735,7 +1735,7 @@ public class RemoteLogManagerTest {
             } else if (localLogOffsetState.get() == oneSegmentBaseOffset101) {
                 return Collections.singletonList(logSegmentBaseOffset101);
             } else {
-                throw new IllegalStateException("Unexpected LocalLogOffsetState: " + localLogOffsetState.get());
+                throw new IllegalStateException("Unexpected localLogOffsetState");
             }
         });
 
