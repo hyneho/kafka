@@ -43,7 +43,6 @@ import static org.apache.kafka.coordinator.group.AssignmentTestUtil.mkTopicAssig
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord;
 import static org.apache.kafka.coordinator.group.api.assignor.SubscriptionType.HOMOGENEOUS;
-import static org.apache.kafka.coordinator.group.modern.TargetAssignmentBuilder.createMemberSubscriptionAndAssignment;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -52,6 +51,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TargetAssignmentBuilderTest {
+
+    private static <T extends ModernGroupMember> MemberSubscriptionAndAssignmentImpl createMemberSubscriptionAndAssignment(
+        T member,
+        Assignment memberAssignment,
+        TopicIds.TopicResolver topicResolver
+    ) {
+        return new MemberSubscriptionAndAssignmentImpl(
+            Optional.ofNullable(member.rackId()),
+            Optional.ofNullable(member.instanceId()),
+            new TopicIds(member.subscribedTopicNames(), topicResolver),
+            memberAssignment
+        );
+    }
 
     public static class TargetAssignmentBuilderTestContext {
         private final String groupId;
@@ -224,7 +236,7 @@ public class TargetAssignmentBuilderTest {
 
             // Create and populate the assignment builder.
             TargetAssignmentBuilder<ConsumerGroupMember> builder =
-                new TargetAssignmentBuilder<ConsumerGroupMember>(groupId, groupEpoch, assignor)
+                new TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder(groupId, groupEpoch, assignor)
                 .withMembers(members)
                 .withStaticMembers(staticMembers)
                 .withSubscriptionMetadata(subscriptionMetadata)
