@@ -520,6 +520,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
 
     private void process(final SeekUnvalidatedEvent event) {
         try {
+            event.offsetEpoch().ifPresent(epoch -> metadata.updateLastSeenEpochIfNewer(event.partition(), epoch));
             SubscriptionState.FetchPosition newPosition = new SubscriptionState.FetchPosition(
                 event.offset(),
                 event.offsetEpoch(),
