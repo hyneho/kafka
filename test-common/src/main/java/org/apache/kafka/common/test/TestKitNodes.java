@@ -27,6 +27,7 @@ import org.apache.kafka.metadata.properties.MetaPropertiesVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,13 +54,21 @@ public class TestKitNodes {
     public static class Builder {
         private boolean combined;
         private String clusterId;
+        private Path baseDirectory;
         private int numControllerNodes;
         private int numBrokerNodes;
         private int numDisksPerBroker = 1;
         private Map<Integer, Map<String, String>> perServerProperties = Collections.emptyMap();
-        private BootstrapMetadata bootstrapMetadata = BootstrapMetadata.
-            fromVersion(MetadataVersion.latestTesting(), "testkit");
-        // The broker/controller listener name and SecurityProtocol configurations must
+        private BootstrapMetadata bootstrapMetadata;
+
+        public Builder() {
+            this(BootstrapMetadata.fromVersion(MetadataVersion.latestTesting(), "testkit"));
+        }
+
+        public Builder(BootstrapMetadata bootstrapMetadata) {
+            this.bootstrapMetadata = bootstrapMetadata;
+        }
+        // The broker and controller listener name and SecurityProtocol configurations must
         // be kept in sync with the default values in ClusterTest.
         private ListenerName brokerListenerName = ListenerName.normalised(DEFAULT_BROKER_LISTENER_NAME);
         private SecurityProtocol brokerSecurityProtocol = DEFAULT_BROKER_SECURITY_PROTOCOL;
@@ -72,12 +81,18 @@ public class TestKitNodes {
         }
 
         public Builder setBootstrapMetadataVersion(MetadataVersion metadataVersion) {
-            this.bootstrapMetadata = BootstrapMetadata.fromVersion(metadataVersion, "testkit");
+            this.bootstrapMetadata = bootstrapMetadata.copyWithFeatureRecord(
+                    MetadataVersion.FEATURE_NAME, metadataVersion.featureLevel());
             return this;
         }
 
         public Builder setBootstrapMetadata(BootstrapMetadata bootstrapMetadata) {
             this.bootstrapMetadata = bootstrapMetadata;
+            return this;
+        }
+
+        public Builder setFeature(String featureName, short level) {
+            this.bootstrapMetadata = bootstrapMetadata.copyWithFeatureRecord(featureName, level);
             return this;
         }
 
@@ -105,6 +120,11 @@ public class TestKitNodes {
             this.perServerProperties = Collections.unmodifiableMap(
                 perServerProperties.entrySet().stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableMap(new HashMap<>(e.getValue())))));
+            return this;
+        }
+
+        public Builder setBaseDirectory(Path baseDirectory) {
+            this.baseDirectory = baseDirectory;
             return this;
         }
 
@@ -142,8 +162,9 @@ public class TestKitNodes {
             if (brokerSecurityProtocol != SecurityProtocol.PLAINTEXT || controllerSecurityProtocol != SecurityProtocol.PLAINTEXT) {
                 throw new IllegalArgumentException("Currently only support PLAINTEXT security protocol");
             }
-
-            String baseDirectory = TestUtils.tempDirectory().getAbsolutePath();
+            if (baseDirectory == null) {
+                this.baseDirectory = TestUtils.tempDirectory().toPath();
+            }
             if (clusterId == null) {
                 clusterId = Uuid.randomUuid().toString();
             }
@@ -174,7 +195,7 @@ public class TestKitNodes {
             for (int id : controllerNodeIds) {
                 TestKitNode controllerNode = TestKitNodes.buildControllerNode(
                     id,
-                    baseDirectory,
+                    baseDirectory.toFile().getAbsolutePath(),
                     clusterId,
                     brokerNodeIds.contains(id),
                     perServerProperties.getOrDefault(id, Collections.emptyMap())
@@ -186,7 +207,7 @@ public class TestKitNodes {
             for (int id : brokerNodeIds) {
                 TestKitNode brokerNode = TestKitNodes.buildBrokerNode(
                     id,
-                    baseDirectory,
+                    baseDirectory.toFile().getAbsolutePath(),
                     clusterId,
                     controllerNodeIds.contains(id),
                     perServerProperties.getOrDefault(id, Collections.emptyMap()),
@@ -195,7 +216,7 @@ public class TestKitNodes {
                 brokerNodes.put(id, brokerNode);
             }
 
-            return new TestKitNodes(baseDirectory, clusterId, bootstrapMetadata, controllerNodes, brokerNodes,
+            return new TestKitNodes(baseDirectory.toFile().getAbsolutePath(), clusterId, bootstrapMetadata, controllerNodes, brokerNodes,
                 brokerListenerName, brokerSecurityProtocol, controllerListenerName, controllerSecurityProtocol);
         }
     }
