@@ -17,6 +17,7 @@
 package kafka.api
 
 import kafka.utils.TestInfoUtils
+import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.errors.{GroupAuthorizationException, TopicAuthorizationException}
@@ -61,6 +62,7 @@ abstract class SaslEndToEndAuthorizationTest extends EndToEndAuthorizationTest {
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testTwoConsumersWithDifferentSaslCredentials(quorum: String, groupProtocol: String): Unit = {
     setAclsAndProduce(tp)
+    consumerConfig.putIfAbsent(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol)
     val consumer1 = createConsumer()
 
     // consumer2 retrieves its credentials from the static JAAS configuration, so we test also this path

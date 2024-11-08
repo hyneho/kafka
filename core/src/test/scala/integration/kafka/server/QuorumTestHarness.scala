@@ -547,8 +547,8 @@ object QuorumTestHarness {
   // * KRaft and the consumer group protocol
   def getTestQuorumAndGroupProtocolParametersAll: java.util.stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("kraft", "classic"),
-      Arguments.of("kraft", "consumer")
+      Arguments.of("kraft", GroupProtocol.CLASSIC.name),
+      Arguments.of("kraft", GroupProtocol.CONSUMER.name)
     )
   }
 
@@ -556,7 +556,7 @@ object QuorumTestHarness {
   // * KRaft and the classic group protocol
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly: java.util.stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("kraft", "classic")
+      Arguments.of("kraft", GroupProtocol.CLASSIC.name)
     )
   }
 
@@ -565,20 +565,21 @@ object QuorumTestHarness {
   // * Zookeeper and the classic group protocol
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("zk", "classic")
+      Arguments.of("zk", GroupProtocol.CLASSIC.name)
     )
   }
-
-  // The following parameter groups are to *temporarily* avoid bugs with the CONSUMER group protocol Consumer
-  // implementation that would otherwise cause tests to fail.
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17960: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
 
   // For tests that only work with the consumer group protocol, we want to test the following combination:
   // * KRaft and the consumer group protocol
   def getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly: stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("kraft", "consumer")
+      Arguments.of("kraft", GroupProtocol.CONSUMER.name)
     )
   }
+
+  // The following parameter groups are to *temporarily* avoid bugs with the CONSUMER group protocol Consumer
+  // implementation that would otherwise cause tests to fail.
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17960: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
 }

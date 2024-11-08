@@ -20,6 +20,7 @@ package kafka.api
 import java.util.Properties
 import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import kafka.utils.{TestInfoUtils, TestUtils}
+import org.apache.kafka.clients.consumer.GroupProtocol
 import org.apache.kafka.clients.producer.{BufferExhaustedException, KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.errors.{InvalidTimestampException, RecordTooLargeException, SerializationException, TimeoutException}
@@ -280,13 +281,12 @@ object PlaintextProducerSendTest {
   def quorumAndTimestampConfigProvider: java.util.stream.Stream[Arguments] = {
     val now: Long = System.currentTimeMillis()
     val fiveMinutesInMs: Long = 5 * 60 * 60 * 1000L
-    java.util.stream.Stream.of[Arguments](
-      Arguments.of("kraft", "classic", TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)),
-      Arguments.of("kraft", "consumer", TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)),
-      Arguments.of("kraft", "classic", TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)),
-      Arguments.of("kraft", "consumer", TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)),
-      Arguments.of("kraft", "classic", TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, Long.box(now + fiveMinutesInMs)),
-      Arguments.of("kraft", "consumer", TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, Long.box(now + fiveMinutesInMs))
-    )
+    val data = new java.util.ArrayList[Arguments]()
+    for (groupProtocol <- GroupProtocol.values()) {
+      data.add(Arguments.of("kraft", groupProtocol.name, TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)))
+      data.add(Arguments.of("kraft", groupProtocol.name, TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)))
+      data.add(Arguments.of("kraft", groupProtocol.name, TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, Long.box(now + fiveMinutesInMs)))
+    }
+    data.stream()
   }
 }
