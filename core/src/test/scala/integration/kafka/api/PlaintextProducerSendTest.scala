@@ -17,7 +17,7 @@
 
 package kafka.api
 
-import java.util.Properties
+import java.util.{Locale, Properties}
 import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer.GroupProtocol
@@ -282,10 +282,10 @@ object PlaintextProducerSendTest {
     val now: Long = System.currentTimeMillis()
     val fiveMinutesInMs: Long = 5 * 60 * 60 * 1000L
     val data = new java.util.ArrayList[Arguments]()
-    for (groupProtocol <- GroupProtocol.values()) {
-      data.add(Arguments.of("kraft", groupProtocol.name, TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)))
-      data.add(Arguments.of("kraft", groupProtocol.name, TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)))
-      data.add(Arguments.of("kraft", groupProtocol.name, TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, Long.box(now + fiveMinutesInMs)))
+    for (groupProtocol <- GroupProtocol.values().map(gp => gp.name.toLowerCase(Locale.ROOT))) {
+      data.add(Arguments.of("kraft", groupProtocol, TopicConfig.MESSAGE_TIMESTAMP_DIFFERENCE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)))
+      data.add(Arguments.of("kraft", groupProtocol, TopicConfig.MESSAGE_TIMESTAMP_BEFORE_MAX_MS_CONFIG, Long.box(now - fiveMinutesInMs)))
+      data.add(Arguments.of("kraft", groupProtocol, TopicConfig.MESSAGE_TIMESTAMP_AFTER_MAX_MS_CONFIG, Long.box(now + fiveMinutesInMs)))
     }
     data.stream()
   }

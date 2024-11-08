@@ -22,7 +22,7 @@ import kafka.controller.ControllerEventManager
 import java.io.File
 import java.net.InetSocketAddress
 import java.util
-import java.util.{Collections, Optional, OptionalInt, Properties, stream}
+import java.util.{Collections, Locale, Optional, OptionalInt, Properties, stream}
 import java.util.concurrent.{CompletableFuture, TimeUnit}
 import javax.security.auth.login.Configuration
 import kafka.utils.{CoreUtils, Logging, TestInfoUtils, TestUtils}
@@ -547,8 +547,8 @@ object QuorumTestHarness {
   // * KRaft and the consumer group protocol
   def getTestQuorumAndGroupProtocolParametersAll: java.util.stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("kraft", GroupProtocol.CLASSIC.name),
-      Arguments.of("kraft", GroupProtocol.CONSUMER.name)
+      Arguments.of("kraft", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT)),
+      Arguments.of("kraft", GroupProtocol.CONSUMER.name.toLowerCase(Locale.ROOT))
     )
   }
 
@@ -556,7 +556,7 @@ object QuorumTestHarness {
   // * KRaft and the classic group protocol
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly: java.util.stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("kraft", GroupProtocol.CLASSIC.name)
+      Arguments.of("kraft", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT))
     )
   }
 
@@ -565,7 +565,7 @@ object QuorumTestHarness {
   // * Zookeeper and the classic group protocol
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("zk", GroupProtocol.CLASSIC.name)
+      Arguments.of("zk", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT))
     )
   }
 
@@ -573,7 +573,7 @@ object QuorumTestHarness {
   // * KRaft and the consumer group protocol
   def getTestQuorumAndGroupProtocolParametersConsumerGroupProtocolOnly: stream.Stream[Arguments] = {
     stream.Stream.of(
-      Arguments.of("kraft", GroupProtocol.CONSUMER.name)
+      Arguments.of("kraft", GroupProtocol.CONSUMER.name.toLowerCase(Locale.ROOT))
     )
   }
 
@@ -582,4 +582,5 @@ object QuorumTestHarness {
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17696: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17960: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
   def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
+  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17964: stream.Stream[Arguments] = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly
 }

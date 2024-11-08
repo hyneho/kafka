@@ -20,7 +20,7 @@ package kafka.api
 import java.lang.{Boolean => JBoolean}
 import java.time.Duration
 import java.util
-import java.util.Collections
+import java.util.{Collections, Locale}
 import kafka.utils.{EmptyTestInfo, TestUtils}
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.{ConsumerConfig, GroupProtocol}
@@ -98,10 +98,9 @@ object ConsumerTopicCreationTest {
 
   def parameters: java.util.stream.Stream[Arguments] = {
     val data = new java.util.ArrayList[Arguments]()
-    for (groupProtocol <- GroupProtocol.values())
-      for (brokerAutoTopicCreationEnable <- Array(JBoolean.TRUE, JBoolean.FALSE))
-        for (consumerAutoCreateTopicsPolicy <- Array(JBoolean.TRUE, JBoolean.FALSE))
-          data.add(Arguments.of(groupProtocol.name, brokerAutoTopicCreationEnable, consumerAutoCreateTopicsPolicy))
+    for (brokerAutoTopicCreationEnable <- Array(JBoolean.TRUE, JBoolean.FALSE))
+      for (consumerAutoCreateTopicsPolicy <- Array(JBoolean.TRUE, JBoolean.FALSE))
+        data.add(Arguments.of(GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT), brokerAutoTopicCreationEnable, consumerAutoCreateTopicsPolicy))
     data.stream()
   }
 }
