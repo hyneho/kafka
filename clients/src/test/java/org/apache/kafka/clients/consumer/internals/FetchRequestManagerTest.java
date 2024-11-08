@@ -3515,7 +3515,7 @@ public class FetchRequestManagerTest {
             Optional<Node> nodeOpt = unsentRequest.node();
             assertTrue(nodeOpt.isPresent());
             Node node = nodeOpt.get();
-            FetchRequest.Builder builder = (FetchRequest.Builder)unsentRequest.requestBuilder();
+            FetchRequest.Builder builder = (FetchRequest.Builder) unsentRequest.requestBuilder();
             Set<TopicPartition> nodePartitions = nodeToPartitionMap.get(node);
             assertNotNull(nodePartitions);
             assertEquals(nodePartitions.size(), builder.fetchData().size());
