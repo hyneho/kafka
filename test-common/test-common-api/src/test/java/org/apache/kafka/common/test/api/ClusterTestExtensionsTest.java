@@ -50,12 +50,13 @@ import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.consumer.GroupProtocol.CLASSIC;
 import static org.apache.kafka.clients.consumer.GroupProtocol.CONSUMER;
 import static org.apache.kafka.clients.producer.ProducerConfig.ACKS_CONFIG;
+import static org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG;
+import static org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorConfig.NEW_GROUP_COORDINATOR_ENABLE_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -256,18 +257,18 @@ public class ClusterTestExtensionsTest {
     }
 
     @ClusterTest(types = {Type.CO_KRAFT, Type.KRAFT}, brokers = 3)
-    public void testCreateProducerAndConsumer(ClusterInstance clusterInstance) throws InterruptedException, ExecutionException {
+    public void testCreateProducerAndConsumer(ClusterInstance cluster) throws InterruptedException {
         String topic = "topic";
         String key = "key";
         String value = "value";
-        try (Admin adminClient = clusterInstance.admin();
-             Producer<String, String> producer = clusterInstance.producer(
-                     Map.of(ACKS_CONFIG, "all"), new StringSerializer(), new StringSerializer());
-             Consumer<String, String> consumer = clusterInstance.consumer(
-                     Map.of(GROUP_ID_CONFIG, "test-group",
-                             AUTO_OFFSET_RESET_CONFIG, "earliest",
-                             KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()),
-                     new StringDeserializer())
+        try (Admin adminClient = cluster.admin();
+             Producer<String, String> producer = cluster.producer(Map.of(
+                     ACKS_CONFIG, "all",
+                     KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName(),
+                     VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()));
+             Consumer<String, String> consumer = cluster.consumer(Map.of(
+                     KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName(),
+                     VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()))
         ) {
             adminClient.createTopics(singleton(new NewTopic(topic, 1, (short) 1)));
             assertNotNull(producer);

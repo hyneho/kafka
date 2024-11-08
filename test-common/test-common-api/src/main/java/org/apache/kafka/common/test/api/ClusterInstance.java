@@ -36,8 +36,6 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.common.network.ListenerName;
-import org.apache.kafka.common.serialization.Deserializer;
-import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.test.TestUtils;
 import org.apache.kafka.server.authorizer.Authorizer;
 
@@ -159,39 +157,21 @@ public interface ClusterInstance {
 
     //---------------------------[producer/consumer/admin]---------------------------//
 
-    default <K, V> Producer<K, V> producer(Map<String, Object> configs,
-                                           Serializer<K> keySerializer,
-                                           Serializer<V> valueSerializer
-    ) {
+    default <K, V> Producer<K, V> producer(Map<String, Object> configs) {
         Properties props = new Properties();
         props.putAll(configs);
         props.putIfAbsent(ProducerConfig.ACKS_CONFIG, "-1");
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializer.getClass().getName());
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, valueSerializer.getClass().getName());
         return new KafkaProducer<>(props);
     }
 
-    default <K, V> Producer<K, V> producer(Serializer<K> keySerializer,
-                                           Serializer<V> valueSerializer
-    ) {
-        return producer(Map.of(), keySerializer, valueSerializer);
-    }
-
-    default <K, V> Consumer<K, V> consumer(Map<String, Object> configs,
-                                           Deserializer<V> valueDeserializer
-    ) {
+    default <K, V> Consumer<K, V> consumer(Map<String, Object> configs) {
         Properties props = new Properties();
         props.putAll(configs);
         props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "group_" + TestUtils.randomString(5));
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializer.getClass().getName());
         return new KafkaConsumer<>(props);
-    }
-
-    default <K, V> Consumer<K, V> consumer(Deserializer<V> valueDeserializer) {
-        return consumer(Map.of(), valueDeserializer);
     }
 
     default Admin admin(Map<String, Object> configs, boolean usingBootstrapControllers) {
