@@ -52,7 +52,7 @@ class StreamsBrokerCompatibility(Test):
                                            self.kafka,
                                            self.output,
                                            "stream-broker-compatibility-verify-consumer",
-                                           group_protocol=consumer_group.classic_group_protocol)
+                                           consumer_group.classic_group_protocol)
 
 
     @cluster(num_nodes=4)

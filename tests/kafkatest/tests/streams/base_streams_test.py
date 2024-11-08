@@ -37,7 +37,7 @@ class BaseStreamsTest(KafkaTest):
                                   self.kafka,
                                   topic,
                                   client_id,
-                                  group_protocol=consumer_group.classic_group_protocol,
+                                  consumer_group.classic_group_protocol,
                                   max_messages=num_messages)
 
     def get_producer(self, topic, num_messages, throughput=1000, repeating_keys=None):

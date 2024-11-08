@@ -55,8 +55,8 @@ class VerifiableConsumerTest(KafkaTest):
 
     def setup_consumer(self, topic, group_protocol, static_membership=False, enable_autocommit=False,
                        assignment_strategy="org.apache.kafka.clients.consumer.RangeAssignor", group_remote_assignor="range", **kwargs):
-        return VerifiableConsumer(self.test_context, self.num_consumers, self.kafka,
-                                  topic, group_protocol, self.group_id, static_membership=static_membership, session_timeout_sec=self.session_timeout_sec,
+        return VerifiableConsumer(self.test_context, self.num_consumers, self.kafka, topic, self.group_id, group_protocol,
+                                  static_membership=static_membership, session_timeout_sec=self.session_timeout_sec,
                                   assignment_strategy=assignment_strategy, enable_autocommit=enable_autocommit,
                                   group_remote_assignor=group_remote_assignor,
                                   log_level="TRACE", **kwargs)

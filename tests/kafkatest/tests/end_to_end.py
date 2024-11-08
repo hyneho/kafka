@@ -67,8 +67,8 @@ class EndToEndTest(Test):
                                            num_nodes=num_nodes,
                                            kafka=self.kafka,
                                            topic=self.topic,
-                                           group_protocol=group_protocol,
                                            group_id=group_id,
+                                           group_protocol=group_protocol,
                                            on_record_consumed=self.on_record_consumed,
                                            **kwargs)
                                     

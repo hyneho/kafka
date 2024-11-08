@@ -128,8 +128,8 @@ class TruncationTest(VerifiableConsumerTest):
         producer.stop()
 
         # Re-consume all the records
-        consumer2 = VerifiableConsumer(self.test_context, 1, self.kafka, self.TOPIC, group_id="group2",
-                                       reset_policy="earliest", verify_offsets=True, group_protocol=group_protocol)
+        consumer2 = VerifiableConsumer(self.test_context, 1, self.kafka, self.TOPIC, "group2", group_protocol,
+                                       reset_policy="earliest", verify_offsets=True)
 
         consumer2.start()
         self.await_all_members(consumer2)
