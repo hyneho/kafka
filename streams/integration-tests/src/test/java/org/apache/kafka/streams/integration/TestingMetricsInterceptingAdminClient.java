@@ -58,6 +58,8 @@ import org.apache.kafka.clients.admin.DeleteTopicsOptions;
 import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.DescribeAclsOptions;
 import org.apache.kafka.clients.admin.DescribeAclsResult;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsOptions;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsResult;
 import org.apache.kafka.clients.admin.DescribeClientQuotasOptions;
 import org.apache.kafka.clients.admin.DescribeClientQuotasResult;
 import org.apache.kafka.clients.admin.DescribeClusterOptions;
@@ -426,13 +428,20 @@ public class TestingMetricsInterceptingAdminClient extends AdminClient {
     }
 
     @Override
+    public DescribeClassicGroupsResult describeClassicGroups(final Collection<String> groupIds, final DescribeClassicGroupsOptions options) {
+        return adminDelegate.describeClassicGroups(groupIds, options);
+    }
+
+    @Override
     public void registerMetricForSubscription(final KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        passedMetrics.add(metric);
+        adminDelegate.registerMetricForSubscription(metric);
     }
 
     @Override
     public void unregisterMetricFromSubscription(final KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        passedMetrics.remove(metric);
+        adminDelegate.unregisterMetricFromSubscription(metric);
     }
 
     @Override
