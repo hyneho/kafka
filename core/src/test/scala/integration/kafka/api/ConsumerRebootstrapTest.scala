@@ -16,17 +16,19 @@
  */
 package kafka.api
 
+import kafka.server.QuorumTestHarness.getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit
 import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.MethodSource
+import org.junit.jupiter.params.provider.{Arguments, MethodSource}
 
-import java.util.Collections
+import java.util.{Collections, stream}
 
 class ConsumerRebootstrapTest extends RebootstrapTest {
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
-  def testRebootstrap(quorum: String, groupProtocol: String): Unit = {
+  @ParameterizedTest(name = s"${TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames}.useRebootstrapTriggerMs={2}")
+  @MethodSource(Array("rebootstrapTestParams"))
+  def testRebootstrap(quorum: String, groupProtocol: String, useRebootstrapTriggerMs: Boolean): Unit = {
     sendRecords(10, 0)
 
     TestUtils.waitUntilTrue(
@@ -37,7 +39,7 @@ class ConsumerRebootstrapTest extends RebootstrapTest {
     server1.shutdown()
     server1.awaitShutdown()
 
-    val consumer = createConsumer(configOverrides = clientOverrides)
+    val consumer = createConsumer(configOverrides = clientOverrides(useRebootstrapTriggerMs))
 
     // Only the server 0 is available for the consumer during the bootstrap.
     consumer.assign(Collections.singleton(tp))
@@ -87,3 +89,16 @@ class ConsumerRebootstrapTest extends RebootstrapTest {
     producer.close()
   }
 }
+
+object ConsumerRebootstrapTest {
+  def rebootstrapTestParams: stream.Stream[Arguments] = {
+    assertEquals(1, getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit.count())
+    val args = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit
+      .findFirst().get.get
+    stream.Stream.of(
+      Arguments.of((args :+ true):_*),
+      Arguments.of((args :+ false):_*)
+    )
+  }
+}
+
