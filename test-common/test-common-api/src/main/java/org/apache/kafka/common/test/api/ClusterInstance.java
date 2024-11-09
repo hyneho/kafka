@@ -198,8 +198,9 @@ public interface ClusterInstance {
 
     default void waitForTopic(String topic, int partitions) throws InterruptedException {
         // wait for metadata
+        Collection<KafkaBroker> brokers = aliveBrokers().values();
         TestUtils.waitForCondition(
-            () -> aliveBrokers().values().stream().allMatch(broker -> partitions == 0 ?
+            () -> brokers.stream().allMatch(broker -> partitions == 0 ?
                 broker.metadataCache().numPartitions(topic).isEmpty() :
                 broker.metadataCache().numPartitions(topic).contains(partitions)
         ), 60000L, topic + " metadata not propagated after 60000 ms");
@@ -207,8 +208,57 @@ public interface ClusterInstance {
         for (ControllerServer controller : controllers().values()) {
             long controllerOffset = controller.raftManager().replicatedLog().endOffset().offset() - 1;
             TestUtils.waitForCondition(
-                () -> aliveBrokers().values().stream().allMatch(broker -> ((BrokerServer) broker).sharedServer().loader().lastAppliedOffset() >= controllerOffset),
+                () -> brokers.stream().allMatch(broker -> ((BrokerServer) broker).sharedServer().loader().lastAppliedOffset() >= controllerOffset),
                 60000L, "Timeout waiting for controller metadata propagating to brokers");
+        }
+
+        if (partitions == 0) {
+            List<TopicPartition> topicPartitions = IntStream.range(0, 1)
+                .mapToObj(partition -> new TopicPartition(topic, partition))
+                .collect(Collectors.toList());
+
+            // Ensure that the topic-partition has been deleted from all brokers' replica managers
+            TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
+                    topicPartitions.stream().allMatch(tp -> broker.replicaManager().onlinePartition(tp).isEmpty())),
+                "Replica manager's should have deleted all of this topic's partitions");
+
+            // Ensure that logs from all replicas are deleted
+            TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
+                    topicPartitions.stream().allMatch(tp -> broker.logManager().getLog(tp, false).isEmpty())),
+                "Replica logs not deleted after delete topic is complete");
+
+            // Ensure that the topic is removed from all cleaner offsets
+            TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
+                    topicPartitions.stream().allMatch(tp -> {
+                        List<File> liveLogDirs = CollectionConverters.asJava(broker.logManager().liveLogDirs());
+                        return liveLogDirs.stream().allMatch(logDir -> {
+                            OffsetCheckpointFile checkpointFile;
+                            try {
+                                checkpointFile = new OffsetCheckpointFile(new File(logDir, "cleaner-offset-checkpoint"), null);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                            return !checkpointFile.read().containsKey(tp);
+                        });
+                    })),
+                "Cleaner offset for deleted partition should have been removed");
+
+            // Ensure that the topic directories are soft-deleted
+            TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
+                    CollectionConverters.asJava(broker.config().logDirs()).stream().allMatch(logDir ->
+                        topicPartitions.stream().noneMatch(tp ->
+                            new File(logDir, tp.topic() + "-" + tp.partition()).exists()))),
+                "Failed to soft-delete the data to a delete directory");
+
+            // Ensure that the topic directories are hard-deleted
+            TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
+                CollectionConverters.asJava(broker.config().logDirs()).stream().allMatch(logDir ->
+                    topicPartitions.stream().allMatch(tp ->
+                        Arrays.stream(Objects.requireNonNull(new File(logDir).list())).noneMatch(partitionDirectoryName ->
+                            partitionDirectoryName.startsWith(tp.topic() + "-" + tp.partition()) &&
+                                partitionDirectoryName.endsWith(UnifiedLog.DeleteDirSuffix())))
+                )
+            ), "Failed to hard-delete the delete directory");
         }
     }
 
@@ -233,55 +283,5 @@ public interface ClusterInstance {
                 return accessControlEntrySet.containsAll(entries) && entries.containsAll(accessControlEntrySet);
             }, "expected acls: " + entries + ", actual acls: " + actualEntries.get());
         }
-    }
-
-    default void waitForTopicDeletion(String topic, int numPartitions) throws Exception {
-        Collection<KafkaBroker> brokers = aliveBrokers().values();
-        List<TopicPartition> topicPartitions = IntStream.range(0, numPartitions)
-            .mapToObj(partition -> new TopicPartition(topic, partition))
-            .collect(Collectors.toList());
-
-        // Ensure that the topic-partition has been deleted from all brokers' replica managers
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                topicPartitions.stream().allMatch(tp -> broker.replicaManager().onlinePartition(tp).isEmpty())),
-            "Replica manager's should have deleted all of this topic's partitions");
-
-        // Ensure that logs from all replicas are deleted
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                topicPartitions.stream().allMatch(tp -> broker.logManager().getLog(tp, false).isEmpty())),
-            "Replica logs not deleted after delete topic is complete");
-
-        // Ensure that the topic is removed from all cleaner offsets
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                topicPartitions.stream().allMatch(tp -> {
-                    List<File> liveLogDirs = CollectionConverters.asJava(broker.logManager().liveLogDirs());
-                    return liveLogDirs.stream().allMatch(logDir -> {
-                        OffsetCheckpointFile checkpointFile;
-                        try {
-                            checkpointFile = new OffsetCheckpointFile(new File(logDir, "cleaner-offset-checkpoint"), null);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                        return !checkpointFile.read().containsKey(tp);
-                    });
-                })),
-            "Cleaner offset for deleted partition should have been removed");
-
-        // Ensure that the topic directories are soft-deleted
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-                CollectionConverters.asJava(broker.config().logDirs()).stream().allMatch(logDir ->
-                    topicPartitions.stream().noneMatch(tp ->
-                        new File(logDir, tp.topic() + "-" + tp.partition()).exists()))),
-            "Failed to soft-delete the data to a delete directory");
-
-        // Ensure that the topic directories are hard-deleted
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker ->
-            CollectionConverters.asJava(broker.config().logDirs()).stream().allMatch(logDir ->
-                topicPartitions.stream().allMatch(tp ->
-                    Arrays.stream(Objects.requireNonNull(new File(logDir).list())).noneMatch(partitionDirectoryName ->
-                        partitionDirectoryName.startsWith(tp.topic() + "-" + tp.partition()) &&
-                            partitionDirectoryName.endsWith(UnifiedLog.DeleteDirSuffix())))
-            )
-        ), "Failed to hard-delete the delete directory");
     }
 }

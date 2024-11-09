@@ -25,9 +25,11 @@ import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.clients.admin.NewPartitions;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.compress.Compression;
 import org.apache.kafka.common.errors.TopicDeletionDisabledException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
-import org.apache.kafka.common.message.UpdateMetadataRequestData.UpdateMetadataPartitionState;
+import org.apache.kafka.common.record.MemoryRecords;
+import org.apache.kafka.common.record.SimpleRecord;
 import org.apache.kafka.common.test.TestUtils;
 import org.apache.kafka.common.test.api.ClusterConfigProperty;
 import org.apache.kafka.common.test.api.ClusterInstance;
@@ -47,7 +49,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,12 +56,10 @@ import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import scala.jdk.javaapi.OptionConverters;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -83,7 +82,7 @@ public class DeleteTopicTest {
         try (Admin admin = cluster.createAdminClient()) {
             admin.createTopics(List.of(new NewTopic(DEFAULT_TOPIC, expectedReplicaAssignment))).all().get();
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
         }
     }
 
@@ -106,7 +105,7 @@ public class DeleteTopicTest {
                 "Online replicas have not deleted log.");
 
             follower.startup();
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
         }
     }
 
@@ -132,7 +131,7 @@ public class DeleteTopicTest {
             }
 
             follower.startup();
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
         }
     }
 
@@ -160,7 +159,7 @@ public class DeleteTopicTest {
             }
 
             follower.startup();
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
         }
     }
 
@@ -172,15 +171,19 @@ public class DeleteTopicTest {
             TopicPartition newTopicPartition = new TopicPartition(DEFAULT_TOPIC, 1);
             KafkaBroker follower = findFollower(cluster.brokers().values(), leaderId);
             follower.shutdown();
+
             // wait until the broker is in shutting down state
+            int followerBrokerId = follower.config().brokerId();
             TestUtils.waitForCondition(() -> follower.brokerState().equals(BrokerState.SHUTTING_DOWN),
-                "Follower " + follower.config().brokerId() + " was not shutdown");
-            increasePartitions(admin, DEFAULT_TOPIC, 3, cluster.brokers().values().stream().filter(broker ->
-                broker.config().brokerId() != follower.config().brokerId()).collect(Collectors.toList()));
+                "Follower " + followerBrokerId + " was not shutdown");
+            Map<String, NewPartitions> newPartitionSet = Map.of(DEFAULT_TOPIC, NewPartitions.increaseTo(3));
+            admin.createPartitions(newPartitionSet);
+            cluster.waitForTopic(DEFAULT_TOPIC, 3);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
+
             follower.startup();
             // test if topic deletion is resumed
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
             waitForReplicaDeleted(cluster.brokers(), newTopicPartition, "Replica logs not for new partition [" + DEFAULT_TOPIC + ",1] not deleted after delete topic is complete.");
         }
     }
@@ -192,8 +195,9 @@ public class DeleteTopicTest {
             // partitions to be added to the topic later
             TopicPartition newTopicPartition = new TopicPartition(DEFAULT_TOPIC, 1);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
-            increasePartitions(admin, DEFAULT_TOPIC, 3, Collections.emptyList());
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            Map<String, NewPartitions> newPartitionSet = Map.of(DEFAULT_TOPIC, NewPartitions.increaseTo(3));
+            admin.createPartitions(newPartitionSet);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
             waitForReplicaDeleted(cluster.brokers(), newTopicPartition, "Replica logs not deleted after delete topic is complete");
         }
     }
@@ -204,7 +208,7 @@ public class DeleteTopicTest {
             admin.createTopics(List.of(new NewTopic(DEFAULT_TOPIC, expectedReplicaAssignment))).all().get();
             TopicPartition topicPartition = new TopicPartition(DEFAULT_TOPIC, 0);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
             // re-create topic on same replicas
             admin.createTopics(List.of(new NewTopic(DEFAULT_TOPIC, expectedReplicaAssignment))).all().get();
             waitForReplicaCreated(cluster.brokers(), topicPartition, "Replicas for topic " + DEFAULT_TOPIC + " not created.");
@@ -225,7 +229,7 @@ public class DeleteTopicTest {
                 }
             }, "Topic test2 should not exist.");
 
-            cluster.waitForTopicDeletion(topic, 1);
+            cluster.waitForTopic(topic, 0);
 
             waitForReplicaCreated(cluster.brokers(), topicPartition, "Replicas for topic test not created.");
             TestUtils.waitUntilLeaderIsElectedOrChangedWithAdmin(admin, DEFAULT_TOPIC, 0, 1000);
@@ -252,7 +256,7 @@ public class DeleteTopicTest {
             server.logManager().cleaner().awaitCleaned(topicPartition, 0, 60000);
             admin.deleteTopics(List.of(DEFAULT_TOPIC)).all().get();
 
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
         }
     }
 
@@ -271,7 +275,7 @@ public class DeleteTopicTest {
                 }
             }, "Topic " + DEFAULT_TOPIC + " should be marked for deletion or already deleted.");
 
-            cluster.waitForTopicDeletion(DEFAULT_TOPIC, 1);
+            cluster.waitForTopic(DEFAULT_TOPIC, 0);
         }
     }
 
@@ -353,25 +357,6 @@ public class DeleteTopicTest {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public <B extends KafkaBroker> void increasePartitions(Admin admin,
-                                                           String topic,
-                                                           int totalPartitionCount,
-                                                           List<B> brokersToValidate) throws Exception {
-        Map<String, NewPartitions> newPartitionSet = Map.of(topic, NewPartitions.increaseTo(totalPartitionCount));
-        admin.createPartitions(newPartitionSet);
-
-        if (!brokersToValidate.isEmpty()) {
-            // wait until we've propagated all partitions metadata to all brokers
-            Map<TopicPartition, UpdateMetadataPartitionState> allPartitionsMetadata =
-                TestUtils.waitForAllPartitionsMetadata(brokersToValidate, topic, totalPartitionCount);
-
-            IntStream.range(0, totalPartitionCount - 1).forEach(i -> {
-                Optional<UpdateMetadataPartitionState> partitionMetadata = Optional.ofNullable(allPartitionsMetadata.get(new TopicPartition(topic, i)));
-                partitionMetadata.ifPresent(metadata -> assertEquals(totalPartitionCount, metadata.replicas().size()));
-            });
-        }
-    }
-
     private List<int[]> writeDups(int numKeys, int numDups, UnifiedLog log) {
         int counter = 0;
         List<int[]> result = new ArrayList<>();
@@ -380,9 +365,12 @@ public class DeleteTopicTest {
             for (int key = 0; key < numKeys; key++) {
                 int count = counter;
                 log.appendAsLeader(
-                    TestUtils.singletonRecords(
-                        String.valueOf(counter).getBytes(),
-                        String.valueOf(key).getBytes()
+                    MemoryRecords.withRecords(
+                        Compression.NONE,
+                        new SimpleRecord(
+                            String.valueOf(key).getBytes(),
+                            String.valueOf(counter).getBytes()
+                        )
                     ),
                     0,
                     AppendOrigin.CLIENT,

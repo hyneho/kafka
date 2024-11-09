@@ -16,21 +16,11 @@
  */
 package org.apache.kafka.common.test;
 
-import kafka.server.KafkaBroker;
-
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.compress.Compression;
 import org.apache.kafka.common.errors.TimeoutException;
-import org.apache.kafka.common.message.UpdateMetadataRequestData.UpdateMetadataPartitionState;
-import org.apache.kafka.common.record.DefaultRecordBatch;
-import org.apache.kafka.common.record.MemoryRecords;
-import org.apache.kafka.common.record.MemoryRecordsBuilder;
-import org.apache.kafka.common.record.RecordBatch;
-import org.apache.kafka.common.record.SimpleRecord;
-import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Utils;
 
@@ -39,17 +29,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
-
-import scala.jdk.javaapi.OptionConverters;
 
 import static java.lang.String.format;
 
@@ -149,66 +133,17 @@ public class TestUtils {
         }
     }
 
-    /**
-     * Wrap a single record log buffer.
-     */
-    public static MemoryRecords singletonRecords(byte[] value,
-                                                 byte[] key,
-                                                 Compression codec,
-                                                 long timestamp,
-                                                 byte magicValue) {
-        return records(Collections.singletonList(new SimpleRecord(timestamp, key, value)), magicValue, codec);
-    }
-
-    public static MemoryRecords singletonRecords(byte[] value, byte[] key) {
-        return singletonRecords(value, key, Compression.NONE, RecordBatch.NO_TIMESTAMP, RecordBatch.CURRENT_MAGIC_VALUE);
-    }
-
-    public static MemoryRecords records(List<SimpleRecord> records,
-                                        byte magicValue,
-                                        Compression codec,
-                                        long producerId,
-                                        short producerEpoch,
-                                        int sequence,
-                                        long baseOffset,
-                                        int partitionLeaderEpoch) {
-        int sizeInBytes = DefaultRecordBatch.sizeInBytes(records);
-        ByteBuffer buffer = ByteBuffer.allocate(sizeInBytes);
-
-        try (MemoryRecordsBuilder builder = MemoryRecords.builder(
-            buffer,
-            magicValue,
-            codec,
-            TimestampType.CREATE_TIME,
-            baseOffset,
-            System.currentTimeMillis(),
-            producerId,
-            producerEpoch,
-            sequence,
-            false,
-            partitionLeaderEpoch
-        )) {
-            records.forEach(builder::append);
-            return builder.build();
-        }
-    }
-
-    public static MemoryRecords records(List<SimpleRecord> records, byte magicValue, Compression codec) {
-        return records(records,
-            magicValue,
-            codec,
-            RecordBatch.NO_PRODUCER_ID,
-            RecordBatch.NO_PRODUCER_EPOCH,
-            RecordBatch.NO_SEQUENCE,
-            0L,
-            RecordBatch.NO_PARTITION_LEADER_EPOCH);
-    }
-
     public static int waitUntilLeaderIsElectedOrChangedWithAdmin(Admin admin,
                                                                  String topic,
                                                                  int partitionNumber,
                                                                  long timeoutMs) throws Exception {
-        GetPartitionLeader getPartitionLeader = (t, p) -> Optional.ofNullable(getLeaderFromAdmin(admin, t, p));
+        BiFunction<String, Integer, Optional<Integer>> getPartitionLeader = (t, p) -> {
+            try {
+                return Optional.ofNullable(getLeaderFromAdmin(admin, t, p));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
         return doWaitUntilLeaderIsElectedOrChanged(getPartitionLeader, topic, partitionNumber, timeoutMs);
     }
 
@@ -221,7 +156,7 @@ public class TestUtils {
             .orElse(null);
     }
 
-    private static int doWaitUntilLeaderIsElectedOrChanged(GetPartitionLeader getPartitionLeader,
+    private static int doWaitUntilLeaderIsElectedOrChanged(BiFunction<String, Integer, Optional<Integer>> getPartitionLeader,
                                                            String topic,
                                                            int partition,
                                                            long timeoutMs) throws Exception {
@@ -230,7 +165,7 @@ public class TestUtils {
         Optional<Integer> electedLeader = Optional.empty();
 
         while (electedLeader.isEmpty() && System.currentTimeMillis() < startTime + timeoutMs) {
-            Optional<Integer> leader = getPartitionLeader.getPartitionLeader(topic, partition);
+            Optional<Integer> leader = getPartitionLeader.apply(topic, partition);
             if (leader.isPresent()) {
                 log.trace("Leader {} is elected for partition {}", leader.get(), topicPartition);
                 electedLeader = leader;
@@ -243,36 +178,5 @@ public class TestUtils {
         Optional<Integer> finalLeader = electedLeader;
         return electedLeader.orElseThrow(() -> new AssertionError("Timing out after " + timeoutMs
             + " ms since a leader was not elected for partition " + topicPartition + ", leader is " + finalLeader));
-    }
-
-    public static <B extends KafkaBroker> Map<TopicPartition, UpdateMetadataPartitionState> waitForAllPartitionsMetadata(
-        List<B> brokers, String topic, int expectedNumPartitions) throws Exception {
-
-        // Wait until all brokers have the expected partition metadata
-        TestUtils.waitForCondition(() -> brokers.stream().allMatch(broker -> {
-            if (expectedNumPartitions == 0) {
-                return broker.metadataCache().numPartitions(topic).isEmpty();
-            } else {
-                return OptionConverters.toJava(broker.metadataCache().numPartitions(topic))
-                    .equals(Optional.of(expectedNumPartitions));
-            }
-        }), 60000, "Topic [" + topic + "] metadata not propagated after 60000 ms");
-
-        // Since the metadata is propagated, we should get the same metadata from each server
-        Map<TopicPartition, UpdateMetadataPartitionState> partitionMetadataMap = new HashMap<>();
-        IntStream.range(0, expectedNumPartitions).forEach(i -> {
-            TopicPartition topicPartition = new TopicPartition(topic, i);
-            UpdateMetadataPartitionState partitionState = OptionConverters.toJava(brokers.get(0).metadataCache()
-                .getPartitionInfo(topic, i)).orElseThrow(() ->
-                new IllegalStateException("Cannot get topic: " + topic + ", partition: " + i + " in server metadata cache"));
-            partitionMetadataMap.put(topicPartition, partitionState);
-        });
-
-        return partitionMetadataMap;
-    }
-
-    @FunctionalInterface
-    private interface GetPartitionLeader {
-        Optional<Integer> getPartitionLeader(String topic, int partition) throws Exception;
     }
 }
