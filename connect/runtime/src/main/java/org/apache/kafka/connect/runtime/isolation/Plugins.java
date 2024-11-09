@@ -539,29 +539,8 @@ public class Plugins {
         return plugin;
     }
 
-    public Transformation<?> newTransformation(ConnectorConfig config, String classPropertyName, String versionPropertyName) {
-        if (!config.originals().containsKey(classPropertyName)) {
-            // This configuration does not define the transformation via the specified property name
-            return null;
-        }
 
-        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
-        return getVersionedPlugin(config, classPropertyName, versionPropertyName,
-                Transformation.class, classLoader, scanResult.transformations());
-    }
-
-    public Predicate<?> newPredicate(ConnectorConfig config, String classPropertyName, String versionPropertyName) {
-        if (!config.originals().containsKey(classPropertyName)) {
-            // This configuration does not define the predicate via the specified property name
-            return null;
-        }
-
-        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
-        return getVersionedPlugin(config, classPropertyName, versionPropertyName,
-                Predicate.class, classLoader, scanResult.predicates());
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings("unchecked")
     private <U> U getVersionedPlugin(
             AbstractConfig config,
             String classPropertyName,
