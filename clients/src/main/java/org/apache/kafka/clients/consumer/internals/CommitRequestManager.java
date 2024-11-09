@@ -543,8 +543,8 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
                     "outbound buffer:" + fetchRequest);
             }
             if (error == null) {
+                maybeUpdateLastSeenEpochIfNewer(res);
                 if (fetchRequest.isSubset.equals(Optional.empty()) || fetchRequest.isSubset.equals(Optional.of(false))) {
-                    maybeUpdateLastSeenEpochIfNewer(res);
                     result.complete(res);
                 } else {
                     Map<TopicPartition, OffsetAndMetadata> subsetRes = new HashMap<>(res.size());
@@ -553,7 +553,6 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
                             subsetRes.put(key, value);
                         }
                     });
-                    maybeUpdateLastSeenEpochIfNewer(res);
                     result.complete(subsetRes);
                 }
             } else {
