@@ -55,8 +55,8 @@ object TestInfoUtils {
 
   final val TestWithParameterizedQuorumAndGroupProtocolNames = "{displayName}.quorum={0}.groupProtocol={1}"
 
-  def isNewGroupCoordinatorEnabled(testInfo: TestInfo): Boolean = {
-    testInfo.getDisplayName.contains("kraft+kip848")
+  def isShareGroupTest(testInfo: TestInfo): Boolean = {
+    testInfo.getDisplayName.contains("kraft+kip932")
   }
 
   def maybeGroupProtocolSpecified(testInfo: TestInfo): Option[GroupProtocol] = {
@@ -66,5 +66,13 @@ object TestInfoUtils {
       Some(GroupProtocol.CONSUMER)
     else
       None
+  }
+
+  /**
+   * Returns whether transaction version 2 is enabled.
+   * When no parameter is provided, the default returned is true.
+   */
+  def isTransactionV2Enabled(testInfo: TestInfo): Boolean = {
+    !testInfo.getDisplayName.contains("isTV2Enabled=false")
   }
 }

@@ -23,7 +23,7 @@ import java.nio.file.{Files, NoSuchFileException}
 import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicInteger
 import kafka.server.metadata.ConfigRepository
-import kafka.server.{BrokerTopicStats, KafkaConfig, KafkaRaftServer}
+import kafka.server.{KafkaConfig, KafkaRaftServer}
 import kafka.server.metadata.BrokerMetadataPublisher.info
 import kafka.utils.threadsafe
 import kafka.utils.{CoreUtils, Logging, Pool}
@@ -35,7 +35,6 @@ import scala.jdk.CollectionConverters._
 import scala.collection._
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Failure, Success, Try}
-import kafka.utils.Implicits._
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.requests.{AbstractControlRequest, LeaderAndIsrRequest}
 import org.apache.kafka.image.TopicsImage
@@ -48,6 +47,7 @@ import org.apache.kafka.server.metrics.KafkaMetricsGroup
 import org.apache.kafka.server.util.{FileLock, Scheduler}
 import org.apache.kafka.storage.internals.log.{CleanerConfig, LogConfig, LogDirFailureChannel, ProducerStateManagerConfig, RemoteIndexCache}
 import org.apache.kafka.storage.internals.checkpoint.{CleanShutdownFileHandler, OffsetCheckpointFile}
+import org.apache.kafka.storage.log.metrics.BrokerTopicStats
 
 import java.util
 import scala.annotation.nowarn
@@ -126,7 +126,8 @@ class LogManager(logDirs: Seq[File],
       _liveLogDirs.asScala.toBuffer
   }
 
-  private val dirLocks = lockLogDirs(liveLogDirs)
+  // visible for testing
+  private[log] val dirLocks = lockLogDirs(liveLogDirs)
   private val directoryIds: mutable.Map[String, Uuid] = loadDirectoryIds(liveLogDirs)
   def directoryIdsSet: Predef.Set[Uuid] = directoryIds.values.toSet
 
@@ -327,7 +328,7 @@ class LogManager(logDirs: Seq[File],
                            logStartOffsets: util.Map[TopicPartition, JLong],
                            defaultConfig: LogConfig,
                            topicConfigOverrides: Map[String, LogConfig],
-                           numRemainingSegments: ConcurrentMap[String, Int],
+                           numRemainingSegments: ConcurrentMap[String, Integer],
                            isStray: UnifiedLog => Boolean): UnifiedLog = {
     val topicPartition = UnifiedLog.parseTopicPartitionName(logDir)
     val config = topicConfigOverrides.getOrElse(topicPartition.topic, defaultConfig)
@@ -420,7 +421,7 @@ class LogManager(logDirs: Seq[File],
     // log dir path -> number of Remaining logs map for remainingLogsToRecover metric
     val numRemainingLogs: ConcurrentMap[String, Int] = new ConcurrentHashMap[String, Int]
     // log recovery thread name -> number of remaining segments map for remainingSegmentsToRecover metric
-    val numRemainingSegments: ConcurrentMap[String, Int] = new ConcurrentHashMap[String, Int]
+    val numRemainingSegments: ConcurrentMap[String, Integer] = new ConcurrentHashMap[String, Integer]
 
     def handleIOException(logDirAbsolutePath: String, e: IOException): Unit = {
       offlineDirs.add((logDirAbsolutePath, e))
@@ -549,7 +550,7 @@ class LogManager(logDirs: Seq[File],
   }
 
   private[log] def addLogRecoveryMetrics(numRemainingLogs: ConcurrentMap[String, Int],
-                                         numRemainingSegments: ConcurrentMap[String, Int]): Unit = {
+                                         numRemainingSegments: ConcurrentMap[String, Integer]): Unit = {
     debug("Adding log recovery metrics")
     for (dir <- logDirs) {
       metricsGroup.newGauge("remainingLogsToRecover", () => numRemainingLogs.get(dir.getAbsolutePath),
@@ -697,7 +698,7 @@ class LogManager(logDirs: Seq[File],
     }
 
     try {
-      jobs.forKeyValue { (dir, dirJobs) =>
+      jobs.foreachEntry { (dir, dirJobs) =>
         if (waitForAllToComplete(dirJobs,
           e => warn(s"There was an error in one of the threads during LogManager shutdown: ${e.getCause}"))) {
           val logs = logsInDir(localLogsByDir, dir)
@@ -1587,9 +1588,9 @@ object LogManager {
       flushRecoveryOffsetCheckpointMs = config.logFlushOffsetCheckpointIntervalMs,
       flushStartOffsetCheckpointMs = config.logFlushStartOffsetCheckpointIntervalMs,
       retentionCheckMs = config.logCleanupIntervalMs,
-      maxTransactionTimeoutMs = config.transactionMaxTimeoutMs,
-      producerStateManagerConfig = new ProducerStateManagerConfig(config.producerIdExpirationMs, config.transactionPartitionVerificationEnable),
-      producerIdExpirationCheckIntervalMs = config.producerIdExpirationCheckIntervalMs,
+      maxTransactionTimeoutMs = config.transactionStateManagerConfig.transactionMaxTimeoutMs,
+      producerStateManagerConfig = new ProducerStateManagerConfig(config.transactionLogConfig.producerIdExpirationMs, config.transactionLogConfig.transactionPartitionVerificationEnable),
+      producerIdExpirationCheckIntervalMs = config.transactionLogConfig.producerIdExpirationCheckIntervalMs,
       scheduler = kafkaScheduler,
       brokerTopicStats = brokerTopicStats,
       logDirFailureChannel = logDirFailureChannel,

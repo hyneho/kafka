@@ -53,7 +53,6 @@ import org.apache.kafka.streams.errors.LogAndContinueProcessingExceptionHandler;
 import org.apache.kafka.streams.errors.LogAndFailExceptionHandler;
 import org.apache.kafka.streams.errors.LogAndFailProcessingExceptionHandler;
 import org.apache.kafka.streams.errors.ProcessingExceptionHandler;
-import org.apache.kafka.streams.errors.ProcessingExceptionHandler.ProcessingHandlerResponse;
 import org.apache.kafka.streams.errors.ProcessorStateException;
 import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.errors.TaskCorruptedException;
@@ -78,6 +77,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -109,7 +110,6 @@ import static org.apache.kafka.common.metrics.Sensor.RecordingLevel.DEBUG;
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
 import static org.apache.kafka.common.utils.Utils.mkProperties;
-import static org.apache.kafka.common.utils.Utils.mkSet;
 import static org.apache.kafka.streams.StreamsConfig.AT_LEAST_ONCE;
 import static org.apache.kafka.streams.StreamsConfig.EXACTLY_ONCE_V2;
 import static org.apache.kafka.streams.processor.internals.Task.State.CREATED;
@@ -156,7 +156,7 @@ public class StreamTaskTest {
     private final String topic2 = "topic2";
     private final TopicPartition partition1 = new TopicPartition(topic1, 1);
     private final TopicPartition partition2 = new TopicPartition(topic2, 1);
-    private final Set<TopicPartition> partitions = mkSet(partition1, partition2);
+    private final Set<TopicPartition> partitions = new HashSet<>(List.of(partition1, partition2));
     private final Serializer<Integer> intSerializer = Serdes.Integer().serializer();
     private final Deserializer<Integer> intDeserializer = Serdes.Integer().deserializer();
 
@@ -275,7 +275,7 @@ public class StreamTaskTest {
             mkEntry(StreamsConfig.DEFAULT_TIMESTAMP_EXTRACTOR_CLASS_CONFIG, MockTimestampExtractor.class.getName()),
             mkEntry(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, eosConfig),
             mkEntry(StreamsConfig.MAX_TASK_IDLE_MS_CONFIG, enforcedProcessingValue),
-            mkEntry(StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, deserializationExceptionHandler),
+            mkEntry(StreamsConfig.DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, deserializationExceptionHandler),
             mkEntry(StreamsConfig.PROCESSING_EXCEPTION_HANDLER_CLASS_CONFIG, processingExceptionHandler)
         )));
     }
@@ -607,7 +607,7 @@ public class StreamTaskTest {
     public void shouldProcessRecordsAfterPrepareCommitWhenEosDisabled() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig());
 
         assertFalse(task.process(time.milliseconds()));
 
@@ -621,31 +621,6 @@ public class StreamTaskTest {
         task.prepareCommit();
         assertTrue(task.process(time.milliseconds()));
         task.postCommit(false);
-        assertTrue(task.process(time.milliseconds()));
-
-        assertFalse(task.process(time.milliseconds()));
-    }
-
-    @SuppressWarnings("deprecation")
-    @Test
-    public void shouldNotProcessRecordsAfterPrepareCommitWhenEosAlphaEnabled() {
-        when(stateManager.taskId()).thenReturn(taskId);
-        when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(StreamsConfig.EXACTLY_ONCE, "0"), StreamsConfig.METRICS_LATEST);
-
-        assertFalse(task.process(time.milliseconds()));
-
-        task.addRecords(partition1, asList(
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 10),
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 20),
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 30)
-        ));
-
-        assertTrue(task.process(time.milliseconds()));
-        task.prepareCommit();
-        assertFalse(task.process(time.milliseconds()));
-        task.postCommit(false);
-        assertTrue(task.process(time.milliseconds()));
         assertTrue(task.process(time.milliseconds()));
 
         assertFalse(task.process(time.milliseconds()));
@@ -655,7 +630,7 @@ public class StreamTaskTest {
     public void shouldNotProcessRecordsAfterPrepareCommitWhenEosV2Enabled() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(StreamsConfig.EXACTLY_ONCE_V2, "0"), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig(StreamsConfig.EXACTLY_ONCE_V2, "0"));
 
         assertFalse(task.process(time.milliseconds()));
 
@@ -679,7 +654,7 @@ public class StreamTaskTest {
     public void shouldRecordBufferedRecords() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"));
 
         final KafkaMetric metric = getMetric("active-buffer", "%s-count", task.id().toString());
 
@@ -757,13 +732,13 @@ public class StreamTaskTest {
         final String sourceNodeName = evenKeyForwardingSourceNode.name();
         final String terminalNodeName = processorStreamTime.name();
 
-        final Metric sourceAvg = getProcessorMetric("record-e2e-latency", "%s-avg", task.id().toString(), sourceNodeName, StreamsConfig.METRICS_LATEST);
-        final Metric sourceMin = getProcessorMetric("record-e2e-latency", "%s-min", task.id().toString(), sourceNodeName, StreamsConfig.METRICS_LATEST);
-        final Metric sourceMax = getProcessorMetric("record-e2e-latency", "%s-max", task.id().toString(), sourceNodeName, StreamsConfig.METRICS_LATEST);
+        final Metric sourceAvg = getProcessorMetric("record-e2e-latency", "%s-avg", task.id().toString(), sourceNodeName);
+        final Metric sourceMin = getProcessorMetric("record-e2e-latency", "%s-min", task.id().toString(), sourceNodeName);
+        final Metric sourceMax = getProcessorMetric("record-e2e-latency", "%s-max", task.id().toString(), sourceNodeName);
 
-        final Metric terminalAvg = getProcessorMetric("record-e2e-latency", "%s-avg", task.id().toString(), terminalNodeName, StreamsConfig.METRICS_LATEST);
-        final Metric terminalMin = getProcessorMetric("record-e2e-latency", "%s-min", task.id().toString(), terminalNodeName, StreamsConfig.METRICS_LATEST);
-        final Metric terminalMax = getProcessorMetric("record-e2e-latency", "%s-max", task.id().toString(), terminalNodeName, StreamsConfig.METRICS_LATEST);
+        final Metric terminalAvg = getProcessorMetric("record-e2e-latency", "%s-avg", task.id().toString(), terminalNodeName);
+        final Metric terminalMin = getProcessorMetric("record-e2e-latency", "%s-min", task.id().toString(), terminalNodeName);
+        final Metric terminalMax = getProcessorMetric("record-e2e-latency", "%s-max", task.id().toString(), terminalNodeName);
 
         // e2e latency = 10
         task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(0, 0L)));
@@ -825,7 +800,7 @@ public class StreamTaskTest {
     public void shouldRecordRestoredRecords() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"));
 
         final KafkaMetric totalMetric = getMetric("restore", "%s-total", task.id().toString());
         final KafkaMetric rateMetric = getMetric("restore", "%s-rate", task.id().toString());
@@ -950,7 +925,6 @@ public class StreamTaskTest {
     }
 
     private void testMetricsForBuiltInMetricsVersionLatest() {
-        final String builtInMetricsVersion = StreamsConfig.METRICS_LATEST;
         assertNull(getMetric("commit", "%s-latency-avg", "all"));
         assertNull(getMetric("commit", "%s-latency-max", "all"));
         assertNull(getMetric("commit", "%s-rate", "all"));
@@ -983,8 +957,7 @@ public class StreamTaskTest {
     private Metric getProcessorMetric(final String operation,
                                       final String nameFormat,
                                       final String taskId,
-                                      final String processorNodeId,
-                                      final String builtInMetricsVersion) {
+                                      final String processorNodeId) {
 
         return getMetricByNameFilterByTags(
             metrics.metrics(),
@@ -1236,13 +1209,17 @@ public class StreamTaskTest {
     public void shouldRespectCommitNeeded() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"));
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
         assertFalse(task.commitNeeded());
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0)))
+        );
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(1, Optional.empty(), ""));
         assertTrue(task.process(0L));
         assertTrue(task.commitNeeded());
 
@@ -1278,14 +1255,14 @@ public class StreamTaskTest {
     public void shouldCommitNextOffsetAndProcessorMetadataFromQueueIfAvailable() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"));
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
         task.addRecords(partition1, asList(
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 0L),
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 3L),
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 5L)));
+            getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 1),
+            getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 3L, 1),
+            getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 5L, 2)));
 
         task.process(0L);
         processorStreamTime.mockProcessor.addProcessorMetadata("key1", 100L);
@@ -1302,37 +1279,41 @@ public class StreamTaskTest {
             )
         );
 
-        assertThat(offsetsAndMetadata, equalTo(mkMap(mkEntry(partition1, new OffsetAndMetadata(5L, expected.encode())))));
+        assertThat(offsetsAndMetadata, equalTo(mkMap(mkEntry(partition1, new OffsetAndMetadata(5L, Optional.of(2), expected.encode())))));
     }
 
     @Test
-    public void shouldCommitConsumerPositionIfRecordQueueIsEmpty() {
+    public void shouldCommitFetchedNextOffsetIfRecordQueueIsEmpty() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
         task = createStatelessTask(createConfig());
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 1L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 2L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition2, 0L));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 1L, 1));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 2L, 2));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 0L, 0));
         consumer.poll(Duration.ZERO);
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L)));
-        task.addRecords(partition2, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition2, 0L)));
+        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0)));
+        task.addRecords(partition2, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 0L, 0)));
+
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(3, Optional.of(2), ""));
+        task.updateNextOffsets(partition2, new OffsetAndMetadata(1, Optional.of(0), ""));
+
         task.process(0L);
+
 
         final TopicPartitionMetadata metadata = new TopicPartitionMetadata(0, new ProcessorMetadata());
 
         assertTrue(task.commitNeeded());
         assertThat(task.prepareCommit(), equalTo(
-            mkMap(
-                mkEntry(partition1,
-                    new OffsetAndMetadata(3L, metadata.encode())
+                mkMap(
+                        mkEntry(partition1, new OffsetAndMetadata(3L, Optional.of(2), metadata.encode()))
                 )
-            )
         ));
+
         task.postCommit(false);
 
         // the task should still be committed since the processed records have not reached the consumer position
@@ -1346,8 +1327,8 @@ public class StreamTaskTest {
         assertTrue(task.commitNeeded());
         assertThat(task.prepareCommit(), equalTo(
             mkMap(
-                mkEntry(partition1, new OffsetAndMetadata(3L, metadata.encode())),
-                mkEntry(partition2, new OffsetAndMetadata(1L, metadata.encode()))
+                mkEntry(partition1, new OffsetAndMetadata(3L, Optional.of(2), metadata.encode())),
+                mkEntry(partition2, new OffsetAndMetadata(1L, Optional.of(0), metadata.encode()))
             )
         ));
         task.postCommit(false);
@@ -1365,14 +1346,17 @@ public class StreamTaskTest {
 
         task.resumePollingForPartitionsWithAvailableSpace();
 
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 1L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition2, 0L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition2, 1L));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 1L, 1));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 0L, 0));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 1L, 1));
         consumer.poll(Duration.ZERO);
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L)));
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 1L)));
+        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0)));
+        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 1L, 1)));
+
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(2, Optional.of(1), ""));
+        task.updateNextOffsets(partition2, new OffsetAndMetadata(2, Optional.of(1), ""));
 
         task.updateLags();
 
@@ -1399,8 +1383,8 @@ public class StreamTaskTest {
 
         assertThat(task.prepareCommit(), equalTo(
             mkMap(
-                mkEntry(partition1, new OffsetAndMetadata(1L, expectedMetadata1.encode())),
-                mkEntry(partition2, new OffsetAndMetadata(2L, expectedMetadata2.encode()))
+                mkEntry(partition1, new OffsetAndMetadata(1L,  Optional.of(1), expectedMetadata1.encode())),
+                mkEntry(partition2, new OffsetAndMetadata(2L, Optional.of(1), expectedMetadata2.encode()))
             )));
         task.postCommit(false);
 
@@ -1421,7 +1405,7 @@ public class StreamTaskTest {
 
         // Processor metadata not updated, we just need to commit to partition1 again with new offset
         assertThat(task.prepareCommit(), equalTo(
-            mkMap(mkEntry(partition1, new OffsetAndMetadata(2L, expectedMetadata3.encode())))
+                mkMap(mkEntry(partition1, new OffsetAndMetadata(2L, Optional.of(1), expectedMetadata3.encode())))
         ));
         task.postCommit(false);
 
@@ -1863,8 +1847,9 @@ public class StreamTaskTest {
         verify(stateManager).close();
     }
 
-    @Test
-    public void shouldReturnOffsetsForRepartitionTopicsForPurging() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void shouldMaybeReturnOffsetsForRepartitionTopicsForPurging(final boolean doCommit) {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
         final TopicPartition repartition = new TopicPartition("repartition", 1);
@@ -1888,7 +1873,7 @@ public class StreamTaskTest {
 
         task = new StreamTask(
             taskId,
-            mkSet(partition1, repartition),
+            new HashSet<>(List.of(partition1, repartition)),
             topology,
             consumer,
             new TopologyConfig(null, config, new Properties()).getTaskConfig(),
@@ -1906,8 +1891,17 @@ public class StreamTaskTest {
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 5L)));
-        task.addRecords(repartition, singletonList(getConsumerRecordWithOffsetAsTimestamp(repartition, 10L)));
+
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> records = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 5L))),
+                mkEntry(repartition, singletonList(getConsumerRecordWithOffsetAsTimestamp(repartition, 10L)))
+        );
+
+        task.addRecords(partition1, records.get(partition1));
+        task.addRecords(repartition, records.get(repartition));
+
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(6, Optional.empty(), ""));
+        task.updateNextOffsets(repartition, new OffsetAndMetadata(11, Optional.empty(), ""));
 
         task.resumePollingForPartitionsWithAvailableSpace();
         task.updateLags();
@@ -1916,10 +1910,17 @@ public class StreamTaskTest {
         assertTrue(task.process(0L));
 
         task.prepareCommit();
+        if (doCommit) {
+            task.updateCommittedOffsets(repartition, 10L);
+        }
 
         final Map<TopicPartition, Long> map = task.purgeableOffsets();
 
-        assertThat(map, equalTo(singletonMap(repartition, 11L)));
+        if (doCommit) {
+            assertThat(map, equalTo(singletonMap(repartition, 10L)));
+        } else {
+            assertThat(map, equalTo(Collections.emptyMap()));
+        }
     }
 
     @Test
@@ -2166,7 +2167,11 @@ public class StreamTaskTest {
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, consumedOffset)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 5L)))
+        );
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(6, Optional.empty(), ""));
         task.process(100L);
         assertTrue(task.commitNeeded());
 
@@ -2193,7 +2198,10 @@ public class StreamTaskTest {
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { }); // should checkpoint
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset))));
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
         task.process(100L);
         assertTrue(task.commitNeeded());
 
@@ -2251,7 +2259,11 @@ public class StreamTaskTest {
         task = createOptimizedStatefulTask(createConfig("100"), consumer);
         task.initializeIfNeeded();
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset))));
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
+
         task.process(100L);
         assertTrue(task.commitNeeded());
 
@@ -2334,7 +2346,7 @@ public class StreamTaskTest {
     public void shouldClearCommitStatusesInCloseDirty() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"));
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
@@ -2384,7 +2396,7 @@ public class StreamTaskTest {
     public void shouldThrowIfCleanClosingDirtyTask() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
-        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"), StreamsConfig.METRICS_LATEST);
+        task = createSingleSourceStateless(createConfig(AT_LEAST_ONCE, "0"));
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
@@ -2475,7 +2487,7 @@ public class StreamTaskTest {
                 streamsMetrics,
                 null
         );
-        final StreamsMetricsImpl metrics = new StreamsMetricsImpl(this.metrics, "test", StreamsConfig.METRICS_LATEST, time);
+        final StreamsMetricsImpl metrics = new StreamsMetricsImpl(this.metrics, "test", "processId", time);
 
         // The processor topology is missing the topics
         final ProcessorTopology topology = withSources(emptyList(), mkMap());
@@ -2555,6 +2567,7 @@ public class StreamTaskTest {
         task.resumePollingForPartitionsWithAvailableSpace();
         consumer.poll(Duration.ZERO);
         task.addRecords(partition1, records);
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
         task.updateLags();
 
         assertTrue(task.process(offset));
@@ -2589,6 +2602,7 @@ public class StreamTaskTest {
         task.resumePollingForPartitionsWithAvailableSpace();
         consumer.poll(Duration.ZERO);
         task.addRecords(partition1, records);
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
         task.updateLags();
 
         assertTrue(task.process(offset));
@@ -2620,6 +2634,8 @@ public class StreamTaskTest {
         task.resumePollingForPartitionsWithAvailableSpace();
         consumer.poll(Duration.ZERO);
         task.addRecords(partition1, records);
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
+
         task.updateLags();
 
         assertTrue(task.process(offset));
@@ -2675,7 +2691,7 @@ public class StreamTaskTest {
         final StreamsException streamsException = assertThrows(
             StreamsException.class,
             () -> task.punctuate(processorStreamTime, 1, PunctuationType.STREAM_TIME, timestamp -> {
-                throw new FailedProcessingException(new RuntimeException("KABOOM!"));
+                throw new FailedProcessingException("name", new RuntimeException("KABOOM!"));
             })
         );
 
@@ -2873,7 +2889,7 @@ public class StreamTaskTest {
 
         return new StreamTask(
             taskId,
-            mkSet(partition1),
+            new HashSet<>(List.of(partition1)),
             topology,
             consumer,
             new TopologyConfig(null,  config, new Properties()).getTaskConfig(),
@@ -3004,8 +3020,7 @@ public class StreamTaskTest {
         );
     }
 
-    private StreamTask createSingleSourceStateless(final StreamsConfig config,
-                                                   final String builtInMetricsVersion) {
+    private StreamTask createSingleSourceStateless(final StreamsConfig config) {
         final ProcessorTopology topology = withSources(
             asList(source1, processorStreamTime, processorSystemTime),
             mkMap(mkEntry(topic1, source1))
@@ -3024,11 +3039,11 @@ public class StreamTaskTest {
 
         return new StreamTask(
             taskId,
-            mkSet(partition1),
+            new HashSet<>(List.of(partition1)),
             topology,
             consumer,
             new TopologyConfig(null,  config, new Properties()).getTaskConfig(),
-            new StreamsMetricsImpl(metrics, "test", builtInMetricsVersion, time),
+            new StreamsMetricsImpl(metrics, "test", "processId", time),
             stateDirectory,
             cache,
             time,
@@ -3065,7 +3080,7 @@ public class StreamTaskTest {
             topology,
             consumer,
             new TopologyConfig(null,  config, new Properties()).getTaskConfig(),
-            new StreamsMetricsImpl(metrics, "test", StreamsConfig.METRICS_LATEST, time),
+            new StreamsMetricsImpl(metrics, "test", "processId", time),
             stateDirectory,
             cache,
             time,
@@ -3101,7 +3116,7 @@ public class StreamTaskTest {
             topology,
             consumer,
             new TopologyConfig(null,  config, new Properties()).getTaskConfig(),
-            new StreamsMetricsImpl(metrics, "test", StreamsConfig.METRICS_LATEST, time),
+            new StreamsMetricsImpl(metrics, "test", "processId", time),
             stateDirectory,
             cache,
             time,
@@ -3130,7 +3145,7 @@ public class StreamTaskTest {
 
         task = new StreamTask(
             taskId,
-            mkSet(partition1),
+            new HashSet<>(List.of(partition1)),
             topology,
             consumer,
             new TopologyConfig(null, config, new Properties()).getTaskConfig(),
@@ -3194,6 +3209,24 @@ public class StreamTaskTest {
             recordValue,
             new RecordHeaders(),
             Optional.empty()
+        );
+    }
+
+    private ConsumerRecord<byte[], byte[]> getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(final TopicPartition topicPartition,
+                                                                                                 final long offset,
+                                                                                                 final int leaderEpoch) {
+        return new ConsumerRecord<>(
+                topicPartition.topic(),
+                topicPartition.partition(),
+                offset,
+                offset, // use the offset as the timestamp
+                TimestampType.CREATE_TIME,
+                0,
+                0,
+                recordKey,
+                recordValue,
+                new RecordHeaders(),
+                Optional.of(leaderEpoch)
         );
     }
 

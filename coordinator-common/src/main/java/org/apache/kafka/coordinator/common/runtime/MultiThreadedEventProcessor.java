@@ -33,7 +33,7 @@ import java.util.stream.IntStream;
  * A multithreaded {{@link CoordinatorEvent}} processor which uses a {{@link EventAccumulator}}
  * which guarantees that events sharing a partition key are not processed concurrently.
  */
-public class MultiThreadedEventProcessor implements CoordinatorEventProcessor {
+public final class MultiThreadedEventProcessor implements CoordinatorEventProcessor {
 
     /**
      * The poll timeout to wait for an event by the EventProcessorThread.
@@ -145,7 +145,7 @@ public class MultiThreadedEventProcessor implements CoordinatorEventProcessor {
                         long dequeuedTimeMs = time.milliseconds();
                         metrics.recordEventQueueTime(dequeuedTimeMs - event.createdTimeMs());
                         event.run();
-                        metrics.recordEventQueueProcessingTime(time.milliseconds() - dequeuedTimeMs);
+                        metrics.recordEventProcessingTime(time.milliseconds() - dequeuedTimeMs);
                     } catch (Throwable t) {
                         log.error("Failed to run event {} due to: {}.", event, t.getMessage(), t);
                         event.complete(t);

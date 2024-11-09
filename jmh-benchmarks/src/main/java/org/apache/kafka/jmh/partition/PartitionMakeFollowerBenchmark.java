@@ -22,7 +22,6 @@ import kafka.cluster.DelayedOperations;
 import kafka.cluster.Partition;
 import kafka.log.LogManager;
 import kafka.server.AlterPartitionManager;
-import kafka.server.BrokerTopicStats;
 import kafka.server.MetadataCache;
 import kafka.server.builders.LogManagerBuilder;
 import kafka.server.metadata.MockConfigRepository;
@@ -41,6 +40,7 @@ import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpoints;
 import org.apache.kafka.storage.internals.log.CleanerConfig;
 import org.apache.kafka.storage.internals.log.LogConfig;
 import org.apache.kafka.storage.internals.log.LogDirFailureChannel;
+import org.apache.kafka.storage.log.metrics.BrokerTopicStats;
 
 import org.mockito.Mockito;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -70,7 +70,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import scala.Option;
-import scala.compat.java8.OptionConverters;
+import scala.jdk.javaapi.OptionConverters;
 
 @State(Scope.Benchmark)
 @Fork(value = 1)

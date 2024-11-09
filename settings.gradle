@@ -21,6 +21,7 @@ plugins {
 def isGithubActions = System.getenv('GITHUB_ACTIONS') != null
 def isJenkins = System.getenv('JENKINS_URL') != null
 def isCI = isGithubActions || isJenkins
+def currentJvm = JavaVersion.current()
 
 develocity {
     server = "https://ge.apache.org"
@@ -40,12 +41,15 @@ develocity {
         } else {
             tag "local"
         }
+        tag "JDK$currentJvm"
     }
 }
 
 buildCache {
     local {
-        enabled = !isCI
+        // This allows the build cache to be used locally or on GitHub Actions.
+        // Using the cache on GH should be safe since each job is run on a new VM
+        enabled = !isJenkins
     }
 
     remote(develocity.buildCache) {
@@ -70,7 +74,6 @@ include 'clients',
     'group-coordinator',
     'group-coordinator:group-coordinator-api',
     'jmh-benchmarks',
-    'log4j-appender',
     'metadata',
     'raft',
     'server',
@@ -82,6 +85,7 @@ include 'clients',
     'storage:api',
     'streams',
     'streams:examples',
+    'streams:integration-tests',
     'streams:streams-scala',
     'streams:test-utils',
     'streams:upgrade-system-tests-0100',
@@ -111,7 +115,9 @@ include 'clients',
     'tools',
     'tools:tools-api',
     'transaction-coordinator',
-    'trogdor'
+    'trogdor',
+    'test-common',
+    'test-common:test-common-api'
 
 project(":storage:api").name = "storage-api"
 rootProject.name = 'kafka'

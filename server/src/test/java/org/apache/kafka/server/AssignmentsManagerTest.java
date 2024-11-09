@@ -38,7 +38,9 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.image.MetadataDelta;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.image.MetadataProvenance;
+import org.apache.kafka.server.common.ControllerRequestCompletionHandler;
 import org.apache.kafka.server.common.MetadataVersion;
+import org.apache.kafka.server.common.NodeToControllerChannelManager;
 import org.apache.kafka.server.common.TopicIdPartition;
 import org.apache.kafka.test.TestUtils;
 
@@ -168,6 +170,11 @@ public class AssignmentsManagerTest {
             synchronized (this) {
                 callbacks.add(new AbstractMap.SimpleEntry<>(inputRequest.data(), callback));
             }
+        }
+
+        @Override
+        public long getTimeoutMs() {
+            return 0L;
         }
 
         void completeCallback(Function<AssignReplicasToDirsRequestData, Optional<ClientResponse>> completionist) throws InterruptedException {
