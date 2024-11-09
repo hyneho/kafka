@@ -1230,7 +1230,7 @@ public class StreamsConfig extends AbstractConfig {
     private static final Map<String, Object> ADMIN_CLIENT_OVERRIDES;
     static {
         final Map<String, Object> tempAdminClientDefaultOverrides = new HashMap<>();
-        tempAdminClientDefaultOverrides.put(AdminClientConfig.ENABLE_METRICS_PUSH_CONFIG, "true");
+        tempAdminClientDefaultOverrides.put(AdminClientConfig.ENABLE_METRICS_PUSH_CONFIG, true);
         ADMIN_CLIENT_OVERRIDES = Collections.unmodifiableMap(tempAdminClientDefaultOverrides);
     }
 
@@ -1568,7 +1568,7 @@ public class StreamsConfig extends AbstractConfig {
         checkIfUnexpectedUserSpecifiedConsumerConfig(clientProvidedProps, NON_CONFIGURABLE_CONSUMER_EOS_CONFIGS);
 
         final Map<String, Object> consumerProps = new HashMap<>(eosEnabled ? CONSUMER_EOS_OVERRIDES : CONSUMER_DEFAULT_OVERRIDES);
-        if (StreamsConfigUtils.processingMode(this) == StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_V2) {
+        if (StreamsConfigUtils.eosEnabled(this)) {
             consumerProps.put("internal.throw.on.fetch.stable.offset.unsupported", true);
         }
         consumerProps.putAll(getClientCustomProps());
@@ -1811,7 +1811,6 @@ public class StreamsConfig extends AbstractConfig {
         // add client id with stream client id prefix
         baseConsumerProps.put(CommonClientConfigs.CLIENT_ID_CONFIG, clientId + "-global-consumer");
         baseConsumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none");
-
         return baseConsumerProps;
     }
 
@@ -1857,7 +1856,6 @@ public class StreamsConfig extends AbstractConfig {
 
         // add client id with stream client id prefix
         props.put(CommonClientConfigs.CLIENT_ID_CONFIG, clientId);
-
         return props;
     }
 

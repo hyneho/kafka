@@ -77,6 +77,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -1213,7 +1215,11 @@ public class StreamTaskTest {
 
         assertFalse(task.commitNeeded());
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0)))
+        );
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(1, Optional.empty(), ""));
         assertTrue(task.process(0L));
         assertTrue(task.commitNeeded());
 
@@ -1254,9 +1260,9 @@ public class StreamTaskTest {
         task.completeRestoration(noOpResetter -> { });
 
         task.addRecords(partition1, asList(
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 0L),
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 3L),
-            getConsumerRecordWithOffsetAsTimestamp(partition1, 5L)));
+            getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 1),
+            getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 3L, 1),
+            getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 5L, 2)));
 
         task.process(0L);
         processorStreamTime.mockProcessor.addProcessorMetadata("key1", 100L);
@@ -1273,37 +1279,41 @@ public class StreamTaskTest {
             )
         );
 
-        assertThat(offsetsAndMetadata, equalTo(mkMap(mkEntry(partition1, new OffsetAndMetadata(5L, expected.encode())))));
+        assertThat(offsetsAndMetadata, equalTo(mkMap(mkEntry(partition1, new OffsetAndMetadata(5L, Optional.of(2), expected.encode())))));
     }
 
     @Test
-    public void shouldCommitConsumerPositionIfRecordQueueIsEmpty() {
+    public void shouldCommitFetchedNextOffsetIfRecordQueueIsEmpty() {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
         task = createStatelessTask(createConfig());
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 1L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 2L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition2, 0L));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 1L, 1));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 2L, 2));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 0L, 0));
         consumer.poll(Duration.ZERO);
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L)));
-        task.addRecords(partition2, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition2, 0L)));
+        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0)));
+        task.addRecords(partition2, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 0L, 0)));
+
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(3, Optional.of(2), ""));
+        task.updateNextOffsets(partition2, new OffsetAndMetadata(1, Optional.of(0), ""));
+
         task.process(0L);
+
 
         final TopicPartitionMetadata metadata = new TopicPartitionMetadata(0, new ProcessorMetadata());
 
         assertTrue(task.commitNeeded());
         assertThat(task.prepareCommit(), equalTo(
-            mkMap(
-                mkEntry(partition1,
-                    new OffsetAndMetadata(3L, metadata.encode())
+                mkMap(
+                        mkEntry(partition1, new OffsetAndMetadata(3L, Optional.of(2), metadata.encode()))
                 )
-            )
         ));
+
         task.postCommit(false);
 
         // the task should still be committed since the processed records have not reached the consumer position
@@ -1317,8 +1327,8 @@ public class StreamTaskTest {
         assertTrue(task.commitNeeded());
         assertThat(task.prepareCommit(), equalTo(
             mkMap(
-                mkEntry(partition1, new OffsetAndMetadata(3L, metadata.encode())),
-                mkEntry(partition2, new OffsetAndMetadata(1L, metadata.encode()))
+                mkEntry(partition1, new OffsetAndMetadata(3L, Optional.of(2), metadata.encode())),
+                mkEntry(partition2, new OffsetAndMetadata(1L, Optional.of(0), metadata.encode()))
             )
         ));
         task.postCommit(false);
@@ -1336,14 +1346,17 @@ public class StreamTaskTest {
 
         task.resumePollingForPartitionsWithAvailableSpace();
 
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition1, 1L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition2, 0L));
-        consumer.addRecord(getConsumerRecordWithOffsetAsTimestamp(partition2, 1L));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 1L, 1));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 0L, 0));
+        consumer.addRecord(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition2, 1L, 1));
         consumer.poll(Duration.ZERO);
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 0L)));
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 1L)));
+        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 0L, 0)));
+        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(partition1, 1L, 1)));
+
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(2, Optional.of(1), ""));
+        task.updateNextOffsets(partition2, new OffsetAndMetadata(2, Optional.of(1), ""));
 
         task.updateLags();
 
@@ -1370,8 +1383,8 @@ public class StreamTaskTest {
 
         assertThat(task.prepareCommit(), equalTo(
             mkMap(
-                mkEntry(partition1, new OffsetAndMetadata(1L, expectedMetadata1.encode())),
-                mkEntry(partition2, new OffsetAndMetadata(2L, expectedMetadata2.encode()))
+                mkEntry(partition1, new OffsetAndMetadata(1L,  Optional.of(1), expectedMetadata1.encode())),
+                mkEntry(partition2, new OffsetAndMetadata(2L, Optional.of(1), expectedMetadata2.encode()))
             )));
         task.postCommit(false);
 
@@ -1392,7 +1405,7 @@ public class StreamTaskTest {
 
         // Processor metadata not updated, we just need to commit to partition1 again with new offset
         assertThat(task.prepareCommit(), equalTo(
-            mkMap(mkEntry(partition1, new OffsetAndMetadata(2L, expectedMetadata3.encode())))
+                mkMap(mkEntry(partition1, new OffsetAndMetadata(2L, Optional.of(1), expectedMetadata3.encode())))
         ));
         task.postCommit(false);
 
@@ -1834,8 +1847,9 @@ public class StreamTaskTest {
         verify(stateManager).close();
     }
 
-    @Test
-    public void shouldReturnOffsetsForRepartitionTopicsForPurging() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void shouldMaybeReturnOffsetsForRepartitionTopicsForPurging(final boolean doCommit) {
         when(stateManager.taskId()).thenReturn(taskId);
         when(stateManager.taskType()).thenReturn(TaskType.ACTIVE);
         final TopicPartition repartition = new TopicPartition("repartition", 1);
@@ -1877,8 +1891,17 @@ public class StreamTaskTest {
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 5L)));
-        task.addRecords(repartition, singletonList(getConsumerRecordWithOffsetAsTimestamp(repartition, 10L)));
+
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> records = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 5L))),
+                mkEntry(repartition, singletonList(getConsumerRecordWithOffsetAsTimestamp(repartition, 10L)))
+        );
+
+        task.addRecords(partition1, records.get(partition1));
+        task.addRecords(repartition, records.get(repartition));
+
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(6, Optional.empty(), ""));
+        task.updateNextOffsets(repartition, new OffsetAndMetadata(11, Optional.empty(), ""));
 
         task.resumePollingForPartitionsWithAvailableSpace();
         task.updateLags();
@@ -1887,10 +1910,17 @@ public class StreamTaskTest {
         assertTrue(task.process(0L));
 
         task.prepareCommit();
+        if (doCommit) {
+            task.updateCommittedOffsets(repartition, 10L);
+        }
 
         final Map<TopicPartition, Long> map = task.purgeableOffsets();
 
-        assertThat(map, equalTo(singletonMap(repartition, 11L)));
+        if (doCommit) {
+            assertThat(map, equalTo(singletonMap(repartition, 10L)));
+        } else {
+            assertThat(map, equalTo(Collections.emptyMap()));
+        }
     }
 
     @Test
@@ -2137,7 +2167,11 @@ public class StreamTaskTest {
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { });
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, consumedOffset)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, 5L)))
+        );
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(6, Optional.empty(), ""));
         task.process(100L);
         assertTrue(task.commitNeeded());
 
@@ -2164,7 +2198,10 @@ public class StreamTaskTest {
         task.initializeIfNeeded();
         task.completeRestoration(noOpResetter -> { }); // should checkpoint
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset))));
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
         task.process(100L);
         assertTrue(task.commitNeeded());
 
@@ -2222,7 +2259,11 @@ public class StreamTaskTest {
         task = createOptimizedStatefulTask(createConfig("100"), consumer);
         task.initializeIfNeeded();
 
-        task.addRecords(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset)));
+        final Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> record = mkMap(
+                mkEntry(partition1, singletonList(getConsumerRecordWithOffsetAsTimestamp(partition1, offset))));
+        task.addRecords(partition1, record.get(partition1));
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
+
         task.process(100L);
         assertTrue(task.commitNeeded());
 
@@ -2446,7 +2487,7 @@ public class StreamTaskTest {
                 streamsMetrics,
                 null
         );
-        final StreamsMetricsImpl metrics = new StreamsMetricsImpl(this.metrics, "test", time);
+        final StreamsMetricsImpl metrics = new StreamsMetricsImpl(this.metrics, "test", "processId", time);
 
         // The processor topology is missing the topics
         final ProcessorTopology topology = withSources(emptyList(), mkMap());
@@ -2526,6 +2567,7 @@ public class StreamTaskTest {
         task.resumePollingForPartitionsWithAvailableSpace();
         consumer.poll(Duration.ZERO);
         task.addRecords(partition1, records);
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
         task.updateLags();
 
         assertTrue(task.process(offset));
@@ -2560,6 +2602,7 @@ public class StreamTaskTest {
         task.resumePollingForPartitionsWithAvailableSpace();
         consumer.poll(Duration.ZERO);
         task.addRecords(partition1, records);
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
         task.updateLags();
 
         assertTrue(task.process(offset));
@@ -2591,6 +2634,8 @@ public class StreamTaskTest {
         task.resumePollingForPartitionsWithAvailableSpace();
         consumer.poll(Duration.ZERO);
         task.addRecords(partition1, records);
+        task.updateNextOffsets(partition1, new OffsetAndMetadata(offset + 1, Optional.empty(), ""));
+
         task.updateLags();
 
         assertTrue(task.process(offset));
@@ -2998,7 +3043,7 @@ public class StreamTaskTest {
             topology,
             consumer,
             new TopologyConfig(null,  config, new Properties()).getTaskConfig(),
-            new StreamsMetricsImpl(metrics, "test", time),
+            new StreamsMetricsImpl(metrics, "test", "processId", time),
             stateDirectory,
             cache,
             time,
@@ -3035,7 +3080,7 @@ public class StreamTaskTest {
             topology,
             consumer,
             new TopologyConfig(null,  config, new Properties()).getTaskConfig(),
-            new StreamsMetricsImpl(metrics, "test", time),
+            new StreamsMetricsImpl(metrics, "test", "processId", time),
             stateDirectory,
             cache,
             time,
@@ -3071,7 +3116,7 @@ public class StreamTaskTest {
             topology,
             consumer,
             new TopologyConfig(null,  config, new Properties()).getTaskConfig(),
-            new StreamsMetricsImpl(metrics, "test", time),
+            new StreamsMetricsImpl(metrics, "test", "processId", time),
             stateDirectory,
             cache,
             time,
@@ -3164,6 +3209,24 @@ public class StreamTaskTest {
             recordValue,
             new RecordHeaders(),
             Optional.empty()
+        );
+    }
+
+    private ConsumerRecord<byte[], byte[]> getConsumerRecordWithOffsetAsTimestampWithLeaderEpoch(final TopicPartition topicPartition,
+                                                                                                 final long offset,
+                                                                                                 final int leaderEpoch) {
+        return new ConsumerRecord<>(
+                topicPartition.topic(),
+                topicPartition.partition(),
+                offset,
+                offset, // use the offset as the timestamp
+                TimestampType.CREATE_TIME,
+                0,
+                0,
+                recordKey,
+                recordValue,
+                new RecordHeaders(),
+                Optional.of(leaderEpoch)
         );
     }
 
