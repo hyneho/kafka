@@ -367,7 +367,7 @@ abstract class BaseProducerSendTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_16176"))
   def testSendToPartitionWithFollowerShutdownShouldNotTimeout(quorum: String, groupProtocol: String): Unit = {
     // This test produces to a leader that has follower that is shutting down. It shows that
     // the produce request succeed, do not timeout and do not need to be retried.
