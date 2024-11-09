@@ -540,7 +540,7 @@ public class Plugins {
     }
 
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private <U> U getVersionedPlugin(
             AbstractConfig config,
             String classPropertyName,
