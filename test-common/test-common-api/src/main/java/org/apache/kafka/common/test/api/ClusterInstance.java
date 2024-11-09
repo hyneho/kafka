@@ -36,12 +36,15 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.common.network.ListenerName;
+import org.apache.kafka.common.serialization.BytesDeserializer;
+import org.apache.kafka.common.serialization.BytesSerializer;
 import org.apache.kafka.common.test.TestUtils;
 import org.apache.kafka.server.authorizer.Authorizer;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -158,20 +161,29 @@ public interface ClusterInstance {
     //---------------------------[producer/consumer/admin]---------------------------//
 
     default <K, V> Producer<K, V> producer(Map<String, Object> configs) {
-        Properties props = new Properties();
-        props.putAll(configs);
-        props.putIfAbsent(ProducerConfig.ACKS_CONFIG, "-1");
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+        Map<String, Object> props = new HashMap<>(configs);
+        props.putIfAbsent(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, BytesSerializer.class.getName());
+        props.putIfAbsent(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, BytesSerializer.class.getName());
+        props.putIfAbsent(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
         return new KafkaProducer<>(props);
     }
 
+    default <K, V> Producer<K, V> producer() {
+        return new KafkaProducer<>(Map.of());
+    }
+
     default <K, V> Consumer<K, V> consumer(Map<String, Object> configs) {
-        Properties props = new Properties();
-        props.putAll(configs);
+        Map<String, Object> props = new HashMap<>(configs);
+        props.putIfAbsent(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, BytesDeserializer.class.getName());
+        props.putIfAbsent(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, BytesDeserializer.class.getName());
         props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "group_" + TestUtils.randomString(5));
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+        props.putIfAbsent(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
         return new KafkaConsumer<>(props);
+    }
+
+    default <K, V> Consumer<K, V> consumer() {
+        return new KafkaConsumer<>(Map.of());
     }
 
     default Admin admin(Map<String, Object> configs, boolean usingBootstrapControllers) {
