@@ -58,6 +58,7 @@ import org.apache.kafka.coordinator.transaction.TransactionLogConfig
 import org.apache.kafka.server.common.{ControllerRequestCompletionHandler, MetadataVersion, NodeToControllerChannelManager, RequestLocal}
 import org.apache.kafka.server.common.MetadataVersion.IBP_2_6_IV0
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
+import org.apache.kafka.server.purgatory.{DelayedOperationPurgatory, TopicPartitionOperationKey}
 import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams}
 import org.apache.kafka.server.util.{KafkaScheduler, MockTime}
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpoints
@@ -1149,8 +1150,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     // let the follower in ISR move leader's HW to move further but below LEO
     fetchFollower(partition, replicaId = follower2, fetchOffset = 0)
-    fetchFollower(partition, replicaId = follower2, fetchOffset = lastOffsetOfFirstBatch)
-    assertEquals(lastOffsetOfFirstBatch, partition.log.get.highWatermark, "Expected leader's HW")
+    fetchFollower(partition, replicaId = follower2, fetchOffset = lastOffsetOfFirstBatch + 1)
+    assertEquals(lastOffsetOfFirstBatch + 1, partition.log.get.highWatermark, "Expected leader's HW")
 
     // current leader becomes follower and then leader again (without any new records appended)
     val followerState = new LeaderAndIsrPartitionState()
@@ -4099,7 +4100,7 @@ class PartitionTest extends AbstractPartitionTest {
 
   @Test
   def tryCompleteDelayedRequestsCatchesExceptions(): Unit = {
-    val requestKey = TopicPartitionOperationKey(topicPartition)
+    val requestKey = new TopicPartitionOperationKey(topicPartition)
 
     val produce = mock(classOf[DelayedOperationPurgatory[DelayedProduce]])
     when(produce.checkAndComplete(requestKey)).thenThrow(new RuntimeException("uh oh"))
