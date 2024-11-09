@@ -398,7 +398,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         requestManagers.commitRequestManager.get().signalClose();
     }
 
-    private void process(@SuppressWarnings("unused") final LeaveGroupOnCloseEvent event) {
+    private void process(final LeaveGroupOnCloseEvent event) {
         if (!requestManagers.consumerMembershipManager.isPresent())
             return;
 

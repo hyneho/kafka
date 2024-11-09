@@ -865,7 +865,7 @@ class PlaintextConsumerTest extends BaseConsumerTest {
             false
         }
       },
-      msg=s"Consumer did not leave the consumer group within $leaveGroupTimeoutMs of interrupt/close",
+      msg=s"Consumer did not leave the consumer group within $leaveGroupTimeoutMs ms of close",
       waitTimeMs=leaveGroupTimeoutMs
     )
   }

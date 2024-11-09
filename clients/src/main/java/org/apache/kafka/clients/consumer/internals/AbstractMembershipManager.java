@@ -497,8 +497,9 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      */
     private void updateSubscriptionAwaitingCallback(SortedSet<TopicIdPartition> assignedPartitions,
                                                     SortedSet<TopicPartition> addedPartitions) {
-        Collection<TopicPartition> assignedTopicPartitions = toTopicPartitionSet(assignedPartitions);
+        Set<TopicPartition> assignedTopicPartitions = toTopicPartitionSet(assignedPartitions);
         subscriptions.assignFromSubscribedAwaitingCallback(assignedTopicPartitions, addedPartitions);
+        notifyAssignmentChange(assignedTopicPartitions);
     }
 
     /**
@@ -529,7 +530,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      * @return Future that will complete when the heartbeat to leave the group has been sent out.
      */
     public CompletableFuture<Void> leaveGroupOnClose() {
-        return leaveGroup(true);
+        return leaveGroup(false);
     }
 
     /**
@@ -541,7 +542,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      * to leave the group has been sent out.
      */
     public CompletableFuture<Void> leaveGroup() {
-        return leaveGroup(false);
+        return leaveGroup(true);
     }
 
     /**
@@ -549,12 +550,13 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      * transition to {@link MemberState#LEAVING} to send the heartbeat request and leave the group.
      * This is expected to be invoked when the user calls the unsubscribe API.
      *
-     * @param isClosing {@code true} if the Consumer is closing, {@code false} otherwise
+     * @param runCallbacks {@code true} to insert the step to execute the {@link ConsumerRebalanceListener} callback,
+     *                     {@code false} to skip
      *
      * @return Future that will complete when the callback execution completes and the heartbeat
      * to leave the group has been sent out.
      */
-    protected CompletableFuture<Void> leaveGroup(boolean isClosing) {
+    protected CompletableFuture<Void> leaveGroup(boolean runCallbacks) {
         if (isNotInGroup()) {
             if (state == MemberState.FENCED) {
                 clearAssignment();
@@ -576,30 +578,38 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         CompletableFuture<Void> leaveResult = new CompletableFuture<>();
         leaveGroupInProgress = Optional.of(leaveResult);
 
-        CompletableFuture<Void> callbackResult = signalMemberLeavingGroup(isClosing);
-        callbackResult.whenComplete((result, error) -> {
-            if (error != null) {
-                log.error("Member {} callback to release assignment failed. It will proceed " +
-                    "to clear its assignment and send a leave group heartbeat", memberId, error);
-            } else {
-                log.info("Member {} completed callback to release assignment. It will proceed " +
-                    "to clear its assignment and send a leave group heartbeat", memberId);
-            }
+        if (runCallbacks) {
+            CompletableFuture<Void> callbackResult = signalMemberLeavingGroup();
+            callbackResult.whenComplete((result, error) -> {
+                if (error != null) {
+                    log.error("Member {} callback to release assignment failed. It will proceed " +
+                        "to clear its assignment and send a leave group heartbeat", memberId, error);
+                } else {
+                    log.info("Member {} completed callback to release assignment. It will proceed " +
+                        "to clear its assignment and send a leave group heartbeat", memberId);
+                }
 
-            // Clear the subscription, no matter if the callback execution failed or succeeded.
-            subscriptions.unsubscribe();
-            clearAssignment();
-            notifyAssignmentChange(Collections.emptySet());
-
-            // Transition to ensure that a heartbeat request is sent out to effectively leave the
-            // group (even in the case where the member had no assignment to release or when the
-            // callback execution failed.)
-            transitionToSendingLeaveGroup(false);
-        });
+                // Clear the assignment, no matter if the callback execution failed or succeeded.
+                clearAssignmentAndLeaveGroup();
+            });
+        } else {
+            clearAssignmentAndLeaveGroup();
+        }
 
         // Return future to indicate that the leave group is done when the callbacks
         // complete, and the transition to send the heartbeat has been made.
         return leaveResult;
+    }
+
+    private void clearAssignmentAndLeaveGroup() {
+        subscriptions.unsubscribe();
+        clearAssignment();
+        notifyAssignmentChange(Collections.emptySet());
+
+        // Transition to ensure that a heartbeat request is sent out to effectively leave the
+        // group (even in the case where the member had no assignment to release or when the
+        // callback execution failed.)
+        transitionToSendingLeaveGroup(false);
     }
 
     /**
@@ -646,7 +656,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
 
     /**
      * Invokes the {@link MemberStateListener#onGroupAssignmentUpdated(Set)} callback for each listener when the
-     * set of assigned partitions changes. This includes on assignment changes, unsubscribing, and when leaving
+     * set of assigned partitions changes. This includes on assignment changes, unsubscribe, and when leaving
      * the group.
      */
     void notifyAssignmentChange(Set<TopicPartition> partitions) {
@@ -971,10 +981,8 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     /**
      * Signals to the membership manager that the member is leaving the group so that
      * actions specific to the group type can be performed.
-     *
-     * @param isClosing {@code true} if the Consumer is closing, {@code false} otherwise
      */
-    protected CompletableFuture<Void> signalMemberLeavingGroup(boolean isClosing) {
+    protected CompletableFuture<Void> signalMemberLeavingGroup() {
         return CompletableFuture.completedFuture(null);
     }
 
@@ -1168,12 +1176,6 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
             if (exception == null) {
                 // Enable newly added partitions to start fetching and updating positions for them.
                 subscriptions.enablePartitionsAwaitingCallback(addedPartitions);
-
-                Set<TopicPartition> allAssignedPartitions = assignedPartitions.stream()
-                    .map(tip -> new TopicPartition(tip.topic(), tip.partition()))
-                    .collect(Collectors.toSet());
-
-                notifyAssignmentChange(allAssignedPartitions);
             } else {
                 // Keeping newly added partitions as non-fetchable after the callback failure.
                 // They will be retried on the next reconciliation loop, until it succeeds or the

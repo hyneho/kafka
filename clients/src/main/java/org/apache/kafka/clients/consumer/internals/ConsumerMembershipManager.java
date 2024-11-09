@@ -268,12 +268,8 @@ public class ConsumerMembershipManager extends AbstractMembershipManager<Consume
      * {@inheritDoc}
      */
     @Override
-    protected CompletableFuture<Void> signalMemberLeavingGroup(boolean isClosing) {
-        // When closing, the callbacks are executed immediately in the Consumer.
-        if (isClosing)
-            return CompletableFuture.completedFuture(null);
-        else
-            return invokeOnPartitionsRevokedOrLostToReleaseAssignment();
+    protected CompletableFuture<Void> signalMemberLeavingGroup() {
+        return invokeOnPartitionsRevokedOrLostToReleaseAssignment();
     }
 
     /**

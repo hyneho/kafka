@@ -1406,7 +1406,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             applicationEventHandler.addAndGet(new LeaveGroupOnCloseEvent(calculateDeadlineMs(timer)));
             log.info("Completed leaving the group");
         } catch (TimeoutException e) {
-            log.warn("Consumer triggered an unsubscribe event to leave the group but couldn't " +
+            log.warn("Consumer attempted to leave the group but couldn't " +
                 "complete it within {} ms. It will proceed to close.", timer.timeoutMs());
         } finally {
             timer.update();

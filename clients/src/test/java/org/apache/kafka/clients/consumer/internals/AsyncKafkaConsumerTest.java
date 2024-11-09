@@ -642,8 +642,9 @@ public class AsyncKafkaConsumerTest {
         verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
-    @Test
-    public void testCloseLeavesGroup() {
+    @ParameterizedTest
+    @ValueSource(longs = {0, ConsumerUtils.DEFAULT_CLOSE_TIMEOUT_MS})
+    public void testCloseLeavesGroup(long timeoutMs) {
         SubscriptionState subscriptions = mock(SubscriptionState.class);
         consumer = spy(newConsumer(
             mock(FetchBuffer.class),
@@ -653,8 +654,7 @@ public class AsyncKafkaConsumerTest {
             "group-id",
             "client-id",
             false));
-        completeUnsubscribeApplicationEventSuccessfully();
-        consumer.close(Duration.ZERO);
+        consumer.close(Duration.ofMillis(timeoutMs));
         verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
@@ -664,7 +664,6 @@ public class AsyncKafkaConsumerTest {
         // and proceed with closing the consumer.
         Throwable rootError = new KafkaException("Intentional error");
         Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
-
         SubscriptionState subscriptions = mock(SubscriptionState.class);
         when(subscriptions.assignedPartitions()).thenReturn(partitions);
         ConsumerRebalanceListenerInvoker invoker = mock(ConsumerRebalanceListenerInvoker.class);
@@ -684,7 +683,6 @@ public class AsyncKafkaConsumerTest {
         assertNotNull(t.getCause());
         assertEquals(rootError, t.getCause());
 
-        verify(applicationEventHandler).add(any(CommitOnCloseEvent.class));
         verify(applicationEventHandler).addAndGet(any(LeaveGroupOnCloseEvent.class));
     }
 
@@ -692,7 +690,6 @@ public class AsyncKafkaConsumerTest {
     @ValueSource(longs = {0, ConsumerUtils.DEFAULT_CLOSE_TIMEOUT_MS})
     public void testCloseLeavesGroupDespiteInterrupt(long timeoutMs) {
         Set<TopicPartition> partitions = singleton(new TopicPartition("topic1", 0));
-
         SubscriptionState subscriptions = mock(SubscriptionState.class);
         when(subscriptions.assignedPartitions()).thenReturn(partitions);
         when(applicationEventHandler.addAndGet(any(CompletableApplicationEvent.class))).thenThrow(InterruptException.class);
@@ -708,7 +705,6 @@ public class AsyncKafkaConsumerTest {
         Duration timeout = Duration.ofMillis(timeoutMs);
 
         try {
-            Thread.currentThread().interrupt();
             assertThrows(InterruptException.class, () -> consumer.close(timeout));
         } finally {
             Thread.interrupted();
@@ -1909,7 +1905,6 @@ public class AsyncKafkaConsumerTest {
             AssignmentChangeEvent event = invocation.getArgument(0);
             HashSet<TopicPartition> partitions = new HashSet<>(event.partitions());
             consumer.subscriptions().assignFromUser(partitions);
-            consumer.setGroupAssignmentSnapshot(partitions);
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).addAndGet(ArgumentMatchers.isA(AssignmentChangeEvent.class));
