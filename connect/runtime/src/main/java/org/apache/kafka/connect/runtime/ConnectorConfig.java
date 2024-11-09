@@ -391,8 +391,7 @@ public class ConnectorConfig extends AbstractConfig {
             try {
                 final String typeConfig = prefix + "type";
                 final String versionConfig = prefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
-                @SuppressWarnings("unchecked") final Transformation<R> transformation = (Transformation<R>) plugins.newTransformation(this, typeConfig, versionConfig);
-
+                @SuppressWarnings("unchecked") final Transformation<R> transformation = getTransformationOrPredicate(plugins, typeConfig, versionConfig, Transformation.class);
                 Map<String, Object> configs = originalsWithPrefix(prefix);
                 Object predicateAlias = configs.remove(TransformationStage.PREDICATE_CONFIG);
                 Object negate = configs.remove(TransformationStage.NEGATE_CONFIG);
@@ -402,7 +401,7 @@ public class ConnectorConfig extends AbstractConfig {
                     final String predicateTypeConfig = predicatePrefix + "type";
                     final String predicateVersionConfig = predicatePrefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
                     @SuppressWarnings("unchecked")
-                    Predicate<R> predicate = (Predicate<R>) plugins.newPredicate(this, predicateTypeConfig, predicateVersionConfig);
+                    Predicate<R> predicate = getTransformationOrPredicate(plugins, typeConfig, versionConfig, Predicate.class);
                     predicate.configure(originalsWithPrefix(predicatePrefix));
                     transformations.add(new TransformationStage<>(predicate, negate != null && Boolean.parseBoolean(negate.toString()), transformation));
                 } else {
@@ -414,6 +413,16 @@ public class ConnectorConfig extends AbstractConfig {
         }
 
         return transformations;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getTransformationOrPredicate(Plugins plugins, String classConfig, String versionConfig, Class<T> type) {
+        try {
+            VersionRange range = PluginVersionUtils.connectorVersionRequirement(getString(versionConfig));
+            return range == null ? Utils.newInstance(getClass(classConfig), type) : (T) plugins.newPlugin(getClass(classConfig).getName(), range);
+        } catch (Exception e) {
+            throw new ConnectException(e);
+        }
     }
 
     /**
@@ -714,7 +723,9 @@ public class ConnectorConfig extends AbstractConfig {
                         getConfigDefFromPlugin(typeConfig, props.get(typeConfig), (String) value, plugins);
                     }
                 };
-                newDef.define(versionConfig, Type.STRING, plugins.defaultVersion(props.get(typeConfig)), versionValidator, Importance.HIGH,
+                String defaultVersion = fetchDefaultPluginVersion(plugins, props.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG),
+                        props.get(ConnectorConfig.CONNECTOR_VERSION), props.get(typeConfig), baseClass);
+                newDef.define(versionConfig, Type.STRING, defaultVersion, versionValidator, Importance.HIGH,
                         "Version of the '" + alias + "' " + aliasKind.toLowerCase(Locale.ENGLISH) + ".", group, orderInGroup++, Width.LONG,
                         baseClass.getSimpleName() + " version for " + alias,
                         Collections.emptyList(), versionRecommender(typeConfig));
@@ -802,7 +813,7 @@ public class ConnectorConfig extends AbstractConfig {
             T pluginInstance;
             try {
                 VersionRange range = PluginVersionUtils.connectorVersionRequirement(version);
-                pluginInstance = (T) plugins.newPlugin(classOrAlias, range);
+                pluginInstance = range == null ? Utils.newInstance(classOrAlias, baseClass): (T) plugins.newPlugin(classOrAlias, range);
             } catch (InvalidVersionSpecificationException e) {
                 // this should be caught in the validation of the version string, just return empty config def to prevent entire validation from failing
                 return new ConfigDef();
