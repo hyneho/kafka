@@ -187,13 +187,12 @@ public interface ClusterInstance {
     }
 
     default Admin admin(Map<String, Object> configs, boolean usingBootstrapControllers) {
-        Properties props = new Properties();
-        props.putAll(configs);
+        Map<String, Object> props = new HashMap<>(configs);
         if (usingBootstrapControllers) {
-            props.setProperty(AdminClientConfig.BOOTSTRAP_CONTROLLERS_CONFIG, bootstrapControllers());
+            props.putIfAbsent(AdminClientConfig.BOOTSTRAP_CONTROLLERS_CONFIG, bootstrapControllers());
             props.remove(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG);
         } else {
-            props.setProperty(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+            props.putIfAbsent(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
             props.remove(AdminClientConfig.BOOTSTRAP_CONTROLLERS_CONFIG);
         }
         return Admin.create(props);
