@@ -790,8 +790,11 @@ public class RemoteLogManager implements Closeable {
         }
 
         public void run() {
-            if (isCancelled())
+            if (isCancelled() || !remoteLogMetadataManager.isReady(topicIdPartition)) {
+                logger.debug("Skipping the current run for tpId {} as it is either cancelled: {} or " +
+                        "remote log metadata is not ready", topicIdPartition, isCancelled());
                 return;
+            }
 
             try {
                 Optional<UnifiedLog> unifiedLogOptional = fetchLog.apply(topicIdPartition.topicPartition());
