@@ -1602,8 +1602,6 @@ public class SharePartition {
     protected Optional<LogOffsetMetadata> fetchOffsetMetadata() {
         lock.readLock().lock();
         try {
-            if (findNextFetchOffset.get())
-                return Optional.empty();
             return fetchOffsetMetadata;
         } finally {
             lock.readLock().unlock();
