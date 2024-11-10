@@ -820,6 +820,32 @@ public class OffsetsRequestManagerTest {
         ListOffsetsRequest offsetFetchRequest = (ListOffsetsRequest) abstractRequest;
         assertEquals(requestTimeoutMs, offsetFetchRequest.timeoutMs());
     }
+    
+    @Test
+    public void testOffsetRequestManagerOnMetadataError() {
+        long internalFetchCommittedTimeout = time.milliseconds() + DEFAULT_API_TIMEOUT_MS;
+        TopicPartition tp1 = new TopicPartition("topic1", 1);
+        Set<TopicPartition> initPartitions1 = Set.of(tp1);
+        Metadata.LeaderAndEpoch leaderAndEpoch = testLeaderEpoch(LEADER_1, Optional.of(1));
+
+        // tp1 assigned and requires a position
+        mockAssignedPartitionsMissingPositions(initPartitions1, initPartitions1, leaderAndEpoch);
+
+        // call to updateFetchPositions will trigger an OffsetFetch request for tp1 (won't complete just yet)
+        CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> fetchResult = new CompletableFuture<>();
+        when(commitRequestManager.fetchOffsets(initPartitions1, internalFetchCommittedTimeout)).thenReturn(fetchResult);
+        // the metadata error should be propagated to the caller
+        CompletableFuture<RuntimeException> metadataError = new CompletableFuture<>();
+        Thread t1 = new Thread(() -> {
+            metadataError.completeExceptionally(new AuthenticationException("Authentication failed"));
+            fetchResult.completeExceptionally(new AuthenticationException("Authentication failed"));
+        });
+        CompletableFuture<Boolean> updatePositions = requestManager.updateFetchPositions(time.milliseconds(), metadataError);
+        t1.start();
+        
+        ExecutionException exception = assertThrows(ExecutionException.class, updatePositions::get);
+        assertEquals(AuthenticationException.class, exception.getCause().getClass());
+    }
 
     private void mockAssignedPartitionsMissingPositions(Set<TopicPartition> assignedPartitions,
                                                         Set<TopicPartition> initializingPartitions,
