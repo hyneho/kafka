@@ -98,7 +98,8 @@ public class DelegatingClassLoader extends URLClassLoader {
 
     ClassLoader connectorLoader(String connectorClassOrAlias, VersionRange range) throws ClassNotFoundException {
         String fullName = aliases.getOrDefault(connectorClassOrAlias, connectorClassOrAlias);
-        // need to actually load the class here to ensure that the correct classloader is used for the given version range
+        // if the plugin is not loaded via the plugin classloader, it might still be available in the parent delegating
+        // classloader, in order to check if the version satisfies the requirement we need to load the plugin class here
         ClassLoader classLoader = loadVersionedPluginClass(fullName, range, false).getClassLoader();
         log.debug(
                 "Got plugin class loader: '{}' for connector: {}",
@@ -124,7 +125,7 @@ public class DelegatingClassLoader extends URLClassLoader {
         return aliases.getOrDefault(classOrAlias, classOrAlias);
     }
 
-    String defaultVersion(String classOrAlias) {
+    String latestVersion(String classOrAlias) {
         if (classOrAlias == null) {
             return null;
         }
@@ -149,7 +150,7 @@ public class DelegatingClassLoader extends URLClassLoader {
             if (range.hasRestrictions()) {
                 List<ArtifactVersion> versions = loaders.keySet().stream().map(PluginDesc::encodedVersion).collect(Collectors.toList());
                 version = range.matchVersion(versions);
-                if (version == null) {
+                if (version ==  null) {
                     List<String> availableVersions = loaders.keySet().stream().map(PluginDesc::version).collect(Collectors.toList());
                     throw new VersionedPluginLoadingException(String.format(
                         "Plugin loader for %s not found that matches the version range %s, available versions: %s",
@@ -217,13 +218,14 @@ public class DelegatingClassLoader extends URLClassLoader {
             } catch (ReflectiveOperationException | LinkageError e) {
                 throw new VersionedPluginLoadingException(String.format(
                         "Plugin %s was loaded with %s but failed to determine its version",
-                        name
+                        name,
+                        plugin.getClassLoader()
                 ), e);
             }
 
             if (range != null && range.hasRestrictions() && !range.containsVersion(new DefaultArtifactVersion(pluginVersion))) {
                 throw new VersionedPluginLoadingException(String.format(
-                        "Plugin %s was loaded with version %s which does not match the version range %s",
+                        "Plugin %s has version %s which does not match the required version range %s",
                         name,
                         pluginVersion,
                         range

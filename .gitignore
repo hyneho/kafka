@@ -64,3 +64,4 @@ kafka.Kafka
 __pycache__
 /connect/runtime/src/main/java/org/apache/kafka/connect/testing/
 /connect/file/
+/connect/json/

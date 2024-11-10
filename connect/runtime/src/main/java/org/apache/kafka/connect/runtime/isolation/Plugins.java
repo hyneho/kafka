@@ -19,10 +19,8 @@ package org.apache.kafka.connect.runtime.isolation;
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.provider.ConfigProvider;
-import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.components.Versioned;
-import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.connector.Connector;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.connector.policy.ConnectorClientConfigOverridePolicy;
@@ -269,8 +267,8 @@ public class Plugins {
         };
     }
 
-    public String defaultVersion(String classOrAlias) {
-        return delegatingLoader.defaultVersion(classOrAlias);
+    public String latestVersion(String classOrAlias) {
+        return delegatingLoader.latestVersion(classOrAlias);
     }
 
     public DelegatingClassLoader delegatingLoader() {
@@ -448,7 +446,8 @@ public class Plugins {
      * @throws VersionedPluginLoadingException if the version requested is not found
      */
     public Converter newConverter(AbstractConfig config, String classPropertyName, String versionPropertyName) {
-        return getConverter(config, classPropertyName, versionPropertyName, ClassLoaderUsage.PLUGINS);
+        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
+        return getConverter(config, classPropertyName, versionPropertyName, classLoader);
     }
 
     private Converter getConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
@@ -516,7 +515,8 @@ public class Plugins {
     }
 
     public HeaderConverter newHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName) {
-        return getHeaderConverter(config, classPropertyName, versionPropertyName, ClassLoaderUsage.PLUGINS);
+        ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
+        return getHeaderConverter(config, classPropertyName, versionPropertyName, classLoader);
     }
 
     private HeaderConverter getHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
@@ -525,7 +525,7 @@ public class Plugins {
             return null;
         }
 
-        HeaderConverter plugin = getVersionedPlugin(config, classPropertyName, classPropertyName + ".version",
+        HeaderConverter plugin = getVersionedPlugin(config, classPropertyName, versionPropertyName,
                 HeaderConverter.class, classLoaderUsage, scanResult.headerConverters());
 
         String configPrefix = classPropertyName + ".";
@@ -537,26 +537,6 @@ public class Plugins {
             plugin.configure(converterConfig);
         }
         return plugin;
-    }
-
-    public Transformation<?> newTransformation(ConnectorConfig config, String classPropertyName, String versionPropertyName) {
-        if (!config.originals().containsKey(classPropertyName)) {
-            // This configuration does not define the transformation via the specified property name
-            return null;
-        }
-
-        return getVersionedPlugin(config, classPropertyName, versionPropertyName,
-                Transformation.class, ClassLoaderUsage.PLUGINS, scanResult.transformations());
-    }
-
-    public Predicate<?> newPredicate(ConnectorConfig config, String classPropertyName, String versionPropertyName) {
-        if (!config.originals().containsKey(classPropertyName)) {
-            // This configuration does not define the predicate via the specified property name
-            return null;
-        }
-
-        return getVersionedPlugin(config, classPropertyName, versionPropertyName,
-                Predicate.class, ClassLoaderUsage.PLUGINS, scanResult.predicates());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

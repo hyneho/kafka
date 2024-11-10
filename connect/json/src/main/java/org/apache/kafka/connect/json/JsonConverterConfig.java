@@ -61,8 +61,6 @@ public class JsonConverterConfig extends ConverterConfig {
                       orderInGroup++, Width.MEDIUM, SCHEMAS_ENABLE_DISPLAY);
         CONFIG.define(SCHEMAS_CACHE_SIZE_CONFIG, Type.INT, SCHEMAS_CACHE_SIZE_DEFAULT, Importance.HIGH, SCHEMAS_CACHE_SIZE_DOC, group,
                       orderInGroup++, Width.MEDIUM, SCHEMAS_CACHE_SIZE_DISPLAY);
-        CONFIG.define("test.config", Type.STRING, "test", Importance.HIGH, "This is a test", group,
-                orderInGroup++, Width.MEDIUM, "This is a test");
 
         group = "Serialization";
         orderInGroup = 0;
