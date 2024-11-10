@@ -686,26 +686,32 @@ public class Worker {
                 // search for converters within the connector dependencies.
                 // If any of these aren't found, that means the connector didn't configure specific converters,
                 // so we should instantiate based upon the worker configuration
-                Converter keyConverter = plugins.newConverter(connConfig, WorkerConfig.KEY_CONVERTER_CLASS_CONFIG, ClassLoaderUsage
-                                                                                                                           .CURRENT_CLASSLOADER);
-                Converter valueConverter = plugins.newConverter(connConfig, WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG, ClassLoaderUsage.CURRENT_CLASSLOADER);
-                HeaderConverter headerConverter = plugins.newHeaderConverter(connConfig, WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG,
-                                                                             ClassLoaderUsage.CURRENT_CLASSLOADER);
+                Converter keyConverter = connConfig.isKeyConverterVersionPresent() ?
+                        plugins.newConverter(connConfig, ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG, ClassLoaderUsage.CURRENT_CLASSLOADER) :
+                        plugins.newConverter(connConfig, ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG, ConnectorConfig.KEY_CONVERTER_VERSION_CONFIG);
+
+                Converter valueConverter = connConfig.isValueConverterVersionPresent() ?
+                        plugins.newConverter(connConfig, WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG, ClassLoaderUsage.CURRENT_CLASSLOADER) :
+                        plugins.newConverter(connConfig, ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG, ConnectorConfig.VALUE_CONVERTER_VERSION_CONFIG);
+
+                HeaderConverter headerConverter = connConfig.isHeaderConverterVersionPresent() ?
+                        plugins.newHeaderConverter(connConfig, WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG, ClassLoaderUsage.CURRENT_CLASSLOADER) :
+                        plugins.newHeaderConverter(connConfig, ConnectorConfig.HEADER_CONVERTER_CLASS_CONFIG, ConnectorConfig.HEADER_CONVERTER_VERSION_CONFIG);
+
                 if (keyConverter == null) {
-                    keyConverter = plugins.newConverter(config, WorkerConfig.KEY_CONVERTER_CLASS_CONFIG, ClassLoaderUsage.PLUGINS);
+                    keyConverter = plugins.newConverter(config, WorkerConfig.KEY_CONVERTER_CLASS_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION_CONFIG);
                     log.info("Set up the key converter {} for task {} using the worker config", keyConverter.getClass(), id);
                 } else {
                     log.info("Set up the key converter {} for task {} using the connector config", keyConverter.getClass(), id);
                 }
                 if (valueConverter == null) {
-                    valueConverter = plugins.newConverter(config, WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG, ClassLoaderUsage.PLUGINS);
+                    valueConverter = plugins.newConverter(config, WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION_CONFIG);
                     log.info("Set up the value converter {} for task {} using the worker config", valueConverter.getClass(), id);
                 } else {
                     log.info("Set up the value converter {} for task {} using the connector config", valueConverter.getClass(), id);
                 }
                 if (headerConverter == null) {
-                    headerConverter = plugins.newHeaderConverter(config, WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG, ClassLoaderUsage
-                                                                                                                             .PLUGINS);
+                    headerConverter = plugins.newHeaderConverter(config, WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION_CONFIG);
                     log.info("Set up the header converter {} for task {} using the worker config", headerConverter.getClass(), id);
                 } else {
                     log.info("Set up the header converter {} for task {} using the connector config", headerConverter.getClass(), id);
@@ -752,18 +758,16 @@ public class Worker {
         log.debug("Fencing out {} task producers for source connector {}", numTasks, connName);
         try (LoggingContext loggingContext = LoggingContext.forConnector(connName)) {
             String connType = connProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
-            ClassLoader connectorLoader = plugins.connectorLoader(connType);
-            try (LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
+            Connector connector = instantiateConnector(connProps);
+            try (LoaderSwap loaderSwap = plugins.withClassLoader(connector.getClass().getClassLoader())) {
                 final SourceConnectorConfig connConfig = new SourceConnectorConfig(plugins, connProps, config.topicCreationEnable());
-                final Class<? extends Connector> connClass = plugins.connectorClass(
-                        connConfig.getString(ConnectorConfig.CONNECTOR_CLASS_CONFIG));
 
                 Map<String, Object> adminConfig = adminConfigs(
                         connName,
                         "connector-worker-adminclient-" + connName,
                         config,
                         connConfig,
-                        connClass,
+                        connector.getClass(),
                         connectorClientConfigOverridePolicy,
                         kafkaClusterId,
                         ConnectorType.SOURCE);
@@ -1822,8 +1826,7 @@ public class Worker {
             Objects.requireNonNull(classLoader, "Classloader used by task cannot be null");
 
             ErrorHandlingMetrics errorHandlingMetrics = errorHandlingMetrics(id);
-            final Class<? extends Connector> connectorClass = plugins.connectorClass(
-                    connectorConfig.getString(ConnectorConfig.CONNECTOR_CLASS_CONFIG));
+            final Class<? extends Connector> connectorClass = instantiateConnector(connectorConfig.originalsStrings()).getClass();
 
             RetryWithToleranceOperator<T> retryWithToleranceOperator = new RetryWithToleranceOperator<>(connectorConfig.errorRetryTimeout(),
                     connectorConfig.errorMaxDelayInMillis(), connectorConfig.errorToleranceType(), Time.SYSTEM, errorHandlingMetrics);

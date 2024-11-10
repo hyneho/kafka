@@ -242,7 +242,7 @@ public class Plugins {
      * @param loader ClassLoader to use as the thread context classloader
      * @return A {@link LoaderSwap} handle which restores the prior classloader on {@link LoaderSwap#close()}.
      */
-    public LoaderSwap withClassLoader(ClassLoader loader) {
+    public static LoaderSwap withClassLoader(ClassLoader loader) {
         ClassLoader savedLoader = compareAndSwapLoaders(loader);
         try {
             return new LoaderSwap(savedLoader);
@@ -259,7 +259,7 @@ public class Plugins {
      * @param operation {@link Runnable} which is sensitive to the thread context classloader
      * @return A wrapper {@link Runnable} which will execute the wrapped operation
      */
-    public Runnable withClassLoader(ClassLoader classLoader, Runnable operation) {
+    public static Runnable withClassLoader(ClassLoader classLoader, Runnable operation) {
         return () -> {
             try (LoaderSwap loaderSwap = withClassLoader(classLoader)) {
                 operation.run();

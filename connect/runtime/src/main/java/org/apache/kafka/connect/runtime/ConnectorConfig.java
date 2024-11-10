@@ -97,7 +97,7 @@ public class ConnectorConfig extends AbstractConfig {
     );
     private static final ConfigDef.Recommender KEY_CONVERTER_CLASS_RECOMMENDER = new PluginVersionUtils.ConverterPluginRecommender();
 
-    public static final String KEY_CONVERTER_VERSION_CONFIG = WorkerConfig.KEY_CONVERTER_VERSION;
+    public static final String KEY_CONVERTER_VERSION_CONFIG = WorkerConfig.KEY_CONVERTER_VERSION_CONFIG;
     private static final String KEY_CONVERTER_VERSION_DEFAULT = null;
     private static final String KEY_CONVERTER_VERSION_DOC = "Version of the key converter.";
     private static final String KEY_CONVERTER_VERSION_DISPLAY = "Key converter version";
@@ -114,7 +114,7 @@ public class ConnectorConfig extends AbstractConfig {
     );
     private static final ConfigDef.Recommender VALUE_CONVERTER_CLASS_RECOMMENDER = new PluginVersionUtils.ConverterPluginRecommender();
 
-    public static final String VALUE_CONVERTER_VERSION_CONFIG = WorkerConfig.VALUE_CONVERTER_VERSION;
+    public static final String VALUE_CONVERTER_VERSION_CONFIG = WorkerConfig.VALUE_CONVERTER_VERSION_CONFIG;
     private static final String VALUE_CONVERTER_VERSION_DEFAULT = null;
     private static final String VALUE_CONVERTER_VERSION_DOC = "Version of the value converter.";
     private static final String VALUE_CONVERTER_VERSION_DISPLAY = "Value converter version";
@@ -133,7 +133,7 @@ public class ConnectorConfig extends AbstractConfig {
     );
     private static final ConfigDef.Recommender HEADER_CONVERTER_CLASS_RECOMMENDER = new PluginVersionUtils.HeaderConverterPluginRecommender();
 
-    public static final String HEADER_CONVERTER_VERSION_CONFIG = WorkerConfig.HEADER_CONVERTER_VERSION;
+    public static final String HEADER_CONVERTER_VERSION_CONFIG = WorkerConfig.HEADER_CONVERTER_VERSION_CONFIG;
     private static final String HEADER_CONVERTER_VERSION_DEFAULT = null;
     private static final String HEADER_CONVERTER_VERSION_DOC = "Version of the header converter.";
     private static final String HEADER_CONVERTER_VERSION_DISPLAY = "Header converter version";
@@ -415,6 +415,18 @@ public class ConnectorConfig extends AbstractConfig {
         return transformations;
     }
 
+    public boolean isKeyConverterVersionPresent() {
+        return get(ConnectorConfig.KEY_CONVERTER_VERSION_CONFIG) != null;
+    }
+
+    public boolean isValueConverterVersionPresent() {
+        return get(ConnectorConfig.VALUE_CONVERTER_VERSION_CONFIG) != null;
+    }
+
+    public boolean isHeaderConverterVersionPresent() {
+        return get(ConnectorConfig.HEADER_CONVERTER_VERSION_CONFIG) != null;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T getTransformationOrPredicate(Plugins plugins, String classConfig, String versionConfig, Class<T> type) {
         try {
@@ -535,7 +547,7 @@ public class ConnectorConfig extends AbstractConfig {
         updateConverterDefaults(
                 configDef, plugins,
                 KEY_CONVERTER_CLASS_CONFIG, WorkerConfig.KEY_CONVERTER_CLASS_CONFIG,
-                KEY_CONVERTER_VERSION_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION, connProps, workerProps
+                KEY_CONVERTER_VERSION_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION_CONFIG, connProps, workerProps
         );
     }
 
@@ -544,7 +556,7 @@ public class ConnectorConfig extends AbstractConfig {
         updateConverterDefaults(
                 configDef, plugins,
                 VALUE_CONVERTER_CLASS_CONFIG, WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG,
-                VALUE_CONVERTER_VERSION_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION, connProps, workerProps
+                VALUE_CONVERTER_VERSION_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION_CONFIG, connProps, workerProps
         );
     }
 
@@ -553,7 +565,7 @@ public class ConnectorConfig extends AbstractConfig {
         updateConverterDefaults(
                 configDef, plugins,
                 HEADER_CONVERTER_CLASS_CONFIG, WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG,
-                HEADER_CONVERTER_VERSION_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION, connProps, workerProps
+                HEADER_CONVERTER_VERSION_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION_CONFIG, connProps, workerProps
         );
     }
 
