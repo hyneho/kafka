@@ -209,11 +209,11 @@ abstract class QuorumTestHarness extends Logging {
     TestInfoUtils.maybeGroupProtocolSpecified(testInfo)
   }
 
-  def groupProtocolFromTestParameters() = {
+  def groupProtocolFromTestParameters(): GroupProtocol = {
     val gp = maybeGroupProtocolSpecified()
 
     if (gp.isEmpty)
-      throw new IllegalStateException("Please specify the group.protocol configuration when creating a KafkaConsumer")
+      throw new IllegalStateException("Please specify the \"groupProtocol\" parameter when writing the test")
 
     gp.get
   }
