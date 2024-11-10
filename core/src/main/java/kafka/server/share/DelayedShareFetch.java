@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 import scala.Tuple2;
@@ -90,6 +91,9 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public void onComplete() {
+        // We are utilizing lock so that onComplete doesn't do a dirty read for global variables -
+        // partitionsAcquired and partitionsAlreadyFetched, since these variables can get updated in a different tryComplete thread.
+        lock.lock();
         log.trace("Completing the delayed share fetch request for group {}, member {}, "
             + "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
             partitionsAcquired.keySet());
@@ -141,6 +145,7 @@ public class DelayedShareFetch extends DelayedOperation {
             replicaManager.addToActionQueue(() -> topicPartitionData.keySet().forEach(topicIdPartition ->
                 replicaManager.completeDelayedShareFetchRequest(
                     new DelayedShareFetchGroupKey(shareFetchData.groupId(), topicIdPartition.topicId(), topicIdPartition.partition()))));
+            lock.unlock();
         }
     }
 
@@ -362,5 +367,10 @@ public class DelayedShareFetch extends DelayedOperation {
             SharePartition sharePartition = sharePartitions.get(tp);
             sharePartition.releaseFetchLock();
         });
+    }
+
+    // Visible for testing.
+    Lock lock() {
+        return lock;
     }
 }

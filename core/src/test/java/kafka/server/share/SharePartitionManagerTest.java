@@ -1718,6 +1718,8 @@ public class SharePartitionManagerTest {
 
         Mockito.verify(sp1, times(1)).nextFetchOffset();
         Mockito.verify(sp2, times(0)).nextFetchOffset();
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -1816,6 +1818,8 @@ public class SharePartitionManagerTest {
 
         Mockito.verify(sp1, times(0)).nextFetchOffset();
         Mockito.verify(sp2, times(0)).nextFetchOffset();
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -1914,6 +1918,8 @@ public class SharePartitionManagerTest {
 
         Mockito.verify(sp1, times(1)).nextFetchOffset();
         Mockito.verify(sp2, times(0)).nextFetchOffset();
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -2016,6 +2022,8 @@ public class SharePartitionManagerTest {
 
         Mockito.verify(sp1, times(0)).nextFetchOffset();
         Mockito.verify(sp2, times(0)).nextFetchOffset();
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
