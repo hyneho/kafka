@@ -232,7 +232,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      * on {@link SubscriptionState#hasAllFetchPositions()}). It will complete immediately, with true, if all positions
      * are already available. If some positions are missing, the future will complete once the offsets are retrieved and positions are updated.
      */
-    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs, CompletableFuture<Exception> metadataError) {
+    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs, CompletableFuture<RuntimeException> metadataError) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -265,7 +265,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
         return result;
     }
 
-    private void onMetadataError(CompletableFuture<Exception> metadataError, 
+    private void onMetadataError(CompletableFuture<RuntimeException> metadataError, 
                                  CompletableFuture<Boolean> result) {
         metadataError.whenComplete((__, error) -> {
             if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {

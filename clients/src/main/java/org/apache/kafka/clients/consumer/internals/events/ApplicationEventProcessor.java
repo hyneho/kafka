@@ -56,7 +56,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     private final SubscriptionState subscriptions;
     private final RequestManagers requestManagers;
     private int metadataVersionSnapshot;
-    private CompletableFuture<Exception> metadataError;
+    private CompletableFuture<RuntimeException> metadataError;
 
     public ApplicationEventProcessor(final LogContext logContext,
                                      final RequestManagers requestManagers,
@@ -577,7 +577,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         return metadataVersionSnapshot;
     }
     
-    public void setMetadataError(CompletableFuture<Exception> metadataError) {
+    public void setMetadataError(CompletableFuture<RuntimeException> metadataError) {
         this.metadataError = metadataError;
     }
 }

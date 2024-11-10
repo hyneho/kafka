@@ -69,7 +69,7 @@ public class NetworkClientDelegate implements AutoCloseable {
     private final int requestTimeoutMs;
     private final Queue<UnsentRequest> unsentRequests;
     private final long retryBackoffMs;
-    private CompletableFuture<Exception> metadataException;
+    private CompletableFuture<RuntimeException> metadataException;
 
     public NetworkClientDelegate(
             final Time time,
@@ -235,7 +235,7 @@ public class NetworkClientDelegate implements AutoCloseable {
         );
     }
     
-    public CompletableFuture<Exception> metaDataError() {
+    public CompletableFuture<RuntimeException> metaDataError() {
         return metadataException;
     }
 
