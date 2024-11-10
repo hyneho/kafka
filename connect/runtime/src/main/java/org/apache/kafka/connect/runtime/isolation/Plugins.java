@@ -539,7 +539,6 @@ public class Plugins {
         return plugin;
     }
 
-
     @SuppressWarnings({"unchecked", "rawtypes"})
     private <U> U getVersionedPlugin(
             AbstractConfig config,
