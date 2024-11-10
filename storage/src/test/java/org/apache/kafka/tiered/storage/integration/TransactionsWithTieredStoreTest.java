@@ -370,7 +370,7 @@ public class TransactionsWithTieredStoreTest {
 
         try (var producer1 = createDefaultTransactionalProducer(cluster);
              var producer2 = createTransactionalProducer(cluster, "other", 2000, 2000, 4000, 1000);
-             var readCommittedConsumer = createReadCommittedConsumer(cluster, "group", 500, groupProtocol,consumerProps)
+             var readCommittedConsumer = createReadCommittedConsumer(cluster, "group", 500, groupProtocol, consumerProps)
         ) {
             var t1p0 = new TopicPartition(TOPIC1, 0);
 
