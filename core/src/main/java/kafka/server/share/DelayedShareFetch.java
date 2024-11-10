@@ -97,25 +97,33 @@ public class DelayedShareFetch extends DelayedOperation {
             + "topic partitions {}", shareFetchData.groupId(), shareFetchData.memberId(),
             partitionsAcquired.keySet());
 
-        if (shareFetchData.future().isDone())
-            return;
+        try {
+            if (shareFetchData.future().isDone())
+                return;
 
-        LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData;
-        // tryComplete did not invoke forceComplete, so we need to check if we have any partitions to fetch.
-        if (partitionsAcquired.isEmpty())
-            topicPartitionData = acquirablePartitions();
-        // tryComplete invoked forceComplete, so we can use the data from tryComplete.
-        else
-            topicPartitionData = partitionsAcquired;
+            LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData;
+            // tryComplete did not invoke forceComplete, so we need to check if we have any partitions to fetch.
+            if (partitionsAcquired.isEmpty())
+                topicPartitionData = acquirablePartitions();
+                // tryComplete invoked forceComplete, so we can use the data from tryComplete.
+            else
+                topicPartitionData = partitionsAcquired;
 
-        if (topicPartitionData.isEmpty()) {
-            // No locks for share partitions could be acquired, so we complete the request with an empty response.
-            shareFetchData.future().complete(Collections.emptyMap());
-            return;
+            if (topicPartitionData.isEmpty()) {
+                // No locks for share partitions could be acquired, so we complete the request with an empty response.
+                shareFetchData.future().complete(Collections.emptyMap());
+                return;
+            }
+            log.trace("Fetchable share partitions data: {} with groupId: {} fetch params: {}",
+                topicPartitionData, shareFetchData.groupId(), shareFetchData.fetchParams());
+
+            completeShareFetchRequest(topicPartitionData);
+        } finally {
+            lock.unlock();
         }
-        log.trace("Fetchable share partitions data: {} with groupId: {} fetch params: {}",
-            topicPartitionData, shareFetchData.groupId(), shareFetchData.fetchParams());
+    }
 
+    private void completeShareFetchRequest(LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData) {
         try {
             LinkedHashMap<TopicIdPartition, LogReadResult> responseData;
             if (partitionsAlreadyFetched.isEmpty())
@@ -144,7 +152,6 @@ public class DelayedShareFetch extends DelayedOperation {
             replicaManager.addToActionQueue(() -> topicPartitionData.keySet().forEach(topicIdPartition ->
                 replicaManager.completeDelayedShareFetchRequest(
                     new DelayedShareFetchGroupKey(shareFetchData.groupId(), topicIdPartition.topicId(), topicIdPartition.partition()))));
-            lock.unlock();
         }
     }
 
