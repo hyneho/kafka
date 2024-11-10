@@ -549,21 +549,21 @@ public class DelayedShareFetchTest {
             .withSharePartitions(sharePartitions)
             .build();
 
-        Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = new LinkedHashMap<>();
         topicPartitionData.put(tp0, mock(FetchRequest.PartitionData.class));
         topicPartitionData.put(tp1, mock(FetchRequest.PartitionData.class));
 
         // Case 1 - logReadResponse contains tp0.
-        Map<TopicIdPartition, LogReadResult> logReadResponse = Collections.singletonMap(
-            tp0, mock(LogReadResult.class));
+        LinkedHashMap<TopicIdPartition, LogReadResult> logReadResponse = new LinkedHashMap<>();
+        logReadResponse.put(tp0, mock(LogReadResult.class));
 
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp1))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
-        Map<TopicIdPartition, LogReadResult> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
+        LinkedHashMap<TopicIdPartition, LogReadResult> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
         assertEquals(combinedLogReadResponse.get(tp0), logReadResponse.get(tp0));
 
         // Case 2 - logReadResponse contains tp0 and tp1.
-        logReadResponse = new HashMap<>();
+        logReadResponse = new LinkedHashMap<>();
         logReadResponse.put(tp0, mock(LogReadResult.class));
         logReadResponse.put(tp1, mock(LogReadResult.class));
         combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
