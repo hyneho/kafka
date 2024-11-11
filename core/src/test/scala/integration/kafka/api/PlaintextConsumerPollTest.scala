@@ -19,11 +19,10 @@ import org.apache.kafka.common.utils.Utils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.{Arguments, MethodSource}
+import org.junit.jupiter.params.provider.MethodSource
 
 import java.time.Duration
 import java.util
-import java.util.stream.Stream
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
@@ -32,17 +31,6 @@ import scala.jdk.CollectionConverters._
  */
 @Timeout(600)
 class PlaintextConsumerPollTest extends AbstractConsumerTest {
-
-  // Deprecated poll(timeout) not supported for consumer group protocol
-  @deprecated("poll(Duration) is the replacement", since = "2.0")
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
-  def testDeprecatedPollBlocksForAssignment(quorum: String, groupProtocol: String): Unit = {
-    val consumer = createConsumer()
-    consumer.subscribe(Set(topic).asJava)
-    consumer.poll(0)
-    assertEquals(Set(tp, tp2), consumer.assignment().asScala)
-  }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
@@ -300,12 +288,4 @@ class PlaintextConsumerPollTest extends AbstractConsumerTest {
     for (poller <- consumerPollers)
       poller.shutdown()
   }
-}
-
-object PlaintextConsumerPollTest {
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly: Stream[Arguments] =
-    BaseConsumerTest.getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly()
-
-  def getTestQuorumAndGroupProtocolParametersAll: Stream[Arguments] =
-    BaseConsumerTest.getTestQuorumAndGroupProtocolParametersAll()
 }

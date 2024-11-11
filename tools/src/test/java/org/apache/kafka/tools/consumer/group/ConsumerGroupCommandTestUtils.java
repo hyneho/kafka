@@ -22,6 +22,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.test.api.ClusterConfig;
 import org.apache.kafka.common.utils.Utils;
+import org.apache.kafka.server.common.Features;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -47,7 +48,6 @@ import static org.apache.kafka.coordinator.group.GroupCoordinatorConfig.OFFSETS_
 /**
  * The old test framework {@link kafka.api.BaseConsumerTest#getTestQuorumAndGroupProtocolParametersAll} test for the following cases:
  * <ul>
- *     <li>(KRAFT servers) with (group.coordinator.new.enable=false) with (classic group protocol) = 1 cases</li>
  *     <li>(KRAFT server) with (group.coordinator.new.enable=true) with (classic group protocol) = 1 case</li>
  *     <li>(KRAFT server) with (group.coordinator.new.enable=true) with (consumer group protocol) = 1 case</li>
  * </ul>
@@ -64,7 +64,7 @@ import static org.apache.kafka.coordinator.group.GroupCoordinatorConfig.OFFSETS_
  *     <li>(CO_KRAFT servers) with (group.coordinator.new.enable=true) with (classic / consumer group protocols) = 2 cases</li>
  * </ul>
  * <ul>
- *     <li>(KRAFT servers) with (group.coordinator.new.enable=false) with (classic group protocol) = 1 cases</li>
+ *     <li>(KRAFT server) with (group.coordinator.new.enable=false) with (classic group protocol) = 1 case</li>
  * </ul>
  */
 class ConsumerGroupCommandTestUtils {
@@ -84,6 +84,9 @@ class ConsumerGroupCommandTestUtils {
                 .setTypes(Collections.singleton(CO_KRAFT))
                 .setServerProperties(serverProperties)
                 .setTags(Collections.singletonList("kraftGroupCoordinator"))
+                .setFeatures(Utils.mkMap(
+                    Utils.mkEntry(Features.TRANSACTION_VERSION, (short) 2),
+                    Utils.mkEntry(Features.GROUP_VERSION, (short) 1)))
                 .build());
     }
 

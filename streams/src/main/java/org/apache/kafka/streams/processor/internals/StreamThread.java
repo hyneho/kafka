@@ -46,8 +46,8 @@ import org.apache.kafka.streams.ThreadMetadata;
 import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.errors.TaskCorruptedException;
 import org.apache.kafka.streams.errors.TaskMigratedException;
-import org.apache.kafka.streams.internals.StreamsConfigUtils;
 import org.apache.kafka.streams.internals.metrics.ClientMetrics;
+import org.apache.kafka.streams.internals.metrics.StreamsThreadMetricsDelegatingReporter;
 import org.apache.kafka.streams.processor.StandbyUpdateListener;
 import org.apache.kafka.streams.processor.StateRestoreListener;
 import org.apache.kafka.streams.processor.TaskId;
@@ -80,12 +80,14 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.internals.StreamsConfigUtils.eosEnabled;
-import static org.apache.kafka.streams.internals.StreamsConfigUtils.processingMode;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.adminClientId;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.consumerClientId;
 import static org.apache.kafka.streams.processor.internals.ClientUtils.restoreConsumerClientId;
 
 public class StreamThread extends Thread implements ProcessingThread {
+
+    private static final String THREAD_ID_SUBSTRING = "-StreamThread-";
+    private static final String STATE_UPDATER_ID_SUBSTRING = "-StateUpdater-";
 
     /**
      * Stream thread states are the possible states that a stream thread can be in.
@@ -342,15 +344,13 @@ public class StreamThread extends Thread implements ProcessingThread {
     private final AtomicLong cacheResizeSize = new AtomicLong(-1L);
     private final AtomicBoolean leaveGroupRequested = new AtomicBoolean(false);
     private final boolean eosEnabled;
-    private final StreamsConfigUtils.ProcessingMode processingMode;
     private final boolean stateUpdaterEnabled;
     private final boolean processingThreadsEnabled;
 
     private volatile long fetchDeadlineClientInstanceId = -1;
     private volatile KafkaFutureImpl<Uuid> mainConsumerInstanceIdFuture = new KafkaFutureImpl<>();
     private volatile KafkaFutureImpl<Uuid> restoreConsumerInstanceIdFuture = new KafkaFutureImpl<>();
-    private volatile KafkaFutureImpl<Map<String, KafkaFuture<Uuid>>> producerInstanceIdFuture = new KafkaFutureImpl<>();
-    private volatile KafkaFutureImpl<Uuid> threadProducerInstanceIdFuture = new KafkaFutureImpl<>();
+    private volatile KafkaFutureImpl<Uuid> producerInstanceIdFuture = new KafkaFutureImpl<>();
 
     public static StreamThread create(final TopologyMetadata topologyMetadata,
                                       final StreamsConfig config,
@@ -368,7 +368,8 @@ public class StreamThread extends Thread implements ProcessingThread {
                                       final int threadIdx,
                                       final Runnable shutdownErrorHook,
                                       final BiConsumer<Throwable, Boolean> streamsUncaughtExceptionHandler) {
-        final String threadId = clientId + "-StreamThread-" + threadIdx;
+
+        final String threadId = clientId + THREAD_ID_SUBSTRING + threadIdx;
 
         final String logPrefix = String.format("stream-thread [%s] ", threadId);
         final LogContext logContext = new LogContext(logPrefix);
@@ -474,6 +475,10 @@ public class StreamThread extends Thread implements ProcessingThread {
         taskManager.setMainConsumer(mainConsumer);
         referenceContainer.mainConsumer = mainConsumer;
 
+        final String stateUpdaterId = threadId.replace(THREAD_ID_SUBSTRING, STATE_UPDATER_ID_SUBSTRING);
+        final StreamsThreadMetricsDelegatingReporter reporter = new StreamsThreadMetricsDelegatingReporter(mainConsumer, threadId, stateUpdaterId);
+        streamsMetrics.metricsRegistry().addReporter(reporter);
+
         final StreamThread streamThread = new StreamThread(
             time,
             config,
@@ -534,7 +539,7 @@ public class StreamThread extends Thread implements ProcessingThread {
                                                                 final String clientId,
                                                                 final int threadIdx) {
         if (stateUpdaterEnabled) {
-            final String name = clientId + "-StateUpdater-" + threadIdx;
+            final String name = clientId + STATE_UPDATER_ID_SUBSTRING + threadIdx;
             final StateUpdater stateUpdater = new DefaultStateUpdater(
                 name,
                 streamsMetrics.metricsRegistry(),
@@ -641,7 +646,6 @@ public class StreamThread extends Thread implements ProcessingThread {
 
         this.numIterations = 1;
         this.eosEnabled = eosEnabled(config);
-        this.processingMode = processingMode(config);
         this.stateUpdaterEnabled = InternalConfig.stateUpdaterEnabled(config.originals());
         this.processingThreadsEnabled = InternalConfig.processingThreadsEnabled(config.originals());
         this.logSummaryIntervalMs = config.getLong(StreamsConfig.LOG_SUMMARY_INTERVAL_MS_CONFIG);
@@ -806,46 +810,34 @@ public class StreamThread extends Thread implements ProcessingThread {
                 }
             }
 
-            if (!processingMode.equals(StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_ALPHA) &&
-                    !threadProducerInstanceIdFuture.isDone()) {
-
+            if (!producerInstanceIdFuture.isDone()) {
                 if (fetchDeadlineClientInstanceId >= time.milliseconds()) {
                     try {
-                        threadProducerInstanceIdFuture.complete(
-                            taskManager.threadProducer().kafkaProducer().clientInstanceId(Duration.ZERO)
+                        producerInstanceIdFuture.complete(
+                            taskManager.streamsProducer().kafkaProducer().clientInstanceId(Duration.ZERO)
                         );
                     } catch (final IllegalStateException disabledError) {
                         // if telemetry is disabled on a client, we swallow the error,
                         // to allow returning a partial result for all other clients
-                        threadProducerInstanceIdFuture.complete(null);
+                        producerInstanceIdFuture.complete(null);
                     } catch (final TimeoutException swallow) {
                         // swallow
                     } catch (final Exception error) {
-                        threadProducerInstanceIdFuture.completeExceptionally(error);
+                        producerInstanceIdFuture.completeExceptionally(error);
                     }
                 } else {
-                    threadProducerInstanceIdFuture.completeExceptionally(
+                    producerInstanceIdFuture.completeExceptionally(
                         new TimeoutException("Could not retrieve thread producer client instance id.")
                     );
                 }
             }
 
-            maybeResetFetchDeadline();
-        }
-    }
+            if (mainConsumerInstanceIdFuture.isDone()
+                && (!stateUpdaterEnabled && restoreConsumerInstanceIdFuture.isDone())
+                && producerInstanceIdFuture.isDone()) {
 
-    private void maybeResetFetchDeadline() {
-        boolean reset = mainConsumerInstanceIdFuture.isDone()
-            && (!stateUpdaterEnabled && restoreConsumerInstanceIdFuture.isDone());
-
-        if (processingMode.equals(StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_ALPHA)) {
-            throw new UnsupportedOperationException("not implemented yet");
-        } else if (!threadProducerInstanceIdFuture.isDone()) {
-            reset = false;
-        }
-
-        if (reset) {
-            fetchDeadlineClientInstanceId = -1L;
+                fetchDeadlineClientInstanceId = -1L;
+            }
         }
     }
 
@@ -1253,6 +1245,9 @@ public class StreamThread extends Thread implements ProcessingThread {
             pollRecordsSensor.record(numRecords, now);
             taskManager.addRecordsToTasks(records);
         }
+        if (!records.nextOffsets().isEmpty()) {
+            taskManager.updateNextOffsets(records.nextOffsets());
+        }
 
         while (!nonFatalExceptionsToHandle.isEmpty()) {
             streamsUncaughtExceptionHandler.accept(nonFatalExceptionsToHandle.poll(), true);
@@ -1610,7 +1605,7 @@ public class StreamThread extends Thread implements ProcessingThread {
     }
 
     // this method is NOT thread-safe (we rely on the callee to be `synchronized`)
-    public Map<String, KafkaFuture<Uuid>> consumerClientInstanceIds(final Duration timeout) {
+    public Map<String, KafkaFuture<Uuid>> clientInstanceIds(final Duration timeout) {
         boolean setDeadline = false;
 
         final Map<String, KafkaFuture<Uuid>> result = new HashMap<>();
@@ -1639,17 +1634,6 @@ public class StreamThread extends Thread implements ProcessingThread {
         }
         result.put(getName() + "-restore-consumer", restoreConsumerInstanceIdFuture);
 
-        if (setDeadline) {
-            fetchDeadlineClientInstanceId = time.milliseconds() + timeout.toMillis();
-        }
-
-        return result;
-    }
-
-    // this method is NOT thread-safe (we rely on the callee to be `synchronized`)
-    public KafkaFuture<Map<String, KafkaFuture<Uuid>>> producersClientInstanceIds(final Duration timeout) {
-        boolean setDeadline = false;
-
         if (producerInstanceIdFuture.isDone()) {
             if (producerInstanceIdFuture.isCompletedExceptionally()) {
                 producerInstanceIdFuture = new KafkaFutureImpl<>();
@@ -1658,26 +1642,13 @@ public class StreamThread extends Thread implements ProcessingThread {
         } else {
             setDeadline = true;
         }
+        result.put(getName() + "-producer", producerInstanceIdFuture);
 
-        if (processingMode.equals(StreamsConfigUtils.ProcessingMode.EXACTLY_ONCE_ALPHA)) {
-            throw new UnsupportedOperationException("not yet implemented");
-        } else {
-            if (threadProducerInstanceIdFuture.isDone()) {
-                if (threadProducerInstanceIdFuture.isCompletedExceptionally()) {
-                    threadProducerInstanceIdFuture = new KafkaFutureImpl<>();
-                    setDeadline = true;
-                }
-            } else {
-                setDeadline = true;
-            }
-            producerInstanceIdFuture.complete(Collections.singletonMap(getName() + "-producer", threadProducerInstanceIdFuture));
-
-            if (setDeadline) {
-                fetchDeadlineClientInstanceId = time.milliseconds() + timeout.toMillis();
-            }
+        if (setDeadline) {
+            fetchDeadlineClientInstanceId = time.milliseconds() + timeout.toMillis();
         }
 
-        return producerInstanceIdFuture;
+        return result;
     }
 
     // the following are for testing only

@@ -29,19 +29,18 @@ import kafka.integration.KafkaServerTestHarness
 import kafka.server.metadata.KRaftMetadataCache
 import kafka.server.KafkaConfig
 import kafka.utils.TestUtils._
-import kafka.utils.{Log4jController, TestUtils}
+import kafka.utils.{Log4jController, TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.HostResolver
 import org.apache.kafka.clients.admin.ConfigEntry.ConfigSource
 import org.apache.kafka.clients.admin._
-import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig, KafkaConsumer, OffsetAndMetadata, ShareConsumer}
-import org.apache.kafka.clients.consumer.internals.ConsumerProtocol
+import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig, GroupProtocol, KafkaConsumer, OffsetAndMetadata, ShareConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.acl.{AccessControlEntry, AclBinding, AclBindingFilter, AclOperation, AclPermissionType}
 import org.apache.kafka.common.config.{ConfigResource, LogLevelConfig, SslConfigs, TopicConfig}
 import org.apache.kafka.common.errors._
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.quota.{ClientQuotaAlteration, ClientQuotaEntity, ClientQuotaFilter}
-import org.apache.kafka.common.requests.{DeleteRecordsRequest}
+import org.apache.kafka.common.requests.DeleteRecordsRequest
 import org.apache.kafka.common.resource.{PatternType, ResourcePattern, ResourceType}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer}
 import org.apache.kafka.common.utils.{Time, Utils}
@@ -50,22 +49,23 @@ import org.apache.kafka.controller.ControllerRequestContextUtil.ANONYMOUS_CONTEX
 import org.apache.kafka.coordinator.group.{GroupConfig, GroupCoordinatorConfig}
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.security.authorizer.AclEntry
-import org.apache.kafka.server.config.{QuotaConfigs, ServerConfigs, ServerLogConfigs}
+import org.apache.kafka.server.config.{QuotaConfig, ServerConfigs, ServerLogConfigs}
 import org.apache.kafka.storage.internals.log.{CleanerConfig, LogConfig}
 import org.apache.kafka.test.TestUtils.DEFAULT_MAX_WAIT_MS
+import org.apache.log4j.PropertyConfigurator
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api.{AfterEach, BeforeEach, Disabled, TestInfo, Timeout}
+import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo, Timeout}
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.{MethodSource, ValueSource}
 import org.slf4j.LoggerFactory
 
 import java.util.AbstractMap.SimpleImmutableEntry
 import scala.annotation.nowarn
 import scala.collection.Seq
-import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.jdk.CollectionConverters._
+import scala.jdk.OptionConverters.RichOption
 import scala.util.{Random, Using}
 
 /**
@@ -81,7 +81,6 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
   val topicPartition = new TopicPartition(topic, partition)
 
   private var brokerLoggerConfigResource: ConfigResource = _
-  private val changedBrokerLoggers = scala.collection.mutable.Set[String]()
 
   @BeforeEach
   override def setUp(testInfo: TestInfo): Unit = {
@@ -92,7 +91,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
   @AfterEach
   override def tearDown(): Unit = {
-    teardownBrokerLoggers()
+    // Due to the fact that log4j is not re-initialized across tests, changing a logger's log level persists
+    // across test classes. We need to clean up the changes done after testing.
+    resetLogging()
     super.tearDown()
   }
 
@@ -128,7 +129,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
     try {
       val alterLogLevelsEntries = Seq(
-        new ConfigEntry("kafka.controller.KafkaController", LogLevelConfig.INFO_LOG_LEVEL)
+        new ConfigEntry("kafka.server.ControllerServer", LogLevelConfig.INFO_LOG_LEVEL)
       ).asJavaCollection
 
       val exception = assertThrows(classOf[ExecutionException], () => {
@@ -151,7 +152,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     client = Admin.create(config)
 
     val entity = new ClientQuotaEntity(Map(ClientQuotaEntity.CLIENT_ID -> clientId).asJava)
-    val configEntries = Map(QuotaConfigs.CONTROLLER_MUTATION_RATE_OVERRIDE_CONFIG -> 1.0, QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG -> 3.0)
+    val configEntries = Map(QuotaConfig.CONTROLLER_MUTATION_RATE_OVERRIDE_CONFIG -> 1.0, QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG -> 3.0)
     client.alterClientQuotas(Seq(new ClientQuotaAlteration(entity, configEntries.map { case (k, v) =>
       new ClientQuotaAlteration.Op(k, v)
     }.asJavaCollection)).asJavaCollection).all.get
@@ -233,10 +234,10 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     Admin.create(config)
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   @Timeout(10)
-  @ValueSource(strings = Array("kraft"))
-  def testDescribeUserScramCredentialsTimeout(quorum: String): Unit = {
+  def testDescribeUserScramCredentialsTimeout(quorum: String, groupProtocol: String): Unit = {
     client = createInvalidAdminClient()
     try {
       // test describeUserScramCredentials(List<String> users, DescribeUserScramCredentialsOptions options)
@@ -248,10 +249,11 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     } finally client.close(time.Duration.ZERO)
   }
 
-  private def consumeToExpectedNumber = (expectedNumber: Int) => {
+  private def consumeToExpectedNumber = (expectedNumber: Int, groupProtocol: String) => {
     val configs = new util.HashMap[String, Object]()
     configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, plaintextBootstrapServers(brokers))
     configs.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_COMMITTED.toString)
+    configs.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol)
     val consumer = new KafkaConsumer(configs, new ByteArrayDeserializer, new ByteArrayDeserializer)
     try {
       consumer.assign(Collections.singleton(topicPartition))
@@ -265,9 +267,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     } finally consumer.close()
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testDescribeProducers(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testDescribeProducers(quorum: String, groupProtocol: String): Unit = {
     client = createAdminClient
     client.createTopics(Collections.singletonList(new NewTopic(topic, 1, 1.toShort))).all().get()
 
@@ -314,7 +316,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     // send committed transaction msg
     appendTransactionRecords("foo", 2, commit = true)
     // consume 3 records to ensure transaction finished
-    consumeToExpectedNumber(3)
+    consumeToExpectedNumber(3, groupProtocol)
     val transactionProducerIterator = queryProducerDetail()
     assertEquals(2, transactionProducerIterator.size)
     val containsCoordinatorEpochIterator = transactionProducerIterator
@@ -527,9 +529,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     } finally producerNew.close()
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testAbortTransaction(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testAbortTransaction(quorum: String, groupProtocol: String): Unit = {
     client = createAdminClient
     val tp = new TopicPartition("topic1", 0)
     client.createTopics(Collections.singletonList(new NewTopic(tp.topic(), 1, 1.toShort))).all().get()
@@ -538,8 +540,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       val configs = new util.HashMap[String, Object]()
       configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, plaintextBootstrapServers(brokers))
       configs.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, IsolationLevel.READ_COMMITTED.toString)
-      if (quorum == "kraft")
-        configs.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, ConsumerProtocol.PROTOCOL_TYPE)
+      configs.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol)
       val consumer = new KafkaConsumer(configs, new ByteArrayDeserializer, new ByteArrayDeserializer)
       try {
         consumer.assign(Collections.singleton(tp))
@@ -653,7 +654,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     val newTopics = Seq(
       new NewTopic("mytopic", Map((0: Integer) -> Seq[Integer](1, 2).asJava, (1: Integer) -> Seq[Integer](2, 0).asJava).asJava),
       new NewTopic("mytopic2", 3, 3.toShort),
-      new NewTopic("mytopic3", Option.empty[Integer].asJava, Option.empty[java.lang.Short].asJava)
+      new NewTopic("mytopic3", Option.empty[Integer].toJava, Option.empty[java.lang.Short].toJava)
     )
     val createResult = client.createTopics(newTopics.asJava)
     createResult.all.get()
@@ -854,9 +855,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testAlterReplicaLogDirs(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testAlterReplicaLogDirs(quorum: String, groupProtocol: String): Unit = {
     client = createAdminClient
     val topic = "topic"
     val tp = new TopicPartition(topic, 0)
@@ -938,7 +939,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
     // Verify that all messages that are produced can be consumed
     val consumerRecords = TestUtils.consumeTopicRecords(brokers, topic, finalNumMessages,
-      securityProtocol = securityProtocol, trustStoreFile = trustStoreFile)
+      GroupProtocol.of(groupProtocol), securityProtocol = securityProtocol, trustStoreFile = trustStoreFile)
     consumerRecords.zipWithIndex.foreach { case (consumerRecord, index) =>
       assertEquals(s"xxxxxxxxxxxxxxxxxxxx-$index", new String(consumerRecord.value))
     }
@@ -1117,7 +1118,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     ).asJava, new AlterConfigsOptions().validateOnly(true))
 
     assertFutureExceptionTypeEquals(alterResult.values.get(groupResource), classOf[InvalidConfigurationException],
-      Some("consumer.session.timeout.ms must be greater than or equals to group.consumer.min.session.timeout.ms"))
+      Some("consumer.session.timeout.ms must be greater than or equal to group.consumer.min.session.timeout.ms"))
   }
 
   @ParameterizedTest
@@ -1335,9 +1336,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     assertEquals("This server does not host this topic-partition.", e.getCause.getMessage)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testSeekAfterDeleteRecords(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testSeekAfterDeleteRecords(quorum: String, groupProtocol: String): Unit = {
     createTopic(topic, numPartitions = 2, replicationFactor = brokerCount)
 
     client = createAdminClient
@@ -1365,9 +1366,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     assertEquals(10L, consumer.position(topicPartition))
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testLogStartOffsetCheckpoint(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testLogStartOffsetCheckpoint(quorum: String, groupProtocol: String): Unit = {
     createTopic(topic, numPartitions = 2, replicationFactor = brokerCount)
 
     client = createAdminClient
@@ -1405,9 +1406,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     }, s"Expected low watermark of the partition to be 5 but got ${lowWatermark.getOrElse("no response within the timeout")}")
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testLogStartOffsetAfterDeleteRecords(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testLogStartOffsetAfterDeleteRecords(quorum: String, groupProtocol: String): Unit = {
     createTopic(topic, numPartitions = 2, replicationFactor = brokerCount)
 
     client = createAdminClient
@@ -1508,32 +1509,39 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     assertEquals(expectedLEO, brokers.head.replicaManager.localLog(topicPartition).get.logEndOffset)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testOffsetsForTimesAfterDeleteRecords(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testOffsetsForTimesAfterDeleteRecords(quorum: String, groupProtocol: String): Unit = {
     createTopic(topic, numPartitions = 2, replicationFactor = brokerCount)
 
     client = createAdminClient
 
-    val consumer = createConsumer()
+    val props = new Properties()
+    val consumer = createConsumer(configOverrides = props)
     subscribeAndWaitForAssignment(topic, consumer)
 
     val producer = createProducer()
     sendRecords(producer, 10, topicPartition)
-    assertEquals(0L, consumer.offsetsForTimes(Map(topicPartition -> JLong.valueOf(0L)).asJava).get(topicPartition).offset())
+    var returnedOffsets = consumer.offsetsForTimes(Map(topicPartition -> JLong.valueOf(0L)).asJava)
+    assertTrue(returnedOffsets.containsKey(topicPartition))
+    assertEquals(0L, returnedOffsets.get(topicPartition).offset())
 
     var result = client.deleteRecords(Map(topicPartition -> RecordsToDelete.beforeOffset(5L)).asJava)
     result.all.get
-    assertEquals(5L, consumer.offsetsForTimes(Map(topicPartition -> JLong.valueOf(0L)).asJava).get(topicPartition).offset())
+    returnedOffsets = consumer.offsetsForTimes(Map(topicPartition -> JLong.valueOf(0L)).asJava)
+    assertTrue(returnedOffsets.containsKey(topicPartition))
+    assertEquals(5L, returnedOffsets.get(topicPartition).offset())
 
     result = client.deleteRecords(Map(topicPartition -> RecordsToDelete.beforeOffset(DeleteRecordsRequest.HIGH_WATERMARK)).asJava)
     result.all.get
-    assertNull(consumer.offsetsForTimes(Map(topicPartition -> JLong.valueOf(0L)).asJava).get(topicPartition))
+    returnedOffsets = consumer.offsetsForTimes(Map(topicPartition -> JLong.valueOf(0L)).asJava)
+    assertTrue(returnedOffsets.containsKey(topicPartition))
+    assertNull(returnedOffsets.get(topicPartition))
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testConsumeAfterDeleteRecords(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testConsumeAfterDeleteRecords(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     subscribeAndWaitForAssignment(topic, consumer)
 
@@ -1555,9 +1563,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     TestUtils.consumeRecords(consumer, 2)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testDeleteRecordsWithException(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testDeleteRecordsWithException(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     subscribeAndWaitForAssignment(topic, consumer)
 
@@ -1734,9 +1742,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
   /**
    * Test the consumer group APIs.
    */
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testConsumerGroups(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17960"))
+  def testConsumerGroups(quorum: String, groupProtocol: String): Unit = {
     val config = createConfig
     client = Admin.create(config)
     try {
@@ -1811,6 +1819,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
         // Start consumers in a thread that will subscribe to a new group.
         val consumerThreads = consumerSet.zip(topicSet).map(zipped => createConsumerThread(zipped._1, zipped._2))
+        val groupType = if (groupProtocol.equalsIgnoreCase(GroupProtocol.CONSUMER.name)) GroupType.CONSUMER else GroupType.CLASSIC
 
         try {
           consumerThreads.foreach(_.start())
@@ -1824,21 +1833,21 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           }, s"Expected to be able to list $testGroupId")
 
           TestUtils.waitUntilTrue(() => {
-            val options = new ListConsumerGroupsOptions().withTypes(Set(GroupType.CLASSIC).asJava)
+            val options = new ListConsumerGroupsOptions().withTypes(Set(groupType).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
                 group.groupId == testGroupId &&
                 group.state.get == ConsumerGroupState.STABLE)
             matching.size == 1
-          }, s"Expected to be able to list $testGroupId in group type Classic")
+          }, s"Expected to be able to list $testGroupId in group type $groupType")
 
           TestUtils.waitUntilTrue(() => {
-            val options = new ListConsumerGroupsOptions().withTypes(Set(GroupType.CLASSIC).asJava)
+            val options = new ListConsumerGroupsOptions().withTypes(Set(groupType).asJava)
               .inStates(Set(ConsumerGroupState.STABLE).asJava)
             val matching = client.listConsumerGroups(options).all.get.asScala.filter(group =>
               group.groupId == testGroupId &&
                 group.state.get == ConsumerGroupState.STABLE)
             matching.size == 1
-          }, s"Expected to be able to list $testGroupId in group type Classic and state Stable")
+          }, s"Expected to be able to list $testGroupId in group type $groupType and state Stable")
 
           TestUtils.waitUntilTrue(() => {
             val options = new ListConsumerGroupsOptions().inStates(Set(ConsumerGroupState.STABLE).asJava)
@@ -2003,9 +2012,9 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testDeleteConsumerGroupOffsets(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testDeleteConsumerGroupOffsets(quorum: String, groupProtocol: String): Unit = {
     val config = createConfig
     client = Admin.create(config)
     try {
@@ -2696,7 +2705,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     // verify subtract operation, including from an empty property
     topic1AlterConfigs = Seq(
       new AlterConfigOp(new ConfigEntry(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_COMPACT), AlterConfigOp.OpType.SUBTRACT),
-      new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "0"), AlterConfigOp.OpType.SUBTRACT)
+      new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "0"), AlterConfigOp.OpType.SUBTRACT)
     ).asJava
 
     // subtract all from this list property
@@ -2721,7 +2730,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
     assertEquals("delete", configs.get(topic1Resource).get(TopicConfig.CLEANUP_POLICY_CONFIG).value)
     assertEquals("1000", configs.get(topic1Resource).get(TopicConfig.FLUSH_MS_CONFIG).value) // verify previous change is still intact
-    assertEquals("", configs.get(topic1Resource).get(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG).value)
+    assertEquals("", configs.get(topic1Resource).get(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG).value)
     assertEquals("", configs.get(topic2Resource).get(TopicConfig.CLEANUP_POLICY_CONFIG).value )
 
     // Alter topics with validateOnly=true
@@ -2767,12 +2776,12 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     assertNotEquals("", subtractValues)
 
     val topicCreateConfigs = new Properties
-    topicCreateConfigs.setProperty(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, appendValues)
+    topicCreateConfigs.setProperty(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, appendValues)
     createTopic(topic, numPartitions = 1, replicationFactor = 1, topicCreateConfigs)
 
     // Append value that is already present
     val topicAppendConfigs = Seq(
-      new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, appendValues), AlterConfigOp.OpType.APPEND),
+      new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, appendValues), AlterConfigOp.OpType.APPEND),
     ).asJavaCollection
 
     val appendResult = client.incrementalAlterConfigs(Map(topicResource -> topicAppendConfigs).asJava)
@@ -2780,7 +2789,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
     // Subtract values that are not present
     val topicSubtractConfigs = Seq(
-      new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, subtractValues), AlterConfigOp.OpType.SUBTRACT)
+      new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, subtractValues), AlterConfigOp.OpType.SUBTRACT)
     ).asJavaCollection
     val subtractResult = client.incrementalAlterConfigs(Map(topicResource -> topicSubtractConfigs).asJava)
     subtractResult.all.get
@@ -2791,7 +2800,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     val describeResult = client.describeConfigs(Seq(topicResource).asJava)
     val configs = describeResult.all.get
 
-    assertEquals(appendValues, configs.get(topicResource).get(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG).value)
+    assertEquals(appendValues, configs.get(topicResource).get(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG).value)
   }
 
   @ParameterizedTest
@@ -2800,31 +2809,31 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     client = createAdminClient
     val broker0Resource = new ConfigResource(ConfigResource.Type.BROKER, "0")
     client.incrementalAlterConfigs(Map(broker0Resource ->
-      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "123"),
+      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "123"),
           AlterConfigOp.OpType.SET),
-        new AlterConfigOp(new ConfigEntry(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "456"),
+        new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "456"),
           AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
     TestUtils.waitUntilTrue(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
-      ("123".equals(broker0Configs.getOrElse(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
-        "456".equals(broker0Configs.getOrElse(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")))
+      ("123".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
+        "456".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")))
     }, "Expected to see the broker properties we just set", pause=25)
     client.incrementalAlterConfigs(Map(broker0Resource ->
-      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
+      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
         AlterConfigOp.OpType.DELETE),
-        new AlterConfigOp(new ConfigEntry(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "654"),
+        new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "654"),
           AlterConfigOp.OpType.SET),
-        new AlterConfigOp(new ConfigEntry(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "987"),
+        new AlterConfigOp(new ConfigEntry(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "987"),
           AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
     TestUtils.waitUntilTrue(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
-      ("".equals(broker0Configs.getOrElse(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
-        "654".equals(broker0Configs.getOrElse(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
-        "987".equals(broker0Configs.getOrElse(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
+      ("".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
+        "654".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
+        "987".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
     }, "Expected to see the broker properties we just modified", pause=25)
   }
 
@@ -2834,34 +2843,34 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     client = createAdminClient
     val broker0Resource = new ConfigResource(ConfigResource.Type.BROKER, "0")
     client.incrementalAlterConfigs(Map(broker0Resource ->
-      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "123"),
+      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "123"),
         AlterConfigOp.OpType.SET),
-        new AlterConfigOp(new ConfigEntry(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "456"),
+        new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "456"),
           AlterConfigOp.OpType.SET),
-        new AlterConfigOp(new ConfigEntry(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "789"),
+        new AlterConfigOp(new ConfigEntry(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "789"),
           AlterConfigOp.OpType.SET)
       ).asJavaCollection).asJava).all().get()
     TestUtils.waitUntilTrue(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
-      ("123".equals(broker0Configs.getOrElse(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
-        "456".equals(broker0Configs.getOrElse(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
-        "789".equals(broker0Configs.getOrElse(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
+      ("123".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
+        "456".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
+        "789".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
     }, "Expected to see the broker properties we just set", pause=25)
     client.incrementalAlterConfigs(Map(broker0Resource ->
-      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
+      Seq(new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
         AlterConfigOp.OpType.DELETE),
-        new AlterConfigOp(new ConfigEntry(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
+        new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, ""),
           AlterConfigOp.OpType.DELETE),
-        new AlterConfigOp(new ConfigEntry(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, ""),
+        new AlterConfigOp(new ConfigEntry(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, ""),
           AlterConfigOp.OpType.DELETE)
       ).asJavaCollection).asJava).all().get()
     TestUtils.waitUntilTrue(() => {
       val broker0Configs = client.describeConfigs(Seq(broker0Resource).asJava).
         all().get().get(broker0Resource).entries().asScala.map(entry => (entry.name, entry.value)).toMap
-      ("".equals(broker0Configs.getOrElse(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
-        "".equals(broker0Configs.getOrElse(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
-        "".equals(broker0Configs.getOrElse(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
+      ("".equals(broker0Configs.getOrElse(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
+        "".equals(broker0Configs.getOrElse(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, "")) &&
+        "".equals(broker0Configs.getOrElse(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, "")))
     }, "Expected to see the broker properties we just removed to be deleted", pause=25)
   }
 
@@ -3060,127 +3069,122 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     LoggerFactory.getLogger("kafka.cluster.Replica").trace("Message to create the logger")
     val loggerConfig = describeBrokerLoggers()
     val kafkaLogLevel = loggerConfig.get("kafka").value()
-    val logCleanerLogLevelConfig = loggerConfig.get("kafka.cluster.Replica")
+    val clusterReplicaLogLevel = loggerConfig.get("kafka.cluster.Replica")
     // we expect the log level to be inherited from the first ancestor with a level configured
-    assertEquals(kafkaLogLevel, logCleanerLogLevelConfig.value())
-    assertEquals("kafka.cluster.Replica", logCleanerLogLevelConfig.name())
-    assertEquals(ConfigSource.DYNAMIC_BROKER_LOGGER_CONFIG, logCleanerLogLevelConfig.source())
-    assertEquals(false, logCleanerLogLevelConfig.isReadOnly)
-    assertEquals(false, logCleanerLogLevelConfig.isSensitive)
-    assertTrue(logCleanerLogLevelConfig.synonyms().isEmpty)
+    assertEquals(kafkaLogLevel, clusterReplicaLogLevel.value())
+    assertEquals("kafka.cluster.Replica", clusterReplicaLogLevel.name())
+    assertEquals(ConfigSource.DYNAMIC_BROKER_LOGGER_CONFIG, clusterReplicaLogLevel.source())
+    assertEquals(false, clusterReplicaLogLevel.isReadOnly)
+    assertEquals(false, clusterReplicaLogLevel.isSensitive)
+    assertTrue(clusterReplicaLogLevel.synonyms().isEmpty)
   }
 
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  @Disabled // To be re-enabled once KAFKA-8779 is resolved
   def testIncrementalAlterConfigsForLog4jLogLevels(quorum: String): Unit = {
     client = createAdminClient
 
+    val ancestorLogger = "kafka";
     val initialLoggerConfig = describeBrokerLoggers()
-    val initialRootLogLevel = initialLoggerConfig.get(Log4jController.ROOT_LOGGER).value()
-    assertEquals(initialRootLogLevel, initialLoggerConfig.get("kafka.controller.KafkaController").value())
-    assertEquals(initialRootLogLevel, initialLoggerConfig.get("kafka.log.LogCleaner").value())
-    assertEquals(initialRootLogLevel, initialLoggerConfig.get("kafka.server.ReplicaManager").value())
+    val initialAncestorLogLevel = initialLoggerConfig.get("kafka").value()
+    val initialControllerServerLogLevel = initialLoggerConfig.get("kafka.server.ControllerServer").value()
+    val initialLogCleanerLogLevel = initialLoggerConfig.get("kafka.log.LogCleaner").value()
+    val initialReplicaManagerLogLevel = initialLoggerConfig.get("kafka.server.ReplicaManager").value()
 
-    val newRootLogLevel = LogLevelConfig.DEBUG_LOG_LEVEL
-    val alterRootLoggerEntry = Seq(
-      new AlterConfigOp(new ConfigEntry(Log4jController.ROOT_LOGGER, newRootLogLevel), AlterConfigOp.OpType.SET)
+    val newAncestorLogLevel = LogLevelConfig.DEBUG_LOG_LEVEL
+    val alterAncestorLoggerEntry = Seq(
+      new AlterConfigOp(new ConfigEntry(ancestorLogger, newAncestorLogLevel), AlterConfigOp.OpType.SET)
     ).asJavaCollection
     // Test validateOnly does not change anything
-    alterBrokerLoggers(alterRootLoggerEntry, validateOnly = true)
+    alterBrokerLoggers(alterAncestorLoggerEntry, validateOnly = true)
     val validatedLoggerConfig = describeBrokerLoggers()
-    assertEquals(initialRootLogLevel, validatedLoggerConfig.get(Log4jController.ROOT_LOGGER).value())
-    assertEquals(initialRootLogLevel, validatedLoggerConfig.get("kafka.controller.KafkaController").value())
-    assertEquals(initialRootLogLevel, validatedLoggerConfig.get("kafka.log.LogCleaner").value())
-    assertEquals(initialRootLogLevel, validatedLoggerConfig.get("kafka.server.ReplicaManager").value())
-    assertEquals(initialRootLogLevel, validatedLoggerConfig.get("kafka.zookeeper.ZooKeeperClient").value())
+    assertEquals(initialAncestorLogLevel, validatedLoggerConfig.get(ancestorLogger).value())
+    assertEquals(initialControllerServerLogLevel, validatedLoggerConfig.get("kafka.server.ControllerServer").value())
+    assertEquals(initialLogCleanerLogLevel, validatedLoggerConfig.get("kafka.log.LogCleaner").value())
+    assertEquals(initialReplicaManagerLogLevel, validatedLoggerConfig.get("kafka.server.ReplicaManager").value())
 
     // test that we can change them and unset loggers still use the root's log level
-    alterBrokerLoggers(alterRootLoggerEntry)
-    val changedRootLoggerConfig = describeBrokerLoggers()
-    assertEquals(newRootLogLevel, changedRootLoggerConfig.get(Log4jController.ROOT_LOGGER).value())
-    assertEquals(newRootLogLevel, changedRootLoggerConfig.get("kafka.controller.KafkaController").value())
-    assertEquals(newRootLogLevel, changedRootLoggerConfig.get("kafka.log.LogCleaner").value())
-    assertEquals(newRootLogLevel, changedRootLoggerConfig.get("kafka.server.ReplicaManager").value())
-    assertEquals(newRootLogLevel, changedRootLoggerConfig.get("kafka.zookeeper.ZooKeeperClient").value())
+    alterBrokerLoggers(alterAncestorLoggerEntry)
+    val changedAncestorLoggerConfig = describeBrokerLoggers()
+    assertEquals(newAncestorLogLevel, changedAncestorLoggerConfig.get(ancestorLogger).value())
+    assertEquals(newAncestorLogLevel, changedAncestorLoggerConfig.get("kafka.server.ControllerServer").value())
+    assertEquals(newAncestorLogLevel, changedAncestorLoggerConfig.get("kafka.log.LogCleaner").value())
+    assertEquals(newAncestorLogLevel, changedAncestorLoggerConfig.get("kafka.server.ReplicaManager").value())
 
-    // alter the ZK client's logger so we can later test resetting it
-    val alterZKLoggerEntry = Seq(
-      new AlterConfigOp(new ConfigEntry("kafka.zookeeper.ZooKeeperClient", LogLevelConfig.ERROR_LOG_LEVEL), AlterConfigOp.OpType.SET)
+    // alter the LogCleaner's logger so we can later test resetting it
+    val alterLogCleanerLoggerEntry = Seq(
+      new AlterConfigOp(new ConfigEntry("kafka.log.LogCleaner", LogLevelConfig.ERROR_LOG_LEVEL), AlterConfigOp.OpType.SET)
     ).asJavaCollection
-    alterBrokerLoggers(alterZKLoggerEntry)
+    alterBrokerLoggers(alterLogCleanerLoggerEntry)
     val changedZKLoggerConfig = describeBrokerLoggers()
-    assertEquals(LogLevelConfig.ERROR_LOG_LEVEL, changedZKLoggerConfig.get("kafka.zookeeper.ZooKeeperClient").value())
+    assertEquals(LogLevelConfig.ERROR_LOG_LEVEL, changedZKLoggerConfig.get("kafka.log.LogCleaner").value())
 
     // properly test various set operations and one delete
     val alterLogLevelsEntries = Seq(
-      new AlterConfigOp(new ConfigEntry("kafka.controller.KafkaController", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET),
+      new AlterConfigOp(new ConfigEntry("kafka.server.ControllerServer", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET),
       new AlterConfigOp(new ConfigEntry("kafka.log.LogCleaner", LogLevelConfig.ERROR_LOG_LEVEL), AlterConfigOp.OpType.SET),
       new AlterConfigOp(new ConfigEntry("kafka.server.ReplicaManager", LogLevelConfig.TRACE_LOG_LEVEL), AlterConfigOp.OpType.SET),
-      new AlterConfigOp(new ConfigEntry("kafka.zookeeper.ZooKeeperClient", ""), AlterConfigOp.OpType.DELETE) // should reset to the root logger level
     ).asJavaCollection
     alterBrokerLoggers(alterLogLevelsEntries)
     val alteredLoggerConfig = describeBrokerLoggers()
-    assertEquals(newRootLogLevel, alteredLoggerConfig.get(Log4jController.ROOT_LOGGER).value())
-    assertEquals(LogLevelConfig.INFO_LOG_LEVEL, alteredLoggerConfig.get("kafka.controller.KafkaController").value())
+    assertEquals(newAncestorLogLevel, alteredLoggerConfig.get(ancestorLogger).value())
+    assertEquals(LogLevelConfig.INFO_LOG_LEVEL, alteredLoggerConfig.get("kafka.server.ControllerServer").value())
     assertEquals(LogLevelConfig.ERROR_LOG_LEVEL, alteredLoggerConfig.get("kafka.log.LogCleaner").value())
     assertEquals(LogLevelConfig.TRACE_LOG_LEVEL, alteredLoggerConfig.get("kafka.server.ReplicaManager").value())
-    assertEquals(newRootLogLevel, alteredLoggerConfig.get("kafka.zookeeper.ZooKeeperClient").value())
   }
 
   /**
-    * 1. Assume ROOT logger == TRACE
-    * 2. Change kafka.controller.KafkaController logger to INFO
-    * 3. Unset kafka.controller.KafkaController via AlterConfigOp.OpType.DELETE (resets it to the root logger - TRACE)
-    * 4. Change ROOT logger to ERROR
-    * 5. Ensure the kafka.controller.KafkaController logger's level is ERROR (the current root logger level)
+    * 1. Assume kafka logger == TRACE
+    * 2. Change kafka.server.ControllerServer logger to INFO
+    * 3. Unset kafka.server.ControllerServer via AlterConfigOp.OpType.DELETE (resets it to the kafka logger - TRACE)
+    * 4. Change kafka logger to ERROR
+    * 5. Ensure the kafka.server.ControllerServer logger's level is ERROR (the current kafka logger level)
     */
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  @Disabled // To be re-enabled once KAFKA-8779 is resolved
   def testIncrementalAlterConfigsForLog4jLogLevelsCanResetLoggerToCurrentRoot(quorum: String): Unit = {
     client = createAdminClient
-    // step 1 - configure root logger
-    val initialRootLogLevel = LogLevelConfig.TRACE_LOG_LEVEL
-    val alterRootLoggerEntry = Seq(
-      new AlterConfigOp(new ConfigEntry(Log4jController.ROOT_LOGGER, initialRootLogLevel), AlterConfigOp.OpType.SET)
+    val ancestorLogger = "kafka"
+    // step 1 - configure kafka logger
+    val initialAncestorLogLevel = LogLevelConfig.TRACE_LOG_LEVEL
+    val alterAncestorLoggerEntry = Seq(
+      new AlterConfigOp(new ConfigEntry(ancestorLogger, initialAncestorLogLevel), AlterConfigOp.OpType.SET)
     ).asJavaCollection
-    alterBrokerLoggers(alterRootLoggerEntry)
+    alterBrokerLoggers(alterAncestorLoggerEntry)
     val initialLoggerConfig = describeBrokerLoggers()
-    assertEquals(initialRootLogLevel, initialLoggerConfig.get(Log4jController.ROOT_LOGGER).value())
-    assertEquals(initialRootLogLevel, initialLoggerConfig.get("kafka.controller.KafkaController").value())
+    assertEquals(initialAncestorLogLevel, initialLoggerConfig.get(ancestorLogger).value())
+    assertEquals(initialAncestorLogLevel, initialLoggerConfig.get("kafka.server.ControllerServer").value())
 
-    // step 2 - change KafkaController logger to INFO
+    // step 2 - change ControllerServer logger to INFO
     val alterControllerLoggerEntry = Seq(
-      new AlterConfigOp(new ConfigEntry("kafka.controller.KafkaController", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET)
+      new AlterConfigOp(new ConfigEntry("kafka.server.ControllerServer", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET)
     ).asJavaCollection
     alterBrokerLoggers(alterControllerLoggerEntry)
     val changedControllerLoggerConfig = describeBrokerLoggers()
-    assertEquals(initialRootLogLevel, changedControllerLoggerConfig.get(Log4jController.ROOT_LOGGER).value())
-    assertEquals(LogLevelConfig.INFO_LOG_LEVEL, changedControllerLoggerConfig.get("kafka.controller.KafkaController").value())
+    assertEquals(initialAncestorLogLevel, changedControllerLoggerConfig.get(ancestorLogger).value())
+    assertEquals(LogLevelConfig.INFO_LOG_LEVEL, changedControllerLoggerConfig.get("kafka.server.ControllerServer").value())
 
-    // step 3 - unset KafkaController logger
+    // step 3 - unset ControllerServer logger
     val deleteControllerLoggerEntry = Seq(
-      new AlterConfigOp(new ConfigEntry("kafka.controller.KafkaController", ""), AlterConfigOp.OpType.DELETE)
+      new AlterConfigOp(new ConfigEntry("kafka.server.ControllerServer", ""), AlterConfigOp.OpType.DELETE)
     ).asJavaCollection
     alterBrokerLoggers(deleteControllerLoggerEntry)
     val deletedControllerLoggerConfig = describeBrokerLoggers()
-    assertEquals(initialRootLogLevel, deletedControllerLoggerConfig.get(Log4jController.ROOT_LOGGER).value())
-    assertEquals(initialRootLogLevel, deletedControllerLoggerConfig.get("kafka.controller.KafkaController").value())
+    assertEquals(initialAncestorLogLevel, deletedControllerLoggerConfig.get(ancestorLogger).value())
+    assertEquals(initialAncestorLogLevel, deletedControllerLoggerConfig.get("kafka.server.ControllerServer").value())
 
-    val newRootLogLevel = LogLevelConfig.ERROR_LOG_LEVEL
-    val newAlterRootLoggerEntry = Seq(
-      new AlterConfigOp(new ConfigEntry(Log4jController.ROOT_LOGGER, newRootLogLevel), AlterConfigOp.OpType.SET)
+    val newAncestorLogLevel = LogLevelConfig.ERROR_LOG_LEVEL
+    val newAlterAncestorLoggerEntry = Seq(
+      new AlterConfigOp(new ConfigEntry(ancestorLogger, newAncestorLogLevel), AlterConfigOp.OpType.SET)
     ).asJavaCollection
-    alterBrokerLoggers(newAlterRootLoggerEntry)
-    val newRootLoggerConfig = describeBrokerLoggers()
-    assertEquals(newRootLogLevel, newRootLoggerConfig.get(Log4jController.ROOT_LOGGER).value())
-    assertEquals(newRootLogLevel, newRootLoggerConfig.get("kafka.controller.KafkaController").value())
+    alterBrokerLoggers(newAlterAncestorLoggerEntry)
+    val newAncestorLoggerConfig = describeBrokerLoggers()
+    assertEquals(newAncestorLogLevel, newAncestorLoggerConfig.get(ancestorLogger).value())
+    assertEquals(newAncestorLogLevel, newAncestorLoggerConfig.get("kafka.server.ControllerServer").value())
   }
 
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  @Disabled // to be re-enabled once KAFKA-8779 is resolved
   def testIncrementalAlterConfigsForLog4jLogLevelsCannotResetRootLogger(quorum: String): Unit = {
     client = createAdminClient
     val deleteRootLoggerEntry = Seq(
@@ -3192,7 +3196,6 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  @Disabled // To be re-enabled once KAFKA-8779 is resolved
   def testIncrementalAlterConfigsForLog4jLogLevelsDoesNotWorkWithInvalidConfigs(quorum: String): Unit = {
     client = createAdminClient
     val validLoggerName = "kafka.server.KafkaRequestHandler"
@@ -3205,29 +3208,28 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       new AlterConfigOp(new ConfigEntry("kafka.server.KafkaRequestHandler", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET), // valid
       new AlterConfigOp(new ConfigEntry("kafka.network.SocketServer", LogLevelConfig.ERROR_LOG_LEVEL), AlterConfigOp.OpType.APPEND) // append is not supported
     ).asJavaCollection
-    assertTrue(assertThrows(classOf[ExecutionException],
-      () => alterBrokerLoggers(appendLogLevelEntries)).getCause.isInstanceOf[InvalidRequestException])
+    assertInstanceOf(classOf[InvalidRequestException], assertThrows(classOf[ExecutionException], () => alterBrokerLoggers(appendLogLevelEntries)).getCause)
     assertLogLevelDidNotChange()
 
     val subtractLogLevelEntries = Seq(
       new AlterConfigOp(new ConfigEntry("kafka.server.KafkaRequestHandler", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET), // valid
       new AlterConfigOp(new ConfigEntry("kafka.network.SocketServer", LogLevelConfig.ERROR_LOG_LEVEL), AlterConfigOp.OpType.SUBTRACT) // subtract is not supported
     ).asJavaCollection
-    assertTrue(assertThrows(classOf[ExecutionException], () => alterBrokerLoggers(subtractLogLevelEntries)).getCause.isInstanceOf[InvalidRequestException])
+    assertInstanceOf(classOf[InvalidRequestException], assertThrows(classOf[ExecutionException], () => alterBrokerLoggers(subtractLogLevelEntries)).getCause)
     assertLogLevelDidNotChange()
 
     val invalidLogLevelLogLevelEntries = Seq(
       new AlterConfigOp(new ConfigEntry("kafka.server.KafkaRequestHandler", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET), // valid
       new AlterConfigOp(new ConfigEntry("kafka.network.SocketServer", "OFF"), AlterConfigOp.OpType.SET) // OFF is not a valid log level
     ).asJavaCollection
-    assertTrue(assertThrows(classOf[ExecutionException], () => alterBrokerLoggers(invalidLogLevelLogLevelEntries)).getCause.isInstanceOf[InvalidRequestException])
+    assertInstanceOf(classOf[InvalidConfigurationException], assertThrows(classOf[ExecutionException], () => alterBrokerLoggers(invalidLogLevelLogLevelEntries)).getCause)
     assertLogLevelDidNotChange()
 
     val invalidLoggerNameLogLevelEntries = Seq(
       new AlterConfigOp(new ConfigEntry("kafka.server.KafkaRequestHandler", LogLevelConfig.INFO_LOG_LEVEL), AlterConfigOp.OpType.SET), // valid
       new AlterConfigOp(new ConfigEntry("Some Other LogCleaner", LogLevelConfig.ERROR_LOG_LEVEL), AlterConfigOp.OpType.SET) // invalid logger name is not supported
     ).asJavaCollection
-    assertTrue(assertThrows(classOf[ExecutionException], () => alterBrokerLoggers(invalidLoggerNameLogLevelEntries)).getCause.isInstanceOf[InvalidRequestException])
+    assertInstanceOf(classOf[InvalidConfigurationException], assertThrows(classOf[ExecutionException], () => alterBrokerLoggers(invalidLoggerNameLogLevelEntries)).getCause)
     assertLogLevelDidNotChange()
   }
 
@@ -3241,46 +3243,19 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     client = createAdminClient
 
     val alterLogLevelsEntries = Seq(
-      new ConfigEntry("kafka.controller.KafkaController", LogLevelConfig.INFO_LOG_LEVEL)
+      new ConfigEntry("kafka.server.ControllerServer", LogLevelConfig.INFO_LOG_LEVEL)
     ).asJavaCollection
     val alterResult = client.alterConfigs(Map(brokerLoggerConfigResource -> new Config(alterLogLevelsEntries)).asJava)
     assertTrue(assertThrows(classOf[ExecutionException], () => alterResult.values.get(brokerLoggerConfigResource).get).getCause.isInstanceOf[InvalidRequestException])
   }
 
   def alterBrokerLoggers(entries: util.Collection[AlterConfigOp], validateOnly: Boolean = false): Unit = {
-    if (!validateOnly) {
-      for (entry <- entries.asScala)
-        changedBrokerLoggers.add(entry.configEntry().name())
-    }
-
     client.incrementalAlterConfigs(Map(brokerLoggerConfigResource -> entries).asJava, new AlterConfigsOptions().validateOnly(validateOnly))
       .values.get(brokerLoggerConfigResource).get()
   }
 
   def describeBrokerLoggers(): Config =
     client.describeConfigs(Collections.singletonList(brokerLoggerConfigResource)).values.get(brokerLoggerConfigResource).get()
-
-  /**
-   * Due to the fact that log4j is not re-initialized across tests, changing a logger's log level persists across test classes.
-   * We need to clean up the changes done while testing.
-   */
-  private def teardownBrokerLoggers(): Unit = {
-    if (changedBrokerLoggers.nonEmpty) {
-      val validLoggers = describeBrokerLoggers().entries().asScala.filterNot(_.name.equals(Log4jController.ROOT_LOGGER)).map(_.name).toSet
-      val unsetBrokerLoggersEntries = changedBrokerLoggers
-        .intersect(validLoggers)
-        .map { logger => new AlterConfigOp(new ConfigEntry(logger, ""), AlterConfigOp.OpType.DELETE) }
-        .asJavaCollection
-
-      // ensure that we first reset the root logger to an arbitrary log level. Note that we cannot reset it to its original value
-      alterBrokerLoggers(List(
-        new AlterConfigOp(new ConfigEntry(Log4jController.ROOT_LOGGER, LogLevelConfig.FATAL_LOG_LEVEL), AlterConfigOp.OpType.SET)
-      ).asJavaCollection)
-      alterBrokerLoggers(unsetBrokerLoggersEntries)
-
-      changedBrokerLoggers.clear()
-    }
-  }
 
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
@@ -3292,7 +3267,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
   @ValueSource(strings = Array("kraft"))
   def testAppendConfigToExistentValue(ignored: String): Unit = {
     val props = new Properties()
-    props.setProperty(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "1:1")
+    props.setProperty(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "1:1")
     testAppendConfig(props, "0:0", "1:1,0:0")
   }
 
@@ -3301,7 +3276,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     createTopic(topic, topicConfig = props)
     val topicResource = new ConfigResource(ConfigResource.Type.TOPIC, topic)
     val topicAlterConfigs = Seq(
-      new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, append), AlterConfigOp.OpType.APPEND),
+      new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, append), AlterConfigOp.OpType.APPEND),
     ).asJavaCollection
 
     val alterResult = client.incrementalAlterConfigs(Map(
@@ -3310,7 +3285,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     alterResult.all().get(15, TimeUnit.SECONDS)
 
     ensureConsistentKRaftMetadata()
-    val config = client.describeConfigs(List(topicResource).asJava).all().get().get(topicResource).get(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
+    val config = client.describeConfigs(List(topicResource).asJava).all().get().get(topicResource).get(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
     assertEquals(expected, config.value())
   }
 
@@ -3343,7 +3318,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       assertInstanceOf(classOf[TimeoutException], exception.getCause)
     } finally client.close(time.Duration.ZERO)
   }
-  
+
   /**
    * Test that createTopics returns the dynamic configurations of the topics that were created.
    *
@@ -3389,7 +3364,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       (1: Integer) -> Seq[Integer](2, 0).asJava).asJava).
       configs(Collections.singletonMap(TopicConfig.INDEX_INTERVAL_BYTES_CONFIG, "9999999")),
       new NewTopic("bar", 3, 3.toShort),
-      new NewTopic("baz", Option.empty[Integer].asJava, Option.empty[java.lang.Short].asJava)
+      new NewTopic("baz", Option.empty[Integer].toJava, Option.empty[java.lang.Short].toJava)
     )
     val result = client.createTopics(newTopics.asJava)
     result.all.get()
@@ -3588,5 +3563,18 @@ object PlaintextAdminIntegrationTest {
     assertEquals("snappy", configs.get(topicResource2).get(TopicConfig.COMPRESSION_TYPE_CONFIG).value)
 
     assertEquals(LogConfig.DEFAULT_COMPRESSION_TYPE, configs.get(brokerResource).get(ServerConfigs.COMPRESSION_TYPE_CONFIG).value)
+  }
+
+  /**
+   * Resets the logging configuration after the test.
+   */
+  def resetLogging(): Unit = {
+    org.apache.log4j.LogManager.resetConfiguration()
+    val stream = this.getClass.getResourceAsStream("/log4j.properties")
+    try {
+      PropertyConfigurator.configure(stream)
+    } finally {
+      stream.close()
+    }
   }
 }

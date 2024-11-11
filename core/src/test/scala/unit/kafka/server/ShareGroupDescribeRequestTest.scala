@@ -28,8 +28,9 @@ import org.apache.kafka.common.requests.{ShareGroupDescribeRequest, ShareGroupDe
 import org.apache.kafka.common.resource.ResourceType
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
+import org.apache.kafka.coordinator.group.modern.share.ShareGroupConfig
 import org.apache.kafka.security.authorizer.AclEntry
-import org.apache.kafka.server.config.{ServerConfigs, ShareGroupConfig}
+import org.apache.kafka.server.config.ServerConfigs
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{Tag, Timeout}
 import org.junit.jupiter.api.extension.ExtendWith
@@ -39,7 +40,9 @@ import scala.jdk.CollectionConverters._
 
 @Timeout(120)
 @ExtendWith(value = Array(classOf[ClusterTestExtensions]))
-@ClusterTestDefaults(types = Array(Type.KRAFT), brokers = 1)
+@ClusterTestDefaults(types = Array(Type.KRAFT), brokers = 1, serverProperties = Array(
+  new ClusterConfigProperty(key = ShareGroupConfig.SHARE_GROUP_PERSISTER_CLASS_NAME_CONFIG, value = "")
+))
 @Tag("integration")
 class ShareGroupDescribeRequestTest(cluster: ClusterInstance) extends GroupCoordinatorBaseRequestTest(cluster) {
 

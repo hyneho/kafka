@@ -66,12 +66,12 @@ import static org.apache.kafka.streams.internals.StreamsConfigUtils.totalCacheSi
 
 /**
  * Streams configs that apply at the topology level. The values in the {@link StreamsConfig} parameter of the
- * {@link org.apache.kafka.streams.KafkaStreams} or {@link KafkaStreamsNamedTopologyWrapper} constructors will
- * determine the defaults, which can then be overridden for specific topologies by passing them in when creating the
+ * {@link org.apache.kafka.streams.KafkaStreams} constructor or the {@link KafkaStreamsNamedTopologyWrapper} constructor (deprecated)
+ * will determine the defaults, which can then be overridden for specific topologies by passing them in when creating the
  * topology builders via the {@link org.apache.kafka.streams.StreamsBuilder#StreamsBuilder(TopologyConfig) StreamsBuilder(TopologyConfig)} method.
  */
 @SuppressWarnings("deprecation")
-public class TopologyConfig extends AbstractConfig {
+public final class TopologyConfig extends AbstractConfig {
     private static final ConfigDef CONFIG;
     static {
         CONFIG = new ConfigDef()
@@ -151,7 +151,6 @@ public class TopologyConfig extends AbstractConfig {
         this(null, globalAppConfigs, new Properties());
     }
 
-    @SuppressWarnings("this-escape")
     public TopologyConfig(final String topologyName, final StreamsConfig globalAppConfigs, final Properties topologyOverrides) {
         super(CONFIG, topologyOverrides, false);
 
