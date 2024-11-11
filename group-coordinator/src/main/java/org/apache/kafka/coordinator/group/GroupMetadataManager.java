@@ -2615,6 +2615,7 @@ public class GroupMetadataManager {
                     .withTargetAssignment(group.targetAssignment())
                     .withInvertedTargetAssignment(group.invertedTargetAssignment())
                     .withTopicsImage(metadataImage.topics())
+                    .withResolvedRegularExpressions(group.resolvedRegularExpressions())
                     .addOrUpdateMember(updatedMember.memberId(), updatedMember);
 
             // If the instance id was associated to a different member, it means that the
