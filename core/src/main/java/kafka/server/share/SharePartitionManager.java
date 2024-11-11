@@ -46,6 +46,9 @@ import org.apache.kafka.server.share.acknowledge.ShareAcknowledgementBatch;
 import org.apache.kafka.server.share.context.FinalContext;
 import org.apache.kafka.server.share.context.ShareFetchContext;
 import org.apache.kafka.server.share.context.ShareSessionContext;
+import org.apache.kafka.server.share.fetch.DelayedShareFetchGroupKey;
+import org.apache.kafka.server.share.fetch.DelayedShareFetchKey;
+import org.apache.kafka.server.share.fetch.DelayedShareFetchPartitionKey;
 import org.apache.kafka.server.share.fetch.ShareFetchData;
 import org.apache.kafka.server.share.persister.Persister;
 import org.apache.kafka.server.share.session.ShareSession;
@@ -64,7 +67,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,8 +75,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
-import scala.jdk.javaapi.CollectionConverters;
 
 /**
  * The SharePartitionManager is responsible for managing the SharePartitions and ShareSessions.
@@ -545,9 +546,8 @@ public class SharePartitionManager implements AutoCloseable {
 
     // Add the share fetch request to the delayed share fetch purgatory to process the fetch request if it can be
     // completed else watch until it can be completed/timeout.
-    private void addDelayedShareFetch(DelayedShareFetch delayedShareFetch, Set<DelayedShareFetchKey> keys) {
-        replicaManager.addDelayedShareFetchRequest(delayedShareFetch,
-            CollectionConverters.asScala(keys).toSeq());
+    private void addDelayedShareFetch(DelayedShareFetch delayedShareFetch, List<DelayedShareFetchKey> keys) {
+        replicaManager.addDelayedShareFetchRequest(delayedShareFetch, keys);
     }
 
     @Override
@@ -573,7 +573,8 @@ public class SharePartitionManager implements AutoCloseable {
 
         // Initialize lazily, if required.
         Map<TopicIdPartition, Throwable> erroneous = null;
-        Set<DelayedShareFetchKey> delayedShareFetchWatchKeys = new HashSet<>();
+        List<DelayedShareFetchKey> delayedShareFetchWatchKeys = new ArrayList<>();
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         for (TopicIdPartition topicIdPartition : shareFetchData.partitionMaxBytes().keySet()) {
             SharePartitionKey sharePartitionKey = sharePartitionKey(
                 shareFetchData.groupId(),
@@ -617,6 +618,7 @@ public class SharePartitionManager implements AutoCloseable {
                     maybeCompleteInitializationWithException(sharePartitionKey, shareFetchData.future(), throwable);
                 }
             });
+            sharePartitions.put(topicIdPartition, sharePartition);
         }
 
         // If all the partitions in the request errored out, then complete the fetch request with an exception.
@@ -629,7 +631,7 @@ public class SharePartitionManager implements AutoCloseable {
         // TODO: If there exists some erroneous partitions then they will not be part of response.
 
         // Add the share fetch to the delayed share fetch purgatory to process the fetch request.
-        addDelayedShareFetch(new DelayedShareFetch(shareFetchData, replicaManager, this), delayedShareFetchWatchKeys);
+        addDelayedShareFetch(new DelayedShareFetch(shareFetchData, replicaManager, this, sharePartitions), delayedShareFetchWatchKeys);
     }
 
     private SharePartition getOrCreateSharePartition(SharePartitionKey sharePartitionKey) {
@@ -712,16 +714,6 @@ public class SharePartitionManager implements AutoCloseable {
 
     private SharePartitionKey sharePartitionKey(String groupId, TopicIdPartition topicIdPartition) {
         return new SharePartitionKey(groupId, topicIdPartition);
-    }
-
-    /**
-     *
-     * @param groupId The share group id, this is used to identify the share group.
-     * @param topicIdPartition The topic partition that the group is subscribed to.
-     * @return The share partition stored for the share group topic-partition.
-     */
-    protected SharePartition sharePartition(String groupId, TopicIdPartition topicIdPartition) {
-        return partitionCacheMap.get(sharePartitionKey(groupId, topicIdPartition));
     }
 
     static class ShareGroupMetrics {

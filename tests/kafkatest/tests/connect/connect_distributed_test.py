@@ -24,7 +24,7 @@ from kafkatest.services.kafka import KafkaService, config_property, quorum, cons
 from kafkatest.services.connect import ConnectDistributedService, ConnectServiceBase, VerifiableSource, VerifiableSink, ConnectRestError, MockSink, MockSource
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.services.security.security_config import SecurityConfig
-from kafkatest.version import DEV_BRANCH, LATEST_2_3, LATEST_2_2, LATEST_2_1, LATEST_2_0, LATEST_1_1, LATEST_1_0, KafkaVersion
+from kafkatest.version import DEV_BRANCH, LATEST_2_3, LATEST_2_2, LATEST_2_1, KafkaVersion
 
 from functools import reduce
 from collections import Counter, namedtuple
@@ -449,7 +449,8 @@ class ConnectDistributedTest(Test):
                        err_msg="Failed to see connector startup in PAUSED state")
 
     @cluster(num_nodes=5)
-    def test_dynamic_logging(self):
+    @parametrize(metadata_quorum=quorum.isolated_kraft)
+    def test_dynamic_logging(self, metadata_quorum):
         """
         Test out the REST API for dynamically adjusting logging levels, on both a single-worker and cluster-wide basis.
         """
@@ -981,32 +982,23 @@ class ConnectDistributedTest(Test):
             assert obj['payload'][ts_fieldname] == ts
 
     @cluster(num_nodes=5)
-    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned')
-    @parametrize(broker_version=str(LATEST_2_3), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned')
-    @parametrize(broker_version=str(LATEST_2_2), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned')
-    @parametrize(broker_version=str(LATEST_2_1), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned')
-    @parametrize(broker_version=str(LATEST_2_0), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned')
-    @parametrize(broker_version=str(LATEST_1_1), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned')
-    @parametrize(broker_version=str(LATEST_1_0), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned')
-    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=False, connect_protocol='sessioned')
-    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible')
-    @parametrize(broker_version=str(LATEST_2_3), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible')
-    @parametrize(broker_version=str(LATEST_2_2), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible')
-    @parametrize(broker_version=str(LATEST_2_1), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible')
-    @parametrize(broker_version=str(LATEST_2_0), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible')
-    @parametrize(broker_version=str(LATEST_1_1), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible')
-    @parametrize(broker_version=str(LATEST_1_0), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible')
-    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager')
-    @parametrize(broker_version=str(LATEST_2_3), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager')
-    @parametrize(broker_version=str(LATEST_2_2), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager')
-    @parametrize(broker_version=str(LATEST_2_1), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager')
-    @parametrize(broker_version=str(LATEST_2_0), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager')
-    @parametrize(broker_version=str(LATEST_1_1), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager')
-    @parametrize(broker_version=str(LATEST_1_0), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager')
-    def test_broker_compatibility(self, broker_version, auto_create_topics, exactly_once_source, connect_protocol):
+    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned', metadata_quorum=quorum.isolated_kraft)
+    @parametrize(broker_version=str(LATEST_2_3), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(LATEST_2_2), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(LATEST_2_1), auto_create_topics=False, exactly_once_source=True, connect_protocol='sessioned', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=False, connect_protocol='sessioned', metadata_quorum=quorum.isolated_kraft)
+    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible', metadata_quorum=quorum.isolated_kraft)
+    @parametrize(broker_version=str(LATEST_2_3), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(LATEST_2_2), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(LATEST_2_1), auto_create_topics=False, exactly_once_source=False, connect_protocol='compatible', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(DEV_BRANCH), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager', metadata_quorum=quorum.isolated_kraft)
+    @parametrize(broker_version=str(LATEST_2_3), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(LATEST_2_2), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager', metadata_quorum=quorum.zk)
+    @parametrize(broker_version=str(LATEST_2_1), auto_create_topics=False, exactly_once_source=False, connect_protocol='eager', metadata_quorum=quorum.zk)
+    def test_broker_compatibility(self, broker_version, auto_create_topics, exactly_once_source, connect_protocol, metadata_quorum):
         """
-        Verify that Connect will start up with various broker versions with various configurations. 
-        When Connect distributed starts up, it either creates internal topics (v0.10.1.0 and after) 
+        Verify that Connect will start up with various broker versions with various configurations.
+        When Connect distributed starts up, it either creates internal topics (v0.10.1.0 and after)
         or relies upon the broker to auto-create the topics (v0.10.0.x and before).
         """
         self.EXACTLY_ONCE_SOURCE_SUPPORT = 'enabled' if exactly_once_source else 'disabled'
