@@ -3650,8 +3650,13 @@ public class RemoteLogManagerTest {
     }
 
     @Test
-    public void testRLMOpsWhenMetadataIsNotReady() {
-        doReturn(false).when(remoteLogMetadataManager).isReady(any(TopicIdPartition.class));
+    public void testRLMOpsWhenMetadataIsNotReady() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(2);
+        when(remoteLogMetadataManager.isReady(any(TopicIdPartition.class)))
+                .thenAnswer(ans -> {
+                    latch.countDown();
+                    return false;
+                });
         remoteLogManager.startup();
         remoteLogManager.onLeadershipChange(
                 Collections.singleton(mockPartition(leaderTopicIdPartition)),
@@ -3662,6 +3667,7 @@ public class RemoteLogManagerTest {
         assertNotNull(remoteLogManager.leaderExpirationTask(leaderTopicIdPartition));
         assertNotNull(remoteLogManager.followerTask(followerTopicIdPartition));
 
+        latch.await(5, TimeUnit.SECONDS);
         verify(remoteLogMetadataManager).configure(anyMap());
         verify(remoteLogMetadataManager).onPartitionLeadershipChanges(anySet(), anySet());
         verify(remoteLogMetadataManager, atLeastOnce()).isReady(eq(leaderTopicIdPartition));
