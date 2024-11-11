@@ -19,8 +19,8 @@ package org.apache.kafka.tools.consumer.group;
 import kafka.api.AbstractAuthorizerIntegrationTest;
 
 import org.apache.kafka.common.acl.AccessControlEntry;
-
 import org.apache.kafka.common.errors.GroupIdNotFoundException;
+
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
