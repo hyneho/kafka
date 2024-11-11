@@ -1890,18 +1890,25 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
           val expectedOperations = AclEntry.supportedOperations(ResourceType.GROUP)
           assertEquals(expectedOperations, testGroupDescription.authorizedOperations())
 
-          // Test that the fake group is listed as dead.
+          // Test that the fake group throws GroupIdNotFoundException
           assertTrue(describeWithFakeGroupResult.describedGroups().containsKey(fakeGroupId))
-          val fakeGroupDescription = describeWithFakeGroupResult.describedGroups().get(fakeGroupId).get()
+          try {
+            describeWithFakeGroupResult.describedGroups().get(fakeGroupId).get()
+            fail("Fake group should throw GroupIdNotFoundException")
+          } catch {
+            case e: ExecutionException =>
+              assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
+          }
 
-          assertEquals(fakeGroupId, fakeGroupDescription.groupId())
-          assertEquals(0, fakeGroupDescription.members().size())
-          assertEquals("", fakeGroupDescription.partitionAssignor())
-          assertEquals(ConsumerGroupState.DEAD, fakeGroupDescription.state())
-          assertEquals(expectedOperations, fakeGroupDescription.authorizedOperations())
-
-          // Test that all() returns 2 results
-          assertEquals(2, describeWithFakeGroupResult.all().get().size())
+          // Test that all() also throws GroupIdNotFoundException
+          try {
+            describeWithFakeGroupResult.all().get()
+            fail("Fake group should throw GroupIdNotFoundException")
+          } catch {
+            case e: ExecutionException =>
+              assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
+              assertEquals(s"Group $fakeGroupId not found.", e.getCause.getMessage)
+          }
 
           val testTopicPart0 = new TopicPartition(testTopicName, 0)
 
@@ -2191,17 +2198,25 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         val expectedOperations = AclEntry.supportedOperations(ResourceType.GROUP)
         assertEquals(expectedOperations, testGroupDescription.authorizedOperations())
 
-        // Test that the fake group is listed as dead.
+        // Test that the fake group throws GroupIdNotFoundException
         assertTrue(describeWithFakeGroupResult.describedGroups().containsKey(fakeGroupId))
-        val fakeGroupDescription = describeWithFakeGroupResult.describedGroups().get(fakeGroupId).get()
+        try {
+          describeWithFakeGroupResult.describedGroups().get(fakeGroupId).get()
+          fail("Fake group should throw GroupIdNotFoundException")
+        } catch {
+          case e: ExecutionException =>
+            assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
+        }
 
-        assertEquals(fakeGroupId, fakeGroupDescription.groupId())
-        assertEquals(0, fakeGroupDescription.members().size())
-        assertEquals(ShareGroupState.DEAD, fakeGroupDescription.state())
-        assertNull(fakeGroupDescription.authorizedOperations())
-
-        // Test that all() returns 2 results
-        assertEquals(2, describeWithFakeGroupResult.all().get().size())
+        // Test that all() also throws GroupIdNotFoundException
+        try {
+          describeWithFakeGroupResult.all().get()
+          fail("Fake group should throw GroupIdNotFoundException")
+        } catch {
+          case e: ExecutionException =>
+            assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
+            assertEquals(s"Group $fakeGroupId not found.", e.getCause.getMessage)
+        }
 
         val describeTestGroupResult = client.describeShareGroups(Collections.singleton(testGroupId),
           new DescribeShareGroupsOptions().includeAuthorizedOperations(true))
@@ -2213,18 +2228,18 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         assertEquals(testGroupId, testGroupDescription.groupId)
         assertEquals(consumerSet.size, testGroupDescription.members().size())
 
-        // Describing a share group using describeConsumerGroups reports it as a DEAD consumer group
-        // in the same way as a non-existent group
+        // Describing a share group using describeConsumerGroups reports it as a non-existent group
+        // but the error message is different
         val describeConsumerGroupResult = client.describeConsumerGroups(Collections.singleton(testGroupId),
           new DescribeConsumerGroupsOptions().includeAuthorizedOperations(true))
-        assertEquals(1, describeConsumerGroupResult.all().get().size())
-
-        val deadConsumerGroupDescription = describeConsumerGroupResult.describedGroups().get(testGroupId).get()
-        assertEquals(testGroupId, deadConsumerGroupDescription.groupId())
-        assertEquals(0, deadConsumerGroupDescription.members().size())
-        assertEquals("", deadConsumerGroupDescription.partitionAssignor())
-        assertEquals(ConsumerGroupState.DEAD, deadConsumerGroupDescription.state())
-        assertEquals(expectedOperations, deadConsumerGroupDescription.authorizedOperations())
+        try {
+          describeConsumerGroupResult.all().get()
+          fail("Share group should throw GroupIdNotFoundException")
+        } catch {
+          case e: ExecutionException =>
+            assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
+            assertEquals(s"Group $testGroupId is not a consumer group.", e.getCause.getMessage)
+        }
       } finally {
         consumerThreads.foreach {
           case consumerThread =>
