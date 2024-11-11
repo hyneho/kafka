@@ -46,10 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
-
-import static org.apache.kafka.common.utils.Utils.mkEntry;
-import static org.apache.kafka.common.utils.Utils.mkMap;
-import static org.apache.kafka.common.utils.Utils.mkSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -83,7 +79,7 @@ public class PartitionLeaderStrategyIntegrationTest {
 
         TopicPartition tp0 = new TopicPartition("T", 0);
         TopicPartition tp1 = new TopicPartition("T", 1);
-        Set<TopicPartition> requestKeys = mkSet(tp0, tp1);
+        Set<TopicPartition> requestKeys = Set.of(tp0, tp1);
 
         // First, the lookup stage needs to obtain leadership data because the cache is empty
         PartitionLeaderStrategy.PartitionLeaderFuture<Void> result =
@@ -97,7 +93,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         assertEquals(requestKeys, requestSpecs.get(0).keys);
 
         // The cache will be populated using the leader information from this metadata response
-        Map<TopicPartition, Integer> leaders = mkMap(mkEntry(tp0, 1), mkEntry(tp1, 2));
+        Map<TopicPartition, Integer> leaders = Map.of(tp0, 1, tp1, 2);
         driver.onResponse(time.milliseconds(), requestSpecs.get(0), metadataResponseWithPartitionLeaders(leaders), Node.noNode());
         assertFalse(result.all().get(tp0).isDone());
         assertFalse(result.all().get(tp1).isDone());
@@ -152,7 +148,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         //
         // Request 1 - T-0 and T-1
         //
-        Set<TopicPartition> requestKeys = mkSet(tp0, tp1);
+        Set<TopicPartition> requestKeys = Set.of(tp0, tp1);
 
         // First, the lookup stage needs to obtain leadership data because the cache is empty
         PartitionLeaderStrategy.PartitionLeaderFuture<Void> result =
@@ -166,7 +162,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         assertEquals(requestKeys, requestSpecs.get(0).keys);
 
         // The cache will be populated using the leader information from this metadata response
-        Map<TopicPartition, Integer> leaders = mkMap(mkEntry(tp0, 1), mkEntry(tp1, 2));
+        Map<TopicPartition, Integer> leaders = Map.of(tp0, 1, tp1, 2);
         driver.onResponse(time.milliseconds(), requestSpecs.get(0), metadataResponseWithPartitionLeaders(leaders), Node.noNode());
         assertFalse(result.all().get(tp0).isDone());
         assertFalse(result.all().get(tp1).isDone());
@@ -191,7 +187,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         //
         // On the second request, the partition leader cache already contains some of the leadership data.
         // Now the lookup and fulfillment stages overlap.
-        requestKeys = mkSet(tp1, tp2);
+        requestKeys = Set.of(tp1, tp2);
         result = new PartitionLeaderStrategy.PartitionLeaderFuture<>(requestKeys, partitionLeaderCache);
         driver = buildDriver(result);
 
@@ -203,7 +199,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         assertEquals(OptionalInt.of(2), requestSpecs.get(1).scope.destinationBrokerId());
 
         // The cache will be populated using the leader information from this metadata response
-        leaders = mkMap(mkEntry(tp2, 1));
+        leaders = Map.of(tp2, 1);
         driver.onResponse(time.milliseconds(), requestSpecs.get(0), metadataResponseWithPartitionLeaders(leaders), Node.noNode());
         driver.onResponse(time.milliseconds(), requestSpecs.get(1), listOffsetsResponseSuccess(requestSpecs.get(1).keys), NODE_2);
         assertTrue(result.all().get(tp1).isDone());  // Already fulfilled
@@ -227,7 +223,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         // Request 3 - T-0, T-1 and T-2
         //
         // On the third request, the partition leader cache contains all the leadership data
-        requestKeys = mkSet(tp0, tp1, tp2);
+        requestKeys = Set.of(tp0, tp1, tp2);
         result = new PartitionLeaderStrategy.PartitionLeaderFuture<>(requestKeys, partitionLeaderCache);
         driver = buildDriver(result);
 
@@ -249,7 +245,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         //
         // On the fourth request, the partition leader cache already contains some of the leadership data.
         // Now the lookup and fulfillment stages overlap.
-        requestKeys = mkSet(tp0, tp1, tp2, tp3);
+        requestKeys = Set.of(tp0, tp1, tp2, tp3);
         result = new PartitionLeaderStrategy.PartitionLeaderFuture<>(requestKeys, partitionLeaderCache);
         driver = buildDriver(result);
 
@@ -262,7 +258,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         assertEquals(OptionalInt.of(2), requestSpecs.get(2).scope.destinationBrokerId());
 
         // The cache will be populated using the leader information from this metadata response
-        leaders = mkMap(mkEntry(tp3, 2));
+        leaders = Map.of(tp3, 2);
         driver.onResponse(time.milliseconds(), requestSpecs.get(0), metadataResponseWithPartitionLeaders(leaders), Node.noNode());
         driver.onResponse(time.milliseconds(), requestSpecs.get(1), listOffsetsResponseSuccess(requestSpecs.get(1).keys), NODE_1);
         driver.onResponse(time.milliseconds(), requestSpecs.get(2), listOffsetsResponseSuccess(requestSpecs.get(2).keys), NODE_2);
@@ -295,7 +291,7 @@ public class PartitionLeaderStrategyIntegrationTest {
 
         TopicPartition tp0 = new TopicPartition("T", 0);
         TopicPartition tp1 = new TopicPartition("T", 1);
-        Set<TopicPartition> requestKeys = mkSet(tp0, tp1);
+        Set<TopicPartition> requestKeys = Set.of(tp0, tp1);
 
         // First, the lookup stage needs to obtain leadership data because the cache is empty
         PartitionLeaderStrategy.PartitionLeaderFuture<Void> result =
@@ -309,7 +305,7 @@ public class PartitionLeaderStrategyIntegrationTest {
         assertEquals(requestKeys, requestSpecs.get(0).keys);
 
         // The cache will be populated using the leader information from this metadata response
-        Map<TopicPartition, Integer> leaders = mkMap(mkEntry(tp0, 1), mkEntry(tp1, 2));
+        Map<TopicPartition, Integer> leaders = Map.of(tp0, 1, tp1, 2);
         driver.onResponse(time.milliseconds(), requestSpecs.get(0), metadataResponseWithPartitionLeaders(leaders), Node.noNode());
         assertFalse(result.all().get(tp0).isDone());
         assertFalse(result.all().get(tp1).isDone());
@@ -335,7 +331,7 @@ public class PartitionLeaderStrategyIntegrationTest {
 
         assertEquals(OptionalInt.empty(), requestSpecs.get(0).scope.destinationBrokerId());
 
-        leaders = mkMap(mkEntry(tp1, 1));
+        leaders = Map.of(tp1, 1);
         driver.onResponse(time.milliseconds(), requestSpecs.get(0), metadataResponseWithPartitionLeaders(leaders), Node.noNode());
         assertTrue(result.all().get(tp0).isDone());
         assertFalse(result.all().get(tp1).isDone());

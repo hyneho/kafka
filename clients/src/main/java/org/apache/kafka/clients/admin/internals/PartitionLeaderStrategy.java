@@ -214,7 +214,7 @@ public class PartitionLeaderStrategy implements AdminApiLookupStrategy<TopicPart
         public PartitionLeaderFuture(Set<TopicPartition> requestKeys, Map<TopicPartition, Integer> partitionLeaderCache) {
             this.requestKeys = requestKeys;
             this.partitionLeaderCache = partitionLeaderCache;
-            this.futures = requestKeys.stream().collect(Collectors.toMap(
+            this.futures = requestKeys.stream().collect(Collectors.toUnmodifiableMap(
                 Function.identity(),
                 k -> new KafkaFutureImpl<>()
             ));
