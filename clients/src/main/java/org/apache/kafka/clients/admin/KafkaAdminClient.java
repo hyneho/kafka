@@ -3355,7 +3355,6 @@ public class KafkaAdminClient extends AdminClient {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public CreateDelegationTokenResult createDelegationToken(final CreateDelegationTokenOptions options) {
         final KafkaFutureImpl<DelegationToken> delegationTokenFuture = new KafkaFutureImpl<>();
         final long now = time.milliseconds();
@@ -3372,7 +3371,7 @@ public class KafkaAdminClient extends AdminClient {
             CreateDelegationTokenRequest.Builder createRequest(int timeoutMs) {
                 CreateDelegationTokenRequestData data = new CreateDelegationTokenRequestData()
                     .setRenewers(renewers)
-                    .setMaxLifetimeMs(options.maxlifeTimeMs());
+                    .setMaxLifetimeMs(options.maxLifetimeMs());
                 if (options.owner().isPresent()) {
                     data.setOwnerPrincipalName(options.owner().get().getName());
                     data.setOwnerPrincipalType(options.owner().get().getPrincipalType());

@@ -92,13 +92,12 @@ public class DelegationTokenCommand {
         }
     }
 
-    @SuppressWarnings("deprecation")
     public static DelegationToken createToken(Admin adminClient, DelegationTokenCommandOptions opts) throws ExecutionException, InterruptedException {
         List<KafkaPrincipal> renewerPrincipals = getPrincipals(opts, opts.renewPrincipalsOpt);
         Long maxLifeTimeMs = opts.maxLifeTime();
 
         System.out.println("Calling create token operation with renewers :" + renewerPrincipals + " , max-life-time-period :" + maxLifeTimeMs);
-        CreateDelegationTokenOptions createDelegationTokenOptions = new CreateDelegationTokenOptions().maxlifeTimeMs(maxLifeTimeMs).renewers(renewerPrincipals);
+        CreateDelegationTokenOptions createDelegationTokenOptions = new CreateDelegationTokenOptions().maxLifetimeMs(maxLifeTimeMs).renewers(renewerPrincipals);
 
         List<KafkaPrincipal> ownerPrincipals = getPrincipals(opts, opts.ownerPrincipalsOpt);
         if (!ownerPrincipals.isEmpty()) {
