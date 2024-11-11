@@ -2606,7 +2606,7 @@ public class GroupMetadataManager {
             updatedMember
         ).orElse(defaultConsumerGroupAssignor.name());
         try {
-            TargetAssignmentBuilder<ConsumerGroupMember> assignmentResultBuilder =
+            TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder assignmentResultBuilder =
                 new TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder(group.groupId(), groupEpoch, consumerGroupAssignors.get(preferredServerAssignor))
                     .withMembers(group.members())
                     .withStaticMembers(group.staticMembers())
@@ -2673,7 +2673,7 @@ public class GroupMetadataManager {
         List<CoordinatorRecord> records
     ) {
         try {
-            TargetAssignmentBuilder<ShareGroupMember> assignmentResultBuilder =
+            TargetAssignmentBuilder.ShareTargetAssignmentBuilder assignmentResultBuilder =
                 new TargetAssignmentBuilder.ShareTargetAssignmentBuilder(group.groupId(), groupEpoch, shareGroupAssignor)
                     .withMembers(group.members())
                     .withSubscriptionMetadata(subscriptionMetadata)

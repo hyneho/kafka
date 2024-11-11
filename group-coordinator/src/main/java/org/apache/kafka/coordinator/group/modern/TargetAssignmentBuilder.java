@@ -50,7 +50,7 @@ import java.util.Set;
  * is deleted as part of the member deletion process. In other words, this class
  * does not yield a tombstone for removed members.
  */
-public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
+public abstract class TargetAssignmentBuilder<T extends ModernGroupMember, U extends TargetAssignmentBuilder<T, U>> {
 
     /**
      * The assignment result returned by {{@link TargetAssignmentBuilder#build()}}.
@@ -92,7 +92,7 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
         }
     }
 
-    public static class ConsumerTargetAssignmentBuilder extends TargetAssignmentBuilder<ConsumerGroupMember> {
+    public static class ConsumerTargetAssignmentBuilder extends TargetAssignmentBuilder<ConsumerGroupMember, ConsumerTargetAssignmentBuilder> {
 
         /**
          * The resolved regular expressions.
@@ -113,10 +113,15 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
          * @param resolvedRegularExpressions The resolved regular expressions.
          * @return This object.
          */
-        public TargetAssignmentBuilder<ConsumerGroupMember> withResolvedRegularExpressions(
+        public ConsumerTargetAssignmentBuilder withResolvedRegularExpressions(
             Map<String, ResolvedRegularExpression> resolvedRegularExpressions
         ) {
             this.resolvedRegularExpressions = resolvedRegularExpressions;
+            return self();
+        }
+
+        @Override
+        protected ConsumerTargetAssignmentBuilder self() {
             return this;
         }
 
@@ -175,13 +180,18 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
         }
     }
 
-    public static class ShareTargetAssignmentBuilder extends TargetAssignmentBuilder<ShareGroupMember> {
+    public static class ShareTargetAssignmentBuilder extends TargetAssignmentBuilder<ShareGroupMember, ShareTargetAssignmentBuilder> {
         public ShareTargetAssignmentBuilder(
             String groupId,
             int groupEpoch,
             PartitionAssignor assignor
         ) {
             super(groupId, groupEpoch, assignor);
+        }
+
+        @Override
+        protected ShareTargetAssignmentBuilder self() {
+            return this;
         }
 
         @Override
@@ -300,11 +310,11 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param members   The existing members in the consumer group.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> withMembers(
+    public U withMembers(
         Map<String, T> members
     ) {
         this.members = members;
-        return this;
+        return self();
     }
 
     /**
@@ -313,11 +323,11 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param staticMembers   The existing static members in the consumer group.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> withStaticMembers(
+    public U withStaticMembers(
         Map<String, String> staticMembers
     ) {
         this.staticMembers = staticMembers;
-        return this;
+        return self();
     }
 
     /**
@@ -326,11 +336,11 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param subscriptionMetadata  The subscription metadata.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> withSubscriptionMetadata(
+    public U withSubscriptionMetadata(
         Map<String, TopicMetadata> subscriptionMetadata
     ) {
         this.subscriptionMetadata = subscriptionMetadata;
-        return this;
+        return self();
     }
 
     /**
@@ -339,11 +349,11 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param subscriptionType  Subscription type of the group.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> withSubscriptionType(
+    public U withSubscriptionType(
         SubscriptionType subscriptionType
     ) {
         this.subscriptionType = subscriptionType;
-        return this;
+        return self();
     }
 
     /**
@@ -352,11 +362,11 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param targetAssignment   The existing target assignment.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> withTargetAssignment(
+    public U withTargetAssignment(
         Map<String, Assignment> targetAssignment
     ) {
         this.targetAssignment = targetAssignment;
-        return this;
+        return self();
     }
 
     /**
@@ -365,11 +375,11 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param invertedTargetAssignment   The reverse lookup map of the current target assignment.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> withInvertedTargetAssignment(
+    public U withInvertedTargetAssignment(
         Map<Uuid, Map<Integer, String>> invertedTargetAssignment
     ) {
         this.invertedTargetAssignment = invertedTargetAssignment;
-        return this;
+        return self();
     }
 
     /**
@@ -378,11 +388,11 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param topicsImage    The topics image.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> withTopicsImage(
+    public U withTopicsImage(
         TopicsImage topicsImage
     ) {
         this.topicsImage = topicsImage;
-        return this;
+        return self();
     }
 
     /**
@@ -393,12 +403,12 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param member    The member to add or update.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> addOrUpdateMember(
+    public U addOrUpdateMember(
         String memberId,
         T member
     ) {
         this.updatedMembers.put(memberId, member);
-        return this;
+        return self();
     }
 
     /**
@@ -408,7 +418,7 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
      * @param memberId The member id.
      * @return This object.
      */
-    public TargetAssignmentBuilder<T> removeMember(
+    public U removeMember(
         String memberId
     ) {
         return addOrUpdateMember(memberId, null);
@@ -500,6 +510,8 @@ public abstract class TargetAssignmentBuilder<T extends ModernGroupMember> {
 
         return new TargetAssignmentResult(records, newGroupAssignment.members());
     }
+
+    protected abstract U self();
 
     protected abstract CoordinatorRecord newTargetAssignmentRecord(
         String groupId,

@@ -282,16 +282,16 @@ public class TargetAssignmentBuilderTest {
                 .thenReturn(new GroupAssignment(memberAssignments));
 
             // Create and populate the assignment builder.
-            TargetAssignmentBuilder<ConsumerGroupMember> builder =
+            TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder builder =
                 new TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder(groupId, groupEpoch, assignor)
-                    .withResolvedRegularExpressions(resolvedRegularExpressions)
                     .withMembers(members)
                     .withStaticMembers(staticMembers)
                     .withSubscriptionMetadata(subscriptionMetadata)
                     .withSubscriptionType(subscriptionType)
                     .withTargetAssignment(targetAssignment)
                     .withInvertedTargetAssignment(invertedTargetAssignment)
-                    .withTopicsImage(topicsImage);
+                    .withTopicsImage(topicsImage)
+                    .withResolvedRegularExpressions(resolvedRegularExpressions);
 
             // Add the updated members or delete the deleted members.
             updatedMembers.forEach((memberId, updatedMemberOrNull) -> {
