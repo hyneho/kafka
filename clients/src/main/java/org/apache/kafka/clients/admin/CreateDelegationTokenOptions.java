@@ -53,6 +53,9 @@ public class CreateDelegationTokenOptions extends AbstractOptions<CreateDelegati
         return Optional.ofNullable(owner);
     }
 
+    /**
+     * @deprecated since 4.0 and should not be used any longer.
+     */
     @Deprecated
     public CreateDelegationTokenOptions maxlifeTimeMs(long maxLifetimeMs) {
         this.maxLifetimeMs = maxLifetimeMs;
@@ -63,7 +66,10 @@ public class CreateDelegationTokenOptions extends AbstractOptions<CreateDelegati
         this.maxLifetimeMs = maxLifetimeMs;
         return this;
     }
-    
+
+    /**
+     * @deprecated since 4.0 and should not be used any longer.
+     */
     @Deprecated
     public long maxlifeTimeMs() {
         return maxLifetimeMs;
