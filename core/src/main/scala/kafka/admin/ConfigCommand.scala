@@ -645,9 +645,7 @@ object ConfigCommand extends Logging {
 
       val numConnectOptions = (if (options.has(bootstrapServerOpt)) 1 else 0) +
         (if (options.has(bootstrapControllerOpt)) 1 else 0)
-      if (numConnectOptions == 0)
-        throw new IllegalArgumentException("One of the required --bootstrap-server or --bootstrap-controller arguments must be specified")
-      else if (numConnectOptions > 1)
+      if (numConnectOptions > 1)
         throw new IllegalArgumentException("Only one of --bootstrap-server or --bootstrap-controller can be specified")
       if (hasEntityName && (entityTypeVals.contains(ConfigType.BROKER) || entityTypeVals.contains(BrokerLoggerConfigType))) {
         Seq(entityName, broker, brokerLogger).filter(options.has(_)).map(options.valueOf(_)).foreach { brokerId =>

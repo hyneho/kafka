@@ -426,6 +426,7 @@ public class ConfigCommandTest {
         assertEquals(createOpts.entityTypes().toSeq(), seq(expectedTypes));
         assertEquals(createOpts.entityNames().toSeq(), seq(expectedNames));
     }
+
     @Test
     public void testOptionEntityTypeNames() {
         List<String> connectOpts = Arrays.asList("--bootstrap-server", "localhost:9092");
