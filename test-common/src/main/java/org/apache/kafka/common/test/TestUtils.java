@@ -32,8 +32,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.Random;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static java.lang.String.format;
