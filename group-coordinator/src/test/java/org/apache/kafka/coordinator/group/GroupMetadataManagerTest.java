@@ -14184,34 +14184,34 @@ public class GroupMetadataManagerTest {
                 .build())
             .withShareGroup(new ShareGroupBuilder(groupId, 10)
                 .withMember(new ShareGroupMember.Builder(memberId1)
-                        .setState(MemberState.STABLE)
-                        .setMemberEpoch(10)
-                        .setPreviousMemberEpoch(9)
-                        .setClientId("client")
-                        .setClientHost("localhost/127.0.0.1")
-                        .setSubscribedTopicNames(List.of("foo", "bar"))
-                        .setAssignedPartitions(mkAssignment(
-                                mkTopicAssignment(fooTopicId, 0, 1, 2),
-                                mkTopicAssignment(barTopicId, 0, 1)))
-                        .build())
-                .withMember(new ShareGroupMember.Builder(memberId2)
-                        .setState(MemberState.STABLE)
-                        .setMemberEpoch(10)
-                        .setPreviousMemberEpoch(9)
-                        .setClientId("client")
-                        .setClientHost("localhost/127.0.0.1")
-                        // Use zar only here to ensure that metadata needs to be recomputed.
-                        .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
-                        .setAssignedPartitions(mkAssignment(
-                                mkTopicAssignment(fooTopicId, 3, 4, 5),
-                                mkTopicAssignment(barTopicId, 2)))
-                        .build())
-                .withAssignment(memberId1, mkAssignment(
+                    .setState(MemberState.STABLE)
+                    .setMemberEpoch(10)
+                    .setPreviousMemberEpoch(9)
+                    .setClientId("client")
+                    .setClientHost("localhost/127.0.0.1")
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
+                    .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
                         mkTopicAssignment(barTopicId, 0, 1)))
-                .withAssignment(memberId2, mkAssignment(
+                    .build())
+                .withMember(new ShareGroupMember.Builder(memberId2)
+                    .setState(MemberState.STABLE)
+                    .setMemberEpoch(10)
+                    .setPreviousMemberEpoch(9)
+                    .setClientId("client")
+                    .setClientHost("localhost/127.0.0.1")
+                    // Use zar only here to ensure that metadata needs to be recomputed.
+                    .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
+                    .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
                         mkTopicAssignment(barTopicId, 2)))
+                    .build())
+                .withAssignment(memberId1, mkAssignment(
+                    mkTopicAssignment(fooTopicId, 0, 1, 2),
+                    mkTopicAssignment(barTopicId, 0, 1)))
+                .withAssignment(memberId2, mkAssignment(
+                    mkTopicAssignment(fooTopicId, 3, 4, 5),
+                    mkTopicAssignment(barTopicId, 2)))
                 .withAssignmentEpoch(10))
             .build();
 
@@ -14231,15 +14231,15 @@ public class GroupMetadataManagerTest {
         );
 
         List<CoordinatorRecord> expectedRecords = List.of(
-                GroupCoordinatorRecordHelpers.newShareGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
-                GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
-                GroupCoordinatorRecordHelpers.newShareGroupMemberSubscriptionTombstoneRecord(groupId, memberId2),
-                // Subscription metadata is recomputed because zar is no longer there.
-                GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataRecord(groupId, Map.of(
-                    fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
-                    barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
-                )),
-                GroupCoordinatorRecordHelpers.newShareGroupEpochRecord(groupId, 11)
+            GroupCoordinatorRecordHelpers.newShareGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
+            GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
+            GroupCoordinatorRecordHelpers.newShareGroupMemberSubscriptionTombstoneRecord(groupId, memberId2),
+            // Subscription metadata is recomputed because zar is no longer there.
+            GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
+            GroupCoordinatorRecordHelpers.newShareGroupEpochRecord(groupId, 11)
         );
 
         assertRecordsEquals(expectedRecords, result.records());
@@ -14292,9 +14292,9 @@ public class GroupMetadataManagerTest {
             .build();
 
         List<CoordinatorRecord> expectedRecords = List.of(
-                GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentEpochTombstoneRecord(groupId),
-                GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataTombstoneRecord(groupId),
-                GroupCoordinatorRecordHelpers.newShareGroupEpochTombstoneRecord(groupId)
+            GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentEpochTombstoneRecord(groupId),
+            GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataTombstoneRecord(groupId),
+            GroupCoordinatorRecordHelpers.newShareGroupEpochTombstoneRecord(groupId)
         );
         List<CoordinatorRecord> records = new ArrayList<>();
         context.groupMetadataManager.createGroupTombstoneRecords("share-group-id", records);
