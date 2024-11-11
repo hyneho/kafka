@@ -90,7 +90,7 @@ object KafkaRaftManager {
    *
    * This is only used by ZK brokers that are in pre-migration or hybrid mode of the ZK to KRaft migration.
    * The rationale for deleting the metadata log in these cases is that it is safe to do on brokers and it
-   * it makes recovery from a failed migration much easier. See KAFKA-16463.
+   * makes recovery from a failed migration much easier. See KAFKA-16463.
    *
    * @param config  The broker config
    */
@@ -202,11 +202,11 @@ class KafkaRaftManager[T](
 
   def shutdown(): Unit = {
     CoreUtils.swallow(expirationService.shutdown(), this)
-    CoreUtils.swallow(expirationTimer.close(), this)
+    Utils.closeQuietly(expirationTimer, "expiration timer")
     CoreUtils.swallow(clientDriver.shutdown(), this)
     CoreUtils.swallow(scheduler.shutdown(), this)
-    CoreUtils.swallow(netChannel.close(), this)
-    CoreUtils.swallow(replicatedLog.close(), this)
+    Utils.closeQuietly(netChannel, "net channel")
+    Utils.closeQuietly(replicatedLog, "replicated log")
     CoreUtils.swallow(dataDirLock.foreach(_.destroy()), this)
   }
 

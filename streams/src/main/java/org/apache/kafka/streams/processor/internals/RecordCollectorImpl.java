@@ -81,6 +81,7 @@ public class RecordCollectorImpl implements RecordCollector {
     private final Sensor droppedRecordsSensor;
     private final Map<String, Sensor> producedSensorByTopic = new HashMap<>();
 
+    // we get `sendException` from "singleton" `StreamsProducer` to share it across all instances of `RecordCollectorImpl`
     private final AtomicReference<KafkaException> sendException;
 
     /**
@@ -336,7 +337,11 @@ public class RecordCollectorImpl implements RecordCollector {
                 ),
                 serializationException
             );
-            throw new FailedProcessingException("Fatal user code error in production error callback", fatalUserException);
+            throw new FailedProcessingException(
+                "Fatal user code error in production error callback",
+                processorNodeId,
+                fatalUserException
+            );
         }
 
         if (maybeFailResponse(response) == ProductionExceptionHandlerResponse.FAIL) {
@@ -443,7 +448,12 @@ public class RecordCollectorImpl implements RecordCollector {
                     serializedRecord,
                     productionException
                 );
-                sendException.set(new FailedProcessingException("Fatal user code error in production error callback", fatalUserException));
+                sendException.set(new FailedProcessingException(
+                    "Fatal user code error in production error callback",
+                    processorNodeId,
+                    fatalUserException
+                    )
+                );
                 return;
             }
 
@@ -554,7 +564,7 @@ public class RecordCollectorImpl implements RecordCollector {
         final KafkaException exception = sendException.get();
 
         if (exception != null) {
-            sendException.set(null);
+            sendException.compareAndSet(exception, null);
             throw exception;
         }
     }

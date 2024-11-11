@@ -33,6 +33,7 @@ import org.apache.kafka.common.annotation.InterfaceStability;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.FeatureUpdateFailedException;
 import org.apache.kafka.common.errors.InterruptException;
+import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.quota.ClientQuotaAlteration;
 import org.apache.kafka.common.quota.ClientQuotaFilter;
 import org.apache.kafka.common.requests.LeaveGroupResponse;
@@ -52,7 +53,7 @@ import java.util.Set;
  * Instances returned from the {@code create} methods of this interface are guaranteed to be thread safe.
  * However, the {@link KafkaFuture KafkaFutures} returned from request methods are executed
  * by a single thread so it is important that any code which executes on that thread when they complete
- * (using {@link KafkaFuture#thenApply(KafkaFuture.Function)}, for example) doesn't block
+ * (using {@link KafkaFuture#thenApply(KafkaFuture.BaseFunction)}, for example) doesn't block
  * for too long. If necessary, processing of results should be passed to another thread.
  * <p>
  * The operations exposed by Admin follow a consistent pattern:
@@ -1022,6 +1023,26 @@ public interface Admin extends AutoCloseable {
     }
 
     /**
+     * List the groups available in the cluster with the default options.
+     *
+     * <p>This is a convenience method for {@link #listGroups(ListGroupsOptions)} with default options.
+     * See the overload for more details.
+     *
+     * @return The ListGroupsResult.
+     */
+    default ListGroupsResult listGroups() {
+        return listGroups(new ListGroupsOptions());
+    }
+
+    /**
+     * List the groups available in the cluster.
+     *
+     * @param options The options to use when listing the groups.
+     * @return The ListGroupsResult.
+     */
+    ListGroupsResult listGroups(ListGroupsOptions options);
+
+    /**
      * Elect a replica as leader for topic partitions.
      * <p>
      * This is a convenience method for {@link #electLeaders(ElectionType, Set, ElectLeadersOptions)}
@@ -1822,6 +1843,63 @@ public interface Admin extends AutoCloseable {
     default ListShareGroupsResult listShareGroups() {
         return listShareGroups(new ListShareGroupsOptions());
     }
+
+    /**
+     * Describe some classic groups in the cluster.
+     *
+     * @param groupIds The IDs of the groups to describe.
+     * @param options  The options to use when describing the groups.
+     * @return The DescribeClassicGroupsResult.
+     */
+    DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds,
+                                                      DescribeClassicGroupsOptions options);
+
+    /**
+     * Describe some classic groups in the cluster, with the default options.
+     * <p>
+     * This is a convenience method for {@link #describeClassicGroups(Collection, DescribeClassicGroupsOptions)}
+     * with default options. See the overload for more details.
+     *
+     * @param groupIds The IDs of the groups to describe.
+     * @return The DescribeClassicGroupsResult.
+     */
+    default DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds) {
+        return describeClassicGroups(groupIds, new DescribeClassicGroupsOptions());
+    }
+
+    /**
+     * Add the provided application metric for subscription.
+     * This metric will be added to this client's metrics
+     * that are available for subscription and sent as
+     * telemetry data to the broker.
+     * The provided metric must map to an OTLP metric data point
+     * type in the OpenTelemetry v1 metrics protobuf message types.
+     * Specifically, the metric should be one of the following:
+     * <ul>
+     *  <li>
+     *     `Sum`: Monotonic total count meter (Counter). Suitable for metrics like total number of X, e.g., total bytes sent.
+     *  </li>
+     *  <li>
+     *     `Gauge`: Non-monotonic current value meter (UpDownCounter). Suitable for metrics like current value of Y, e.g., current queue count.
+     *  </li>
+     * </ul>
+     * Metrics not matching these types are silently ignored.
+     * Executing this method for a previously registered metric is a benign operation and results in updating that metrics entry.
+     *
+     * @param metric The application metric to register
+     */
+    void registerMetricForSubscription(KafkaMetric metric);
+
+    /**
+     * Remove the provided application metric for subscription.
+     * This metric is removed from this client's metrics
+     * and will not be available for subscription any longer.
+     * Executing this method with a metric that has not been registered is a
+     * benign operation and does not result in any action taken (no-op).
+     *
+     * @param metric The application metric to remove
+     */
+    void unregisterMetricFromSubscription(KafkaMetric metric);
 
     /**
      * Get the metrics kept by the adminClient

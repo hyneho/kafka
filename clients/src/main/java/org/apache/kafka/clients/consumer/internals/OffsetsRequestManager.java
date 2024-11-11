@@ -77,7 +77,7 @@ import static org.apache.kafka.clients.consumer.internals.OffsetFetcherUtils.reg
  * {@link ConsumerMetadata}, so this implements {@link ClusterResourceListener} to get notified
  * when the cluster metadata is updated.
  */
-public class OffsetsRequestManager implements RequestManager, ClusterResourceListener {
+public final class OffsetsRequestManager implements RequestManager, ClusterResourceListener {
 
     private final ConsumerMetadata metadata;
     private final IsolationLevel isolationLevel;
@@ -109,7 +109,6 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
      */
     private PendingFetchCommittedRequest pendingOffsetFetchEvent;
 
-    @SuppressWarnings("this-escape")
     public OffsetsRequestManager(final SubscriptionState subscriptionState,
                                  final ConsumerMetadata metadata,
                                  final IsolationLevel isolationLevel,
@@ -283,14 +282,15 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
         cacheExceptionIfEventExpired(result, deadlineMs);
 
         CompletableFuture<Void> updatePositions;
+        final Set<TopicPartition> initializingPartitions = subscriptionState.initializingPartitions();
         if (commitRequestManager != null) {
-            CompletableFuture<Void> refreshWithCommittedOffsets = initWithCommittedOffsetsIfNeeded(deadlineMs);
+            CompletableFuture<Void> refreshWithCommittedOffsets = initWithCommittedOffsetsIfNeeded(initializingPartitions, deadlineMs);
 
             // Reset positions for all partitions that may still require it (or that are awaiting reset)
-            updatePositions = refreshWithCommittedOffsets.thenCompose(__ -> initWithPartitionOffsetsIfNeeded());
+            updatePositions = refreshWithCommittedOffsets.thenCompose(__ -> initWithPartitionOffsetsIfNeeded(initializingPartitions));
 
         } else {
-            updatePositions = initWithPartitionOffsetsIfNeeded();
+            updatePositions = initWithPartitionOffsetsIfNeeded(initializingPartitions);
         }
 
         updatePositions.whenComplete((__, resetError) -> {
@@ -324,19 +324,21 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
     }
 
     /**
-     * If there are partitions still needing a position and a reset policy is defined, request reset using the
-     * default policy.
+     * If there are partitions still needing a position and a reset policy is defined, request reset using the default policy.
      *
+     * @param initializingPartitions Set of partitions that should be initialized. This won't reset positions for
+     *                               partitions that may have been added to the subscription state, but that are not
+     *                               included in this set.
      * @return Future that will complete when the reset operation completes retrieving the offsets and setting
      * positions in the subscription state using them.
      * @throws NoOffsetForPartitionException If no reset strategy is configured.
      */
-    private CompletableFuture<Void> initWithPartitionOffsetsIfNeeded() {
+    private CompletableFuture<Void> initWithPartitionOffsetsIfNeeded(Set<TopicPartition> initializingPartitions) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             // Mark partitions that need reset, using the configured reset strategy. If no
             // strategy is defined, this will raise a NoOffsetForPartitionException exception.
-            subscriptionState.resetInitializingPositions();
+            subscriptionState.resetInitializingPositions(initializingPartitions::contains);
         } catch (Exception e) {
             result.completeExceptionally(e);
             return result;
@@ -351,11 +353,15 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
      * Fetch the committed offsets for partitions that require initialization. This will trigger an OffsetFetch
      * request and update positions in the subscription state once a response is received.
      *
+     * @param initializingPartitions Set of partitions to update with a position. This same set will be kept
+     *                               throughout the whole process (considered when fetching committed offsets, and
+     *                               when resetting positions for partitions that may not have committed offsets).
+     * @param deadlineMs             Deadline of the application event that triggered this operation. Used to
+     *                               determine how much time to allow for the reused offset fetch to complete.
      * @throws TimeoutException If offsets could not be retrieved within the timeout
      */
-    private CompletableFuture<Void> initWithCommittedOffsetsIfNeeded(long deadlineMs) {
-        final Set<TopicPartition> initializingPartitions = subscriptionState.initializingPartitions();
-
+    private CompletableFuture<Void> initWithCommittedOffsetsIfNeeded(Set<TopicPartition> initializingPartitions,
+                                                                     long deadlineMs) {
         if (initializingPartitions.isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
