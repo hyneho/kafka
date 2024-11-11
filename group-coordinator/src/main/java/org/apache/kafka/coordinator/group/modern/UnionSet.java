@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.coordinator.group.modern;
 
+import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -99,12 +100,44 @@ public class UnionSet<T> implements Set<T> {
 
     @Override
     public Object[] toArray() {
-        throw new UnsupportedOperationException();
+        Object[] array = new Object[size()];
+        int index = 0;
+        for (T item : largeSet) {
+            array[index] = item;
+            index++;
+        }
+        for (T item : smallSet) {
+            if (!largeSet.contains(item)) {
+                array[index] = item;
+                index++;
+            }
+        }
+        return array;
     }
 
     @Override
-    public <T1> T1[] toArray(T1[] a) {
-        throw new UnsupportedOperationException();
+    @SuppressWarnings("unchecked")
+    public <U> U[] toArray(U[] array) {
+        int size = size();
+        if (array.length < size) {
+            // Create a new array of the same type as a with the correct size
+            array = (U[]) Array.newInstance(array.getClass().getComponentType(), size);
+        }
+        int index = 0;
+        for (T item : largeSet) {
+            array[index] = (U) item;
+            index++;
+        }
+        for (T item: smallSet) {
+            if (!largeSet.contains(item)) {
+                array[index] = (U) item;
+                index++;
+            }
+        }
+        if (array.length > size) {
+            array[size] = null;
+        }
+        return array;
     }
 
     @Override

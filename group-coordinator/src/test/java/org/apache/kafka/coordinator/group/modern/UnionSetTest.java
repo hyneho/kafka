@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -104,5 +105,32 @@ public class UnionSetTest {
 
         assertFalse(union.contains(0));
         assertFalse(union.contains(6));
+    }
+
+    @Test
+    public void testToArray() {
+        UnionSet<Integer> union = new UnionSet<>(
+            Set.of(1, 2, 3),
+            Set.of(2, 3, 4, 5)
+        );
+
+        Object[] expected = {1, 2, 3, 4, 5};
+        Object[] actual = union.toArray();
+        Arrays.sort(actual);
+        assertArrayEquals(expected, actual);
+    }
+
+    @Test
+    public void testToArrayWithArrayParameter() {
+        UnionSet<Integer> union = new UnionSet<>(
+            Set.of(1, 2, 3),
+            Set.of(2, 3, 4, 5)
+        );
+
+        Integer[] input = new Integer[5];
+        Integer[] expected = {1, 2, 3, 4, 5};
+        union.toArray(input);
+        Arrays.sort(input);
+        assertArrayEquals(expected, input);
     }
 }

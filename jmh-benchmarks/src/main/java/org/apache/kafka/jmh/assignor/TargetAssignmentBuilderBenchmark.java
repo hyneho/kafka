@@ -82,7 +82,7 @@ public class TargetAssignmentBuilderBenchmark {
 
     private PartitionAssignor partitionAssignor;
 
-    private TargetAssignmentBuilder<ConsumerGroupMember> targetAssignmentBuilder;
+    private TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder targetAssignmentBuilder;
 
     /** The number of homogeneous subgroups to create for the heterogeneous subscription case. */
     private static final int MAX_BUCKET_COUNT = 5;
