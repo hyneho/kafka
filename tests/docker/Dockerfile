@@ -133,6 +133,8 @@ RUN curl -s "$KAFKA_MIRROR/kafka-streams-3.8.1-test.jar" -o /opt/kafka-3.8.1/lib
 
 RUN curl -s "https://repo1.maven.org/maven2/org/apache/zookeeper/zookeeper/3.5.7/zookeeper-3.5.7.jar" -o /opt/zookeeper-3.5.7.jar
 RUN curl -s "https://repo1.maven.org/maven2/org/apache/zookeeper/zookeeper-jute/3.5.7/zookeeper-jute-3.5.7.jar" -o /opt/zookeeper-jute-3.5.7.jar
+# Because the zookeeper client 3.4.x can't run under JDK 17, so we need to update the zookeeper client to 3.5.7 
+# in the kafka 2.1.1, 2.2.2, 2.3.1 to make the kafka cluster work. see KAFKA-17888
 RUN rm -f /opt/kafka-2.1.1/libs/zookeeper-* && rm -f /opt/kafka-2.2.2/libs/zookeeper-* && rm -f /opt/kafka-2.3.1/libs/zookeeper-*
 RUN cp /opt/zookeeper-3.5.7.jar /opt/kafka-2.1.1/libs/zookeeper-3.5.7.jar && chmod a+rw /opt/kafka-2.1.1/libs/zookeeper-3.5.7.jar
 RUN cp /opt/zookeeper-3.5.7.jar /opt/kafka-2.2.2/libs/zookeeper-3.5.7.jar && chmod a+rw /opt/kafka-2.2.2/libs/zookeeper-3.5.7.jar
