@@ -3667,6 +3667,8 @@ public class RemoteLogManagerTest {
         assertNotNull(remoteLogManager.leaderExpirationTask(leaderTopicIdPartition));
         assertNotNull(remoteLogManager.followerTask(followerTopicIdPartition));
 
+        // Once the partitions are assigned to the broker either as leader (or) follower in RLM#onLeadershipChange,
+        // then it should have called the `isReady` method for each of the partitions. Otherwise, the test will fail.
         latch.await(5, TimeUnit.SECONDS);
         verify(remoteLogMetadataManager).configure(anyMap());
         verify(remoteLogMetadataManager).onPartitionLeadershipChanges(anySet(), anySet());
