@@ -53,6 +53,7 @@ import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler;
 import org.apache.kafka.streams.errors.UnknownStateStoreException;
 import org.apache.kafka.streams.internals.ClientInstanceIdsImpl;
 import org.apache.kafka.streams.internals.metrics.ClientMetrics;
+import org.apache.kafka.streams.internals.metrics.StreamsClientMetricsDelegatingReporter;
 import org.apache.kafka.streams.processor.StandbyUpdateListener;
 import org.apache.kafka.streams.processor.StateRestoreListener;
 import org.apache.kafka.streams.processor.StateStore;
@@ -92,6 +93,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -181,11 +183,11 @@ public class KafkaStreams implements AutoCloseable {
     protected final TopologyMetadata topologyMetadata;
     private final QueryableStoreProvider queryableStoreProvider;
     private final DelegatingStandbyUpdateListener delegatingStandbyUpdateListener;
+    private final LogContext logContext;
 
     GlobalStreamThread globalStreamThread;
     protected StateDirectory stateDirectory = null;
     private KafkaStreams.StateListener stateListener;
-    private boolean oldHandler;
     private BiConsumer<Throwable, Boolean> streamsUncaughtExceptionHandler;
     private final Object changeThreadCount = new Object();
 
@@ -430,32 +432,6 @@ public class KafkaStreams implements AutoCloseable {
         }
     }
 
-    /**
-     * Set the handler invoked when an internal {@link StreamsConfig#NUM_STREAM_THREADS_CONFIG stream thread} abruptly
-     * terminates due to an uncaught exception.
-     *
-     * @param uncaughtExceptionHandler the uncaught exception handler for all internal threads; {@code null} deletes the current handler
-     * @throws IllegalStateException if this {@code KafkaStreams} instance has already been started.
-     *
-     * @deprecated Since 2.8.0. Use {@link KafkaStreams#setUncaughtExceptionHandler(StreamsUncaughtExceptionHandler)} instead.
-     *
-     */
-    @Deprecated
-    public void setUncaughtExceptionHandler(final Thread.UncaughtExceptionHandler uncaughtExceptionHandler) {
-        synchronized (stateLock) {
-            if (state.hasNotStarted()) {
-                oldHandler = true;
-                processStreamThread(thread -> thread.setUncaughtExceptionHandler(uncaughtExceptionHandler));
-
-                if (globalStreamThread != null) {
-                    globalStreamThread.setUncaughtExceptionHandler(uncaughtExceptionHandler);
-                }
-            } else {
-                throw new IllegalStateException("Can only set UncaughtExceptionHandler before calling start(). " +
-                    "Current state is: " + state);
-            }
-        }
-    }
 
     /**
      * Set the handler invoked when an internal {@link StreamsConfig#NUM_STREAM_THREADS_CONFIG stream thread}
@@ -499,21 +475,6 @@ public class KafkaStreams implements AutoCloseable {
         }
     }
 
-    private void defaultStreamsUncaughtExceptionHandler(final Throwable throwable, final boolean skipThreadReplacement) {
-        if (oldHandler) {
-            threads.remove(Thread.currentThread());
-            if (throwable instanceof RuntimeException) {
-                throw (RuntimeException) throwable;
-            } else if (throwable instanceof Error) {
-                throw (Error) throwable;
-            } else {
-                throw new RuntimeException("Unexpected checked exception caught in the uncaught exception handler", throwable);
-            }
-        } else {
-            handleStreamsUncaughtException(throwable, t -> SHUTDOWN_CLIENT, skipThreadReplacement);
-        }
-    }
-
     private void replaceStreamThread(final Throwable throwable) {
         if (globalStreamThread != null && Thread.currentThread().getName().equals(globalStreamThread.getName())) {
             log.warn("The global thread cannot be replaced. Reverting to shutting down the client.");
@@ -537,10 +498,7 @@ public class KafkaStreams implements AutoCloseable {
                                                 final StreamsUncaughtExceptionHandler streamsUncaughtExceptionHandler,
                                                 final boolean skipThreadReplacement) {
         final StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse action = streamsUncaughtExceptionHandler.handle(throwable);
-        if (oldHandler) {
-            log.warn("Stream's new uncaught exception handler is set as well as the deprecated old handler." +
-                    "The old handler will be ignored as long as a new handler is set.");
-        }
+
         switch (action) {
             case REPLACE_THREAD:
                 if (!skipThreadReplacement) {
@@ -676,6 +634,9 @@ public class KafkaStreams implements AutoCloseable {
             if (globalThreadState != null && globalThreadState != GlobalStreamThread.State.RUNNING) {
                 return;
             }
+
+            // all (alive) threads have received their assignment, close any remaining startup tasks, they're not needed
+            stateDirectory.closeStartupTasks();
 
             setState(State.RUNNING);
         }
@@ -999,7 +960,7 @@ public class KafkaStreams implements AutoCloseable {
         } else {
             clientId = userClientId;
         }
-        final LogContext logContext = new LogContext(String.format("stream-client [%s] ", clientId));
+        logContext = new LogContext(String.format("stream-client [%s] ", clientId));
         this.log = logContext.logger(getClass());
         topologyMetadata.setLog(logContext);
 
@@ -1011,9 +972,13 @@ public class KafkaStreams implements AutoCloseable {
         log.info("Kafka Streams commit ID: {}", ClientMetrics.commitId());
 
         metrics = createMetrics(applicationConfigs, time, clientId);
+        final StreamsClientMetricsDelegatingReporter reporter = new StreamsClientMetricsDelegatingReporter(adminClient, clientId);
+        metrics.addReporter(reporter);
+
         streamsMetrics = new StreamsMetricsImpl(
             metrics,
             clientId,
+            processId.toString(),
             time
         );
 
@@ -1030,9 +995,7 @@ public class KafkaStreams implements AutoCloseable {
             parseHostInfo(applicationConfigs.getString(StreamsConfig.APPLICATION_SERVER_CONFIG)),
             logContext
         );
-
-        oldHandler = false;
-        streamsUncaughtExceptionHandler = this::defaultStreamsUncaughtExceptionHandler;
+        streamsUncaughtExceptionHandler = (throwable, skipThreadReplacement) -> handleStreamsUncaughtException(throwable, t -> SHUTDOWN_CLIENT, skipThreadReplacement);
         delegatingStateRestoreListener = new DelegatingStateRestoreListener();
         delegatingStandbyUpdateListener = new DelegatingStandbyUpdateListener();
 
@@ -1053,7 +1016,7 @@ public class KafkaStreams implements AutoCloseable {
                 time,
                 globalThreadId,
                 delegatingStateRestoreListener,
-                exception -> defaultStreamsUncaughtExceptionHandler(exception, false)
+                exception -> handleStreamsUncaughtException(exception, t -> SHUTDOWN_CLIENT, false)
             );
             globalThreadState = globalStreamThread.state();
         }
@@ -1398,7 +1361,7 @@ public class KafkaStreams implements AutoCloseable {
      * However, if you have global stores in your topology, this method blocks until all global stores are restored.
      * As a consequence, any fatal exception that happens during processing is by default only logged.
      * If you want to be notified about dying threads, you can
-     * {@link #setUncaughtExceptionHandler(Thread.UncaughtExceptionHandler) register an uncaught exception handler}
+     * {@link #setUncaughtExceptionHandler(StreamsUncaughtExceptionHandler) register an uncaught exception handler}
      * before starting the {@code KafkaStreams} instance.
      * <p>
      * Note, for brokers with version {@code 0.9.x} or lower, the broker version cannot be checked.
@@ -1411,6 +1374,9 @@ public class KafkaStreams implements AutoCloseable {
      */
     public synchronized void start() throws IllegalStateException, StreamsException {
         if (setState(State.REBALANCING)) {
+            log.debug("Initializing STANDBY tasks for existing local state");
+            stateDirectory.initializeStartupTasks(topologyMetadata, streamsMetrics, logContext);
+
             log.debug("Starting Streams client");
 
             if (globalStreamThread != null) {
@@ -1922,10 +1888,18 @@ public class KafkaStreams implements AutoCloseable {
 
             // could be `null` if telemetry is disabled on the consumer itself
             if (instanceId != null) {
-                clientInstanceIds.addConsumerInstanceId(
-                    clientFuture.getKey(),
-                    instanceId
-                );
+                final String clientFutureKey = clientFuture.getKey();
+                if (clientFutureKey.toLowerCase(Locale.getDefault()).endsWith("-producer")) {
+                    clientInstanceIds.addProducerInstanceId(
+                            clientFutureKey,
+                            instanceId
+                    );
+                } else {
+                    clientInstanceIds.addConsumerInstanceId(
+                            clientFutureKey,
+                            instanceId
+                    );
+                }
             } else {
                 log.debug(String.format("Telemetry is disabled for %s.", clientFuture.getKey()));
             }
