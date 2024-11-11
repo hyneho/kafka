@@ -19,9 +19,11 @@ package kafka.server.share;
 import kafka.cluster.Partition;
 import kafka.server.ReplicaManager;
 
+import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException;
+import org.apache.kafka.common.errors.OffsetNotAvailableException;
 import org.apache.kafka.common.message.ShareFetchResponseData;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.FileRecords;
@@ -35,10 +37,12 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
 import scala.Option;
+import scala.Some;
 
 /**
  * Utility class for post-processing of share fetch operations.
@@ -53,7 +57,7 @@ public class ShareFetchUtils {
     static Map<TopicIdPartition, ShareFetchResponseData.PartitionData> processFetchResponse(
             ShareFetchData shareFetchData,
             Map<TopicIdPartition, FetchPartitionData> responseData,
-            SharePartitionManager sharePartitionManager,
+            LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions,
             ReplicaManager replicaManager
     ) {
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> response = new HashMap<>();
@@ -64,11 +68,7 @@ public class ShareFetchUtils {
             TopicIdPartition topicIdPartition = entry.getKey();
             FetchPartitionData fetchPartitionData = entry.getValue();
 
-            SharePartition sharePartition = sharePartitionManager.sharePartition(shareFetchData.groupId(), topicIdPartition);
-            if (sharePartition == null) {
-                log.error("Encountered null share partition for groupId={}, topicIdPartition={}. Skipping it.", shareFetchData.groupId(), topicIdPartition);
-                continue;
-            }
+            SharePartition sharePartition = sharePartitions.get(topicIdPartition);
             ShareFetchResponseData.PartitionData partitionData = new ShareFetchResponseData.PartitionData()
                 .setPartitionIndex(topicIdPartition.partition());
 
@@ -92,8 +92,7 @@ public class ShareFetchUtils {
                 }
             } else {
                 ShareAcquiredRecords shareAcquiredRecords = sharePartition.acquire(shareFetchData.memberId(), shareFetchData.maxFetchRecords() - acquiredRecordsCount, fetchPartitionData);
-                log.trace("Acquired records for topicIdPartition: {} with share fetch data: {}, records: {}",
-                    topicIdPartition, shareFetchData, shareAcquiredRecords);
+                log.trace("Acquired records: {} for topicIdPartition: {}", shareAcquiredRecords, topicIdPartition);
                 // Maybe, in the future, check if no records are acquired, and we want to retry
                 // replica manager fetch. Depends on the share partition manager implementation,
                 // if we want parallel requests for the same share partition or not.
@@ -129,7 +128,26 @@ public class ShareFetchUtils {
         Option<FileRecords.TimestampAndOffset> timestampAndOffset = replicaManager.fetchOffsetForTimestamp(
                 topicIdPartition.topicPartition(), ListOffsetsRequest.EARLIEST_TIMESTAMP, Option.empty(),
                 Optional.empty(), true).timestampAndOffsetOpt();
-        return timestampAndOffset.isEmpty() ? (long) 0 : timestampAndOffset.get().offset;
+        if (timestampAndOffset.isEmpty()) {
+            throw new OffsetNotAvailableException("offset for Earliest timestamp not found for topic partition: " + topicIdPartition);
+        }
+        return timestampAndOffset.get().offset;
+    }
+
+    /**
+     * The method is used to get the offset for the latest timestamp for the topic-partition.
+     *
+     * @return The offset for the latest timestamp.
+     */
+    static long offsetForLatestTimestamp(TopicIdPartition topicIdPartition, ReplicaManager replicaManager) {
+        // Isolation level is set to READ_UNCOMMITTED, matching with that used in share fetch requests
+        Option<FileRecords.TimestampAndOffset> timestampAndOffset = replicaManager.fetchOffsetForTimestamp(
+            topicIdPartition.topicPartition(), ListOffsetsRequest.LATEST_TIMESTAMP, new Some<>(IsolationLevel.READ_UNCOMMITTED),
+            Optional.empty(), true).timestampAndOffsetOpt();
+        if (timestampAndOffset.isEmpty()) {
+            throw new OffsetNotAvailableException("offset for Latest timestamp not found for topic partition: " + topicIdPartition);
+        }
+        return timestampAndOffset.get().offset;
     }
 
     static int leaderEpoch(ReplicaManager replicaManager, TopicPartition tp) {
