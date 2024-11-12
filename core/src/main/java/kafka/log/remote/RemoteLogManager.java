@@ -790,10 +790,12 @@ public class RemoteLogManager implements Closeable {
         }
 
         public void run() {
-            boolean isReady = remoteLogMetadataManager.isReady(topicIdPartition);
-            if (isCancelled() || !isReady) {
-                logger.debug("Skipping the current run for partition {} as it is either cancelled: {} or " +
-                        "remote log metadata is not ready, isReady: {}", topicIdPartition, isCancelled(), isReady);
+            if (isCancelled()) {
+                logger.debug("Skipping the current run for partition {} as it is cancelled", topicIdPartition);
+                return;
+            }
+            if (!remoteLogMetadataManager.isReady(topicIdPartition)) {
+                logger.debug("Skipping the current run for partition {} as the remote-log metadata is not ready", topicIdPartition);
                 return;
             }
 
