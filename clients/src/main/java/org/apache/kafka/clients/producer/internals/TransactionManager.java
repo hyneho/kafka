@@ -338,11 +338,13 @@ public class TransactionManager {
     private TransactionalRequestResult beginCompletingTransaction(TransactionResult transactionResult) {
         if (!newPartitionsInTransaction.isEmpty())
             enqueueRequest(addPartitionsToTransactionHandler());
+        log.error("----calvin: beginCompletingTransaction, last error=" + lastError);
 
         // If the error is an INVALID_PRODUCER_ID_MAPPING error, the server will not accept an EndTxnRequest, so skip
         // directly to InitProducerId. Otherwise, we must first abort the transaction, because the producer will be
         // fenced if we directly call InitProducerId.
         if (!(lastError instanceof InvalidPidMappingException)) {
+            log.error("----calvin: beginCompletingTransaction skipping endTxn");
             EndTxnRequest.Builder builder = new EndTxnRequest.Builder(
                     new EndTxnRequestData()
                             .setTransactionalId(transactionalId)
@@ -553,6 +555,7 @@ public class TransactionManager {
     }
 
     synchronized void requestEpochBumpForPartition(TopicPartition tp) {
+        log.error("----calvin: epochBumpRequired set place 1");
         epochBumpRequired = true;
         this.partitionsToRewriteSequences.add(tp);
     }
@@ -673,6 +676,7 @@ public class TransactionManager {
         if (pendingTransition != null) {
             pendingTransition.result.fail(exception);
         }
+        log.error("--- lastError clear place 1");
         lastError = null;
     }
 
@@ -684,6 +688,7 @@ public class TransactionManager {
             transitionToFatalError(exception);
         } else if (isTransactional()) {
             if (canBumpEpoch() && !isCompleting()) {
+                log.error("----calvin: epochBumpRequired set place 2");
                 epochBumpRequired = true;
             }
             transitionToAbortableError(exception);
@@ -769,6 +774,7 @@ public class TransactionManager {
                         String unackedMessagesErr = "The client hasn't received acknowledgment for some previously " +
                                 "sent messages and can no longer retry them. ";
                         if (canBumpEpoch()) {
+                            log.error("----calvin: epochBumpRequired set place 3");
                             epochBumpRequired = true;
                             KafkaException exception = new KafkaException(unackedMessagesErr + "It is safe to abort " +
                                     "the transaction and continue.");
@@ -1026,8 +1032,10 @@ public class TransactionManager {
         } else if (target == State.FATAL_ERROR || target == State.ABORTABLE_ERROR) {
             if (error == null)
                 throw new IllegalArgumentException("Cannot transition to " + target + " with a null exception");
+            log.error("---calvin: transaction to " + target + ", error=" + error);
             lastError = error;
         } else {
+            log.error("--- lastError clear place 2, target=" + target);
             lastError = null;
         }
 
@@ -1195,6 +1203,7 @@ public class TransactionManager {
     }
 
     private void clearAllStates() {
+        log.error("--- lastError clear place 3");
         lastError = null;
         epochBumpRequired = false;
         transactionStarted = false;
@@ -1227,6 +1236,7 @@ public class TransactionManager {
 
         void abortableErrorIfPossible(RuntimeException e) {
             if (canBumpEpoch()) {
+                log.error("----calvin: epochBumpRequired set place 4");
                 epochBumpRequired = true;
                 abortableError(e);
             } else {
@@ -1338,14 +1348,13 @@ public class TransactionManager {
         public void handleResponse(AbstractResponse response) {
             InitProducerIdResponse initProducerIdResponse = (InitProducerIdResponse) response;
             Errors error = initProducerIdResponse.error();
+            log.error("----calvin: client receive init producer ID:" + response + " epochBumpRequired=" + epochBumpRequired);
 
             if (error == Errors.NONE) {
                 ProducerIdAndEpoch producerIdAndEpoch = new ProducerIdAndEpoch(initProducerIdResponse.data().producerId(),
                         initProducerIdResponse.data().producerEpoch());
                 setProducerIdAndEpoch(producerIdAndEpoch);
                 transitionTo(State.READY);
-                // Clear all the states especially epochBumpRequired to make sure it does not confuse the following transactions.
-                clearAllStates();
                 if (this.isEpochBump) {
                     resetSequenceNumbers();
                 }
@@ -1581,6 +1590,7 @@ public class TransactionManager {
         public void handleResponse(AbstractResponse response) {
             EndTxnResponse endTxnResponse = (EndTxnResponse) response;
             Errors error = endTxnResponse.error();
+            log.error("---calvin: client received end txn=" + endTxnResponse);
 
             if (error == Errors.NONE) {
                 // For End Txn version 5+, the broker includes the producerId and producerEpoch in the EndTxnResponse.

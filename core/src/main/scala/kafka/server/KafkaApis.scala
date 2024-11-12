@@ -2320,7 +2320,7 @@ class KafkaApis(val requestChannel: RequestChannel,
             .setProducerId(newProducerId)
             .setProducerEpoch(newProducerEpoch)
             .setThrottleTimeMs(requestThrottleMs))
-          trace(s"Completed ${endTxnRequest.data.transactionalId}'s EndTxnRequest " +
+          info(s"Completed ${endTxnRequest.data.transactionalId}'s EndTxnRequest " +
             s"with committed: ${endTxnRequest.data.committed}, " +
             s"errors: $error from client ${request.header.clientId}.")
           responseBody

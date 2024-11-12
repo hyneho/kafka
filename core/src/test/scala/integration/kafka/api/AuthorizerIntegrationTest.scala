@@ -12,17 +12,12 @@
  */
 package kafka.api
 
-import java.lang.{Byte => JByte}
-import java.time.Duration
-import java.util
-import java.util.concurrent.{ExecutionException, Semaphore}
-import java.util.regex.Pattern
-import java.util.{Collections, Optional, Properties}
-import kafka.utils.{TestInfoUtils, TestUtils}
 import kafka.utils.TestUtils.waitUntilTrue
+import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.admin.{Admin, AlterConfigOp, NewTopic}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer._
+import org.apache.kafka.common._
 import org.apache.kafka.common.acl.AclOperation._
 import org.apache.kafka.common.acl.AclPermissionType.{ALLOW, DENY}
 import org.apache.kafka.common.acl._
@@ -49,7 +44,6 @@ import org.apache.kafka.common.resource.ResourceType._
 import org.apache.kafka.common.resource._
 import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.utils.Utils
-import org.apache.kafka.common._
 import org.apache.kafka.coordinator.group.GroupConfig
 import org.apache.kafka.security.authorizer.AclEntry
 import org.apache.kafka.security.authorizer.AclEntry.WILDCARD_HOST
