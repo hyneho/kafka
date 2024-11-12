@@ -34,7 +34,7 @@ inputs:
     description: "The name to use for archiving the build scan."
     required: true
 outputs:
-  test-exitcode:
+  gradle-exitcode:
     description: "The result of the Gradle test task."
     value: ${{ steps.run-tests.outputs.exitcode }}
 runs:
