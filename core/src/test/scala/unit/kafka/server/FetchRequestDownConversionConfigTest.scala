@@ -107,7 +107,7 @@ class FetchRequestDownConversionConfigTest extends BaseRequestTest {
     val topicNames = topicIds.map(_.swap)
     topicPartitions.foreach(tp => producer.send(new ProducerRecord(tp.topic(), "key", "value")).get())
     val fetchRequest = FetchRequest.Builder.forConsumer(1, Int.MaxValue, 0, createPartitionMap(1024,
-      topicPartitions, topicIds.toMap)).build(1)
+      topicPartitions, topicIds)).build(1)
     val fetchResponse = sendFetchRequest(topicMap.head._2, fetchRequest)
     val fetchResponseData = fetchResponse.responseData(topicNames.asJava, 1)
     topicPartitions.foreach(tp => assertEquals(Errors.UNSUPPORTED_VERSION, Errors.forCode(fetchResponseData.get(tp).errorCode)))
@@ -125,7 +125,7 @@ class FetchRequestDownConversionConfigTest extends BaseRequestTest {
     val topicNames = topicIds.map(_.swap)
     topicPartitions.foreach(tp => producer.send(new ProducerRecord(tp.topic(), "key", "value")).get())
     val fetchRequest = FetchRequest.Builder.forConsumer(ApiKeys.FETCH.latestVersion, Int.MaxValue, 0, createPartitionMap(1024,
-      topicPartitions, topicIds.toMap)).build()
+      topicPartitions, topicIds)).build()
     val fetchResponse = sendFetchRequest(topicMap.head._2, fetchRequest)
     val fetchResponseData = fetchResponse.responseData(topicNames.asJava, ApiKeys.FETCH.latestVersion)
     topicPartitions.foreach(tp => assertEquals(Errors.NONE, Errors.forCode(fetchResponseData.get(tp).errorCode)))
@@ -143,7 +143,7 @@ class FetchRequestDownConversionConfigTest extends BaseRequestTest {
     val topicNames = topicIds.map(_.swap)
     topicPartitions.foreach(tp => producer.send(new ProducerRecord(tp.topic(), "key", "value")).get())
     val fetchRequest = FetchRequest.Builder.forConsumer(ApiKeys.FETCH.latestVersion, Int.MaxValue, 0, createPartitionMap(1024,
-      topicPartitions, topicIds.toMap)).build(12)
+      topicPartitions, topicIds)).build(12)
     val fetchResponse = sendFetchRequest(topicMap.head._2, fetchRequest)
     val fetchResponseData = fetchResponse.responseData(topicNames.asJava, 12)
     topicPartitions.foreach(tp => assertEquals(Errors.NONE, Errors.forCode(fetchResponseData.get(tp).errorCode)))
