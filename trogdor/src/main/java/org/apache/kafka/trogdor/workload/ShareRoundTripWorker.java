@@ -29,6 +29,7 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.group.GroupConfig;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
