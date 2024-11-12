@@ -18,6 +18,7 @@ package kafka.admin;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
@@ -136,6 +137,41 @@ public class ConfigCommandIntegrationTest {
                 "--alter", "--add-config", "metrics=org.apache"));
         message = captureStandardStream(false, run(command));
         assertEquals("Completed updating config for client-metric cm.", message);
+    }
+
+    @ClusterTest
+    public void testAddConfigKeyValuesUsingCommand() throws Exception {
+        String topicName = "test-topic";
+
+        try (Admin client = cluster.createAdminClient()) {
+            NewTopic newTopic = new NewTopic(topicName, 1, (short) 1);
+            client.createTopics(Collections.singleton(newTopic)).all().get();
+        }
+
+        String configKey = "cleanup.policy";
+        List<String> configValues = List.of("delete", "compact");
+        String configValueStr = String.join(",", configValues);
+
+        Stream<String> command = Stream.concat(quorumArgs(), Stream.of(
+                "--entity-type", "topics",
+                "--entity-name", topicName,
+                "--alter", "--add-config", configKey + "=" + "[" + configValueStr + "]"));
+
+        String output = captureStandardStream(false, run(command));
+        assertEquals("Completed updating config for topic " + topicName + ".", output);
+
+        command = Stream.concat(quorumArgs(), Stream.of(
+                "--entity-type", "topics",
+                "--entity-name", topicName,
+                "--describe"));
+
+        output = captureStandardStream(false, run(command));
+        assertTrue(output.contains(configKey + "=" + configValueStr), "Config entry was not added correctly");
+
+        try (Admin client = cluster.createAdminClient()) {
+            client.deleteTopics(Collections.singleton(topicName)).all().get();
+        }
+
     }
 
     @ClusterTest
