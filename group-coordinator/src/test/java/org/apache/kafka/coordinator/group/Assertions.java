@@ -30,6 +30,7 @@ import org.apache.kafka.coordinator.group.generated.ConsumerGroupCurrentMemberAs
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupPartitionMetadataValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberValue;
 import org.apache.kafka.coordinator.group.generated.GroupMetadataValue;
+import org.apache.kafka.coordinator.group.generated.ShareGroupPartitionMetadataValue;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 
 import org.opentest4j.AssertionFailedError;
@@ -89,6 +90,10 @@ public class Assertions {
         registerApiMessageComparator(
             ConsumerGroupTargetAssignmentMemberValue.class,
             Assertions::assertConsumerGroupTargetAssignmentMemberValue
+        );
+        registerApiMessageComparator(
+            ShareGroupPartitionMetadataValue.class,
+            Assertions::assertShareGroupPartitionMetadataValue
         );
     }
 
@@ -229,6 +234,29 @@ public class Assertions {
             message.topics().sort(Comparator.comparing(ConsumerGroupPartitionMetadataValue.TopicMetadata::topicId));
             message.topics().forEach(topic -> {
                 topic.partitionMetadata().sort(Comparator.comparing(ConsumerGroupPartitionMetadataValue.PartitionMetadata::partition));
+                topic.partitionMetadata().forEach(partition -> partition.racks().sort(String::compareTo));
+            });
+        };
+
+        normalize.accept(expected);
+        normalize.accept(actual);
+
+        assertEquals(expected, actual);
+    }
+
+    private static void assertShareGroupPartitionMetadataValue(
+        ApiMessage exp,
+        ApiMessage act
+    ) {
+        // The order of the racks stored in the PartitionMetadata of the ShareGroupPartitionMetadataValue
+        // is not always guaranteed. Therefore, we need a special comparator.
+        ShareGroupPartitionMetadataValue expected = (ShareGroupPartitionMetadataValue) exp.duplicate();
+        ShareGroupPartitionMetadataValue actual = (ShareGroupPartitionMetadataValue) act.duplicate();
+
+        Consumer<ShareGroupPartitionMetadataValue> normalize = message -> {
+            message.topics().sort(Comparator.comparing(ShareGroupPartitionMetadataValue.TopicMetadata::topicId));
+            message.topics().forEach(topic -> {
+                topic.partitionMetadata().sort(Comparator.comparing(ShareGroupPartitionMetadataValue.PartitionMetadata::partition));
                 topic.partitionMetadata().forEach(partition -> partition.racks().sort(String::compareTo));
             });
         };
