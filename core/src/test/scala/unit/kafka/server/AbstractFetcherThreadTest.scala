@@ -28,7 +28,6 @@ import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.common.{KafkaException, TopicPartition, Uuid}
 import org.apache.kafka.storage.internals.log.LogAppendInfo
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.{BeforeEach, Test}
 import kafka.server.FetcherThreadTestUtils.{initialFetchState, mkBatch}
 
@@ -540,9 +539,9 @@ class AbstractFetcherThreadTest {
     assertEquals(2, replicaState.logEndOffset)
   }
 
-  @Test
-  def testTruncationOnFetchSkippedIfPartitionRemoved(): Unit = {
-    assumeTrue(truncateOnFetch)
+  @ParameterizedTest
+  @ValueSource(booleans = Array(true))
+  def testTruncationOnFetchSkippedIfPartitionRemoved(truncateOnFetch: Boolean): Unit = {
     val partition = new TopicPartition("topic", 0)
     var truncations = 0
     val mockLeaderEndpoint = new MockLeaderEndPoint(truncateOnFetch = truncateOnFetch, version = version)
@@ -1027,10 +1026,9 @@ class AbstractFetcherThreadTest {
     fetcher.verifyLastFetchedEpoch(partition, Some(5))
   }
 
-  @Test
-  def testTruncateOnFetchDoesNotProcessPartitionData(): Unit = {
-    assumeTrue(truncateOnFetch)
-
+  @ParameterizedTest
+  @ValueSource(booleans = Array(true))
+  def testTruncateOnFetchDoesNotProcessPartitionData(truncateOnFetch: Boolean): Unit = {
     val partition = new TopicPartition("topic", 0)
 
     var truncateCalls = 0
