@@ -592,7 +592,7 @@ public class SharePartitionManager implements AutoCloseable {
         }
 
         // If all the partitions in the request errored out, then complete the fetch request with an exception.
-        if (shareFetch.isErrored()) {
+        if (shareFetch.errorInAllPartitions()) {
             shareFetch.maybeComplete(Collections.emptyMap());
             // Do not proceed with share fetch processing as all the partitions errored out.
             return;

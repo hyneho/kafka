@@ -597,7 +597,7 @@ public class DelayedShareFetchTest {
         // Fetch should remain pending and should be completed on request timeout.
         assertFalse(delayedShareFetch.isCompleted());
         // The request should be errored out as topic partition should get added as erroneous.
-        assertTrue(shareFetch.isErrored());
+        assertTrue(shareFetch.errorInAllPartitions());
 
         Mockito.verify(sharePartitionManager, times(1)).handleFencedSharePartitionException(any(), any());
         Mockito.verify(replicaManager, times(1)).readFromLog(

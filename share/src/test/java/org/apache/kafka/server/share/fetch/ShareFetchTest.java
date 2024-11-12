@@ -38,29 +38,29 @@ public class ShareFetchTest {
     private static final String MEMBER_ID = "memberId";
 
     @Test
-    public void testIsErrored() {
+    public void testErrorInAllPartitions() {
         TopicIdPartition topicIdPartition = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0));
         ShareFetch shareFetch = new ShareFetch(mock(FetchParams.class), GROUP_ID, MEMBER_ID, new CompletableFuture<>(),
             Map.of(topicIdPartition, 10), 100);
-        assertFalse(shareFetch.isErrored());
+        assertFalse(shareFetch.errorInAllPartitions());
 
         shareFetch.addErroneous(topicIdPartition, new RuntimeException());
-        assertTrue(shareFetch.isErrored());
+        assertTrue(shareFetch.errorInAllPartitions());
     }
 
     @Test
-    public void testIsErroredWithMultipleTopicIdPartitions() {
+    public void testErrorInAllPartitionsWithMultipleTopicIdPartitions() {
         TopicIdPartition topicIdPartition0 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0));
         TopicIdPartition topicIdPartition1 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 1));
         ShareFetch shareFetch = new ShareFetch(mock(FetchParams.class), GROUP_ID, MEMBER_ID, new CompletableFuture<>(),
             Map.of(topicIdPartition0, 10, topicIdPartition1, 10), 100);
-        assertFalse(shareFetch.isErrored());
+        assertFalse(shareFetch.errorInAllPartitions());
 
         shareFetch.addErroneous(topicIdPartition0, new RuntimeException());
-        assertFalse(shareFetch.isErrored());
+        assertFalse(shareFetch.errorInAllPartitions());
 
         shareFetch.addErroneous(topicIdPartition1, new RuntimeException());
-        assertTrue(shareFetch.isErrored());
+        assertTrue(shareFetch.errorInAllPartitions());
     }
 
     @Test

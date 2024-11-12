@@ -131,7 +131,7 @@ public class ShareFetch {
      * Check if all the partitions in the request have errored.
      * @return true if all the partitions in the request have errored, false otherwise.
      */
-    public synchronized boolean isErrored() {
+    public synchronized boolean errorInAllPartitions() {
         return erroneous != null && erroneous.size() == partitionMaxBytes().size();
     }
 
