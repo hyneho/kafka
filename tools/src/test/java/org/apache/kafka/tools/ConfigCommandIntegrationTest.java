@@ -14,7 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.admin;
+package org.apache.kafka.tools;
+
+import kafka.admin.ConfigCommand;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConfigEntry;
@@ -28,8 +30,6 @@ import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +56,7 @@ import static org.apache.kafka.security.PasswordEncoderConfigs.PASSWORD_ENCODER_
 import static org.apache.kafka.server.config.ReplicationConfigs.AUTO_LEADER_REBALANCE_ENABLE_CONFIG;
 import static org.apache.kafka.server.config.ServerConfigs.MESSAGE_MAX_BYTES_CONFIG;
 import static org.apache.kafka.server.config.ServerLogConfigs.AUTO_CREATE_TOPICS_ENABLE_CONFIG;
+import static org.apache.kafka.tools.ToolsTestUtils.captureStandardStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -498,27 +499,5 @@ public class ConfigCommandIntegrationTest {
                 .stream()
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining(","));
-    }
-
-    // Copied from ToolsTestUtils.java, can be removed after we move ConfigCommand to tools module
-    static String captureStandardStream(boolean isErr, Runnable runnable) {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        PrintStream currentStream = isErr ? System.err : System.out;
-        PrintStream tempStream = new PrintStream(outputStream);
-        if (isErr)
-            System.setErr(tempStream);
-        else
-            System.setOut(tempStream);
-        try {
-            runnable.run();
-            return outputStream.toString().trim();
-        } finally {
-            if (isErr)
-                System.setErr(currentStream);
-            else
-                System.setOut(currentStream);
-
-            tempStream.close();
-        }
     }
 }

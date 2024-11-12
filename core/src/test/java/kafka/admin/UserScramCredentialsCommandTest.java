@@ -25,6 +25,8 @@ import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -72,7 +74,7 @@ public class UserScramCredentialsCommandTest {
         List<String> commandArgs = new ArrayList<>(Arrays.asList("--bootstrap-server", cluster.bootstrapServers()));
         commandArgs.addAll(Arrays.asList(args));
         try {
-            String output = ConfigCommandIntegrationTest.captureStandardStream(false, () -> {
+            String output = captureStandardStream(false, () -> {
                 ConfigCommand.main(commandArgs.toArray(new String[0]));
             });
             return new ConfigCommandResult(output);
@@ -183,5 +185,26 @@ public class UserScramCredentialsCommandTest {
 
     private static String quotaMessage(String user) {
         return "Quota configs for user-principal '" + user + "' are consumer_byte_rate=20000.0";
+    }
+
+    private String captureStandardStream(boolean isErr, Runnable runnable) {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        PrintStream currentStream = isErr ? System.err : System.out;
+        PrintStream tempStream = new PrintStream(outputStream);
+        if (isErr)
+            System.setErr(tempStream);
+        else
+            System.setOut(tempStream);
+        try {
+            runnable.run();
+            return outputStream.toString().trim();
+        } finally {
+            if (isErr)
+                System.setErr(currentStream);
+            else
+                System.setOut(currentStream);
+
+            tempStream.close();
+        }
     }
 }
