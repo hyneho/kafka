@@ -70,7 +70,6 @@ import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer.ExpiredT
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer.ScheduledTimeout;
 import org.apache.kafka.coordinator.group.api.assignor.ConsumerGroupPartitionAssignor;
 import org.apache.kafka.coordinator.group.api.assignor.GroupAssignment;
-import org.apache.kafka.coordinator.group.api.assignor.MemberAssignment;
 import org.apache.kafka.coordinator.group.api.assignor.PartitionAssignorException;
 import org.apache.kafka.coordinator.group.classic.ClassicGroup;
 import org.apache.kafka.coordinator.group.classic.ClassicGroupMember;
@@ -84,6 +83,7 @@ import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupBuilder;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
+import org.apache.kafka.coordinator.group.modern.consumer.ResolvedRegularExpression;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroup;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupBuilder;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupMember;
@@ -98,9 +98,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.opentest4j.AssertionFailedError;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -250,7 +248,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId)
                 .setMemberEpoch(LEAVE_GROUP_STATIC_MEMBER_EPOCH)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList())));
 
         assertEquals("InstanceId can't be null.", ex.getMessage());
@@ -331,7 +329,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setServerAssignor("range")
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()),
             (short) 0
         );
@@ -372,7 +370,7 @@ public class GroupMetadataManagerTest {
                     .setMemberId(memberId)
                     .setMemberEpoch(100) // Epoch must be > 0.
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -394,7 +392,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setServerAssignor(NoOpPartitionAssignor.NAME)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         // The second member is rejected because the member id is unknown and
@@ -406,7 +404,7 @@ public class GroupMetadataManagerTest {
                     .setMemberId(Uuid.randomUuid().toString())
                     .setMemberEpoch(1)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -429,7 +427,7 @@ public class GroupMetadataManagerTest {
             .setRebalanceTimeoutMs(5000)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(mkTopicAssignment(fooTopicId, 1, 2, 3)))
             .build();
@@ -454,7 +452,7 @@ public class GroupMetadataManagerTest {
                     .setMemberId(memberId)
                     .setMemberEpoch(200)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
 
         // Member epoch is smaller than the expected epoch.
         assertThrows(FencedMemberEpochException.class, () ->
@@ -464,7 +462,7 @@ public class GroupMetadataManagerTest {
                     .setMemberId(memberId)
                     .setMemberEpoch(50)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
 
         // Member joins with previous epoch but without providing partitions.
         assertThrows(FencedMemberEpochException.class, () ->
@@ -474,7 +472,7 @@ public class GroupMetadataManagerTest {
                     .setMemberId(memberId)
                     .setMemberEpoch(99)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
 
         // Member joins with previous epoch and has a subset of the owned partitions. This
         // is accepted as the response with the bumped epoch may have been lost. In this
@@ -485,10 +483,10 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId)
                 .setMemberEpoch(99)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.singletonList(new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                     .setTopicId(fooTopicId)
-                    .setPartitions(Arrays.asList(1, 2)))));
+                    .setPartitions(List.of(1, 2)))));
         assertEquals(100, result.response().memberEpoch());
     }
 
@@ -530,7 +528,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setServerAssignor("range")
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         assertResponseEquals(
@@ -539,13 +537,13 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(1)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2, 3, 4, 5)),
+                            .setPartitions(List.of(0, 1, 2, 3, 4, 5)),
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2))
+                            .setPartitions(List.of(0, 1, 2))
                     ))),
             result.response()
         );
@@ -557,19 +555,19 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setRebalanceTimeoutMs(5000)
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5),
                 mkTopicAssignment(barTopicId, 0, 1, 2)))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember),
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {{
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                }}),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 1),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId, mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5),
@@ -630,7 +628,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId)
                 .setMemberEpoch(10)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar")));
+                .setSubscribedTopicNames(List.of("foo", "bar")));
 
         assertResponseEquals(
             new ConsumerGroupHeartbeatResponseData()
@@ -638,13 +636,13 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(11)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2, 3, 4, 5)),
+                            .setPartitions(List.of(0, 1, 2, 3, 4, 5)),
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2))
+                            .setPartitions(List.of(0, 1, 2))
                     ))),
             result.response()
         );
@@ -655,21 +653,19 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(10)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5),
                 mkTopicAssignment(barTopicId, 0, 1, 2)))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember),
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId, mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5),
@@ -711,7 +707,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -724,7 +720,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -739,24 +735,20 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1),
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 2, 3),
-                        mkTopicAssignment(barTopicId, 1)
-                    )));
-                    put(memberId3, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 4, 5),
-                        mkTopicAssignment(barTopicId, 2)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1),
+                mkTopicAssignment(barTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 2, 3),
+                mkTopicAssignment(barTopicId, 1)
+            )),
+            memberId3, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 4, 5),
+                mkTopicAssignment(barTopicId, 2)
+            ))
+        )));
 
         // Member 3 joins the consumer group.
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result = context.consumerGroupHeartbeat(
@@ -765,7 +757,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId3)
                 .setMemberEpoch(0)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setServerAssignor("range")
                 .setTopicPartitions(Collections.emptyList()));
 
@@ -785,11 +777,11 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setRebalanceTimeoutMs(5000)
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember3),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId1, mkAssignment(
@@ -845,7 +837,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -858,7 +850,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     // Use zar only here to ensure that metadata needs to be recomputed.
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -880,7 +872,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId2)
                 .setMemberEpoch(LEAVE_GROUP_MEMBER_EPOCH)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         assertResponseEquals(
@@ -890,17 +882,15 @@ public class GroupMetadataManagerTest {
             result.response()
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId2),
             // Subscription metadata is recomputed because zar is no longer there.
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11)
         );
 
@@ -938,7 +928,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -952,7 +942,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     // Use zar only here to ensure that metadata needs to be recomputed.
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -967,24 +957,20 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1),
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 2, 3),
-                        mkTopicAssignment(barTopicId, 1)
-                    )));
-                    put(memberId3, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 4, 5),
-                        mkTopicAssignment(barTopicId, 2)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1),
+                mkTopicAssignment(barTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 2, 3),
+                mkTopicAssignment(barTopicId, 1)
+            )),
+            memberId3, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 4, 5),
+                mkTopicAssignment(barTopicId, 2)
+            ))
+        )));
 
         // Member 3 joins the consumer group.
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result = context.consumerGroupHeartbeat(
@@ -995,7 +981,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         assertResponseEquals(
@@ -1015,11 +1001,11 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setRebalanceTimeoutMs(5000)
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember3),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId1, mkAssignment(
@@ -1065,7 +1051,7 @@ public class GroupMetadataManagerTest {
             .setRebalanceTimeoutMs(5000)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -1079,7 +1065,7 @@ public class GroupMetadataManagerTest {
             .setRebalanceTimeoutMs(5000)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                     mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -1104,12 +1090,10 @@ public class GroupMetadataManagerTest {
                     mkTopicAssignment(fooTopicId, 3, 4, 5),
                     mkTopicAssignment(barTopicId, 2)))
                 .withAssignmentEpoch(10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                        put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                    }
-                }))
+                .withSubscriptionMetadata(Map.of(
+                    fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                    barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+                )))
             .build();
 
         // Member 2 leaves the consumer group.
@@ -1119,7 +1103,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId2)
                 .setInstanceId(memberId2)
                 .setMemberEpoch(-2)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         // Member epoch of the response would be set to -2.
@@ -1147,7 +1131,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         assertResponseEquals(
@@ -1156,10 +1140,10 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(10)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(3, 4, 5)),
+                            .setPartitions(List.of(3, 4, 5)),
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
                             .setPartitions(Collections.singletonList(2))
@@ -1175,7 +1159,7 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setRebalanceTimeoutMs(5000)
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -1190,14 +1174,14 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setRebalanceTimeoutMs(5000)
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 3, 4, 5),
                 mkTopicAssignment(barTopicId, 2)))
             .build();
 
-        List<CoordinatorRecord> expectedRecordsAfterRejoin = Arrays.asList(
+        List<CoordinatorRecord> expectedRecordsAfterRejoin = List.of(
             // The previous member is deleted.
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
@@ -1277,26 +1261,20 @@ public class GroupMetadataManagerTest {
                 .withAssignment(memberId2, mkAssignment(
                     mkTopicAssignment(fooTopicId, 3, 4, 5)))
                 .withAssignmentEpoch(10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                    }
-                }))
+                .withSubscriptionMetadata(
+                    Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6))
+                ))
             .build();
 
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1, 2)
-                    )));
-                    put(member2RejoinId, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 3, 4, 5),
-                        mkTopicAssignment(barTopicId, 0, 1, 2)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1, 2)
+            )),
+            member2RejoinId, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 3, 4, 5),
+                mkTopicAssignment(barTopicId, 0, 1, 2)
+            ))
+        )));
 
         // Member 2 leaves the consumer group.
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result = context.consumerGroupHeartbeat(
@@ -1331,7 +1309,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar")) // bar is new.
+                .setSubscribedTopicNames(List.of("foo", "bar")) // bar is new.
                 .setTopicPartitions(Collections.emptyList()));
 
         assertResponseEquals(
@@ -1340,13 +1318,13 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(11)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(3, 4, 5)),
+                            .setPartitions(List.of(3, 4, 5)),
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2))
+                            .setPartitions(List.of(0, 1, 2))
                     ))),
             rejoinResult.response()
         );
@@ -1373,14 +1351,14 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setRebalanceTimeoutMs(5000)
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 3, 4, 5),
                 mkTopicAssignment(barTopicId, 0, 1, 2)))
             .build();
 
-        List<CoordinatorRecord> expectedRecordsAfterRejoin = Arrays.asList(
+        List<CoordinatorRecord> expectedRecordsAfterRejoin = List.of(
             // The previous member is deleted.
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
@@ -1395,12 +1373,10 @@ public class GroupMetadataManagerTest {
 
             // As the new member as a different subscribed topic set, a rebalance is triggered.
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedRejoinedMember),
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, member2RejoinId, mkAssignment(
                 mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -1436,7 +1412,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -1450,7 +1426,7 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             // Use zar only here to ensure that metadata needs to be recomputed.
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -1485,7 +1461,7 @@ public class GroupMetadataManagerTest {
                 .setInstanceId(memberId2)
                 .setMemberEpoch(LEAVE_GROUP_STATIC_MEMBER_EPOCH)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         // member epoch of the response would be set to -2
@@ -1538,7 +1514,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -1552,7 +1528,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     // Use zar only here to ensure that metadata needs to be recomputed.
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -1575,7 +1551,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId2)
                 .setMemberEpoch(LEAVE_GROUP_MEMBER_EPOCH)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         assertResponseEquals(
@@ -1585,17 +1561,15 @@ public class GroupMetadataManagerTest {
             result.response()
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId2),
             // Subscription metadata is recomputed because zar is no longer there.
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11)
         );
 
@@ -1629,7 +1603,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -1648,7 +1622,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -1678,7 +1652,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -1697,7 +1671,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(10)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -1726,7 +1700,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -1743,7 +1717,7 @@ public class GroupMetadataManagerTest {
                 .setInstanceId(memberId1)
                 .setMemberEpoch(11)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -1767,7 +1741,7 @@ public class GroupMetadataManagerTest {
             .setRebalanceTimeoutMs(5000)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(mkTopicAssignment(fooTopicId, 1, 2, 3)))
             .build();
@@ -1793,7 +1767,7 @@ public class GroupMetadataManagerTest {
                     .setInstanceId(memberId)
                     .setMemberEpoch(200)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
 
         // Member epoch is smaller than the expected epoch.
         assertThrows(FencedMemberEpochException.class, () ->
@@ -1804,7 +1778,7 @@ public class GroupMetadataManagerTest {
                     .setInstanceId(memberId)
                     .setMemberEpoch(50)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
 
         // Member joins with previous epoch but without providing partitions.
         assertThrows(FencedMemberEpochException.class, () ->
@@ -1815,7 +1789,7 @@ public class GroupMetadataManagerTest {
                     .setInstanceId(memberId)
                     .setMemberEpoch(99)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
 
         // Member joins with previous epoch and has a subset of the owned partitions. This
         // is accepted as the response with the bumped epoch may have been lost. In this
@@ -1827,10 +1801,10 @@ public class GroupMetadataManagerTest {
                 .setInstanceId(memberId)
                 .setMemberEpoch(99)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.singletonList(new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                     .setTopicId(fooTopicId)
-                    .setPartitions(Arrays.asList(1, 2)))));
+                    .setPartitions(List.of(1, 2)))));
         assertEquals(100, result.response().memberEpoch());
     }
 
@@ -1859,7 +1833,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -1876,7 +1850,7 @@ public class GroupMetadataManagerTest {
                 .setInstanceId("unknown-" + memberId1)
                 .setMemberEpoch(LEAVE_GROUP_STATIC_MEMBER_EPOCH)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -1905,7 +1879,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -1922,7 +1896,7 @@ public class GroupMetadataManagerTest {
                 .setInstanceId(memberId1)
                 .setMemberEpoch(LEAVE_GROUP_STATIC_MEMBER_EPOCH)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -1946,13 +1920,7 @@ public class GroupMetadataManagerTest {
 
         // Prepare new assignment for the group.
         assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1)
-                    )));
-                }
-            }
+            Map.of(memberId, new MemberAssignmentImpl(mkAssignment(mkTopicAssignment(fooTopicId, 0, 1))))
         ));
 
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result;
@@ -1964,7 +1932,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId)
                 .setMemberEpoch(0)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setServerAssignor("range")
                 .setTopicPartitions(Collections.emptyList()));
 
@@ -1977,7 +1945,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1))))),
+                            .setPartitions(List.of(0, 1))))),
             result.response()
         );
 
@@ -2004,7 +1972,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId)
                 .setMemberEpoch(result.response().memberEpoch())
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setServerAssignor("range")
                 .setTopicPartitions(Collections.emptyList()));
 
@@ -2017,7 +1985,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1))))),
+                            .setPartitions(List.of(0, 1))))),
             result.response()
         );
     }
@@ -2052,7 +2020,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -2065,7 +2033,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -2081,24 +2049,20 @@ public class GroupMetadataManagerTest {
             .build();
 
         // Prepare new assignment for the group.
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1),
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 2, 3),
-                        mkTopicAssignment(barTopicId, 2)
-                    )));
-                    put(memberId3, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 4, 5),
-                        mkTopicAssignment(barTopicId, 1)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1),
+                mkTopicAssignment(barTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 2, 3),
+                mkTopicAssignment(barTopicId, 2)
+            )),
+            memberId3, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 4, 5),
+                mkTopicAssignment(barTopicId, 1)
+            ))
+        )));
 
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result;
 
@@ -2117,7 +2081,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId3)
                 .setMemberEpoch(0)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setServerAssignor("range")
                 .setTopicPartitions(Collections.emptyList()));
 
@@ -2158,10 +2122,10 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(10)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1)),
+                            .setPartitions(List.of(0, 1)),
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
                             .setPartitions(Collections.singletonList(0))
@@ -2201,7 +2165,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(10)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
                             .setPartitions(Collections.singletonList(3)),
@@ -2263,10 +2227,10 @@ public class GroupMetadataManagerTest {
             .setGroupId(groupId)
             .setMemberId(memberId1)
             .setMemberEpoch(10)
-            .setTopicPartitions(Arrays.asList(
+            .setTopicPartitions(List.of(
                 new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                     .setTopicId(fooTopicId)
-                    .setPartitions(Arrays.asList(0, 1)),
+                    .setPartitions(List.of(0, 1)),
                 new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                     .setTopicId(barTopicId)
                     .setPartitions(Collections.singletonList(0))
@@ -2373,7 +2337,7 @@ public class GroupMetadataManagerTest {
             .setGroupId(groupId)
             .setMemberId(memberId2)
             .setMemberEpoch(10)
-            .setTopicPartitions(Arrays.asList(
+            .setTopicPartitions(List.of(
                 new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                     .setTopicId(fooTopicId)
                     .setPartitions(Collections.singletonList(3)),
@@ -2388,10 +2352,10 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(11)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(2, 3)),
+                            .setPartitions(List.of(2, 3)),
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
                             .setPartitions(Collections.singletonList(2))
@@ -2431,10 +2395,10 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(11)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ConsumerGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(4, 5)),
+                            .setPartitions(List.of(4, 5)),
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
                             .setPartitions(Collections.singletonList(1))))),
@@ -2487,7 +2451,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
@@ -2500,7 +2464,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
@@ -2523,7 +2487,7 @@ public class GroupMetadataManagerTest {
                     .setMemberEpoch(0)
                     .setServerAssignor("range")
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -2608,7 +2572,7 @@ public class GroupMetadataManagerTest {
                     .setMemberId(memberId1)
                     .setMemberEpoch(0)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignor("range")
                     .setTopicPartitions(Collections.emptyList())));
     }
@@ -2639,7 +2603,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -2647,13 +2611,11 @@ public class GroupMetadataManagerTest {
                 .withAssignment(memberId, mkAssignment(
                     mkTopicAssignment(fooTopicId, 0, 1, 2)))
                 .withAssignmentEpoch(10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        // foo only has 3 partitions stored in the metadata but foo has
-                        // 6 partitions the metadata image.
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 3));
-                    }
-                }))
+                .withSubscriptionMetadata(
+                    // foo only has 3 partitions stored in the metadata but foo has
+                    // 6 partitions the metadata image.
+                    Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 3))
+                ))
             .build();
 
         // The metadata refresh flag should be true.
@@ -2685,7 +2647,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2, 3, 4, 5))
+                            .setPartitions(List.of(0, 1, 2, 3, 4, 5))
                     ))),
             result.response()
         );
@@ -2696,18 +2658,16 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(10)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5)))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                }
-            }),
+        List<CoordinatorRecord> expectedRecords = List.of(
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId,
+                Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6))
+            ),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId, mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5)
@@ -2750,7 +2710,7 @@ public class GroupMetadataManagerTest {
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -2758,13 +2718,11 @@ public class GroupMetadataManagerTest {
                 .withAssignment(memberId, mkAssignment(
                     mkTopicAssignment(fooTopicId, 0, 1, 2)))
                 .withAssignmentEpoch(10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        // foo only has 3 partitions stored in the metadata but foo has
-                        // 6 partitions the metadata image.
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 3));
-                    }
-                }))
+                .withSubscriptionMetadata(
+                    // foo only has 3 partitions stored in the metadata but foo has
+                    // 6 partitions the metadata image.
+                    Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 3))
+                ))
             .build();
 
         // The metadata refresh flag should be true.
@@ -2814,7 +2772,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2, 3, 4, 5))
+                            .setPartitions(List.of(0, 1, 2, 3, 4, 5))
                     ))),
             result.response()
         );
@@ -2825,18 +2783,16 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(10)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5)))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                }
-            }),
+        List<CoordinatorRecord> expectedRecords = List.of(
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId,
+                Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6))
+            ),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId, mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5)
@@ -2870,7 +2826,7 @@ public class GroupMetadataManagerTest {
         // M1 in group 1 subscribes to foo and bar.
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId1,
             new ConsumerGroupMember.Builder("group1-m1")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .build()));
 
         assertEquals(Set.of(groupId1), context.groupMetadataManager.groupsSubscribedToTopic("foo"));
@@ -2880,7 +2836,7 @@ public class GroupMetadataManagerTest {
         // M1 in group 2 subscribes to foo, bar and zar.
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId2,
             new ConsumerGroupMember.Builder("group2-m1")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+                .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
                 .build()));
 
         assertEquals(Set.of(groupId1, groupId2), context.groupMetadataManager.groupsSubscribedToTopic("foo"));
@@ -2890,7 +2846,7 @@ public class GroupMetadataManagerTest {
         // M2 in group 1 subscribes to bar and zar.
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId1,
             new ConsumerGroupMember.Builder("group1-m2")
-                .setSubscribedTopicNames(Arrays.asList("bar", "zar"))
+                .setSubscribedTopicNames(List.of("bar", "zar"))
                 .build()));
 
         assertEquals(Set.of(groupId1, groupId2), context.groupMetadataManager.groupsSubscribedToTopic("foo"));
@@ -2900,7 +2856,7 @@ public class GroupMetadataManagerTest {
         // M2 in group 2 subscribes to foo and bar.
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId2,
             new ConsumerGroupMember.Builder("group2-m2")
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .build()));
 
         assertEquals(Set.of(groupId1, groupId2), context.groupMetadataManager.groupsSubscribedToTopic("foo"));
@@ -2978,13 +2934,13 @@ public class GroupMetadataManagerTest {
         // M1 in group 1 subscribes to a and b.
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord("group1",
             new ConsumerGroupMember.Builder("group1-m1")
-                .setSubscribedTopicNames(Arrays.asList("a", "b"))
+                .setSubscribedTopicNames(List.of("a", "b"))
                 .build()));
 
         // M1 in group 2 subscribes to b and c.
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord("group2",
             new ConsumerGroupMember.Builder("group2-m1")
-                .setSubscribedTopicNames(Arrays.asList("b", "c"))
+                .setSubscribedTopicNames(List.of("b", "c"))
                 .build()));
 
         // M1 in group 3 subscribes to d.
@@ -3006,7 +2962,7 @@ public class GroupMetadataManagerTest {
                 .build()));
 
         // Ensures that all refresh flags are set to the future.
-        Arrays.asList("group1", "group2", "group3", "group4", "group5").forEach(groupId -> {
+        List.of("group1", "group2", "group3", "group4", "group5").forEach(groupId -> {
             ConsumerGroup group = context.groupMetadataManager.consumerGroup(groupId);
             group.setMetadataRefreshDeadline(context.time.milliseconds() + 5000L, 0);
             assertFalse(group.hasMetadataExpired(context.time.milliseconds()));
@@ -3043,7 +2999,7 @@ public class GroupMetadataManagerTest {
         context.groupMetadataManager.onNewMetadataImage(image, delta);
 
         // Verify the groups.
-        Arrays.asList("group1", "group2", "group3", "group4").forEach(groupId -> {
+        List.of("group1", "group2", "group3", "group4").forEach(groupId -> {
             ConsumerGroup group = context.groupMetadataManager.consumerGroup(groupId);
             assertTrue(group.hasMetadataExpired(context.time.milliseconds()));
         });
@@ -3179,7 +3135,7 @@ public class GroupMetadataManagerTest {
             Collections.singletonList(new ExpiredTimeout<Void, CoordinatorRecord>(
                 groupSessionTimeoutKey(groupId, memberId),
                 new CoordinatorResult<>(
-                    Arrays.asList(
+                    List.of(
                         GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId),
                         GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId),
                         GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId),
@@ -3260,7 +3216,7 @@ public class GroupMetadataManagerTest {
             Collections.singletonList(new ExpiredTimeout<Void, CoordinatorRecord>(
                 groupSessionTimeoutKey(groupId, memberId),
                 new CoordinatorResult<>(
-                    Arrays.asList(
+                    List.of(
                         GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId),
                         GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId),
                         GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId),
@@ -3296,15 +3252,9 @@ public class GroupMetadataManagerTest {
                 .build())
             .build();
 
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1, 2)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(memberId1, new MemberAssignmentImpl(mkAssignment(
+            mkTopicAssignment(fooTopicId, 0, 1, 2)
+        )))));
 
         // Member 1 joins the group.
         CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> result =
@@ -3326,7 +3276,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2))))),
+                            .setPartitions(List.of(0, 1, 2))))),
             result.response()
         );
 
@@ -3336,18 +3286,14 @@ public class GroupMetadataManagerTest {
         );
 
         // Prepare next assignment.
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 2)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 2)
+            ))
+        )));
 
         // Member 2 joins the group.
         result = context.consumerGroupHeartbeat(
@@ -3392,7 +3338,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1))))),
+                            .setPartitions(List.of(0, 1))))),
             result.response()
         );
 
@@ -3414,7 +3360,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(1)
                 .setTopicPartitions(Collections.singletonList(new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                     .setTopicId(fooTopicId)
-                    .setPartitions(Arrays.asList(0, 1)))));
+                    .setPartitions(List.of(0, 1)))));
 
         assertResponseEquals(
             new ConsumerGroupHeartbeatResponseData()
@@ -3452,13 +3398,7 @@ public class GroupMetadataManagerTest {
             .build();
 
         assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1, 2)
-                    )));
-                }
-            }
+            Map.of(memberId1, new MemberAssignmentImpl(mkAssignment(mkTopicAssignment(fooTopicId, 0, 1, 2))))
         ));
 
         // Member 1 joins the group.
@@ -3481,7 +3421,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2))))),
+                            .setPartitions(List.of(0, 1, 2))))),
             result.response()
         );
 
@@ -3491,18 +3431,14 @@ public class GroupMetadataManagerTest {
         );
 
         // Prepare next assignment.
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 2)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 2)
+            ))
+        )));
 
         // Member 2 joins the group.
         result = context.consumerGroupHeartbeat(
@@ -3545,7 +3481,7 @@ public class GroupMetadataManagerTest {
                     .setTopicPartitions(Collections.singletonList(
                         new ConsumerGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1))))),
+                            .setPartitions(List.of(0, 1))))),
             result.response()
         );
 
@@ -3557,7 +3493,7 @@ public class GroupMetadataManagerTest {
             Collections.singletonList(new ExpiredTimeout<Void, CoordinatorRecord>(
                 consumerGroupRebalanceTimeoutKey(groupId, memberId1),
                 new CoordinatorResult<>(
-                    Arrays.asList(
+                    List.of(
                         GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
                         GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId1),
                         GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId1),
@@ -8109,7 +8045,7 @@ public class GroupMetadataManagerTest {
         assertThrows(IllegalGenerationException.class, () -> context.sendClassicGroupHeartbeat(firstMemberHeartbeatRequest));
 
         // Now session timeout the unjoined (first) member. Still keeping the new member.
-        List<Errors> expectedErrors = Arrays.asList(Errors.NONE, Errors.NONE, Errors.REBALANCE_IN_PROGRESS);
+        List<Errors> expectedErrors = List.of(Errors.NONE, Errors.NONE, Errors.REBALANCE_IN_PROGRESS);
         for (Errors expectedError : expectedErrors) {
             GroupMetadataManagerTestContext.assertNoOrEmptyResult(context.sleep(2000));
             HeartbeatResponseData heartbeatResponse = context.sendClassicGroupHeartbeat(
@@ -8650,7 +8586,7 @@ public class GroupMetadataManagerTest {
 
         assertEquals(expectAllGroupMap, actualAllGroupMap);
 
-        actualAllGroupMap = context.sendListGroups(Arrays.asList("empty", "Assigning"), Collections.emptyList()).stream()
+        actualAllGroupMap = context.sendListGroups(List.of("empty", "Assigning"), Collections.emptyList()).stream()
             .collect(Collectors.toMap(ListGroupsResponseData.ListedGroup::groupId, Function.identity()));
         expectAllGroupMap = Stream.of(
             new ListGroupsResponseData.ListedGroup()
@@ -8689,7 +8625,7 @@ public class GroupMetadataManagerTest {
 
     @Test
     public void testConsumerGroupDescribeNoErrors() {
-        List<String> consumerGroupIds = Arrays.asList("group-id-1", "group-id-2");
+        List<String> consumerGroupIds = List.of("group-id-1", "group-id-2");
         int epoch = 10;
         String memberId = "member-id";
         String topicName = "topicName";
@@ -8705,7 +8641,7 @@ public class GroupMetadataManagerTest {
                 .withMember(memberBuilder.build()))
             .build();
 
-        List<ConsumerGroupDescribeResponseData.DescribedGroup> expected = Arrays.asList(
+        List<ConsumerGroupDescribeResponseData.DescribedGroup> expected = List.of(
             new ConsumerGroupDescribeResponseData.DescribedGroup()
                 .setGroupEpoch(epoch)
                 .setGroupId(consumerGroupIds.get(0))
@@ -8771,8 +8707,7 @@ public class GroupMetadataManagerTest {
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(consumerGroupId, memberBuilder1.build()));
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(consumerGroupId, epoch + 1));
 
-        Map<Uuid, Set<Integer>> assignmentMap = new HashMap<>();
-        assignmentMap.put(topicId, Collections.emptySet());
+        Map<Uuid, Set<Integer>> assignmentMap = Map.of(topicId, Collections.emptySet());
 
         ConsumerGroupMember.Builder memberBuilder2 = new ConsumerGroupMember.Builder(memberId2);
         context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(consumerGroupId, memberBuilder2.build()));
@@ -8795,7 +8730,7 @@ public class GroupMetadataManagerTest {
         actual = context.groupMetadataManager.consumerGroupDescribe(Collections.singletonList(consumerGroupId), context.lastCommittedOffset);
         describedGroup = new ConsumerGroupDescribeResponseData.DescribedGroup()
             .setGroupId(consumerGroupId)
-            .setMembers(Arrays.asList(
+            .setMembers(List.of(
                 memberBuilder1.build().asConsumerGroupDescribeMember(new Assignment(Collections.emptyMap()), metadataImage.topics()),
                 memberBuilder2.build().asConsumerGroupDescribeMember(new Assignment(assignmentMap), metadataImage.topics())
             ))
@@ -9235,7 +9170,7 @@ public class GroupMetadataManagerTest {
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
                 .setMembers(
-                    Arrays.asList(
+                    List.of(
                         new MemberIdentity()
                             .setGroupInstanceId("leader-instance-id"),
                         new MemberIdentity()
@@ -9245,7 +9180,7 @@ public class GroupMetadataManagerTest {
         );
 
         LeaveGroupResponseData expectedResponse = new LeaveGroupResponseData()
-            .setMembers(Arrays.asList(
+            .setMembers(List.of(
                 new LeaveGroupResponseData.MemberResponse()
                     .setGroupInstanceId("leader-instance-id"),
                 new LeaveGroupResponseData.MemberResponse()
@@ -9268,7 +9203,7 @@ public class GroupMetadataManagerTest {
             new LeaveGroupRequestData()
                 .setGroupId("invalid-group-id") // Invalid group id
                 .setMembers(
-                    Arrays.asList(
+                    List.of(
                         new MemberIdentity()
                             .setGroupInstanceId("leader-instance-id"),
                         new MemberIdentity()
@@ -9292,7 +9227,7 @@ public class GroupMetadataManagerTest {
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
                 .setMembers(
-                    Arrays.asList(
+                    List.of(
                         new MemberIdentity()
                             .setGroupInstanceId("leader-instance-id"),
                         new MemberIdentity()
@@ -9303,7 +9238,7 @@ public class GroupMetadataManagerTest {
         );
 
         LeaveGroupResponseData expectedResponse = new LeaveGroupResponseData()
-            .setMembers(Arrays.asList(
+            .setMembers(List.of(
                 new LeaveGroupResponseData.MemberResponse()
                     .setGroupInstanceId("leader-instance-id"),
                 new LeaveGroupResponseData.MemberResponse()
@@ -9328,7 +9263,7 @@ public class GroupMetadataManagerTest {
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
                 .setMembers(
-                    Arrays.asList(
+                    List.of(
                         new MemberIdentity()
                             .setGroupInstanceId("unknown-instance-id"), // Unknown instance id
                         new MemberIdentity()
@@ -9338,7 +9273,7 @@ public class GroupMetadataManagerTest {
         );
 
         LeaveGroupResponseData expectedResponse = new LeaveGroupResponseData()
-            .setMembers(Arrays.asList(
+            .setMembers(List.of(
                 new LeaveGroupResponseData.MemberResponse()
                     .setGroupInstanceId("unknown-instance-id")
                     .setErrorCode(Errors.UNKNOWN_MEMBER_ID.code()),
@@ -9360,7 +9295,7 @@ public class GroupMetadataManagerTest {
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
                 .setMembers(
-                    Arrays.asList(
+                    List.of(
                         new MemberIdentity()
                             .setGroupInstanceId("unknown-instance-id"), // Unknown instance id
                         new MemberIdentity()
@@ -9370,7 +9305,7 @@ public class GroupMetadataManagerTest {
         );
 
         LeaveGroupResponseData expectedResponse = new LeaveGroupResponseData()
-            .setMembers(Arrays.asList(
+            .setMembers(List.of(
                 new LeaveGroupResponseData.MemberResponse()
                     .setGroupInstanceId("unknown-instance-id")
                     .setErrorCode(Errors.UNKNOWN_MEMBER_ID.code()),
@@ -9392,7 +9327,7 @@ public class GroupMetadataManagerTest {
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
                 .setMembers(
-                    Arrays.asList(
+                    List.of(
                         new MemberIdentity()
                             .setMemberId(pendingMemberGroupResult.leaderId),
                         new MemberIdentity()
@@ -9404,7 +9339,7 @@ public class GroupMetadataManagerTest {
         );
 
         LeaveGroupResponseData expectedResponse = new LeaveGroupResponseData()
-            .setMembers(Arrays.asList(
+            .setMembers(List.of(
                 new LeaveGroupResponseData.MemberResponse()
                     .setGroupInstanceId(null)
                     .setMemberId(pendingMemberGroupResult.leaderId),
@@ -9429,7 +9364,7 @@ public class GroupMetadataManagerTest {
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
                 .setMembers(
-                    Arrays.asList(
+                    List.of(
                         new MemberIdentity()
                             .setMemberId(pendingMemberGroupResult.leaderId),
                         new MemberIdentity()
@@ -9443,7 +9378,7 @@ public class GroupMetadataManagerTest {
         );
 
         LeaveGroupResponseData expectedResponse = new LeaveGroupResponseData()
-            .setMembers(Arrays.asList(
+            .setMembers(List.of(
                 new LeaveGroupResponseData.MemberResponse()
                     .setGroupInstanceId(null)
                     .setMemberId(pendingMemberGroupResult.leaderId),
@@ -9501,7 +9436,7 @@ public class GroupMetadataManagerTest {
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(groupId),
             GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(groupId),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(groupId)
@@ -9518,7 +9453,7 @@ public class GroupMetadataManagerTest {
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(groupId),
             GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(groupId),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(groupId)
@@ -9579,7 +9514,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setServerAssignor("range")
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         verify(context.metrics).record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
@@ -9678,7 +9613,7 @@ public class GroupMetadataManagerTest {
                     .setMemberEpoch(0)
                     .setServerAssignor(NoOpPartitionAssignor.NAME)
                     .setRebalanceTimeoutMs(5000)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -9704,7 +9639,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setServerAssignor(NoOpPartitionAssignor.NAME)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         ConsumerGroupMember expectedMember = new ConsumerGroupMember.Builder(memberId)
@@ -9714,14 +9649,14 @@ public class GroupMetadataManagerTest {
             .setRebalanceTimeoutMs(5000)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName(NoOpPartitionAssignor.NAME)
             .setAssignedPartitions(Collections.emptyMap())
             .build();
 
         assertEquals(Errors.NONE.code(), result.response().errorCode());
         assertEquals(
-            Arrays.asList(
+            List.of(
                 GroupCoordinatorRecordHelpers.newGroupMetadataTombstoneRecord(classicGroupId),
                 GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(classicGroupId, expectedMember),
                 GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(classicGroupId, 1),
@@ -9751,7 +9686,7 @@ public class GroupMetadataManagerTest {
             .build();
         GroupMetadataManagerTestContext.JoinResult joinResult = context.sendClassicGroupJoin(request, true);
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(consumerGroupId),
             GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(consumerGroupId),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(consumerGroupId)
@@ -9776,18 +9711,14 @@ public class GroupMetadataManagerTest {
         String barTopicName = "bar";
 
         MockPartitionAssignor assignor = new MockPartitionAssignor("range");
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(barTopicId, 0)
+            ))
+        )));
 
         MetadataImage metadataImage = new MetadataImageBuilder()
             .addTopic(fooTopicId, fooTopicName, 1)
@@ -9805,9 +9736,9 @@ public class GroupMetadataManagerTest {
         protocols.add(new JoinGroupRequestData.JoinGroupRequestProtocol()
             .setName("range")
             .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                Arrays.asList(fooTopicName, barTopicName),
+                List.of(fooTopicName, barTopicName),
                 null,
-                Arrays.asList(
+                List.of(
                     new TopicPartition(fooTopicName, 0),
                     new TopicPartition(barTopicName, 0)
                 )
@@ -9816,7 +9747,7 @@ public class GroupMetadataManagerTest {
 
         Map<String, byte[]> assignments = Collections.singletonMap(
             memberId1,
-            Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
+            Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
                 new TopicPartition(fooTopicName, 0),
                 new TopicPartition(barTopicName, 0)
             ))))
@@ -9854,7 +9785,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId2)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                 .setTopicPartitions(Collections.emptyList()));
 
         ConsumerGroupMember expectedMember1 = new ConsumerGroupMember.Builder(memberId1)
@@ -9862,7 +9793,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(0)
             .setClientId("client-id")
             .setClientHost("client-host")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(10000)
             .setClassicMemberMetadata(
                 new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
@@ -9881,12 +9812,12 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setServerAssignorName("range")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(5000)
             .setAssignedPartitions(Collections.emptyMap())
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // The existing classic group tombstone.
             GroupCoordinatorRecordHelpers.newGroupMetadataTombstoneRecord(groupId),
 
@@ -9901,12 +9832,10 @@ public class GroupMetadataManagerTest {
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember2),
 
             // The subscription metadata hasn't been updated during the conversion, so a new one is computed.
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 1));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 1),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+            )),
 
             // Newly joining member 2 bumps the group epoch. A new target assignment is computed.
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 1),
@@ -9940,21 +9869,17 @@ public class GroupMetadataManagerTest {
         String barTopicName = "bar";
 
         MockPartitionAssignor assignor = new MockPartitionAssignor("range");
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                    put(memberId3, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 1)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(barTopicId, 0)
+            )),
+            memberId3, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 1)
+            ))
+        )));
 
         MetadataImage metadataImage = new MetadataImageBuilder()
             .addTopic(fooTopicId, fooTopicName, 2)
@@ -9972,9 +9897,9 @@ public class GroupMetadataManagerTest {
         protocols1.add(new JoinGroupRequestData.JoinGroupRequestProtocol()
             .setName("range")
             .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                Arrays.asList(fooTopicName, barTopicName),
+                List.of(fooTopicName, barTopicName),
                 null,
-                Arrays.asList(
+                List.of(
                     new TopicPartition(fooTopicName, 0),
                     new TopicPartition(fooTopicName, 1)
                 )
@@ -9985,29 +9910,21 @@ public class GroupMetadataManagerTest {
         protocols2.add(new JoinGroupRequestData.JoinGroupRequestProtocol()
             .setName("range")
             .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                Arrays.asList(fooTopicName, barTopicName),
+                List.of(fooTopicName, barTopicName),
                 null,
                 Collections.singletonList(new TopicPartition(barTopicName, 0))
             ))))
         );
 
-        Map<String, byte[]> assignments = new HashMap<String, byte[]>() {
-            {
-                put(
-                    memberId1,
-                    Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
-                        new TopicPartition(fooTopicName, 0),
-                        new TopicPartition(fooTopicName, 1)
-                    ))))
-                );
-                put(
-                    memberId2,
-                    Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Collections.singletonList(
-                        new TopicPartition(barTopicName, 0)
-                    ))))
-                );
-            }
-        };
+        Map<String, byte[]> assignments = Map.of(
+            memberId1, Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
+                new TopicPartition(fooTopicName, 0),
+                new TopicPartition(fooTopicName, 1)
+            )))),
+            memberId2, Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Collections.singletonList(
+                new TopicPartition(barTopicName, 0)
+            ))))
+        );
 
         // Construct a stable group with two members.
         ClassicGroup group = context.createClassicGroup(groupId);
@@ -10066,7 +9983,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId3)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                 .setTopicPartitions(Collections.emptyList()));
 
         ConsumerGroupMember expectedMember1 = new ConsumerGroupMember.Builder(memberId1)
@@ -10074,7 +9991,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(0)
             .setClientId("client-id")
             .setClientHost("client-host")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(10000)
             .setClassicMemberMetadata(
                 new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
@@ -10090,7 +10007,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(0)
             .setClientId("client-id")
             .setClientHost("client-host")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(10000)
             .setClassicMemberMetadata(
                 new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
@@ -10108,12 +10025,12 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setServerAssignorName("range")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(5000)
             .setAssignedPartitions(Collections.emptyMap())
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // The existing classic group tombstone.
             GroupCoordinatorRecordHelpers.newGroupMetadataTombstoneRecord(groupId),
 
@@ -10134,12 +10051,10 @@ public class GroupMetadataManagerTest {
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember3),
 
             // The subscription metadata hasn't been updated during the conversion, so a new one is computed.
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+            )),
 
             // Newly joining member 3 bumps the group epoch. A new target assignment is computed.
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 1),
@@ -10283,7 +10198,7 @@ public class GroupMetadataManagerTest {
             .setClassicMemberMetadata(null)
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // The existing classic group tombstone.
             GroupCoordinatorRecordHelpers.newGroupMetadataTombstoneRecord(groupId),
 
@@ -10340,9 +10255,9 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
-                    Arrays.asList(
+                    List.of(
                         new TopicPartition(fooTopicName, 0),
                         new TopicPartition(fooTopicName, 1),
                         new TopicPartition(fooTopicName, 2),
@@ -10359,7 +10274,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName(NoOpPartitionAssignor.NAME)
             .setRebalanceTimeoutMs(45000)
             .setClassicMemberMetadata(
@@ -10378,7 +10293,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName(NoOpPartitionAssignor.NAME)
             .setRebalanceTimeoutMs(45000)
             .setAssignedPartitions(mkAssignment(
@@ -10408,12 +10323,10 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
-        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-            {
-                put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-            }
-        }));
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+            fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+            barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+        )));
 
         context.commit();
 
@@ -10459,7 +10372,7 @@ public class GroupMetadataManagerTest {
             .setClassicMemberMetadata(null)
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // Remove the existing static member 1 because the rejoining member replaces it.
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId1),
@@ -10494,21 +10407,17 @@ public class GroupMetadataManagerTest {
         String barTopicName = "bar";
 
         MockPartitionAssignor assignor = new MockPartitionAssignor("range");
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                    put(memberId3, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 1)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(barTopicId, 0)
+            )),
+            memberId3, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 1)
+            ))
+        )));
 
         MetadataImage metadataImage = new MetadataImageBuilder()
             .addTopic(fooTopicId, fooTopicName, 2)
@@ -10526,9 +10435,9 @@ public class GroupMetadataManagerTest {
         protocols1.add(new JoinGroupRequestData.JoinGroupRequestProtocol()
             .setName("range")
             .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                Arrays.asList(fooTopicName, barTopicName),
+                List.of(fooTopicName, barTopicName),
                 null,
-                Arrays.asList(
+                List.of(
                     new TopicPartition(fooTopicName, 0),
                     new TopicPartition(fooTopicName, 1)
                 )
@@ -10539,29 +10448,21 @@ public class GroupMetadataManagerTest {
         protocols2.add(new JoinGroupRequestData.JoinGroupRequestProtocol()
             .setName("range")
             .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                Arrays.asList(fooTopicName, barTopicName),
+                List.of(fooTopicName, barTopicName),
                 null,
                 Collections.singletonList(new TopicPartition(barTopicName, 0))
             ))))
         );
 
-        Map<String, byte[]> assignments = new HashMap<String, byte[]>() {
-            {
-                put(
-                    memberId1,
-                    Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
-                        new TopicPartition(fooTopicName, 0),
-                        new TopicPartition(fooTopicName, 1)
-                    ))))
-                );
-                put(
-                    memberId2,
-                    Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Collections.singletonList(
-                        new TopicPartition(barTopicName, 0)
-                    ))))
-                );
-            }
-        };
+        Map<String, byte[]> assignments = Map.of(
+            memberId1, Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
+                new TopicPartition(fooTopicName, 0),
+                new TopicPartition(fooTopicName, 1)
+            )))),
+            memberId2, Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Collections.singletonList(
+                new TopicPartition(barTopicName, 0)
+            ))))
+        );
 
         // Construct a stable group with two members.
         ClassicGroup group = context.createClassicGroup(groupId);
@@ -10638,7 +10539,7 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId3)
                 .setRebalanceTimeoutMs(5000)
                 .setServerAssignor("range")
-                .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                 .setTopicPartitions(Collections.emptyList()));
 
         ConsumerGroupMember expectedMember1 = new ConsumerGroupMember.Builder(memberId1)
@@ -10646,7 +10547,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(1)
             .setClientId("client-id")
             .setClientHost("client-host")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(10000)
             .setClassicMemberMetadata(
                 new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
@@ -10662,7 +10563,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(1)
             .setClientId("client-id")
             .setClientHost("client-host")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(10000)
             .setClassicMemberMetadata(
                 new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
@@ -10680,12 +10581,12 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setServerAssignorName("range")
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(5000)
             .setAssignedPartitions(Collections.emptyMap())
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // The existing classic group tombstone.
             GroupCoordinatorRecordHelpers.newGroupMetadataTombstoneRecord(groupId),
 
@@ -10706,12 +10607,10 @@ public class GroupMetadataManagerTest {
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember3),
 
             // The subscription metadata hasn't been updated during the conversion, so a new one is computed.
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+            )),
 
             // Newly joining member 3 bumps the group epoch. A new target assignment is computed.
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 2),
@@ -10854,9 +10753,9 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
-                    Arrays.asList(
+                    List.of(
                         new TopicPartition(fooTopicName, 0),
                         new TopicPartition(fooTopicName, 1),
                         new TopicPartition(fooTopicName, 2),
@@ -10872,7 +10771,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setClassicMemberMetadata(
@@ -10890,7 +10789,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setAssignedPartitions(mkAssignment(
@@ -10920,12 +10819,10 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
-        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-            {
-                put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-            }
-        }));
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+            fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+            barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+        )));
 
         context.commit();
         ConsumerGroup consumerGroup = context.groupMetadataManager.consumerGroup(groupId);
@@ -10937,11 +10834,11 @@ public class GroupMetadataManagerTest {
                 .setMemberId(memberId2)
                 .setMemberEpoch(LEAVE_GROUP_MEMBER_EPOCH)
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
 
-        byte[] assignment = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
+        byte[] assignment = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
             new TopicPartition(fooTopicName, 0),
             new TopicPartition(fooTopicName, 1),
             new TopicPartition(fooTopicName, 2),
@@ -10975,7 +10872,7 @@ public class GroupMetadataManagerTest {
             )
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
 
@@ -11038,9 +10935,9 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
-                    Arrays.asList(
+                    List.of(
                         new TopicPartition(fooTopicName, 0),
                         new TopicPartition(fooTopicName, 1),
                         new TopicPartition(fooTopicName, 2),
@@ -11056,7 +10953,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setClassicMemberMetadata(
@@ -11074,7 +10971,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setAssignedPartitions(mkAssignment(
@@ -11104,12 +11001,10 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
-        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-            {
-                put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-            }
-        }));
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+            fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+            barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+        )));
 
         context.commit();
 
@@ -11119,7 +11014,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId2)
                 .setMemberEpoch(10)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList()));
 
         // Verify that there is a session timeout.
@@ -11130,7 +11025,7 @@ public class GroupMetadataManagerTest {
         ExpiredTimeout<Void, CoordinatorRecord> timeout = context.sleep(45000 + 1).get(0);
         assertEquals(groupSessionTimeoutKey(groupId, memberId2), timeout.key);
 
-        byte[] assignment = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
+        byte[] assignment = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
             new TopicPartition(fooTopicName, 0),
             new TopicPartition(fooTopicName, 1),
             new TopicPartition(fooTopicName, 2),
@@ -11163,7 +11058,7 @@ public class GroupMetadataManagerTest {
                 assignment
             )
         );
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
 
@@ -11222,9 +11117,9 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
-                    Arrays.asList(
+                    List.of(
                         new TopicPartition(fooTopicName, 0),
                         new TopicPartition(fooTopicName, 1),
                         new TopicPartition(fooTopicName, 2),
@@ -11240,7 +11135,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(30000)
             .setClassicMemberMetadata(
@@ -11258,7 +11153,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+            .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(30000)
             .setAssignedPartitions(mkAssignment(
@@ -11289,30 +11184,24 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
-        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-            {
-                put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                put(zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1));
-            }
-        }));
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+            fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+            barTopicName, new TopicMetadata(barTopicId, barTopicName, 3),
+            zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1)
+        )));
 
         context.commit();
 
         // Prepare the new assignment.
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1, 2),
-                        mkTopicAssignment(barTopicId, 0, 1)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 3, 4, 5)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1, 2),
+                mkTopicAssignment(barTopicId, 0, 1)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 3, 4, 5)
+            ))
+        )));
 
         // Member 2 heartbeats with a different subscribedTopicNames. The assignor computes a new assignment
         // where member 2 will need to revoke topic partition bar-2 thus transitions to the REVOKING state.
@@ -11321,14 +11210,14 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId2)
                 .setMemberEpoch(10)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
-                .setTopicPartitions(Arrays.asList(
+                .setSubscribedTopicNames(List.of("foo", "bar"))
+                .setTopicPartitions(List.of(
                     new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                         .setTopicId(fooTopicId)
-                        .setPartitions(Arrays.asList(3, 4, 5)),
+                        .setPartitions(List.of(3, 4, 5)),
                     new ConsumerGroupHeartbeatRequestData.TopicPartitions()
                         .setTopicId(barTopicId)
-                        .setPartitions(Arrays.asList(2))
+                        .setPartitions(List.of(2))
                 ))
         );
 
@@ -11340,7 +11229,7 @@ public class GroupMetadataManagerTest {
         ExpiredTimeout<Void, CoordinatorRecord> timeout = context.sleep(30000 + 1).get(0);
         assertEquals(consumerGroupRebalanceTimeoutKey(groupId, memberId2), timeout.key);
 
-        byte[] assignment = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
+        byte[] assignment = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
             new TopicPartition(fooTopicName, 0),
             new TopicPartition(fooTopicName, 1),
             new TopicPartition(fooTopicName, 2),
@@ -11374,7 +11263,7 @@ public class GroupMetadataManagerTest {
             )
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
 
@@ -11432,9 +11321,9 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
-                    Arrays.asList(
+                    List.of(
                         new TopicPartition(fooTopicName, 0),
                         new TopicPartition(fooTopicName, 1),
                         new TopicPartition(fooTopicName, 2),
@@ -11450,7 +11339,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setClassicMemberMetadata(
@@ -11498,12 +11387,10 @@ public class GroupMetadataManagerTest {
             .build();
 
         context.groupMetadataManager.consumerGroup(groupId).setMetadataRefreshDeadline(Long.MAX_VALUE, 10);
-        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-            {
-                put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 2));
-            }
-        }));
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+            fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+            barTopicName, new TopicMetadata(barTopicId, barTopicName, 2)
+        )));
         context.commit();
 
         // A new member using classic protocol with the same instance id joins, scheduling the downgrade.
@@ -11534,21 +11421,22 @@ public class GroupMetadataManagerTest {
                             Collections.singletonList(fooTopicName)))))))
             ).build();
 
-        byte[] assignment1 = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
+        byte[] assignment1 = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
             new TopicPartition(fooTopicName, 0),
             new TopicPartition(fooTopicName, 1),
             new TopicPartition(fooTopicName, 2),
             new TopicPartition(barTopicName, 0),
             new TopicPartition(barTopicName, 1)
         ))));
-        byte[] assignment2 = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(Arrays.asList(
+        byte[] assignment2 = Utils.toArray(ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(List.of(
             new TopicPartition(fooTopicName, 3),
             new TopicPartition(fooTopicName, 4),
             new TopicPartition(fooTopicName, 5)
         ))));
-        Map<String, byte[]> assignments = new HashMap<>();
-        assignments.put(memberId1, assignment1);
-        assignments.put(newMemberId2, assignment2);
+        Map<String, byte[]> assignments = Map.of(
+            memberId1, assignment1,
+            newMemberId2, assignment2
+        );
 
         ClassicGroup expectedClassicGroup = new ClassicGroup(
             new LogContext(),
@@ -11588,7 +11476,7 @@ public class GroupMetadataManagerTest {
             )
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // Remove the existing member 2 that uses the consumer protocol.
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, oldMemberId2),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, oldMemberId2),
@@ -11730,11 +11618,9 @@ public class GroupMetadataManagerTest {
                     .addRacks()
                     .build())
                 .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
-                    .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                        {
-                            put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                        }
-                    })
+                    .withSubscriptionMetadata(
+                        Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2))
+                    )
                     .withMember(new ConsumerGroupMember.Builder(memberId)
                         .setState(MemberState.STABLE)
                         .setMemberEpoch(10)
@@ -11751,7 +11637,7 @@ public class GroupMetadataManagerTest {
                 .withGroupId(groupId)
                 .withMemberId(UNKNOWN_MEMBER_ID)
                 .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     Collections.emptyList(),
                     version))
                 .build();
@@ -11770,18 +11656,14 @@ public class GroupMetadataManagerTest {
             String newMemberId = firstJoinResult.joinFuture.get().memberId();
             assertNotEquals("", newMemberId);
 
-            assignor.prepareGroupAssignment(new GroupAssignment(
-                new HashMap<String, MemberAssignment>() {
-                    {
-                        put(memberId, new MemberAssignmentImpl(mkAssignment(
-                            mkTopicAssignment(fooTopicId, 0)
-                        )));
-                        put(newMemberId, new MemberAssignmentImpl(mkAssignment(
-                            mkTopicAssignment(barTopicId, 0)
-                        )));
-                    }
-                }
-            ));
+            assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+                memberId, new MemberAssignmentImpl(mkAssignment(
+                    mkTopicAssignment(fooTopicId, 0)
+                )),
+                newMemberId, new MemberAssignmentImpl(mkAssignment(
+                    mkTopicAssignment(barTopicId, 0)
+                ))
+            )));
 
             JoinGroupRequestData secondRequest = new JoinGroupRequestData()
                 .setGroupId(request.groupId())
@@ -11804,7 +11686,7 @@ public class GroupMetadataManagerTest {
                 .setState(MemberState.STABLE)
                 .setClientId(DEFAULT_CLIENT_ID)
                 .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                 .setRebalanceTimeoutMs(500)
                 .setAssignedPartitions(assignor.targetPartitions(newMemberId))
                 .setClassicMemberMetadata(
@@ -11814,14 +11696,12 @@ public class GroupMetadataManagerTest {
                 )
                 .build();
 
-            List<CoordinatorRecord> expectedRecords = Arrays.asList(
+            List<CoordinatorRecord> expectedRecords = List.of(
                 GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember),
-                GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                        put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                    }
-                }),
+                GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                    fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                    barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+                )),
                 GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
 
                 GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId, assignor.targetPartitions(memberId)),
@@ -11859,18 +11739,14 @@ public class GroupMetadataManagerTest {
         String newMemberId = Uuid.randomUuid().toString();
 
         MockPartitionAssignor assignor = new MockPartitionAssignor("range");
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0)
-                    )));
-                    put(newMemberId, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 1)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0)
+            )),
+            newMemberId, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 1)
+            ))
+        )));
 
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
             .withConsumerGroupAssignors(Collections.singletonList(assignor))
@@ -11879,11 +11755,9 @@ public class GroupMetadataManagerTest {
                 .addRacks()
                 .build())
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    }
-                })
+                .withSubscriptionMetadata(
+                    Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2))
+                )
                 .withMember(new ConsumerGroupMember.Builder(memberId)
                     .setState(MemberState.STABLE)
                     .setMemberEpoch(10)
@@ -11935,11 +11809,9 @@ public class GroupMetadataManagerTest {
                 .addRacks()
                 .build())
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    }
-                })
+                .withSubscriptionMetadata(
+                    Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2))
+                )
                 .withMember(new ConsumerGroupMember.Builder(memberId)
                     .setState(MemberState.STABLE)
                     .setMemberEpoch(10)
@@ -11957,7 +11829,7 @@ public class GroupMetadataManagerTest {
             .withMemberId(UNKNOWN_MEMBER_ID)
             .withGroupInstanceId(instanceId)
             .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName),
+                List.of(fooTopicName, barTopicName),
                 Collections.emptyList()))
             .build();
 
@@ -11975,7 +11847,7 @@ public class GroupMetadataManagerTest {
             .setState(MemberState.STABLE)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
             .setRebalanceTimeoutMs(500)
             .setClassicMemberMetadata(
                 new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
@@ -11984,14 +11856,12 @@ public class GroupMetadataManagerTest {
             )
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember),
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
 
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, newMemberId, Collections.emptyMap()),
@@ -12030,11 +11900,9 @@ public class GroupMetadataManagerTest {
                 .addRacks()
                 .build())
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    }
-                })
+                .withSubscriptionMetadata(
+                    Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2))
+                )
                 .withMember(new ConsumerGroupMember.Builder(memberId)
                     .setInstanceId(instanceId)
                     .setState(MemberState.STABLE)
@@ -12099,7 +11967,7 @@ public class GroupMetadataManagerTest {
                     .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(request.protocols())))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // Remove the old static member.
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId),
@@ -12152,13 +12020,11 @@ public class GroupMetadataManagerTest {
                 .addRacks()
                 .build())
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                        put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                        put(zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1));
-                    }
-                })
+                .withSubscriptionMetadata(Map.of(
+                    fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                    barTopicName, new TopicMetadata(barTopicId, barTopicName, 1),
+                    zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1)
+                ))
                 .withMember(new ConsumerGroupMember.Builder(memberId1)
                     .setInstanceId(instanceId)
                     .setState(MemberState.STABLE)
@@ -12167,7 +12033,7 @@ public class GroupMetadataManagerTest {
                     .setRebalanceTimeoutMs(500)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                    .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0),
                         mkTopicAssignment(barTopicId, 0)))
@@ -12176,8 +12042,8 @@ public class GroupMetadataManagerTest {
                             .setSessionTimeoutMs(5000)
                             .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                                 GroupMetadataManagerTestContext.toConsumerProtocol(
-                                    Arrays.asList(fooTopicName, barTopicName),
-                                    Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(fooTopicName, 1))
+                                    List.of(fooTopicName, barTopicName),
+                                    List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(fooTopicName, 1))
                                 )
                             ))
                     )
@@ -12189,7 +12055,7 @@ public class GroupMetadataManagerTest {
                     .setRebalanceTimeoutMs(500)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                    .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 1)))
                     .build())
@@ -12203,27 +12069,23 @@ public class GroupMetadataManagerTest {
         ConsumerGroup group = context.groupMetadataManager.consumerGroup(groupId);
         group.setMetadataRefreshDeadline(Long.MAX_VALUE, 11);
 
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0),
-                        mkTopicAssignment(zarTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(barTopicId, 0),
-                        mkTopicAssignment(fooTopicId, 1)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0),
+                mkTopicAssignment(zarTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(barTopicId, 0),
+                mkTopicAssignment(fooTopicId, 1)
+            ))
+        )));
 
         // Member 1 rejoins with a new subscription list.
         JoinGroupRequestData request = new GroupMetadataManagerTestContext.JoinGroupRequestBuilder()
             .withGroupId(groupId)
             .withMemberId(memberId1)
             .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName, zarTopicName),
+                List.of(fooTopicName, barTopicName, zarTopicName),
                 Collections.emptyList()))
             .build();
         GroupMetadataManagerTestContext.JoinResult joinResult = context.sendClassicGroupJoin(request);
@@ -12236,7 +12098,7 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setState(MemberState.STABLE)
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName, zarTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName, zarTopicName))
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0),
                 mkTopicAssignment(zarTopicId, 0)))
@@ -12245,14 +12107,14 @@ public class GroupMetadataManagerTest {
                     .setSessionTimeoutMs(request.sessionTimeoutMs())
                     .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                         GroupMetadataManagerTestContext.toConsumerProtocol(
-                            Arrays.asList(fooTopicName, barTopicName, zarTopicName),
+                            List.of(fooTopicName, barTopicName, zarTopicName),
                             Collections.emptyList()
                         )
                     ))
             )
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId1, mkAssignment(
@@ -12292,8 +12154,8 @@ public class GroupMetadataManagerTest {
 
         JoinGroupRequestData.JoinGroupRequestProtocolCollection protocols =
             GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName),
-                Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(fooTopicName, 1))
+                List.of(fooTopicName, barTopicName),
+                List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(fooTopicName, 1))
             );
         // Set up a ConsumerGroup with no static member.
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
@@ -12331,8 +12193,8 @@ public class GroupMetadataManagerTest {
 
         JoinGroupRequestData.JoinGroupRequestProtocolCollection protocols =
             GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName),
-                Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(fooTopicName, 1))
+                List.of(fooTopicName, barTopicName),
+                List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(fooTopicName, 1))
             );
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
@@ -12382,12 +12244,10 @@ public class GroupMetadataManagerTest {
                 .addRacks()
                 .build())
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                        put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                    }
-                })
+                .withSubscriptionMetadata(Map.of(
+                    fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                    barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+                ))
                 .withMember(new ConsumerGroupMember.Builder(memberId1)
                     .setState(MemberState.STABLE)
                     .setMemberEpoch(10)
@@ -12395,7 +12255,7 @@ public class GroupMetadataManagerTest {
                     .setRebalanceTimeoutMs(500)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                    .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0),
                         mkTopicAssignment(barTopicId, 0)))
@@ -12404,8 +12264,8 @@ public class GroupMetadataManagerTest {
                             .setSessionTimeoutMs(5000)
                             .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                                 GroupMetadataManagerTestContext.toConsumerProtocol(
-                                    Arrays.asList(fooTopicName, barTopicName),
-                                    Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))
+                                    List.of(fooTopicName, barTopicName),
+                                    List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))
                                 )
                             ))
                     )
@@ -12417,7 +12277,7 @@ public class GroupMetadataManagerTest {
                     .setRebalanceTimeoutMs(500)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                    .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 1)))
                     .build())
@@ -12433,19 +12293,15 @@ public class GroupMetadataManagerTest {
 
         // Prepare the new target assignment.
         // Member 1 will need to revoke bar-0, and member 2 will need to revoke foo-1.
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1),
-                        mkTopicAssignment(zarTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1),
+                mkTopicAssignment(zarTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(barTopicId, 0)
+            ))
+        )));
 
         // Member 1 rejoins with a new subscription list and an empty owned
         // partition, and transitions to UNRELEASED_PARTITIONS.
@@ -12454,7 +12310,7 @@ public class GroupMetadataManagerTest {
             .withMemberId(memberId1)
             .withSessionTimeoutMs(5000)
             .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName, zarTopicName),
+                List.of(fooTopicName, barTopicName, zarTopicName),
                 Collections.emptyList()))
             .build();
         GroupMetadataManagerTestContext.JoinResult joinResult1 = context.sendClassicGroupJoin(request);
@@ -12466,7 +12322,7 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setState(MemberState.UNRELEASED_PARTITIONS)
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName, zarTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName, zarTopicName))
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0),
                 mkTopicAssignment(zarTopicId, 0)))
@@ -12475,22 +12331,20 @@ public class GroupMetadataManagerTest {
                     .setSessionTimeoutMs(request.sessionTimeoutMs())
                     .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                         GroupMetadataManagerTestContext.toConsumerProtocol(
-                            Arrays.asList(fooTopicName, barTopicName, zarTopicName),
+                            List.of(fooTopicName, barTopicName, zarTopicName),
                             Collections.emptyList()
                         )
                     ))
             )
             .build();
 
-        List<CoordinatorRecord> expectedRecords1 = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords1 = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember1),
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                    put(zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 1),
+                zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
 
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId1, mkAssignment(
@@ -12529,7 +12383,7 @@ public class GroupMetadataManagerTest {
             joinResponse1.generationId(),
             joinResponse1.protocolName(),
             joinResponse1.protocolType(),
-            Arrays.asList(
+            List.of(
                 new TopicPartition(fooTopicName, 0),
                 new TopicPartition(zarTopicName, 0)
             )
@@ -12593,7 +12447,7 @@ public class GroupMetadataManagerTest {
             joinResponse2.generationId(),
             joinResponse2.protocolName(),
             joinResponse2.protocolType(),
-            Arrays.asList(
+            List.of(
                 new TopicPartition(fooTopicName, 0),
                 new TopicPartition(fooTopicName, 1),
                 new TopicPartition(zarTopicName, 0)
@@ -12624,12 +12478,10 @@ public class GroupMetadataManagerTest {
                 .addRacks()
                 .build())
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
-                .withSubscriptionMetadata(new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                        put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                    }
-                })
+                .withSubscriptionMetadata(Map.of(
+                    fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                    barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+                ))
                 .withMember(new ConsumerGroupMember.Builder(memberId1)
                     .setState(MemberState.STABLE)
                     .setMemberEpoch(10)
@@ -12637,7 +12489,7 @@ public class GroupMetadataManagerTest {
                     .setRebalanceTimeoutMs(500)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                    .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0),
                         mkTopicAssignment(barTopicId, 0)))
@@ -12646,8 +12498,8 @@ public class GroupMetadataManagerTest {
                             .setSessionTimeoutMs(5000)
                             .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                                 GroupMetadataManagerTestContext.toConsumerProtocol(
-                                    Arrays.asList(fooTopicName, barTopicName),
-                                    Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))
+                                    List.of(fooTopicName, barTopicName),
+                                    List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))
                                 )
                             ))
                     )
@@ -12659,7 +12511,7 @@ public class GroupMetadataManagerTest {
                     .setRebalanceTimeoutMs(500)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName))
+                    .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 1)))
                     .build())
@@ -12675,19 +12527,15 @@ public class GroupMetadataManagerTest {
 
         // Prepare the new target assignment.
         // Member 1 will need to revoke bar-0, and member 2 will need to revoke foo-1.
-        assignor.prepareGroupAssignment(new GroupAssignment(
-            new HashMap<String, MemberAssignment>() {
-                {
-                    put(memberId1, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(fooTopicId, 0, 1),
-                        mkTopicAssignment(zarTopicId, 0)
-                    )));
-                    put(memberId2, new MemberAssignmentImpl(mkAssignment(
-                        mkTopicAssignment(barTopicId, 0)
-                    )));
-                }
-            }
-        ));
+        assignor.prepareGroupAssignment(new GroupAssignment(Map.of(
+            memberId1, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(fooTopicId, 0, 1),
+                mkTopicAssignment(zarTopicId, 0)
+            )),
+            memberId2, new MemberAssignmentImpl(mkAssignment(
+                mkTopicAssignment(barTopicId, 0)
+            ))
+        )));
 
         // Member 1 rejoins with a new subscription list and transitions to UNREVOKED_PARTITIONS.
         JoinGroupRequestData request1 = new GroupMetadataManagerTestContext.JoinGroupRequestBuilder()
@@ -12695,8 +12543,8 @@ public class GroupMetadataManagerTest {
             .withMemberId(memberId1)
             .withSessionTimeoutMs(5000)
             .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName, zarTopicName),
-                Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))))
+                List.of(fooTopicName, barTopicName, zarTopicName),
+                List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))))
             .build();
         GroupMetadataManagerTestContext.JoinResult joinResult1 = context.sendClassicGroupJoin(request1);
 
@@ -12707,7 +12555,7 @@ public class GroupMetadataManagerTest {
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setState(MemberState.UNREVOKED_PARTITIONS)
-            .setSubscribedTopicNames(Arrays.asList(fooTopicName, barTopicName, zarTopicName))
+            .setSubscribedTopicNames(List.of(fooTopicName, barTopicName, zarTopicName))
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0)))
             .setPartitionsPendingRevocation(mkAssignment(
@@ -12717,22 +12565,20 @@ public class GroupMetadataManagerTest {
                     .setSessionTimeoutMs(request1.sessionTimeoutMs())
                     .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                         GroupMetadataManagerTestContext.toConsumerProtocol(
-                            Arrays.asList(fooTopicName, barTopicName, zarTopicName),
-                            Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))
+                            List.of(fooTopicName, barTopicName, zarTopicName),
+                            List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(barTopicName, 0))
                         )
                     ))
             )
             .build();
 
-        List<CoordinatorRecord> expectedRecords1 = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords1 = List.of(
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember1),
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-                    put(zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 1),
+                zarTopicName, new TopicMetadata(zarTopicId, zarTopicName, 1)
+            )),
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11),
 
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId1, mkAssignment(
@@ -12792,7 +12638,7 @@ public class GroupMetadataManagerTest {
             .withMemberId(memberId1)
             .withSessionTimeoutMs(5000)
             .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName, zarTopicName),
+                List.of(fooTopicName, barTopicName, zarTopicName),
                 Collections.singletonList(new TopicPartition(fooTopicName, 0))))
             .build();
         GroupMetadataManagerTestContext.JoinResult joinResult2 = context.sendClassicGroupJoin(request2);
@@ -12809,7 +12655,7 @@ public class GroupMetadataManagerTest {
                     .setSessionTimeoutMs(request2.sessionTimeoutMs())
                     .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                         GroupMetadataManagerTestContext.toConsumerProtocol(
-                            Arrays.asList(fooTopicName, barTopicName, zarTopicName),
+                            List.of(fooTopicName, barTopicName, zarTopicName),
                             Collections.singletonList(new TopicPartition(fooTopicName, 0))
                         )
                     ))
@@ -12817,7 +12663,7 @@ public class GroupMetadataManagerTest {
             .build();
 
         assertRecordsEquals(
-            Arrays.asList(
+            List.of(
                 GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember2),
                 GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedMember2)
             ),
@@ -12846,7 +12692,7 @@ public class GroupMetadataManagerTest {
             joinResponse2.generationId(),
             joinResponse2.protocolName(),
             joinResponse2.protocolType(),
-            Arrays.asList(
+            List.of(
                 new TopicPartition(fooTopicName, 0),
                 new TopicPartition(zarTopicName, 0)
             )
@@ -12879,8 +12725,8 @@ public class GroupMetadataManagerTest {
             .withMemberId(memberId1)
             .withSessionTimeoutMs(5000)
             .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                Arrays.asList(fooTopicName, barTopicName, zarTopicName),
-                Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(zarTopicName, 0))))
+                List.of(fooTopicName, barTopicName, zarTopicName),
+                List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(zarTopicName, 0))))
             .build();
         GroupMetadataManagerTestContext.JoinResult joinResult3 = context.sendClassicGroupJoin(request3);
 
@@ -12895,15 +12741,15 @@ public class GroupMetadataManagerTest {
                     .setSessionTimeoutMs(request3.sessionTimeoutMs())
                     .setSupportedProtocols(ConsumerGroupMember.classicProtocolListFromJoinRequestProtocolCollection(
                         GroupMetadataManagerTestContext.toConsumerProtocol(
-                            Arrays.asList(fooTopicName, barTopicName, zarTopicName),
-                            Arrays.asList(new TopicPartition(fooTopicName, 0), new TopicPartition(zarTopicName, 0))
+                            List.of(fooTopicName, barTopicName, zarTopicName),
+                            List.of(new TopicPartition(fooTopicName, 0), new TopicPartition(zarTopicName, 0))
                         )
                     ))
             )
             .build();
 
         assertRecordsEquals(
-            Arrays.asList(
+            List.of(
                 GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord(groupId, expectedMember3),
                 GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedMember3)
             ),
@@ -12932,7 +12778,7 @@ public class GroupMetadataManagerTest {
             joinResponse3.generationId(),
             joinResponse3.protocolName(),
             joinResponse3.protocolType(),
-            Arrays.asList(
+            List.of(
                 new TopicPartition(fooTopicName, 0),
                 new TopicPartition(fooTopicName, 1),
                 new TopicPartition(zarTopicName, 0)
@@ -12952,7 +12798,7 @@ public class GroupMetadataManagerTest {
         String barTopicName = "bar";
 
         for (short version = ConsumerProtocolAssignment.LOWEST_SUPPORTED_VERSION; version <= ConsumerProtocolAssignment.HIGHEST_SUPPORTED_VERSION; version++) {
-            List<TopicPartition> topicPartitions = Arrays.asList(
+            List<TopicPartition> topicPartitions = List.of(
                 new TopicPartition(fooTopicName, 0),
                 new TopicPartition(fooTopicName, 1),
                 new TopicPartition(fooTopicName, 2),
@@ -12965,7 +12811,7 @@ public class GroupMetadataManagerTest {
                     .setName("range")
                     .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(
                         new ConsumerPartitionAssignor.Subscription(
-                            Arrays.asList(fooTopicName, barTopicName),
+                            List.of(fooTopicName, barTopicName),
                             null,
                             topicPartitions
                         ),
@@ -12977,7 +12823,7 @@ public class GroupMetadataManagerTest {
                 .setState(MemberState.STABLE)
                 .setMemberEpoch(10)
                 .setPreviousMemberEpoch(9)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setClassicMemberMetadata(
                     new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
                         .setSessionTimeoutMs(5000)
@@ -12991,7 +12837,7 @@ public class GroupMetadataManagerTest {
                 .setState(MemberState.STABLE)
                 .setMemberEpoch(10)
                 .setPreviousMemberEpoch(9)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setAssignedPartitions(mkAssignment(
                     mkTopicAssignment(fooTopicId, 3, 4, 5),
                     mkTopicAssignment(barTopicId, 2)))
@@ -13386,7 +13232,7 @@ public class GroupMetadataManagerTest {
                 .withAssignment(memberId3, mkAssignment(mkTopicAssignment(barTopicId, 0, 1, 2))))
             .build();
 
-        Arrays.asList(memberId1, memberId2, memberId3).forEach(memberId -> {
+        List.of(memberId1, memberId2, memberId3).forEach(memberId -> {
             CoordinatorResult<HeartbeatResponseData, CoordinatorRecord> heartbeatResult = context.sendClassicGroupHeartbeat(
                 new HeartbeatRequestData()
                     .setGroupId(groupId)
@@ -13545,7 +13391,7 @@ public class GroupMetadataManagerTest {
         ExpiredTimeout<Void, CoordinatorRecord> timeout = timeouts.get(0);
         assertEquals(groupSessionTimeoutKey(groupId, memberId), timeout.key);
         assertRecordsEquals(
-            Arrays.asList(
+            List.of(
                 // The member is removed.
                 GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId),
                 GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId),
@@ -13611,7 +13457,7 @@ public class GroupMetadataManagerTest {
         ExpiredTimeout<Void, CoordinatorRecord> timeout = timeouts.get(0);
         assertEquals(consumerGroupJoinKey(groupId, memberId), timeout.key);
         assertRecordsEquals(
-            Arrays.asList(
+            List.of(
                 // The member is removed.
                 GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId),
                 GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId),
@@ -13642,7 +13488,7 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
                     Collections.singletonList(new TopicPartition(fooTopicName, 0))
                 ))))
@@ -13651,7 +13497,7 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
                     Collections.singletonList(new TopicPartition(fooTopicName, 1))
                 ))))
@@ -13663,7 +13509,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setClassicMemberMetadata(
@@ -13680,7 +13526,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(8)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setClassicMemberMetadata(
@@ -13697,7 +13543,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setAssignedPartitions(mkAssignment(mkTopicAssignment(barTopicId, 0)))
@@ -13724,12 +13570,10 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
         context.groupMetadataManager.consumerGroup(groupId).setMetadataRefreshDeadline(Long.MAX_VALUE, 10);
-        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-            {
-                put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-            }
-        }));
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+            fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+            barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+        )));
 
         // Member 1 joins to schedule the sync timeout and the heartbeat timeout.
         context.sendClassicGroupJoin(
@@ -13739,7 +13583,7 @@ public class GroupMetadataManagerTest {
                 .withRebalanceTimeoutMs(member1.rebalanceTimeoutMs())
                 .withSessionTimeoutMs(member1.classicMemberMetadata().get().sessionTimeoutMs())
                 .withProtocols(GroupMetadataManagerTestContext.toConsumerProtocol(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     Collections.singletonList(new TopicPartition(fooTopicName, 0))))
                 .build()
         ).appendFuture.complete(null);
@@ -13760,7 +13604,7 @@ public class GroupMetadataManagerTest {
         CoordinatorResult<LeaveGroupResponseData, CoordinatorRecord> leaveResult = context.sendClassicGroupLeave(
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
-                .setMembers(Arrays.asList(
+                .setMembers(List.of(
                     // Valid member id.
                     new MemberIdentity()
                         .setMemberId(memberId1),
@@ -13784,7 +13628,7 @@ public class GroupMetadataManagerTest {
 
         assertEquals(
             new LeaveGroupResponseData()
-                .setMembers(Arrays.asList(
+                .setMembers(List.of(
                     new LeaveGroupResponseData.MemberResponse()
                         .setGroupInstanceId(null)
                         .setMemberId(memberId1),
@@ -13810,7 +13654,7 @@ public class GroupMetadataManagerTest {
             leaveResult.response()
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // Remove member 1
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId1),
@@ -13845,7 +13689,7 @@ public class GroupMetadataManagerTest {
             new ConsumerGroupMemberMetadataValue.ClassicProtocol()
                 .setName("range")
                 .setMetadata(Utils.toArray(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Arrays.asList(fooTopicName, barTopicName),
+                    List.of(fooTopicName, barTopicName),
                     null,
                     Collections.singletonList(new TopicPartition(fooTopicName, 0))
                 ))))
@@ -13857,7 +13701,7 @@ public class GroupMetadataManagerTest {
             .setPreviousMemberEpoch(9)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setServerAssignorName("range")
             .setRebalanceTimeoutMs(45000)
             .setClassicMemberMetadata(
@@ -13896,12 +13740,10 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
         context.groupMetadataManager.consumerGroup(groupId).setMetadataRefreshDeadline(Long.MAX_VALUE, 10);
-        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-            {
-                put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 1));
-            }
-        }));
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, Map.of(
+            fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2),
+            barTopicName, new TopicMetadata(barTopicId, barTopicName, 1)
+        )));
 
         // Member 1 leaves the group.
         CoordinatorResult<LeaveGroupResponseData, CoordinatorRecord> leaveResult = context.sendClassicGroupLeave(
@@ -13923,17 +13765,15 @@ public class GroupMetadataManagerTest {
             leaveResult.response()
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             // Remove member 1
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId1),
             GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId1),
             // Update the subscription metadata.
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord(groupId,
+                Map.of(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 2))
+            ),
             // Bump the group epoch.
             GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord(groupId, 11)
         );
@@ -13957,7 +13797,7 @@ public class GroupMetadataManagerTest {
         CoordinatorResult<LeaveGroupResponseData, CoordinatorRecord> leaveResult = context.sendClassicGroupLeave(
             new LeaveGroupRequestData()
                 .setGroupId("group-id")
-                .setMembers(Arrays.asList(
+                .setMembers(List.of(
                     new MemberIdentity()
                         .setMemberId("unknown-member-id"),
                     new MemberIdentity()
@@ -13967,7 +13807,7 @@ public class GroupMetadataManagerTest {
 
         assertEquals(
             new LeaveGroupResponseData()
-                .setMembers(Arrays.asList(
+                .setMembers(List.of(
                     new LeaveGroupResponseData.MemberResponse()
                         .setGroupInstanceId(null)
                         .setMemberId("unknown-member-id")
@@ -14104,7 +13944,7 @@ public class GroupMetadataManagerTest {
             Collections.emptyMap()
         ));
 
-        List<String> groupIds = Arrays.asList("group-id-1", "group-id-2");
+        List<String> groupIds = List.of("group-id-1", "group-id-2");
         context.replay(GroupCoordinatorRecordHelpers.newShareGroupEpochRecord(groupIds.get(0), 100));
         context.replay(GroupCoordinatorRecordHelpers.newShareGroupEpochRecord(groupIds.get(1), 15));
 
@@ -14120,7 +13960,7 @@ public class GroupMetadataManagerTest {
         assertNotNull(memberId);
         context.commit();
 
-        List<ShareGroupDescribeResponseData.DescribedGroup> expected = Arrays.asList(
+        List<ShareGroupDescribeResponseData.DescribedGroup> expected = List.of(
             new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupEpoch(100)
                 .setGroupId(groupIds.get(0))
@@ -14167,7 +14007,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId("group-foo")
                 .setMemberId(memberId)
                 .setMemberEpoch(0)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar")));
+                .setSubscribedTopicNames(List.of("foo", "bar")));
 
         assertEquals(
             memberId,
@@ -14204,7 +14044,7 @@ public class GroupMetadataManagerTest {
                     .setGroupId(groupId)
                     .setMemberId(memberId)
                     .setMemberEpoch(100) // Epoch must be > 0.
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
     }
 
     @Test
@@ -14222,7 +14062,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId)
                 .setMemberEpoch(0)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar")));
+                .setSubscribedTopicNames(List.of("foo", "bar")));
 
         // The second member is rejected because the member id is unknown and
         // the member epoch is not zero.
@@ -14232,7 +14072,7 @@ public class GroupMetadataManagerTest {
                     .setGroupId(groupId)
                     .setMemberId(Uuid.randomUuid().toString())
                     .setMemberEpoch(1)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
     }
 
     @Test
@@ -14270,7 +14110,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId)
                 .setMemberEpoch(0)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar")));
+                .setSubscribedTopicNames(List.of("foo", "bar")));
 
         assertResponseEquals(
             new ShareGroupHeartbeatResponseData()
@@ -14278,13 +14118,13 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(1)
                 .setHeartbeatIntervalMs(5000)
                 .setAssignment(new ShareGroupHeartbeatResponseData.Assignment()
-                    .setTopicPartitions(Arrays.asList(
+                    .setTopicPartitions(List.of(
                         new ShareGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(fooTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2, 3, 4, 5)),
+                            .setPartitions(List.of(0, 1, 2, 3, 4, 5)),
                         new ShareGroupHeartbeatResponseData.TopicPartitions()
                             .setTopicId(barTopicId)
-                            .setPartitions(Arrays.asList(0, 1, 2))
+                            .setPartitions(List.of(0, 1, 2))
                     ))),
             result.response()
         );
@@ -14294,21 +14134,19 @@ public class GroupMetadataManagerTest {
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setMemberEpoch(1)
             .setPreviousMemberEpoch(0)
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .setAssignedPartitions(mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5),
                 mkTopicAssignment(barTopicId, 0, 1, 2)
             ))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
+        List<CoordinatorRecord> expectedRecords = List.of(
             GroupCoordinatorRecordHelpers.newShareGroupMemberSubscriptionRecord(groupId, expectedMember),
-            GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                {
-                    put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                    put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                }
-            }),
+            GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
             GroupCoordinatorRecordHelpers.newShareGroupEpochRecord(groupId, 1),
             GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentRecord(groupId, memberId, mkAssignment(
                 mkTopicAssignment(fooTopicId, 0, 1, 2, 3, 4, 5),
@@ -14346,34 +14184,34 @@ public class GroupMetadataManagerTest {
                 .build())
             .withShareGroup(new ShareGroupBuilder(groupId, 10)
                 .withMember(new ShareGroupMember.Builder(memberId1)
-                        .setState(MemberState.STABLE)
-                        .setMemberEpoch(10)
-                        .setPreviousMemberEpoch(9)
-                        .setClientId("client")
-                        .setClientHost("localhost/127.0.0.1")
-                        .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
-                        .setAssignedPartitions(mkAssignment(
-                                mkTopicAssignment(fooTopicId, 0, 1, 2),
-                                mkTopicAssignment(barTopicId, 0, 1)))
-                        .build())
-                .withMember(new ShareGroupMember.Builder(memberId2)
-                        .setState(MemberState.STABLE)
-                        .setMemberEpoch(10)
-                        .setPreviousMemberEpoch(9)
-                        .setClientId("client")
-                        .setClientHost("localhost/127.0.0.1")
-                        // Use zar only here to ensure that metadata needs to be recomputed.
-                        .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
-                        .setAssignedPartitions(mkAssignment(
-                                mkTopicAssignment(fooTopicId, 3, 4, 5),
-                                mkTopicAssignment(barTopicId, 2)))
-                        .build())
-                .withAssignment(memberId1, mkAssignment(
+                    .setState(MemberState.STABLE)
+                    .setMemberEpoch(10)
+                    .setPreviousMemberEpoch(9)
+                    .setClientId("client")
+                    .setClientHost("localhost/127.0.0.1")
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
+                    .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2),
                         mkTopicAssignment(barTopicId, 0, 1)))
-                .withAssignment(memberId2, mkAssignment(
+                    .build())
+                .withMember(new ShareGroupMember.Builder(memberId2)
+                    .setState(MemberState.STABLE)
+                    .setMemberEpoch(10)
+                    .setPreviousMemberEpoch(9)
+                    .setClientId("client")
+                    .setClientHost("localhost/127.0.0.1")
+                    // Use zar only here to ensure that metadata needs to be recomputed.
+                    .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
+                    .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 3, 4, 5),
                         mkTopicAssignment(barTopicId, 2)))
+                    .build())
+                .withAssignment(memberId1, mkAssignment(
+                    mkTopicAssignment(fooTopicId, 0, 1, 2),
+                    mkTopicAssignment(barTopicId, 0, 1)))
+                .withAssignment(memberId2, mkAssignment(
+                    mkTopicAssignment(fooTopicId, 3, 4, 5),
+                    mkTopicAssignment(barTopicId, 2)))
                 .withAssignmentEpoch(10))
             .build();
 
@@ -14383,7 +14221,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId2)
                 .setMemberEpoch(LEAVE_GROUP_MEMBER_EPOCH)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar")));
+                .setSubscribedTopicNames(List.of("foo", "bar")));
 
         assertResponseEquals(
             new ShareGroupHeartbeatResponseData()
@@ -14392,18 +14230,16 @@ public class GroupMetadataManagerTest {
             result.response()
         );
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
-                GroupCoordinatorRecordHelpers.newShareGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
-                GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
-                GroupCoordinatorRecordHelpers.newShareGroupMemberSubscriptionTombstoneRecord(groupId, memberId2),
-                // Subscription metadata is recomputed because zar is no longer there.
-                GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataRecord(groupId, new HashMap<String, TopicMetadata>() {
-                    {
-                        put(fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6));
-                        put(barTopicName, new TopicMetadata(barTopicId, barTopicName, 3));
-                    }
-                }),
-                GroupCoordinatorRecordHelpers.newShareGroupEpochRecord(groupId, 11)
+        List<CoordinatorRecord> expectedRecords = List.of(
+            GroupCoordinatorRecordHelpers.newShareGroupCurrentAssignmentTombstoneRecord(groupId, memberId2),
+            GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentTombstoneRecord(groupId, memberId2),
+            GroupCoordinatorRecordHelpers.newShareGroupMemberSubscriptionTombstoneRecord(groupId, memberId2),
+            // Subscription metadata is recomputed because zar is no longer there.
+            GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataRecord(groupId, Map.of(
+                fooTopicName, new TopicMetadata(fooTopicId, fooTopicName, 6),
+                barTopicName, new TopicMetadata(barTopicId, barTopicName, 3)
+            )),
+            GroupCoordinatorRecordHelpers.newShareGroupEpochRecord(groupId, 11)
         );
 
         assertRecordsEquals(expectedRecords, result.records());
@@ -14436,7 +14272,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId1)
                 .setMemberEpoch(0)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar")));
+                .setSubscribedTopicNames(List.of("foo", "bar")));
         assertEquals(101, result.response().memberEpoch());
 
         // Member 2 joins the group.
@@ -14445,7 +14281,7 @@ public class GroupMetadataManagerTest {
                 .setGroupId(groupId)
                 .setMemberId(memberId2)
                 .setMemberEpoch(0)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                .setSubscribedTopicNames(List.of("foo", "bar"))));
     }
 
     @Test
@@ -14455,10 +14291,10 @@ public class GroupMetadataManagerTest {
             .withShareGroup(new ShareGroupBuilder(groupId, 10))
             .build();
 
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
-                GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentEpochTombstoneRecord(groupId),
-                GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataTombstoneRecord(groupId),
-                GroupCoordinatorRecordHelpers.newShareGroupEpochTombstoneRecord(groupId)
+        List<CoordinatorRecord> expectedRecords = List.of(
+            GroupCoordinatorRecordHelpers.newShareGroupTargetAssignmentEpochTombstoneRecord(groupId),
+            GroupCoordinatorRecordHelpers.newShareGroupSubscriptionMetadataTombstoneRecord(groupId),
+            GroupCoordinatorRecordHelpers.newShareGroupEpochTombstoneRecord(groupId)
         );
         List<CoordinatorRecord> records = new ArrayList<>();
         context.groupMetadataManager.createGroupTombstoneRecords("share-group-id", records);
@@ -14879,7 +14715,7 @@ public class GroupMetadataManagerTest {
                 .setMemberEpoch(0)
                 .setServerAssignor("range")
                 .setRebalanceTimeoutMs(5000)
-                .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                .setSubscribedTopicNames(List.of("foo", "bar"))
                 .setTopicPartitions(Collections.emptyList())));
     }
 
@@ -15039,7 +14875,7 @@ public class GroupMetadataManagerTest {
                     .setPreviousMemberEpoch(9)
                     .setClientId(DEFAULT_CLIENT_ID)
                     .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+                    .setSubscribedTopicNames(List.of("foo", "bar"))
                     .setServerAssignorName("range")
                     .setAssignedPartitions(mkAssignment(
                         mkTopicAssignment(fooTopicId, 0, 1, 2)))
@@ -15055,7 +14891,7 @@ public class GroupMetadataManagerTest {
                     .setGroupId(groupId)
                     .setMemberId(Uuid.randomUuid().toString())
                     .setMemberEpoch(1)
-                    .setSubscribedTopicNames(Arrays.asList("foo", "bar"))));
+                    .setSubscribedTopicNames(List.of("foo", "bar"))));
     }
 
     @Test
@@ -15084,6 +14920,63 @@ public class GroupMetadataManagerTest {
 
         List<ShareGroupDescribeResponseData.DescribedGroup> actual = context.sendShareGroupDescribe(Collections.singletonList(groupId));
         assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testReplayConsumerGroupRegularExpression() {
+        GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
+            .build();
+
+        ResolvedRegularExpression resolvedRegularExpression = new ResolvedRegularExpression(
+            Set.of("abc", "abcd"),
+            10L,
+            12345L
+        );
+
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionRecord(
+            "foo",
+            "abc*",
+            resolvedRegularExpression
+        ));
+
+        assertEquals(
+            Optional.of(resolvedRegularExpression),
+            context.groupMetadataManager.consumerGroup("foo").regularExpression("abc*")
+        );
+    }
+
+    @Test
+    public void testReplayConsumerGroupRegularExpressionTombstone() {
+        GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
+            .build();
+
+        // The group may not exist at all. Replaying the ConsumerGroupRegularExpression tombstone
+        // should be a no-op.
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone("foo", "abc*"));
+        assertThrows(GroupIdNotFoundException.class, () -> context.groupMetadataManager.consumerGroup("foo"));
+
+        // Otherwise, it should remove the regular expression.
+        ResolvedRegularExpression resolvedRegularExpression = new ResolvedRegularExpression(
+            Set.of("abc", "abcd"),
+            10L,
+            12345L
+        );
+
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionRecord(
+            "foo",
+            "abc*",
+            resolvedRegularExpression
+        ));
+
+        context.replay(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone(
+            "foo",
+            "abc*"
+        ));
+
+        assertEquals(
+            Optional.empty(),
+            context.groupMetadataManager.consumerGroup("foo").regularExpression("abc*")
+        );
     }
 
     private static void checkJoinGroupResponse(
