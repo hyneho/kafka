@@ -111,14 +111,9 @@ class CheckerUtils {
      */
     static MessageSpec readMessageSpecFromString(String contents) {
         try {
-            File tempFile = new File("temp.txt");
-            tempFile.createNewFile();
-            Files.write(Paths.get("temp.txt"), contents.getBytes());
-            MessageSpec messageSpec = MessageGenerator.JSON_SERDE.readValue(tempFile, MessageSpec.class);
-            tempFile.deleteOnExit();
-            return messageSpec;
+            return MessageGenerator.JSON_SERDE.readValue(contents, MessageSpec.class);
         } catch (Exception e) {
-            throw new RuntimeException("Unable to parse file as MessageSpec: " + contents, e);
+            throw new RuntimeException("Unable to parse string as MessageSpec: " + contents, e);
         }
     }
 
@@ -126,11 +121,12 @@ class CheckerUtils {
     /**
      * Read a MessageSpec file from remote git repo.
      *
-     * @param fileCheckMetadata    The file to read from remote git repo.
+     * @param fileName   The file to read from remote git repo.
      * @return                     The file contents.
      */
-    static String GetDataFromGit(String fileCheckMetadata) throws IOException {
-        String gitPath = String.valueOf(Paths.get("").toAbsolutePath()).replaceFirst("/generator", "");
+    static String GetDataFromGit(String fileName) throws IOException {
+        String gitPath = String.valueOf(Paths.get("").toAbsolutePath().getParent());
+        String schemaPath = "metadata/src/main/resources/common/metadata/";
         Git git = Git.open(new File(gitPath + "/.git"));
         Repository repository = git.getRepository();
         Ref head = git.getRepository().getRefDatabase().firstExactRef("refs/heads/trunk");
@@ -141,9 +137,9 @@ class CheckerUtils {
             try (TreeWalk treeWalk = new TreeWalk(repository)) {
                 treeWalk.addTree(tree);
                 treeWalk.setRecursive(true);
-                treeWalk.setFilter(PathFilter.create(String.valueOf(Paths.get("metadata/src/main/resources/common/metadata/" + fileCheckMetadata))));
+                treeWalk.setFilter(PathFilter.create(String.valueOf(Paths.get(schemaPath + fileName))));
                 if (!treeWalk.next()) {
-                    throw new IllegalStateException("Did not find expected file /metadata/src/main/resources/common/metadata/" + fileCheckMetadata);
+                    throw new IllegalStateException("Did not find expected file " + schemaPath + " " + fileName);
                 }
                 ObjectId objectId = treeWalk.getObjectId(0);
                 ObjectLoader loader = repository.open(objectId);

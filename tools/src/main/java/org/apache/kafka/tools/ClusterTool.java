@@ -37,8 +37,6 @@ import java.util.concurrent.ExecutionException;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 
-import org.eclipse.jgit.api.Git;
-
 public class ClusterTool {
 
     public static void main(String... args) {

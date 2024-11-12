@@ -17,17 +17,6 @@
 
 package org.apache.kafka.message.checker;
 
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectLoader;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevTree;
-import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.treewalk.TreeWalk;
-import org.eclipse.jgit.treewalk.filter.PathFilter;
-
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.Namespace;
@@ -35,11 +24,9 @@ import net.sourceforge.argparse4j.inf.Subparser;
 import net.sourceforge.argparse4j.inf.Subparsers;
 import net.sourceforge.argparse4j.internal.HelpScreenException;
 
-import java.io.File;
-import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.KeyPair;
 
 import static org.apache.kafka.message.checker.CheckerUtils.GetDataFromGit;
 
@@ -74,10 +61,10 @@ public class MetadataSchemaCheckerTool {
             required(true).
             help("The final schema JSON path.");
         Subparser evolutionGitVerifierParser = subparsers.addParser("verify-evolution-git").
-            help(" Verify that an evolution of a JSon file is valid using git. ");
+            help(" Verify that an evolution of a JSON file is valid using git. Must be run from the generator directory");
         evolutionGitVerifierParser.addArgument("--file", "-3").
             required(true).
-            help("The edited json file");
+            help("The edited JSON file");
         Namespace namespace;
         if (args.length == 0) {
             namespace = argumentParser.parseArgs(new String[] {"--help"});
@@ -104,12 +91,14 @@ public class MetadataSchemaCheckerTool {
                 break;
             }
             case "verify-evolution-git": {
-                String fileCheckMetadata = namespace.getString("file");
-                String gitContent = GetDataFromGit(fileCheckMetadata);
+                String fileName = namespace.getString("file");
+                String gitContent = GetDataFromGit(fileName);
+                String schemaPath = "metadata/src/main/resources/common/metadata/";
+
                 EvolutionVerifier verifier = new EvolutionVerifier(
-                        CheckerUtils.readMessageSpecFromFile(Paths.get("").toAbsolutePath().getParent() + "/metadata/src/main/resources/common/metadata/" + fileCheckMetadata),
+                        CheckerUtils.readMessageSpecFromFile(Paths.get("").toAbsolutePath().getParent() + schemaPath + fileName),
                         CheckerUtils.readMessageSpecFromString(gitContent));
-                verifier.verify();writer.println("Successfully verified evolution of file: " + fileCheckMetadata);
+                verifier.verify();writer.println("Successfully verified evolution of file: " + fileName);
                 break;
             }
             default:
