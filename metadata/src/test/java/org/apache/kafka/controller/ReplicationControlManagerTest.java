@@ -448,6 +448,7 @@ public class ReplicationControlManagerTest {
 
         void unfenceBrokers(Integer... brokerIds) {
             for (int brokerId : brokerIds) {
+                clusterControl.trackBrokerHeartbeat(brokerId, defaultBrokerEpoch(brokerId));
                 ControllerResult<BrokerHeartbeatReply> result = replicationControl.
                     processBrokerHeartbeat(new BrokerHeartbeatRequestData().
                         setBrokerId(brokerId).setBrokerEpoch(defaultBrokerEpoch(brokerId)).
@@ -494,12 +495,11 @@ public class ReplicationControlManagerTest {
                 .collect(Collectors.toSet());
             unfenceBrokers(unfencedBrokerIds.toArray(new Integer[0]));
 
-            Optional<Integer> staleBroker = clusterControl.heartbeatManager().findOneStaleBroker();
-            while (staleBroker.isPresent()) {
-                ControllerResult<Void> fenceResult = replicationControl.maybeFenceOneStaleBroker();
+            ControllerResult<Boolean> fenceResult;
+            do {
+                fenceResult = replicationControl.maybeFenceOneStaleBroker();
                 replay(fenceResult.records());
-                staleBroker = clusterControl.heartbeatManager().findOneStaleBroker();
-            }
+            } while (fenceResult.response().booleanValue());
 
             assertEquals(brokerIds, clusterControl.fencedBrokerIds());
         }
@@ -563,6 +563,44 @@ public class ReplicationControlManagerTest {
         public void configure(Map<String, ?> configs) {
             // nothing to do
         }
+    }
+
+    @Test
+    public void testExcessiveNumberOfTopicsCannotBeCreated() {
+        // number of partitions is explicitly set without assignments
+        ReplicationControlTestContext ctx = new ReplicationControlTestContext.Builder().build();
+        ReplicationControlManager replicationControl = ctx.replicationControl;
+        CreateTopicsRequestData request = new CreateTopicsRequestData();
+        request.topics().add(new CreatableTopic().setName("foo").
+                setNumPartitions(5000).setReplicationFactor((short) 1));
+        request.topics().add(new CreatableTopic().setName("bar").
+                setNumPartitions(5000).setReplicationFactor((short) 1));
+        request.topics().add(new CreatableTopic().setName("baz").
+                setNumPartitions(1).setReplicationFactor((short) 1));
+        ControllerRequestContext requestContext = anonymousContextFor(ApiKeys.CREATE_TOPICS);
+        PolicyViolationException error = assertThrows(
+                PolicyViolationException.class,
+                () -> replicationControl.createTopics(requestContext, request, Set.of("foo", "bar", "baz")));
+        assertEquals(error.getMessage(), "Excessively large number of partitions per request.");
+    }
+
+    @Test
+    public void testExcessiveNumberOfTopicsCannotBeCreatedWithAssignments() {
+        CreateTopicsRequestData request = new CreateTopicsRequestData();
+        request.topics().add(new CreatableTopic().setName("foo").
+                setNumPartitions(-1).setReplicationFactor((short) 1));
+        CreateTopicsRequestData.CreatableReplicaAssignmentCollection assignments =
+                new CreateTopicsRequestData.CreatableReplicaAssignmentCollection();
+        assignments.add(new CreatableReplicaAssignment().setPartitionIndex(1));
+        assignments.add(new CreatableReplicaAssignment().setPartitionIndex(2));
+        request.topics().add(new CreatableTopic()
+                .setName("baz")
+                .setAssignments(assignments));
+        PolicyViolationException error = assertThrows(
+                PolicyViolationException.class,
+                () -> ReplicationControlManager.validateTotalNumberOfPartitions(request, 9999)
+        );
+        assertEquals(error.getMessage(), "Excessively large number of partitions per request.");
     }
 
     @Test
@@ -2844,8 +2882,7 @@ public class ReplicationControlManagerTest {
                 filter(broker -> broker.id() == 0).findFirst();
         assertTrue(state.isPresent());
         assertEquals(0, state.get().id());
-        assertEquals(100000000L, state.get().lastContactNs);
-        assertEquals(123, state.get().metadataOffset);
+        assertEquals(123, state.get().metadataOffset());
     }
 
     @Test
