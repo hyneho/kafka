@@ -217,7 +217,10 @@ public class StateDirectory implements AutoCloseable {
                 // because it's possible that the topology has changed since that data was written, and is now stateless
                 // this therefore prevents us from creating unnecessary Tasks just because of some left-over state
                 if (subTopology.hasStateWithChangelogs()) {
-                    final Set<TopicPartition> inputPartitions = topologyMetadata.nodeToSourceTopics(id).values().stream().flatMap(Collection::stream).map(t -> new TopicPartition(t, id.partition())).collect(Collectors.toSet());
+                    final Set<TopicPartition> inputPartitions = topologyMetadata.nodeToSourceTopics(id).values().stream()
+                            .flatMap(Collection::stream)
+                            .map(t -> new TopicPartition(t, id.partition()))
+                            .collect(Collectors.toSet());
                     final ProcessorStateManager stateManager = ProcessorStateManager.createStartupTaskStateManager(
                         id,
                         eosEnabled,
