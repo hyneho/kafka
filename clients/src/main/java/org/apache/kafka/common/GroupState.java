@@ -22,6 +22,7 @@ import org.apache.kafka.common.annotation.InterfaceStability;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,17 +32,17 @@ import java.util.stream.Collectors;
  * The following table shows the correspondence between the group states and types.
  * <table>
  *     <thead>
- *         <tr><th>State</th><th>Classic group</th><th>Classic consumer group</th><th>Modern consumer group</th><th>Share group</th></tr>
+ *         <tr><th>State</th><th>Classic group</th><th>Consumer group</th><th>Share group</th></tr>
  *     </thead>
  *     <tbody>
- *         <tr><td>UNKNOWN</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
- *         <tr><td>PREPARING_REBALANCE</td><td>Yes</td><td>Yes</td><td></td><td></td></tr>
- *         <tr><td>COMPLETING_REBALANCE</td><td>Yes</td><td>Yes</td><td></td><td></td></tr>
- *         <tr><td>STABLE</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
- *         <tr><td>DEAD</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
- *         <tr><td>EMPTY</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
- *         <tr><td>ASSIGNING</td><td></td><td></td><td>Yes</td><td></td></tr>
- *         <tr><td>RECONCILING</td><td></td><td></td><td>Yes</td><td></td></tr>
+ *         <tr><td>UNKNOWN</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+ *         <tr><td>PREPARING_REBALANCE</td><td>Yes</td><td>Yes</td><td></td></tr>
+ *         <tr><td>COMPLETING_REBALANCE</td><td>Yes</td><td>Yes</td><td></td></tr>
+ *         <tr><td>STABLE</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+ *         <tr><td>DEAD</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+ *         <tr><td>EMPTY</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+ *         <tr><td>ASSIGNING</td><td></td><td>Yes</td><td></td></tr>
+ *         <tr><td>RECONCILING</td><td></td><td>Yes</td><td></td></tr>
  *     </tbody>
  * </table>
  */
@@ -71,6 +72,18 @@ public enum GroupState {
     public static GroupState parse(String name) {
         GroupState state = NAME_TO_ENUM.get(name.toUpperCase(Locale.ROOT));
         return state == null ? UNKNOWN : state;
+    }
+
+    public static Set<GroupState> groupStatesForType(GroupType type) {
+        if (type == GroupType.CLASSIC) {
+            return Set.of(PREPARING_REBALANCE, COMPLETING_REBALANCE, STABLE, DEAD, EMPTY);
+        } else if (type == GroupType.CONSUMER) {
+            return Set.of(PREPARING_REBALANCE, COMPLETING_REBALANCE, STABLE, DEAD, EMPTY, ASSIGNING, RECONCILING);
+        } else if (type == GroupType.SHARE) {
+            return Set.of(STABLE, DEAD, EMPTY);
+        } else {
+            throw new IllegalArgumentException("Group type not known");
+        }
     }
 
     @Override

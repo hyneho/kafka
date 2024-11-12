@@ -32,12 +32,12 @@ import org.apache.kafka.common.ClassicGroupState;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.ElectionType;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.ShareGroupState;
 import org.apache.kafka.common.TopicCollection;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionReplica;
@@ -3134,8 +3134,8 @@ public class KafkaAdminClientTest {
 
             assertEquals(2, listings.size());
             List<GroupListing> expected = new ArrayList<>();
-            expected.add(new GroupListing("group-2", Optional.of(GroupType.CLASSIC), ""));
-            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE));
+            expected.add(new GroupListing("group-2", Optional.of(GroupType.CLASSIC), "", Optional.of(GroupState.EMPTY)));
+            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE, Optional.of(GroupState.STABLE)));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }
@@ -3163,7 +3163,7 @@ public class KafkaAdminClientTest {
 
             assertEquals(1, listings.size());
             List<GroupListing> expected = new ArrayList<>();
-            expected.add(new GroupListing("group-1", Optional.empty(), "any"));
+            expected.add(new GroupListing("group-1", Optional.empty(), "any", Optional.empty()));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }
@@ -3199,8 +3199,8 @@ public class KafkaAdminClientTest {
 
             assertEquals(2, listing.size());
             List<GroupListing> expected = new ArrayList<>();
-            expected.add(new GroupListing("group-2", Optional.of(GroupType.CONSUMER), ""));
-            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE));
+            expected.add(new GroupListing("group-2", Optional.of(GroupType.CONSUMER), "", Optional.of(GroupState.EMPTY)));
+            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE, Optional.of(GroupState.STABLE)));
             assertEquals(expected, listing);
             assertEquals(0, result.errors().get().size());
         }
@@ -5029,7 +5029,7 @@ public class KafkaAdminClientTest {
             ShareGroupDescribeResponseData group0Data = new ShareGroupDescribeResponseData();
             group0Data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId(GROUP_ID)
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(memberOne, memberTwo)));
 
             final List<TopicPartition> expectedTopicPartitions = new ArrayList<>();
@@ -5044,7 +5044,7 @@ public class KafkaAdminClientTest {
                 new MemberAssignment(new HashSet<>(expectedTopicPartitions))));
             data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId(GROUP_ID)
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(memberOne, memberTwo)));
 
             env.kafkaClient().prepareResponse(new ShareGroupDescribeResponse(data));
@@ -5097,7 +5097,7 @@ public class KafkaAdminClientTest {
             ShareGroupDescribeResponseData group0Data = new ShareGroupDescribeResponseData();
             group0Data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId(GROUP_ID)
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(
                     new ShareGroupDescribeResponseData.Member()
                         .setMemberId("0")
@@ -5113,7 +5113,7 @@ public class KafkaAdminClientTest {
             ShareGroupDescribeResponseData group1Data = new ShareGroupDescribeResponseData();
             group1Data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId("group-1")
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(
                     new ShareGroupDescribeResponseData.Member()
                         .setMemberId("0")
@@ -5289,8 +5289,8 @@ public class KafkaAdminClientTest {
 
             assertEquals(2, listings.size());
             List<ShareGroupListing> expected = new ArrayList<>();
-            expected.add(new ShareGroupListing("share-group-1", Optional.of(ShareGroupState.STABLE)));
-            expected.add(new ShareGroupListing("share-group-2", Optional.of(ShareGroupState.EMPTY)));
+            expected.add(new ShareGroupListing("share-group-1", Optional.of(GroupState.STABLE)));
+            expected.add(new ShareGroupListing("share-group-2", Optional.of(GroupState.EMPTY)));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }

@@ -20,6 +20,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientTestUtils;
 import org.apache.kafka.clients.admin.GroupListing;
 import org.apache.kafka.clients.admin.ListGroupsResult;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.utils.Exit;
@@ -173,9 +174,9 @@ public class GroupsCommandTest {
         GroupsCommand.GroupsService service = new GroupsCommand.GroupsService(adminClient);
 
         ListGroupsResult result = AdminClientTestUtils.listGroupsResult(
-                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer"),
-                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer"),
-                new GroupListing("SG", Optional.of(GroupType.SHARE), "share")
+                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("SG", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         );
         when(adminClient.listGroups()).thenReturn(result);
 
@@ -200,9 +201,9 @@ public class GroupsCommandTest {
         GroupsCommand.GroupsService service = new GroupsCommand.GroupsService(adminClient);
 
         ListGroupsResult result = AdminClientTestUtils.listGroupsResult(
-                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer"),
-                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer"),
-                new GroupListing("SG", Optional.of(GroupType.SHARE), "share")
+                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("SG", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         );
         when(adminClient.listGroups()).thenReturn(result);
 
@@ -226,9 +227,9 @@ public class GroupsCommandTest {
         GroupsCommand.GroupsService service = new GroupsCommand.GroupsService(adminClient);
 
         ListGroupsResult result = AdminClientTestUtils.listGroupsResult(
-            new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer"),
-            new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer"),
-            new GroupListing("SG", Optional.of(GroupType.SHARE), "share")
+            new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer", Optional.of(GroupState.STABLE)),
+            new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer", Optional.of(GroupState.STABLE)),
+            new GroupListing("SG", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         );
         when(adminClient.listGroups()).thenReturn(result);
 
@@ -251,9 +252,9 @@ public class GroupsCommandTest {
         GroupsCommand.GroupsService service = new GroupsCommand.GroupsService(adminClient);
 
         ListGroupsResult result = AdminClientTestUtils.listGroupsResult(
-                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer"),
-                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer"),
-                new GroupListing("SG", Optional.of(GroupType.SHARE), "share")
+                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("SG", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         );
         when(adminClient.listGroups()).thenReturn(result);
 
@@ -277,9 +278,9 @@ public class GroupsCommandTest {
         GroupsCommand.GroupsService service = new GroupsCommand.GroupsService(adminClient);
 
         ListGroupsResult result = AdminClientTestUtils.listGroupsResult(
-                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer"),
-                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer"),
-                new GroupListing("SG", Optional.of(GroupType.SHARE), "share")
+                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("SG", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         );
         when(adminClient.listGroups()).thenReturn(result);
 
@@ -302,9 +303,9 @@ public class GroupsCommandTest {
         GroupsCommand.GroupsService service = new GroupsCommand.GroupsService(adminClient);
 
         ListGroupsResult result = AdminClientTestUtils.listGroupsResult(
-                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer"),
-                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer"),
-                new GroupListing("SG", Optional.of(GroupType.SHARE), "share")
+                new GroupListing("CGclassic", Optional.of(GroupType.CLASSIC), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("SG", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         );
         when(adminClient.listGroups()).thenReturn(result);
 
@@ -327,8 +328,8 @@ public class GroupsCommandTest {
         GroupsCommand.GroupsService service = new GroupsCommand.GroupsService(adminClient);
 
         ListGroupsResult result = AdminClientTestUtils.listGroupsResult(
-                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer"),
-                new GroupListing("SG", Optional.of(GroupType.SHARE), "share")
+                new GroupListing("CGconsumer", Optional.of(GroupType.CONSUMER), "consumer", Optional.of(GroupState.STABLE)),
+                new GroupListing("SG", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE))
         );
         when(adminClient.listGroups()).thenReturn(result);
 

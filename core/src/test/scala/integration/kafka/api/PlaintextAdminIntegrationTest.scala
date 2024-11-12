@@ -44,7 +44,7 @@ import org.apache.kafka.common.requests.DeleteRecordsRequest
 import org.apache.kafka.common.resource.{PatternType, ResourcePattern, ResourceType}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer}
 import org.apache.kafka.common.utils.{Time, Utils}
-import org.apache.kafka.common.{ConsumerGroupState, ElectionType, GroupType, IsolationLevel, ShareGroupState, TopicCollection, TopicPartition, TopicPartitionInfo, TopicPartitionReplica, Uuid}
+import org.apache.kafka.common.{ConsumerGroupState, ElectionType, GroupState, GroupType, IsolationLevel, TopicCollection, TopicPartition, TopicPartitionInfo, TopicPartitionReplica, Uuid}
 import org.apache.kafka.controller.ControllerRequestContextUtil.ANONYMOUS_CONTEXT
 import org.apache.kafka.coordinator.group.{GroupConfig, GroupCoordinatorConfig}
 import org.apache.kafka.network.SocketServerConfigs
@@ -2131,6 +2131,11 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     val producer = createProducer()
     try {
       // Verify that initially there are no share groups to list.
+      val list = client.listGroups()
+      assertEquals(0, list.all().get().size())
+      assertEquals(0, list.errors().get().size())
+      assertEquals(0, list.valid().get().size())
+
       val list1 = client.listShareGroups()
       assertEquals(0, list1.all().get().size())
       assertEquals(0, list1.errors().get().size())
@@ -2154,19 +2159,38 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         TestUtils.waitUntilTrue(() => {
           client.listShareGroups.all.get.stream().filter(group =>
             group.groupId == testGroupId &&
-              group.state.get == ShareGroupState.STABLE).count() == 1
+              group.state.get == GroupState.STABLE).count() == 1
         }, s"Expected to be able to list $testGroupId")
 
         TestUtils.waitUntilTrue(() => {
-          val options = new ListShareGroupsOptions().inStates(Collections.singleton(ShareGroupState.STABLE))
+          val options = new ListShareGroupsOptions().inStates(Collections.singleton(GroupState.STABLE))
           client.listShareGroups(options).all.get.stream().filter(group =>
             group.groupId == testGroupId &&
-              group.state.get == ShareGroupState.STABLE).count() == 1
+              group.state.get == GroupState.STABLE).count() == 1
         }, s"Expected to be able to list $testGroupId in state Stable")
 
         TestUtils.waitUntilTrue(() => {
-          val options = new ListShareGroupsOptions().inStates(Collections.singleton(ShareGroupState.EMPTY))
+          val options = new ListShareGroupsOptions().inStates(Collections.singleton(GroupState.EMPTY))
           client.listShareGroups(options).all.get.stream().filter(_.groupId == testGroupId).count() == 0
+        }, s"Expected to find zero groups")
+
+        // listGroups is equivalent to listShareGroups so ensure that works too
+        TestUtils.waitUntilTrue(() => {
+          client.listGroups.all.get.stream().filter(group =>
+            group.groupId == testGroupId &&
+              group.groupState.get == GroupState.STABLE).count() == 1
+        }, s"Expected to be able to list $testGroupId")
+
+        TestUtils.waitUntilTrue(() => {
+          val options = new ListGroupsOptions().withTypes(Collections.singleton(GroupType.SHARE)).inGroupStates(Collections.singleton(GroupState.STABLE))
+          client.listGroups(options).all.get.stream().filter(group =>
+            group.groupId == testGroupId &&
+              group.groupState.get == GroupState.STABLE).count() == 1
+        }, s"Expected to be able to list $testGroupId in state Stable")
+
+        TestUtils.waitUntilTrue(() => {
+          val options = new ListGroupsOptions().withTypes(Collections.singleton(GroupType.SHARE)).inGroupStates(Collections.singleton(GroupState.EMPTY))
+          client.listGroups(options).all.get.stream().filter(_.groupId == testGroupId).count() == 0
         }, s"Expected to find zero groups")
 
         val describeWithFakeGroupResult = client.describeShareGroups(util.Arrays.asList(testGroupId, fakeGroupId),
@@ -2197,7 +2221,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
         assertEquals(fakeGroupId, fakeGroupDescription.groupId())
         assertEquals(0, fakeGroupDescription.members().size())
-        assertEquals(ShareGroupState.DEAD, fakeGroupDescription.state())
+        assertEquals(GroupState.DEAD, fakeGroupDescription.groupState())
         assertNull(fakeGroupDescription.authorizedOperations())
 
         // Test that all() returns 2 results

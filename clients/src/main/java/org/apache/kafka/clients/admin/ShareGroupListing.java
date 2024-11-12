@@ -17,7 +17,7 @@
 
 package org.apache.kafka.clients.admin;
 
-import org.apache.kafka.common.ShareGroupState;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.annotation.InterfaceStability;
 
 import java.util.Objects;
@@ -31,7 +31,7 @@ import java.util.Optional;
 @InterfaceStability.Evolving
 public class ShareGroupListing {
     private final String groupId;
-    private final Optional<ShareGroupState> state;
+    private final Optional<GroupState> state;
 
     /**
      * Create an instance with the specified parameters.
@@ -48,7 +48,7 @@ public class ShareGroupListing {
      * @param groupId Group Id
      * @param state The state of the share group
      */
-    public ShareGroupListing(String groupId, Optional<ShareGroupState> state) {
+    public ShareGroupListing(String groupId, Optional<GroupState> state) {
         this.groupId = groupId;
         this.state = Objects.requireNonNull(state);
     }
@@ -63,7 +63,7 @@ public class ShareGroupListing {
     /**
      * The share group state.
      */
-    public Optional<ShareGroupState> state() {
+    public Optional<GroupState> state() {
         return state;
     }
 
