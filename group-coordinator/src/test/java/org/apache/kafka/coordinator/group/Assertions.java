@@ -37,7 +37,6 @@ import org.opentest4j.AssertionFailedError;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,56 +45,24 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.AssertionFailureBuilder.assertionFailure;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class Assertions {
-    private static final Map<Class<?>, BiConsumer<ApiMessage, ApiMessage>> API_MESSAGE_COMPARATORS = new HashMap<>();
-    private static final BiConsumer<ApiMessage, ApiMessage> DEFAULT_COMPARATOR = org.junit.jupiter.api.Assertions::assertEquals;
-
-    private static void registerApiMessageComparator(
-        Class<?> clazz,
-        BiConsumer<ApiMessage, ApiMessage> comparator
-    ) {
-        API_MESSAGE_COMPARATORS.put(clazz, comparator);
-    }
-
-    static {
+    private static final BiConsumer<ApiMessage, ApiMessage> API_MESSAGE_DEFAULT_COMPARATOR = org.junit.jupiter.api.Assertions::assertEquals;
+    private static final Map<Class<?>, BiConsumer<ApiMessage, ApiMessage>> API_MESSAGE_COMPARATORS = Map.of(
         // Register request/response comparators.
-        registerApiMessageComparator(
-            ConsumerGroupHeartbeatResponseData.class,
-            Assertions::assertConsumerGroupHeartbeatResponse
-        );
-        registerApiMessageComparator(
-            ShareGroupHeartbeatResponseData.class,
-            Assertions::assertShareGroupHeartbeatResponse
-        );
-        registerApiMessageComparator(
-            SyncGroupResponseData.class,
-            Assertions::assertSyncGroupResponse
-        );
+        ConsumerGroupHeartbeatResponseData.class, Assertions::assertConsumerGroupHeartbeatResponse,
+        ShareGroupHeartbeatResponseData.class, Assertions::assertShareGroupHeartbeatResponse,
+        SyncGroupResponseData.class, Assertions::assertSyncGroupResponse,
 
         // Register record comparators.
-        registerApiMessageComparator(
-            ConsumerGroupCurrentMemberAssignmentValue.class,
-            Assertions::assertConsumerGroupCurrentMemberAssignmentValue
-        );
-        registerApiMessageComparator(
-            ConsumerGroupPartitionMetadataValue.class,
-            Assertions::assertConsumerGroupPartitionMetadataValue
-        );
-        registerApiMessageComparator(
-            GroupMetadataValue.class,
-            Assertions::assertGroupMetadataValue
-        );
-        registerApiMessageComparator(
-            ConsumerGroupTargetAssignmentMemberValue.class,
-            Assertions::assertConsumerGroupTargetAssignmentMemberValue
-        );
-        registerApiMessageComparator(
-            ShareGroupPartitionMetadataValue.class,
-            Assertions::assertShareGroupPartitionMetadataValue
-        );
-    }
+        ConsumerGroupCurrentMemberAssignmentValue.class, Assertions::assertConsumerGroupCurrentMemberAssignmentValue,
+        ConsumerGroupPartitionMetadataValue.class, Assertions::assertConsumerGroupPartitionMetadataValue,
+        GroupMetadataValue.class, Assertions::assertGroupMetadataValue,
+        ConsumerGroupTargetAssignmentMemberValue.class, Assertions::assertConsumerGroupTargetAssignmentMemberValue,
+        ShareGroupPartitionMetadataValue.class, Assertions::assertShareGroupPartitionMetadataValue
+    );
 
     public static <T> void assertUnorderedListEquals(
         List<T> expected,
@@ -109,7 +76,7 @@ public class Assertions {
         ApiMessage actual
     ) {
         BiConsumer<ApiMessage, ApiMessage> asserter = API_MESSAGE_COMPARATORS
-            .getOrDefault(expected.getClass(), DEFAULT_COMPARATOR);
+            .getOrDefault(expected.getClass(), API_MESSAGE_DEFAULT_COMPARATOR);
         asserter.accept(expected, actual);
     }
 
@@ -193,9 +160,11 @@ public class Assertions {
         ApiMessageAndVersion actual
     ) {
         if (expected == actual) return;
+        assertNotNull(expected);
+        assertNotNull(actual);
         assertEquals(expected.version(), actual.version());
         BiConsumer<ApiMessage, ApiMessage> asserter = API_MESSAGE_COMPARATORS
-            .getOrDefault(expected.message().getClass(), DEFAULT_COMPARATOR);
+            .getOrDefault(expected.message().getClass(), API_MESSAGE_DEFAULT_COMPARATOR);
         asserter.accept(expected.message(), actual.message());
     }
 
@@ -208,11 +177,14 @@ public class Assertions {
         ConsumerGroupCurrentMemberAssignmentValue expected = (ConsumerGroupCurrentMemberAssignmentValue) exp.duplicate();
         ConsumerGroupCurrentMemberAssignmentValue actual = (ConsumerGroupCurrentMemberAssignmentValue) act.duplicate();
 
+        Consumer<List<ConsumerGroupCurrentMemberAssignmentValue.TopicPartitions>> sortTopicsAndPartitions = topicPartitions -> {
+            topicPartitions.sort(Comparator.comparing(ConsumerGroupCurrentMemberAssignmentValue.TopicPartitions::topicId));
+            topicPartitions.forEach(topic -> topic.partitions().sort(Integer::compareTo));
+        };
+
         Consumer<ConsumerGroupCurrentMemberAssignmentValue> normalize = message -> {
-            message.assignedPartitions().sort(Comparator.comparing(ConsumerGroupCurrentMemberAssignmentValue.TopicPartitions::topicId));
-            message.assignedPartitions().forEach(topic -> topic.partitions().sort(Integer::compareTo));
-            message.partitionsPendingRevocation().sort(Comparator.comparing(ConsumerGroupCurrentMemberAssignmentValue.TopicPartitions::topicId));
-            message.partitionsPendingRevocation().forEach(topic -> topic.partitions().sort(Integer::compareTo));
+            sortTopicsAndPartitions.accept(message.assignedPartitions());
+            sortTopicsAndPartitions.accept(message.partitionsPendingRevocation());
         };
 
         normalize.accept(expected);
@@ -319,10 +291,13 @@ public class Assertions {
         ConsumerGroupTargetAssignmentMemberValue expected = (ConsumerGroupTargetAssignmentMemberValue) exp.duplicate();
         ConsumerGroupTargetAssignmentMemberValue actual = (ConsumerGroupTargetAssignmentMemberValue) act.duplicate();
 
-        Comparator<ConsumerGroupTargetAssignmentMemberValue.TopicPartition> comparator =
-            Comparator.comparing(ConsumerGroupTargetAssignmentMemberValue.TopicPartition::topicId);
-        expected.topicPartitions().sort(comparator);
-        actual.topicPartitions().sort(comparator);
+        Consumer<ConsumerGroupTargetAssignmentMemberValue> normalize = message -> {
+            message.topicPartitions().sort(Comparator.comparing(ConsumerGroupTargetAssignmentMemberValue.TopicPartition::topicId));
+            message.topicPartitions().forEach(topic -> topic.partitions().sort(Integer::compareTo));
+        };
+
+        normalize.accept(expected);
+        normalize.accept(actual);
 
         assertEquals(expected, actual);
     }
