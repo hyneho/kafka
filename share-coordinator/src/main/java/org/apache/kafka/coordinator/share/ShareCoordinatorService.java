@@ -521,12 +521,10 @@ public class ShareCoordinatorService implements ShareCoordinator {
                         .setStartOffset(-1))))
                 );
 
-
-
-            // Scheduling a runtime write operation to write leaderEpoch to coordinator memory state
-            // At this point we do not know the offset to check that state of the leaderEpoch from
+            // Scheduling a runtime write operation to write leaderEpoch to coordinator memory state.
+            // At this point we do not know the offset to check the state of the leaderEpoch from
             // the soft state of the share coordinator shard. Hence, it makes sense to issue the write
-            // state call. The write state method can judge if this needs to be written.
+            // state call in all cases. The write state method callback can judge if this needs to be written.
             return runtime.scheduleWriteOperation(
                 "write-share-group-state",
                 topicPartitionFor(coordinatorKey),

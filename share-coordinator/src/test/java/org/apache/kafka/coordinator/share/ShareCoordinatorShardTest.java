@@ -73,8 +73,8 @@ class ShareCoordinatorShardTest {
     public static class ShareCoordinatorShardBuilder {
         private final LogContext logContext = new LogContext();
         private ShareCoordinatorConfig config = null;
-        private CoordinatorMetrics coordinatorMetrics = mock(CoordinatorMetrics.class);
-        private CoordinatorMetricsShard metricsShard = mock(CoordinatorMetricsShard.class);
+        private final CoordinatorMetrics coordinatorMetrics = mock(CoordinatorMetrics.class);
+        private final CoordinatorMetricsShard metricsShard = mock(CoordinatorMetricsShard.class);
         private final SnapshotRegistry snapshotRegistry = new SnapshotRegistry(logContext);
         private MetadataImage metadataImage = null;
         private Map<String, String> configOverrides = new HashMap<>();
