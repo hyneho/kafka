@@ -481,8 +481,8 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     private void clearAssignment() {
         if (subscriptions.hasAutoAssignedPartitions()) {
             subscriptions.assignFromSubscribed(Collections.emptySet());
+            notifyAssignmentChange(Collections.emptySet());
         }
-        notifyAssignmentChange(Collections.emptySet());
         currentAssignment = LocalAssignment.NONE;
         clearPendingAssignmentsAndLocalNamesCache();
     }
