@@ -171,57 +171,21 @@ jobs:
         with:
           name: combined-test-catalog
 
-      - name: Quarantined Test
-        id: junit-quarantined-test
-        env:
-          TIMEOUT_MINUTES: 30
-          TEST_CATALOG: ${{ steps.load-test-catalog.outputs.download-path }}/combined-test-catalog.txt
-        run: |
-          set +e
-          ./.github/scripts/thread-dump.sh &
-          timeout ${TIMEOUT_MINUTES}m ./gradlew --build-cache --continue --no-scan \
-          -PtestLoggingEvents=started,passed,skipped,failed \
-          -PmaxParallelForks=2 \
-          -PmaxTestRetries=1 -PmaxTestRetryFailures=3 \
-          -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=0 \
-          -Pkafka.test.catalog.file=$TEST_CATALOG \
-          -PcommitId=xxxxxxxxxxxxxxxx \
-          quarantinedTest
-          exitcode="$?"
-          echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
-
-      - name: Archive Quarantined Build Scan
-        if: always()
-        uses: actions/upload-artifact@v4
+      - id: junit-quarantined-test
+        uses: ./.github/actions/run-gradle
         with:
-          name: build-scan-quarantined-test-${{ matrix.java }}
-          path: ~/.gradle/build-scan-data
-          compression-level: 9
-          if-no-files-found: ignore
+          test-task: quarantinedTest
+          timeout-minutes: 30
+          test-catalog-path: ${{ steps.load-test-catalog.outputs.download-path }}/combined-test-catalog.txt
+          build-scan-artifact-name: build-scan-quarantined-test-${{ matrix.java }}
 
-      - name: Test
-        # Gradle flags
-        # --build-cache:  Let Gradle restore the build cache
-        # --no-scan:      Don't attempt to publish the scan yet. We want to archive it first.
-        # --continue:     Keep running even if a test fails
-        # -PcommitId      Prevent the Git SHA being written into the jar files (which breaks caching)
-        id: junit-test
-        env:
-          TIMEOUT_MINUTES: 180  # 3 hours
-          TEST_CATALOG: ${{ steps.load-test-catalog.outputs.download-path }}/combined-test-catalog.txt
-        run: |
-          set +e
-          ./.github/scripts/thread-dump.sh &
-          timeout ${TIMEOUT_MINUTES}m ./gradlew --build-cache --continue --no-scan \
-          -PtestLoggingEvents=started,passed,skipped,failed \
-          -PmaxParallelForks=2 \
-          -PmaxTestRetries=1 -PmaxTestRetryFailures=3 \
-          -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=0 \
-          -Pkafka.test.catalog.file=$TEST_CATALOG \
-          -PcommitId=xxxxxxxxxxxxxxxx \
-          test
-          exitcode="$?"
-          echo "exitcode=$exitcode" >> $GITHUB_OUTPUT
+      - id: junit-test
+        uses: ./.github/actions/run-gradle
+        with:
+          test-task: test
+          timeout-minutes: 180  # 3 hours
+          test-catalog-path: ${{ steps.load-test-catalog.outputs.download-path }}/combined-test-catalog.txt
+          build-scan-artifact-name: build-scan-test-${{ matrix.java }}
 
       - name: Archive JUnit HTML reports
         uses: actions/upload-artifact@v4
@@ -232,6 +196,7 @@ jobs:
             **/build/reports/tests/*
           compression-level: 9
           if-no-files-found: ignore
+
       - name: Archive JUnit XML
         uses: actions/upload-artifact@v4
         with:
@@ -240,6 +205,7 @@ jobs:
             build/junit-xml/**/*.xml
           compression-level: 9
           if-no-files-found: ignore
+
       - name: Archive Thread Dumps
         id: thread-dump-upload-artifact
         if: always() && (steps.junit-test.outputs.exitcode == '124' || steps.junit-quarantined-test.outputs.exitcode == '124')
@@ -250,6 +216,7 @@ jobs:
             thread-dumps/*
           compression-level: 9
           if-no-files-found: ignore
+
       - name: Parse JUnit tests
         run: python .github/scripts/junit.py --export-test-catalog ./test-catalog >> $GITHUB_STEP_SUMMARY
         env:
@@ -257,20 +224,13 @@ jobs:
           JUNIT_REPORT_URL: ${{ steps.junit-upload-artifact.outputs.artifact-url }}
           THREAD_DUMP_URL: ${{ steps.thread-dump-upload-artifact.outputs.artifact-url }}
           GRADLE_EXIT_CODE: ${{ steps.junit-test.outputs.exitcode }}
+
       - name: Archive Test Catalog
         if: ${{ always() && matrix.java == '23' }}
         uses: actions/upload-artifact@v4
         with:
           name: test-catalog
           path: test-catalog
-          compression-level: 9
-          if-no-files-found: ignore
-      - name: Archive Build Scan
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-scan-test-${{ matrix.java }}
-          path: ~/.gradle/build-scan-data
           compression-level: 9
           if-no-files-found: ignore
 
