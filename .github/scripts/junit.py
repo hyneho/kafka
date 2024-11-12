@@ -142,6 +142,7 @@ def parse_report(workspace_path, report_path, fp) -> Iterable[TestSuite]:
     cur_suite: Optional[TestSuite] = None
     partial_test_case = None
     test_case_failed = False
+    test_case_skipped = False
     for (event, elem) in xml.etree.ElementTree.iterparse(fp, events=["start", "end"]):
         if event == "start":
             if elem.tag == "testsuite":
@@ -171,11 +172,12 @@ def parse_report(workspace_path, report_path, fp) -> Iterable[TestSuite]:
             elif elem.tag == "skipped":
                 skipped = partial_test_case(None, None, None)
                 cur_suite.skipped_tests.append(skipped)
+                test_case_skipped = True
             else:
                 pass
         elif event == "end":
             if elem.tag == "testcase":
-                if not test_case_failed:
+                if not test_case_failed and not test_case_skipped:
                     passed = partial_test_case(None, None, None)
                     cur_suite.passed_tests.append(passed)
                 partial_test_case = None
@@ -298,12 +300,10 @@ if __name__ == "__main__":
                     logger.debug(f"Found flaky test: {test_failure}")
                     simple_class_name = test_failure.class_name.split(".")[-1]
                     flaky_table.append((simple_class_name, test_failure.test_name, test_failure.failure_message, f"{test_failure.time:0.2f}s"))
-                for skipped_test in suite.skipped_tests:
-                    simple_class_name = skipped_test.class_name.split(".")[-1]
-                    logger.debug(f"Found skipped test: {skipped_test}")
-                    skipped_table.append((simple_class_name, skipped_test.test_name))
 
-                # Collect all tests that were run as part of quarantinedTest
+                # Conditional processing:
+                # 1) Only collect quarantined tests from the "quarantinedTest" task
+                # 2) Only collect skipped tests from the "test" task
                 if task == "quarantinedTest":
                     for test in all_suite_passed.values():
                         simple_class_name = test.class_name.split(".")[-1]
@@ -311,6 +311,11 @@ if __name__ == "__main__":
                     for test in all_suite_failed.values():
                         simple_class_name = test.class_name.split(".")[-1]
                         quarantined_table.append((simple_class_name, test.test_name))
+                else:
+                    for skipped_test in suite.skipped_tests:
+                        simple_class_name = skipped_test.class_name.split(".")[-1]
+                        logger.debug(f"Found skipped test: {skipped_test}")
+                        skipped_table.append((simple_class_name, skipped_test.test_name))
 
                 if args.export_test_catalog:
                     exporter.handle_suite(module_path, suite)
