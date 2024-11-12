@@ -340,10 +340,6 @@
     <suppress checks="CyclomaticComplexity"
               files="ShareCoordinatorShard.java"/>
 
-    <!-- share -->
-    <suppress checks="ClassDataAbstractionCoupling"
-              files="DefaultStatePersisterTest.java"/>
-
     <!-- storage -->
     <suppress checks="CyclomaticComplexity"
               files="(LogLoader|LogValidator|RemoteLogManagerConfig|RemoteLogManager).java"/>

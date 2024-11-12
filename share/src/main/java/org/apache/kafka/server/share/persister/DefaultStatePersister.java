@@ -31,9 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -139,14 +136,14 @@ public class DefaultStatePersister implements Persister {
                         CompletableFuture<WriteShareGroupStateResponse> future = partitionFuture.getValue();
                         try {
                             // already completed because of allOf application in the caller
-                            WriteShareGroupStateResponse partitionResponse = future.get(0, TimeUnit.MILLISECONDS);
+                            WriteShareGroupStateResponse partitionResponse = future.join();
                             return partitionResponse.data().results().get(0).partitions().stream()
                                 .map(partitionResult -> PartitionFactory.newPartitionErrorData(
                                     partitionResult.partition(),
                                     partitionResult.errorCode(),
                                     partitionResult.errorMessage()))
                                 .collect(Collectors.toList());
-                        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                        } catch (Exception e) {
                             log.error("Unexpected exception while writing data to share coordinator", e);
                             return Collections.singletonList(PartitionFactory.newPartitionErrorData(
                                 partition,
@@ -229,7 +226,7 @@ public class DefaultStatePersister implements Persister {
                         CompletableFuture<ReadShareGroupStateResponse> future = partitionFuture.getValue();
                         try {
                             // already completed because of allOf call in the caller
-                            ReadShareGroupStateResponse partitionResponse = future.get(0, TimeUnit.MILLISECONDS);
+                            ReadShareGroupStateResponse partitionResponse = future.join();
                             return partitionResponse.data().results().get(0).partitions().stream()
                                 .map(partitionResult -> PartitionFactory.newPartitionAllData(
                                     partitionResult.partition(),
@@ -240,7 +237,7 @@ public class DefaultStatePersister implements Persister {
                                     partitionResult.stateBatches().stream().map(PersisterStateBatch::from).collect(Collectors.toList())
                                 ))
                                 .collect(Collectors.toList());
-                        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                        } catch (Exception e) {
                             log.error("Unexpected exception while getting data from share coordinator", e);
                             return Collections.singletonList(PartitionFactory.newPartitionAllData(
                                 partition,

@@ -48,9 +48,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -629,12 +627,10 @@ class DefaultStatePersisterTest {
     }
 
     @Test
-    public void testWriteStateResponseToResultInterruptedFuture() {
+    public void testWriteStateResponseToResultFailedFuture() {
         Map<Uuid, Map<Integer, CompletableFuture<WriteShareGroupStateResponse>>> futureMap = new HashMap<>();
         TopicIdPartition tp1 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
         TopicIdPartition tp2 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
-        TopicIdPartition tp3 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
-        TopicIdPartition tp4 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
 
         // one entry has valid results
         futureMap.computeIfAbsent(tp1.topicId(), k -> new HashMap<>())
@@ -650,15 +646,7 @@ class DefaultStatePersisterTest {
 
         // one entry has failed future
         futureMap.computeIfAbsent(tp2.topicId(), k -> new HashMap<>())
-            .put(tp2.partition(), CompletableFuture.failedFuture(new InterruptedException()));
-
-        // one entry has execution failure future
-        futureMap.computeIfAbsent(tp3.topicId(), k -> new HashMap<>())
-            .put(tp3.partition(), CompletableFuture.failedFuture(new ExecutionException(new Exception("some execution problem"))));
-
-        // one entry has timeout
-        futureMap.computeIfAbsent(tp4.topicId(), k -> new HashMap<>())
-            .put(tp4.partition(), CompletableFuture.failedFuture(new TimeoutException("timeout happened")));
+            .put(tp2.partition(), CompletableFuture.failedFuture(new Exception("scary stuff")));
 
         PersisterStateManager psm = mock(PersisterStateManager.class);
         DefaultStatePersister dsp = new DefaultStatePersister(psm);
@@ -666,7 +654,7 @@ class DefaultStatePersisterTest {
         WriteShareGroupStateResult results = dsp.writeResponsesToResult(futureMap);
 
         // results should contain partial results
-        assertEquals(4, results.topicsData().size());
+        assertEquals(2, results.topicsData().size());
         assertTrue(
             results.topicsData().contains(
                 new TopicData<>(
@@ -679,23 +667,7 @@ class DefaultStatePersisterTest {
             results.topicsData().contains(
                 new TopicData<>(
                     tp2.topicId(),
-                    Collections.singletonList(PartitionFactory.newPartitionErrorData(tp2.partition(), Errors.UNKNOWN_SERVER_ERROR.code(), "Error writing state to share coordinator: java.lang.InterruptedException"))
-                )
-            )
-        );
-        assertTrue(
-            results.topicsData().contains(
-                new TopicData<>(
-                    tp3.topicId(),
-                    Collections.singletonList(PartitionFactory.newPartitionErrorData(tp3.partition(), Errors.UNKNOWN_SERVER_ERROR.code(), "Error writing state to share coordinator: java.util.concurrent.ExecutionException: java.lang.Exception: some execution problem"))
-                )
-            )
-        );
-        assertTrue(
-            results.topicsData().contains(
-                new TopicData<>(
-                    tp4.topicId(),
-                    Collections.singletonList(PartitionFactory.newPartitionErrorData(tp4.partition(), Errors.UNKNOWN_SERVER_ERROR.code(), "Error writing state to share coordinator: java.util.concurrent.TimeoutException: timeout happened"))
+                    Collections.singletonList(PartitionFactory.newPartitionErrorData(tp2.partition(), Errors.UNKNOWN_SERVER_ERROR.code(), "Error writing state to share coordinator: java.lang.Exception: scary stuff"))
                 )
             )
         );
@@ -762,12 +734,10 @@ class DefaultStatePersisterTest {
     }
 
     @Test
-    public void testReadStateResponseToResultInterruptedFuture() {
+    public void testReadStateResponseToResultFailedFuture() {
         Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateResponse>>> futureMap = new HashMap<>();
         TopicIdPartition tp1 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
         TopicIdPartition tp2 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
-        TopicIdPartition tp3 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
-        TopicIdPartition tp4 = new TopicIdPartition(Uuid.randomUuid(), 1, null);
 
         // one entry has valid results
         futureMap.computeIfAbsent(tp1.topicId(), k -> new HashMap<>())
@@ -786,15 +756,7 @@ class DefaultStatePersisterTest {
 
         // one entry has failed future
         futureMap.computeIfAbsent(tp2.topicId(), k -> new HashMap<>())
-            .put(tp2.partition(), CompletableFuture.failedFuture(new InterruptedException()));
-
-        // one entry has execution failure future
-        futureMap.computeIfAbsent(tp3.topicId(), k -> new HashMap<>())
-            .put(tp3.partition(), CompletableFuture.failedFuture(new ExecutionException(new Exception("some execution problem"))));
-
-        // one entry has timeout
-        futureMap.computeIfAbsent(tp4.topicId(), k -> new HashMap<>())
-            .put(tp4.partition(), CompletableFuture.failedFuture(new TimeoutException("timeout happened")));
+            .put(tp2.partition(), CompletableFuture.failedFuture(new Exception("scary stuff")));
 
         PersisterStateManager psm = mock(PersisterStateManager.class);
         DefaultStatePersister dsp = new DefaultStatePersister(psm);
@@ -802,7 +764,7 @@ class DefaultStatePersisterTest {
         ReadShareGroupStateResult results = dsp.readResponsesToResult(futureMap);
 
         // results should contain partial results
-        assertEquals(4, results.topicsData().size());
+        assertEquals(2, results.topicsData().size());
         assertTrue(
             results.topicsData().contains(
                 new TopicData<>(
@@ -815,23 +777,7 @@ class DefaultStatePersisterTest {
             results.topicsData().contains(
                 new TopicData<>(
                     tp2.topicId(),
-                    Collections.singletonList(PartitionFactory.newPartitionAllData(tp2.partition(), -1, -1L, Errors.UNKNOWN_SERVER_ERROR.code(), "Error reading state from share coordinator: java.lang.InterruptedException", Collections.emptyList()))
-                )
-            )
-        );
-        assertTrue(
-            results.topicsData().contains(
-                new TopicData<>(
-                    tp3.topicId(),
-                    Collections.singletonList(PartitionFactory.newPartitionAllData(tp3.partition(), -1, -1L, Errors.UNKNOWN_SERVER_ERROR.code(), "Error reading state from share coordinator: java.util.concurrent.ExecutionException: java.lang.Exception: some execution problem", Collections.emptyList()))
-                )
-            )
-        );
-        assertTrue(
-            results.topicsData().contains(
-                new TopicData<>(
-                    tp4.topicId(),
-                    Collections.singletonList(PartitionFactory.newPartitionAllData(tp4.partition(), -1, -1L, Errors.UNKNOWN_SERVER_ERROR.code(), "Error reading state from share coordinator: java.util.concurrent.TimeoutException: timeout happened", Collections.emptyList()))
+                    Collections.singletonList(PartitionFactory.newPartitionAllData(tp2.partition(), -1, -1L, Errors.UNKNOWN_SERVER_ERROR.code(), "Error reading state from share coordinator: java.lang.Exception: scary stuff", Collections.emptyList()))
                 )
             )
         );
