@@ -49,7 +49,7 @@ class DescribeLogDirsRequestTest extends BaseRequestTest {
     TestUtils.generateAndProduceMessages(brokers, topic, 10)
 
     val request = new DescribeLogDirsRequest.Builder(new DescribeLogDirsRequestData().setTopics(null)).build()
-    val response = connectAndReceive[DescribeLogDirsResponse](request, destination = controllerSocketServer)
+    val response = connectAndReceive[DescribeLogDirsResponse](request, destination = anySocketServer)
 
     assertEquals(logDirCount, response.data.results.size)
     val offlineResult = response.data.results.asScala.find(logDirResult => logDirResult.logDir == offlineDir).get
