@@ -141,35 +141,30 @@ public class ConfigCommandIntegrationTest {
 
     @ClusterTest
     public void testAddConfigKeyValuesUsingCommand() throws Exception {
-        String topicName = "test-topic";
 
         try (Admin client = cluster.createAdminClient()) {
-            NewTopic newTopic = new NewTopic(topicName, 1, (short) 1);
+            NewTopic newTopic = new NewTopic("test-topic", 1, (short) 1);
             client.createTopics(Collections.singleton(newTopic)).all().get();
         }
 
-        String configKey = "cleanup.policy";
-        List<String> configValues = List.of("delete", "compact");
-        String configValueStr = String.join(",", configValues);
-
         Stream<String> command = Stream.concat(quorumArgs(), Stream.of(
                 "--entity-type", "topics",
-                "--entity-name", topicName,
-                "--alter", "--add-config", configKey + "=" + "[" + configValueStr + "]"));
+                "--entity-name", "test-topic",
+                "--alter", "--add-config", "cleanup.policy=[delete,compact]"));
 
-        String output = captureStandardStream(false, run(command));
-        assertEquals("Completed updating config for topic " + topicName + ".", output);
+        String message = captureStandardStream(false, run(command));
+        assertEquals("Completed updating config for topic test-topic.", message);
 
         command = Stream.concat(quorumArgs(), Stream.of(
                 "--entity-type", "topics",
-                "--entity-name", topicName,
+                "--entity-name", "test-topic",
                 "--describe"));
 
-        output = captureStandardStream(false, run(command));
-        assertTrue(output.contains(configKey + "=" + configValueStr), "Config entry was not added correctly");
+        message = captureStandardStream(false, run(command));
+        assertTrue(message.contains("cleanup.policy=delete,compact"), "Config entry was not added correctly");
 
         try (Admin client = cluster.createAdminClient()) {
-            client.deleteTopics(Collections.singleton(topicName)).all().get();
+            client.deleteTopics(Collections.singleton("test-topic")).all().get();
         }
 
     }
