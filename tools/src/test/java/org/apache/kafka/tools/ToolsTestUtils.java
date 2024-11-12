@@ -58,7 +58,7 @@ public class ToolsTestUtils {
         return captureStandardStream(true, runnable);
     }
 
-    public static String captureStandardStream(boolean isErr, Runnable runnable) {
+    private static String captureStandardStream(boolean isErr, Runnable runnable) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         PrintStream currentStream = isErr ? System.err : System.out;
         PrintStream tempStream = new PrintStream(outputStream);
