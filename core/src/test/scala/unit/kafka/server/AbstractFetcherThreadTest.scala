@@ -789,22 +789,10 @@ class AbstractFetcherThreadTest {
     assertEquals(2L, replicaState.logEndOffset)
   }
 
-  @Test
-  def testLeaderEpochChangeDuringFencedFetchEpochsFromLeader(): Unit = {
-    // The leader is on the new epoch when the OffsetsForLeaderEpoch with old epoch is sent, so it
-    // returns the fence error. Validate that response is ignored if the leader epoch changes on
-    // the follower while OffsetsForLeaderEpoch request is in flight, but able to truncate and fetch
-    // in the next of round of "doWork"
-    testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader = 1)
-  }
-
-  @Test
-  def testLeaderEpochChangeDuringSuccessfulFetchEpochsFromLeader(): Unit = {
-    // The leader is on the old epoch when the OffsetsForLeaderEpoch with old epoch is sent
-    // and returns the valid response. Validate that response is ignored if the leader epoch changes
-    // on the follower while OffsetsForLeaderEpoch request is in flight, but able to truncate and
-    // fetch once the leader is on the newer epoch (same as follower)
-    testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader = 0)
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1})
+  def testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader: Int): Unit = {
+    testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader)
   }
 
   private def testLeaderEpochChangeDuringFetchEpochsFromLeader(leaderEpochOnLeader: Int): Unit = {
