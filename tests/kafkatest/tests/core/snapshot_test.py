@@ -213,7 +213,7 @@ class TestSnapshots(ProduceConsumeValidateTest):
         self.kafka.create_topic(topic_cfg)
 
         # Produce to the newly created topic and make sure it works.
-        self.validate_success(broker_topic, group_protocol)
+        self.validate_success(group_protocol, broker_topic)
 
     @cluster(num_nodes=9)
     @matrix(
