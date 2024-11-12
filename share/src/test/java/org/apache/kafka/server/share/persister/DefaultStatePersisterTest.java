@@ -656,7 +656,7 @@ class DefaultStatePersisterTest {
         futureMap.computeIfAbsent(tp3.topicId(), k -> new HashMap<>())
             .put(tp3.partition(), CompletableFuture.failedFuture(new ExecutionException(new Exception("some execution problem"))));
 
-        // one entry has execution failure future
+        // one entry has timeout
         futureMap.computeIfAbsent(tp4.topicId(), k -> new HashMap<>())
             .put(tp4.partition(), CompletableFuture.failedFuture(new TimeoutException("timeout happened")));
 
@@ -792,7 +792,7 @@ class DefaultStatePersisterTest {
         futureMap.computeIfAbsent(tp3.topicId(), k -> new HashMap<>())
             .put(tp3.partition(), CompletableFuture.failedFuture(new ExecutionException(new Exception("some execution problem"))));
 
-        // one entry has timeout exception
+        // one entry has timeout
         futureMap.computeIfAbsent(tp4.topicId(), k -> new HashMap<>())
             .put(tp4.partition(), CompletableFuture.failedFuture(new TimeoutException("timeout happened")));
 
