@@ -49,6 +49,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
   val consumerPollers: mutable.Buffer[ConsumerAssignmentPoller] = mutable.Buffer[ConsumerAssignmentPoller]()
 
   this.consumerConfig.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true")
+  this.consumerConfig.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, "10000")
 
   override def generateConfigs: Seq[KafkaConfig] = {
     generateKafkaConfigs()
@@ -64,7 +65,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     properties.put(ReplicationConfigs.UNCLEAN_LEADER_ELECTION_ENABLE_CONFIG, "true")
     properties.put(ServerLogConfigs.AUTO_CREATE_TOPICS_ENABLE_CONFIG, "false")
 
-    FixedPortTestUtils.createBrokerConfigs(brokerCount, zkConnect, enableControlledShutdown = false)
+    FixedPortTestUtils.createBrokerConfigs(brokerCount, zkConnectOrNull, enableControlledShutdown = false)
       .map(KafkaConfig.fromProps(_, properties))
   }
 
@@ -81,7 +82,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testConsumptionWithBrokerFailures(quorum: String, groupProtocol: String): Unit = consumeWithBrokerFailures(10)
 
   /*
@@ -126,7 +127,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testSeekAndCommitWithBrokerFailures(quorum: String, groupProtocol: String): Unit = seekAndCommitWithBrokerFailures(5)
 
   def seekAndCommitWithBrokerFailures(numIters: Int): Unit = {
@@ -139,7 +140,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     consumer.seek(tp, 0)
 
     // wait until all the followers have synced the last HW with leader
-    TestUtils.waitUntilTrue(() => servers.forall(server =>
+    TestUtils.waitUntilTrue(() => brokerServers.forall(server =>
       server.replicaManager.localLog(tp).get.highWatermark == numRecords
     ), "Failed to update high watermark for followers after timeout")
 
@@ -170,7 +171,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testSubscribeWhenTopicUnavailable(quorum: String, groupProtocol: String): Unit = {
     val numRecords = 1000
     val newtopic = "newtopic"
@@ -210,7 +211,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     receiveExactRecords(poller, numRecords, 10000)
     poller.shutdown()
 
-    servers.foreach(server => killBroker(server.config.brokerId))
+    brokerServers.foreach(server => killBroker(server.config.brokerId))
     Thread.sleep(500)
     restartDeadBrokers()
 
@@ -222,7 +223,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testClose(quorum: String, groupProtocol: String): Unit = {
     val numRecords = 10
     val producer = createProducer()
@@ -293,7 +294,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     this.consumerConfig.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, requestTimeout.toString)
     val consumer2 = createConsumerAndReceive(group2, manualAssign = true, numRecords)
 
-    servers.foreach(server => killBroker(server.config.brokerId))
+    brokerServers.foreach(server => killBroker(server.config.brokerId))
     val closeTimeout = 2000
     val future1 = submitCloseAndValidate(consumer1, closeTimeout, None, Some(closeTimeout))
     val future2 = submitCloseAndValidate(consumer2, Long.MaxValue, None, Some(requestTimeout))
@@ -325,7 +326,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
 
     // roll all brokers with a lesser max group size to make sure coordinator has the new config
     val newConfigs = generateKafkaConfigs(maxGroupSize.toString)
-    for (serverIdx <- servers.indices) {
+    for (serverIdx <- brokerServers.indices) {
       killBroker(serverIdx)
       val config = newConfigs(serverIdx)
       servers(serverIdx) = TestUtils.createServer(config, time = brokerTime(config.brokerId))
@@ -348,7 +349,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     * When we have the consumer group max size configured to X, the X+1th consumer trying to join should receive a fatal exception
     */
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testConsumerReceivesFatalExceptionWhenGroupPassesMaxSize(quorum: String, groupProtocol: String): Unit = {
     val group = "fatal-exception-test"
     val topic = "fatal-exception-test"
@@ -387,7 +388,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
    * close should terminate immediately without sending leave group.
    */
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testCloseDuringRebalance(quorum: String, groupProtocol: String): Unit = {
     val topic = "closetest"
     createTopic(topic, 10, brokerCount)
@@ -439,7 +440,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     // Trigger another rebalance and shutdown all brokers
     // This consumer poll() doesn't complete and `tearDown` shuts down the executor and closes the consumer
     createConsumerToRebalance()
-    servers.foreach(server => killBroker(server.config.brokerId))
+    brokerServers.foreach(server => killBroker(server.config.brokerId))
 
     // consumer2 should close immediately without LeaveGroup request since there are no brokers available
     val closeFuture2 = submitCloseAndValidate(consumer2, Long.MaxValue, None, Some(0))
@@ -471,7 +472,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
   private def submitCloseAndValidate(consumer: Consumer[Array[Byte], Array[Byte]],
       closeTimeoutMs: Long, minCloseTimeMs: Option[Long], maxCloseTimeMs: Option[Long]): Future[Any] = {
     executor.submit(() => {
-      val closeGraceTimeMs = 2000
+      val closeGraceTimeMs = 10000
       val startMs = System.currentTimeMillis()
       info("Closing consumer with timeout " + closeTimeoutMs + " ms.")
       consumer.close(time.Duration.ofMillis(closeTimeoutMs))
