@@ -396,7 +396,8 @@ class DefaultStatePersisterTest {
 
         WriteShareGroupStateResult result = null;
         try {
-            result = resultFuture.get(100L, TimeUnit.MILLISECONDS);
+            // adding long delay to allow for environment/GC issues
+            result = resultFuture.get(10L, TimeUnit.SECONDS);
         } catch (Exception e) {
             fail("Unexpected exception", e);
         }
@@ -540,7 +541,8 @@ class DefaultStatePersisterTest {
 
         ReadShareGroupStateResult result = null;
         try {
-            result = resultFuture.get(100L, TimeUnit.MILLISECONDS);
+            // adding long delay to allow for environment/GC issues
+            result = resultFuture.get(10L, TimeUnit.SECONDS);
         } catch (Exception e) {
             fail("Unexpected exception", e);
         }
