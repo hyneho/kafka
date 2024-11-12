@@ -482,6 +482,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
         if (subscriptions.hasAutoAssignedPartitions()) {
             subscriptions.assignFromSubscribed(Collections.emptySet());
         }
+        notifyAssignmentChange(Collections.emptySet());
         currentAssignment = LocalAssignment.NONE;
         clearPendingAssignmentsAndLocalNamesCache();
     }
