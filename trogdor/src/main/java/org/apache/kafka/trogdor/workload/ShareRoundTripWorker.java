@@ -29,6 +29,7 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.group.GroupConfig;
+import org.apache.kafka.trogdor.common.WorkerUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,10 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
-
-import static org.apache.kafka.trogdor.common.WorkerUtils.addConfigsToProperties;
-import static org.apache.kafka.trogdor.common.WorkerUtils.createAdminClient;
-
 
 public class ShareRoundTripWorker extends RoundTripWorkerBase {
     private static final Logger log = LoggerFactory.getLogger(ShareRoundTripWorker.class);
@@ -63,12 +60,12 @@ public class ShareRoundTripWorker extends RoundTripWorkerBase {
         props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, 105000);
         props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 100000);
         // user may over-write the defaults with common client config and consumer config
-        addConfigsToProperties(props, spec.commonClientConf(), spec.consumerConf());
+        WorkerUtils.addConfigsToProperties(props, spec.commonClientConf(), spec.consumerConf());
 
         String groupId = "round-trip-share-group-" + id;
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
 
-        try (Admin adminClient = createAdminClient(spec.bootstrapServers(), spec.commonClientConf(), spec.adminClientConf())) {
+        try (Admin adminClient = WorkerUtils.createAdminClient(spec.bootstrapServers(), spec.commonClientConf(), spec.adminClientConf())) {
             alterShareAutoOffsetReset(groupId, "earliest", adminClient);
         } catch (Exception e) {
             log.warn("Failed to set share.auto.offset.reset config to 'earliest' mode", e);
