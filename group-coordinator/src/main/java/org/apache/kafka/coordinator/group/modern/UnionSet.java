@@ -185,7 +185,7 @@ public class UnionSet<T> implements Set<T> {
 
         Set<?> set = (Set<?>) o;
         if (set.size() != size()) return false;
-        return contains(set);
+        return containsAll(set);
     }
 
     @Override
