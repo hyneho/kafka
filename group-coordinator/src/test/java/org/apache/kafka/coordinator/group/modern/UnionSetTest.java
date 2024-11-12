@@ -133,4 +133,14 @@ public class UnionSetTest {
         Arrays.sort(input);
         assertArrayEquals(expected, input);
     }
+
+    @Test
+    public void testEquals() {
+        UnionSet<Integer> union = new UnionSet<>(
+            Set.of(1, 2, 3),
+            Set.of(2, 3, 4, 5)
+        );
+
+        assertEquals(Set.of(1, 2, 3, 4, 5), union);
+    }
 }

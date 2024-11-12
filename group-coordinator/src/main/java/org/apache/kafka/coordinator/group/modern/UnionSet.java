@@ -128,7 +128,7 @@ public class UnionSet<T> implements Set<T> {
             array[index] = (U) item;
             index++;
         }
-        for (T item: smallSet) {
+        for (T item : smallSet) {
             if (!largeSet.contains(item)) {
                 array[index] = (U) item;
                 index++;
@@ -181,19 +181,25 @@ public class UnionSet<T> implements Set<T> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (!(o instanceof Set)) return false;
 
-        UnionSet<?> unionSet = (UnionSet<?>) o;
-
-        if (!Objects.equals(largeSet, unionSet.largeSet)) return false;
-        return Objects.equals(smallSet, unionSet.smallSet);
+        Set<?> set = (Set<?>) o;
+        if (set.size() != size()) return false;
+        return contains(set);
     }
 
     @Override
     public int hashCode() {
-        int result = largeSet != null ? largeSet.hashCode() : 0;
-        result = 31 * result + (smallSet != null ? smallSet.hashCode() : 0);
-        return result;
+        int h = 0;
+        for (T item : largeSet) {
+            h += item.hashCode();
+        }
+        for (T item : smallSet) {
+            if (!largeSet.contains(item)) {
+                h += item.hashCode();
+            }
+        }
+        return h;
     }
 
     @Override
