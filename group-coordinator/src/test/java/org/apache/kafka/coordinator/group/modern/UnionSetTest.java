@@ -46,12 +46,10 @@ public class UnionSetTest {
         );
 
         List<Integer> result = new ArrayList<>();
-        for (Integer item : union) {
-            result.add(item);
-        }
+        result.addAll(union);
         result.sort(Integer::compareTo);
 
-        assertEquals(Arrays.asList(1, 2, 3, 4, 5), result);
+        assertEquals(List.of(1, 2, 3, 4, 5), result);
     }
 
     @Test

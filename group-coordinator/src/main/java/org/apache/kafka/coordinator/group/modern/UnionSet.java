@@ -23,6 +23,12 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * A set which presents the union of two underlying sets without
+ * materializing it.
+ *
+ * @param <T> The set type.
+ */
 public class UnionSet<T> implements Set<T> {
     private final Set<T> largeSet;
     private final Set<T> smallSet;
@@ -120,7 +126,7 @@ public class UnionSet<T> implements Set<T> {
     public <U> U[] toArray(U[] array) {
         int size = size();
         if (array.length < size) {
-            // Create a new array of the same type as a with the correct size
+            // Create a new array of the same type with the correct size
             array = (U[]) Array.newInstance(array.getClass().getComponentType(), size);
         }
         int index = 0;
