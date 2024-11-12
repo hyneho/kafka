@@ -548,7 +548,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
     /**
      * Transition to {@link MemberState#PREPARE_LEAVING} to release the assignment. Once completed,
      * transition to {@link MemberState#LEAVING} to send the heartbeat request and leave the group.
-     * This is expected to be invoked when the user calls the unsubscribe API.
+     * This is expected to be invoked when the user calls the unsubscribe API or is closing the consumer.
      *
      * @param runCallbacks {@code true} to insert the step to execute the {@link ConsumerRebalanceListener} callback,
      *                     {@code false} to skip

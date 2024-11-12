@@ -1256,12 +1256,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *     </li>
      *     <li>
      *         The application thread will be blocked during the entire duration of the execution of the
-     *         {@link ConsumerRebalanceListener}. The {@link #close()} method does not employ a mechanism to
-     *         short-circuit the callback execution.
-     *     </li>
-     *     <li>
-     *         Since the {@link ConsumerRebalanceListener} APIs do not include a timeout parameter, a given
-     *         {@link ConsumerRebalanceListener} implementation cannot alter its behavior to adhere to the timeout.
+     *         {@link ConsumerRebalanceListener}. The consumer does not employ a mechanism to short-circuit the
+     *         callback execution, so execution is not bound by the timeout in {@link #close(Duration)}.
      *     </li>
      *     <li>
      *         A given {@link ConsumerRebalanceListener} implementation may be affected by the application thread's
@@ -1281,13 +1277,9 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *         state for the remainder of the execution of {@link #close()}.
      *     </li>
      *     <li>
-     *         The consumer will attempt to leave the group on a “best-case” basis. There is no stated guarantee
-     *         that the consumer will have successfully left the group before the {@link #close()} method
-     *         completes processing.
-     *     </li>
-     *     <li>
-     *         Leaving the consumer group is achieved by issuing a ‘leave group‘ network request. This network I/O
-     *         must be performed on the background thread.
+     *         Leaving the consumer group is achieved by issuing a ‘leave group‘ network request. The consumer will
+     *         attempt to leave the group on a “best-case” basis. There is no stated guarantee that the consumer will
+     *         have successfully left the group before the {@link #close()} method completes processing.
      *     </li>
      *     <li>
      *         The consumer will attempt to leave the group regardless of the timeout elapsing or the application
@@ -1302,10 +1294,6 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      *             <li>The timeout provided by the user elapses</li>
      *             <li>An {@link InterruptException} or {@link InterruptedException} is thrown</li>
      *         </ol>
-     *     </li>
-     *     <li>
-     *         The {@link #close(Duration)} method should otherwise honor the timeout and interrupt flag,
-     *         except where it would violate the previous tenets.
      *     </li>
      * </ol>
      */
