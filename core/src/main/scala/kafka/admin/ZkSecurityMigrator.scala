@@ -136,7 +136,7 @@ object ZkSecurityMigrator extends Logging {
     zkClientConfig
   }
 
-  def createZkClientConfigFromOption(options: OptionSet, option: OptionSpec[String]) : Option[ZKClientConfig] =
+  private[admin] def createZkClientConfigFromOption(options: OptionSet, option: OptionSpec[String]) : Option[ZKClientConfig] =
     if (!options.has(option))
       None
     else
