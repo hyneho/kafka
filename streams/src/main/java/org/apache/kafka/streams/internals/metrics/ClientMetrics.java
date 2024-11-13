@@ -123,6 +123,16 @@ public class ClientMetrics {
         );
     }
 
+    public static void addStateTelemetryMetric(final StreamsMetricsImpl streamsMetrics,
+                                               final Gauge<Integer> stateProvider) {
+        streamsMetrics.addClientLevelMutableMetric(
+            "client-"+STATE,
+            STATE_DESCRIPTION,
+            RecordingLevel.INFO,
+            stateProvider
+        );
+    }
+
     public static void addNumAliveStreamThreadMetric(final StreamsMetricsImpl streamsMetrics,
                                                      final Gauge<Integer> stateProvider) {
         streamsMetrics.addClientLevelMutableMetric(

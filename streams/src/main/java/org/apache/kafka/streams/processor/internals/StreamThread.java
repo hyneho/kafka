@@ -614,6 +614,7 @@ public class StreamThread extends Thread implements ProcessingThread {
             streamsMetrics,
             time.milliseconds()
         );
+        ThreadMetrics.addThreadStateTelemetryMetric(threadId,streamsMetrics, this);
         ThreadMetrics.addThreadBlockedTimeMetric(
             threadId,
             new StreamThreadTotalBlockedTime(
