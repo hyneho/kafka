@@ -4182,6 +4182,14 @@ listeners=CONTROLLER://:9093
     If you did not fully complete any step, back out whatever you have done and then follow revert
     directions for the last fully completed step.
   </p>
+  <p>
+    In any case, once reverting is completed, you must clean-up any migration leftover before you attempt a new one
+  </p>
+  <ul>
+    <li>Remove <code>__cluster_metadata</code> logs directory from KRaft controllers</li>
+    <li>Remove <code>__cluster_metadata</code> logs directory from Zookeeper brokers</li>
+    <li>Remove the <code>/migration</code>n ZNode in Zookeeper</li>
+  </ul>
 
   <table class="data-table">
       <tbody>
