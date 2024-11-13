@@ -538,12 +538,12 @@ class WorkerSinkTask extends WorkerTask<ConsumerRecord<byte[], byte[]>, SinkReco
 
     private SinkRecord convertAndTransformRecord(ProcessingContext<ConsumerRecord<byte[], byte[]>> context, final ConsumerRecord<byte[], byte[]> msg) {
         SchemaAndValue keyAndSchema = retryWithToleranceOperator.execute(context, () -> {
-            try (LoaderSwap swap = Plugins.withClassLoader(keyConverter.getClass().getClassLoader())) {
+            try (LoaderSwap swap = Plugins.swapLoader(keyConverter.getClass().getClassLoader())) {
                 return keyConverter.toConnectData(msg.topic(), msg.headers(), msg.key());
             }}, Stage.KEY_CONVERTER, keyConverter.getClass());
 
         SchemaAndValue valueAndSchema = retryWithToleranceOperator.execute(context, () -> {
-            try(LoaderSwap swap = Plugins.withClassLoader(valueConverter.getClass().getClassLoader())) {
+            try(LoaderSwap swap = Plugins.swapLoader(valueConverter.getClass().getClassLoader())) {
                     return valueConverter.toConnectData(msg.topic(), msg.headers(), msg.value());
             }}, Stage.VALUE_CONVERTER, valueConverter.getClass());
 
@@ -582,7 +582,7 @@ class WorkerSinkTask extends WorkerTask<ConsumerRecord<byte[], byte[]>, SinkReco
         if (recordHeaders != null) {
             String topic = record.topic();
             for (org.apache.kafka.common.header.Header recordHeader : recordHeaders) {
-                try (LoaderSwap swap = Plugins.withClassLoader(headerConverter.getClass().getClassLoader())) {
+                try (LoaderSwap swap = Plugins.swapLoader(headerConverter.getClass().getClassLoader())) {
                     SchemaAndValue schemaAndValue = headerConverter.toConnectHeader(topic, recordHeader.key(), recordHeader.value());
                     result.add(recordHeader.key(), schemaAndValue);
                 }

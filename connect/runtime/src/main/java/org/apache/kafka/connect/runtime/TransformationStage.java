@@ -57,12 +57,12 @@ public class TransformationStage<R extends ConnectRecord<R>> implements AutoClos
     public R apply(R record) {
         boolean shouldTransforms = predicate == null;
         if (predicate != null) {
-            try (LoaderSwap swap = Plugins.withClassLoader(predicate.getClass().getClassLoader())) {
+            try (LoaderSwap swap = Plugins.swapLoader(predicate.getClass().getClassLoader())) {
                 shouldTransforms = negate ^ predicate.test(record);
             }
         }
         if (shouldTransforms) {
-            try (LoaderSwap swap = Plugins.withClassLoader(transformation.getClass().getClassLoader())) {
+            try (LoaderSwap swap = Plugins.swapLoader(transformation.getClass().getClassLoader())) {
                 record = transformation.apply(record);
             }
         }
