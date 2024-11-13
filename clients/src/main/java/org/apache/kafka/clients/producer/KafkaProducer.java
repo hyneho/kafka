@@ -57,6 +57,7 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.internals.ClusterResourceListeners;
+import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.metrics.KafkaMetricsContext;
 import org.apache.kafka.common.metrics.MetricConfig;
 import org.apache.kafka.common.metrics.Metrics;
@@ -264,7 +265,8 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private final ProducerInterceptors<K, V> interceptors;
     private final ApiVersions apiVersions;
     private final TransactionManager transactionManager;
-    private final Optional<ClientTelemetryReporter> clientTelemetryReporter;
+    // Init value is needed to avoid NPE in case of exception raised in the constructor
+    private Optional<ClientTelemetryReporter> clientTelemetryReporter = Optional.empty();
 
     /**
      * A producer is instantiated by providing a set of key-value pairs as configuration. Valid configuration strings
@@ -1074,6 +1076,8 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
             if (result.abortForNewBatch) {
                 int prevPartition = partition;
+                // IMPORTANT NOTE: the following onNewBatch and partition calls should not interrupted to allow
+                // the custom partitioner to correctly track its state
                 onNewBatch(record.topic(), cluster, prevPartition);
                 partition = partition(record, serializedKey, serializedValue, cluster);
                 if (log.isTraceEnabled()) {
@@ -1299,6 +1303,53 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
         return Collections.unmodifiableMap(this.metrics.metrics());
     }
 
+
+    /**
+     * Add the provided application metric for subscription.
+     * This metric will be added to this client's metrics
+     * that are available for subscription and sent as
+     * telemetry data to the broker.
+     * The provided metric must map to an OTLP metric data point
+     * type in the OpenTelemetry v1 metrics protobuf message types.
+     * Specifically, the metric should be one of the following:
+     * <ul>
+     *  <li>
+     *     `Sum`: Monotonic total count meter (Counter). Suitable for metrics like total number of X, e.g., total bytes sent.
+     *  </li>
+     *  <li>
+     *     `Gauge`: Non-monotonic current value meter (UpDownCounter). Suitable for metrics like current value of Y, e.g., current queue count.
+     *  </li>
+     * </ul>
+     * Metrics not matching these types are silently ignored.
+     * Executing this method for a previously registered metric is a benign operation and results in updating that metrics entry.
+     *
+     * @param metric The application metric to register
+     */
+    @Override
+    public void registerMetricForSubscription(KafkaMetric metric) {
+        if (clientTelemetryReporter.isPresent()) {
+            ClientTelemetryReporter reporter = clientTelemetryReporter.get();
+            reporter.metricChange(metric);
+        }
+    }
+
+    /**
+     * Remove the provided application metric for subscription.
+     * This metric is removed from this client's metrics
+     * and will not be available for subscription any longer.
+     * Executing this method with a metric that has not been registered is a
+     * benign operation and does not result in any action taken (no-op).
+     *
+     * @param metric The application metric to remove
+     */
+    @Override
+    public void unregisterMetricFromSubscription(KafkaMetric metric) {
+        if (clientTelemetryReporter.isPresent()) {
+            ClientTelemetryReporter reporter = clientTelemetryReporter.get();
+            reporter.metricRemoval(metric);
+        }
+    }
+
     /**
      * Determines the client's unique client instance ID used for telemetry. This ID is unique to
      * this specific client instance and will not change after it is initially generated.
@@ -1392,6 +1443,9 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             } else {
                 // Try to close gracefully.
                 final Timer closeTimer = time.timer(timeout);
+                clientTelemetryReporter.ifPresent(ClientTelemetryReporter::initiateClose);
+                closeTimer.update();
+
                 if (this.sender != null) {
                     this.sender.initiateClose();
                     closeTimer.update();
@@ -1406,7 +1460,6 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                         closeTimer.update();
                     }
                 }
-                clientTelemetryReporter.ifPresent(reporter -> reporter.initiateClose(closeTimer.remainingMs()));
             }
         }
 

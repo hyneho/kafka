@@ -18,12 +18,12 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.InvalidTopicException
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.function.Executable
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.{Arguments, MethodSource}
+import org.junit.jupiter.params.provider.MethodSource
 
 import java.time.Duration
 import java.util.regex.Pattern
-import java.util.stream.Stream
 import scala.jdk.CollectionConverters._
 
 /**
@@ -227,11 +227,34 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
-  def testSubscribeInvalidTopic(quorum: String, groupProtocol: String): Unit = {
-    // Invalid topic name due to space
-    val invalidTopicName = "topic abc"
+  def testSubscribeInvalidTopicCanUnsubscribe(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
 
+    setupSubscribeInvalidTopic(consumer)
+    if(groupProtocol == "consumer") {
+      // Must ensure memberId is not empty before sending leave group heartbeat. This is a temporary solution before KIP-1082.
+      TestUtils.waitUntilTrue(() => consumer.groupMetadata().memberId().nonEmpty,
+        waitTimeMs = 30000, msg = "Timeout waiting for first consumer group heartbeat response")
+    }
+    assertDoesNotThrow(new Executable {
+      override def execute(): Unit = consumer.unsubscribe()
+    })
+  }
+
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testSubscribeInvalidTopicCanClose(quorum: String, groupProtocol: String): Unit = {
+    val consumer = createConsumer()
+
+    setupSubscribeInvalidTopic(consumer)
+    assertDoesNotThrow(new Executable {
+      override def execute(): Unit = consumer.close()
+    })
+  }
+
+  def setupSubscribeInvalidTopic(consumer: Consumer[Array[Byte], Array[Byte]]): Unit = {
+    // Invalid topic name due to space
+    val invalidTopicName = "topic abc"
     consumer.subscribe(List(invalidTopicName).asJava)
 
     var exception : InvalidTopicException = null
@@ -245,9 +268,4 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
 
     assertEquals(s"Invalid topics: [${invalidTopicName}]", exception.getMessage)
   }
-}
-
-object PlaintextConsumerSubscriptionTest {
-  def getTestQuorumAndGroupProtocolParametersAll: Stream[Arguments] =
-    BaseConsumerTest.getTestQuorumAndGroupProtocolParametersAll()
 }

@@ -16,11 +16,6 @@
  */
 package org.apache.kafka.tools.consumer.group;
 
-import kafka.test.ClusterConfig;
-import kafka.test.ClusterInstance;
-import kafka.test.annotation.ClusterTemplate;
-import kafka.test.junit.ClusterTestExtensions;
-
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.GroupProtocol;
@@ -34,6 +29,10 @@ import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.test.api.ClusterConfig;
+import org.apache.kafka.common.test.api.ClusterInstance;
+import org.apache.kafka.common.test.api.ClusterTemplate;
+import org.apache.kafka.common.test.api.ClusterTestExtensions;
 import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -232,7 +231,7 @@ public class ResetConsumerGroupOffsetTest {
             resetAndAssertOffsets(cluster, addTo(args, "--execute"),
                     50, false, topics);
 
-            try (Admin admin = cluster.createAdminClient()) {
+            try (Admin admin = cluster.admin()) {
                 admin.deleteConsumerGroups(groups).all().get();
             }
         }
@@ -316,7 +315,7 @@ public class ResetConsumerGroupOffsetTest {
 
         String[] args = buildArgsForGroup(cluster, group, "--topic", topic, "--by-duration", "PT1M", "--execute");
 
-        try (Admin admin = cluster.createAdminClient()) {
+        try (Admin admin = cluster.admin()) {
             admin.createTopics(singleton(new NewTopic(topic, 1, (short) 1))).all().get();
             resetAndAssertOffsets(cluster, args, 0, false, singletonList(topic));
             admin.deleteTopics(singleton(topic)).all().get();
@@ -445,7 +444,7 @@ public class ResetConsumerGroupOffsetTest {
             String[] args = buildArgsForGroup(cluster, group, "--topic", topic + ":1",
                 "--to-earliest", "--execute");
 
-            try (Admin admin = cluster.createAdminClient();
+            try (Admin admin = cluster.admin();
                  ConsumerGroupCommand.ConsumerGroupService service = getConsumerGroupService(args)) {
                 admin.createTopics(singleton(new NewTopic(topic, 2, (short) 1))).all().get();
 
@@ -474,7 +473,7 @@ public class ResetConsumerGroupOffsetTest {
                 "--topic", topic2,
                 "--to-earliest", "--execute");
 
-            try (Admin admin = cluster.createAdminClient();
+            try (Admin admin = cluster.admin();
                  ConsumerGroupCommand.ConsumerGroupService service = getConsumerGroupService(args)) {
                 admin.createTopics(asList(new NewTopic(topic1, 1, (short) 1),
                         new NewTopic(topic2, 1, (short) 1))).all().get();
@@ -509,7 +508,7 @@ public class ResetConsumerGroupOffsetTest {
                 "--topic", topic2 + ":1",
                 "--to-earliest", "--execute");
 
-            try (Admin admin = cluster.createAdminClient();
+            try (Admin admin = cluster.admin();
                  ConsumerGroupCommand.ConsumerGroupService service = getConsumerGroupService(args)) {
                 admin.createTopics(asList(new NewTopic(topic1, 2, (short) 1),
                         new NewTopic(topic2, 2, (short) 1))).all().get();
@@ -552,7 +551,7 @@ public class ResetConsumerGroupOffsetTest {
             String[] cgcArgs = buildArgsForGroup(cluster, group, "--all-topics", "--to-offset", "2", "--export");
             File file = TestUtils.tempFile("reset", ".csv");
 
-            try (Admin admin = cluster.createAdminClient();
+            try (Admin admin = cluster.admin();
                  ConsumerGroupCommand.ConsumerGroupService service = getConsumerGroupService(cgcArgs)) {
 
                 admin.createTopics(singleton(new NewTopic(topic, 2, (short) 1))).all().get();
@@ -597,7 +596,7 @@ public class ResetConsumerGroupOffsetTest {
                 "--all-topics", "--to-offset", "2", "--export");
             File file = TestUtils.tempFile("reset", ".csv");
 
-            try (Admin admin = cluster.createAdminClient();
+            try (Admin admin = cluster.admin();
                  ConsumerGroupCommand.ConsumerGroupService service = getConsumerGroupService(cgcArgs)) {
 
                 admin.createTopics(asList(new NewTopic(topic1, 2, (short) 1),

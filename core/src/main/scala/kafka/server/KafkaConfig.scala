@@ -34,8 +34,9 @@ import org.apache.kafka.common.security.auth.KafkaPrincipalSerde
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.coordinator.group.Group.GroupType
-import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
-import org.apache.kafka.coordinator.transaction.{TransactionLogConfigs, TransactionStateManagerConfigs}
+import org.apache.kafka.coordinator.group.modern.share.ShareGroupConfig
+import org.apache.kafka.coordinator.group.{GroupConfig, GroupCoordinatorConfig}
+import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.raft.QuorumConfig
 import org.apache.kafka.security.authorizer.AuthorizerUtils
@@ -44,7 +45,7 @@ import org.apache.kafka.server.ProcessRole
 import org.apache.kafka.server.authorizer.Authorizer
 import org.apache.kafka.server.common.MetadataVersion
 import org.apache.kafka.server.common.MetadataVersion._
-import org.apache.kafka.server.config.{AbstractKafkaConfig, DelegationTokenManagerConfigs, KRaftConfigs, QuotaConfigs, ReplicationConfigs, ServerConfigs, ServerLogConfigs, ShareGroupConfigs, ZkConfigs}
+import org.apache.kafka.server.config.{AbstractKafkaConfig, DelegationTokenManagerConfigs, KRaftConfigs, QuotaConfig, ReplicationConfigs, ServerConfigs, ServerLogConfigs, ShareCoordinatorConfig, ZkConfigs}
 import org.apache.kafka.server.log.remote.storage.RemoteLogManagerConfig
 import org.apache.kafka.server.metrics.MetricConfigs
 import org.apache.kafka.server.util.Csv
@@ -53,9 +54,9 @@ import org.apache.kafka.storage.internals.log.LogConfig.MessageFormatVersion
 import org.apache.zookeeper.client.ZKClientConfig
 
 import scala.annotation.nowarn
-import scala.compat.java8.OptionConverters._
 import scala.jdk.CollectionConverters._
 import scala.collection.{Map, Seq}
+import scala.jdk.OptionConverters.RichOptional
 
 object KafkaConfig {
 
@@ -148,7 +149,8 @@ object KafkaConfig {
   def loggableValue(resourceType: ConfigResource.Type, name: String, value: String): String = {
     val maybeSensitive = resourceType match {
       case ConfigResource.Type.BROKER => KafkaConfig.maybeSensitive(KafkaConfig.configType(name))
-      case ConfigResource.Type.TOPIC => KafkaConfig.maybeSensitive(LogConfig.configType(name).asScala)
+      case ConfigResource.Type.TOPIC => KafkaConfig.maybeSensitive(LogConfig.configType(name).toScala)
+      case ConfigResource.Type.GROUP => KafkaConfig.maybeSensitive(GroupConfig.configType(name).toScala)
       case ConfigResource.Type.BROKER_LOGGER => false
       case ConfigResource.Type.CLIENT_METRICS => false
       case _ => true
@@ -230,8 +232,27 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   private val _remoteLogManagerConfig = new RemoteLogManagerConfig(this)
   def remoteLogManagerConfig = _remoteLogManagerConfig
 
+  private val _quorumConfig = new QuorumConfig(this)
+  def quorumConfig: QuorumConfig = _quorumConfig
+
   private val _groupCoordinatorConfig = new GroupCoordinatorConfig(this)
+
   def groupCoordinatorConfig: GroupCoordinatorConfig = _groupCoordinatorConfig
+
+  private val _shareGroupConfig = new ShareGroupConfig(this)
+  def shareGroupConfig: ShareGroupConfig = _shareGroupConfig
+
+  private val _shareCoordinatorConfig = new ShareCoordinatorConfig(this)
+  def shareCoordinatorConfig: ShareCoordinatorConfig = _shareCoordinatorConfig
+
+  private val _transactionLogConfig = new TransactionLogConfig(this)
+  private val _transactionStateManagerConfig = new TransactionStateManagerConfig(this)
+  def transactionLogConfig: TransactionLogConfig = _transactionLogConfig
+  def transactionStateManagerConfig: TransactionStateManagerConfig = _transactionStateManagerConfig
+
+  private val _quotaConfig = new QuotaConfig(this)
+  def quotaConfig: QuotaConfig = _quotaConfig
+
 
   private def zkBooleanConfigOrSystemPropertyWithDefaultValue(propKey: String): Boolean = {
     // Use the system property if it exists and the Kafka config value was defaulted rather than actually provided
@@ -357,10 +378,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   def metadataLogSegmentMinBytes = getInt(KRaftConfigs.METADATA_LOG_SEGMENT_MIN_BYTES_CONFIG)
   val serverMaxStartupTimeMs = getLong(KRaftConfigs.SERVER_MAX_STARTUP_TIME_MS_CONFIG)
 
-  def numNetworkThreads = getInt(ServerConfigs.NUM_NETWORK_THREADS_CONFIG)
   def backgroundThreads = getInt(ServerConfigs.BACKGROUND_THREADS_CONFIG)
-  val queuedMaxRequests = getInt(ServerConfigs.QUEUED_MAX_REQUESTS_CONFIG)
-  val queuedMaxBytes = getLong(ServerConfigs.QUEUED_MAX_BYTES_CONFIG)
   def numIoThreads = getInt(ServerConfigs.NUM_IO_THREADS_CONFIG)
   def messageMaxBytes = getInt(ServerConfigs.MESSAGE_MAX_BYTES_CONFIG)
   val requestTimeoutMs = getInt(ServerConfigs.REQUEST_TIMEOUT_MS_CONFIG)
@@ -419,6 +437,9 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   def maxConnectionCreationRate = getInt(SocketServerConfigs.MAX_CONNECTION_CREATION_RATE_CONFIG)
   val connectionsMaxIdleMs = getLong(SocketServerConfigs.CONNECTIONS_MAX_IDLE_MS_CONFIG)
   val failedAuthenticationDelayMs = getInt(SocketServerConfigs.FAILED_AUTHENTICATION_DELAY_MS_CONFIG)
+  val queuedMaxRequests = getInt(SocketServerConfigs.QUEUED_MAX_REQUESTS_CONFIG)
+  val queuedMaxBytes = getLong(SocketServerConfigs.QUEUED_MAX_BYTES_CONFIG)
+  def numNetworkThreads = getInt(SocketServerConfigs.NUM_NETWORK_THREADS_CONFIG)
 
   /***************** rack configuration **************/
   val rack = Option(getString(ServerConfigs.BROKER_RACK_CONFIG))
@@ -430,7 +451,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   val logDirs: Seq[String] = Csv.parseCsvList(Option(getString(ServerLogConfigs.LOG_DIRS_CONFIG)).getOrElse(getString(ServerLogConfigs.LOG_DIR_CONFIG))).asScala
   def logSegmentBytes = getInt(ServerLogConfigs.LOG_SEGMENT_BYTES_CONFIG)
   def logFlushIntervalMessages = getLong(ServerLogConfigs.LOG_FLUSH_INTERVAL_MESSAGES_CONFIG)
-  val logCleanerThreads = getInt(CleanerConfig.LOG_CLEANER_THREADS_PROP)
+  def logCleanerThreads = getInt(CleanerConfig.LOG_CLEANER_THREADS_PROP)
   def numRecoveryThreadsPerDataDir = getInt(ServerLogConfigs.NUM_RECOVERY_THREADS_PER_DATA_DIR_CONFIG)
   val logFlushSchedulerIntervalMs = getLong(ServerLogConfigs.LOG_FLUSH_SCHEDULER_INTERVAL_MS_CONFIG)
   val logFlushOffsetCheckpointIntervalMs = getInt(ServerLogConfigs.LOG_FLUSH_OFFSET_CHECKPOINT_INTERVAL_MS_CONFIG).toLong
@@ -439,14 +460,14 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   def logCleanupPolicy = getList(ServerLogConfigs.LOG_CLEANUP_POLICY_CONFIG)
 
   def logRetentionBytes = getLong(ServerLogConfigs.LOG_RETENTION_BYTES_CONFIG)
-  val logCleanerDedupeBufferSize = getLong(CleanerConfig.LOG_CLEANER_DEDUPE_BUFFER_SIZE_PROP)
-  val logCleanerDedupeBufferLoadFactor = getDouble(CleanerConfig.LOG_CLEANER_DEDUPE_BUFFER_LOAD_FACTOR_PROP)
-  val logCleanerIoBufferSize = getInt(CleanerConfig.LOG_CLEANER_IO_BUFFER_SIZE_PROP)
-  val logCleanerIoMaxBytesPerSecond = getDouble(CleanerConfig.LOG_CLEANER_IO_MAX_BYTES_PER_SECOND_PROP)
+  def logCleanerDedupeBufferSize = getLong(CleanerConfig.LOG_CLEANER_DEDUPE_BUFFER_SIZE_PROP)
+  def logCleanerDedupeBufferLoadFactor = getDouble(CleanerConfig.LOG_CLEANER_DEDUPE_BUFFER_LOAD_FACTOR_PROP)
+  def logCleanerIoBufferSize = getInt(CleanerConfig.LOG_CLEANER_IO_BUFFER_SIZE_PROP)
+  def logCleanerIoMaxBytesPerSecond = getDouble(CleanerConfig.LOG_CLEANER_IO_MAX_BYTES_PER_SECOND_PROP)
   def logCleanerDeleteRetentionMs = getLong(CleanerConfig.LOG_CLEANER_DELETE_RETENTION_MS_PROP)
   def logCleanerMinCompactionLagMs = getLong(CleanerConfig.LOG_CLEANER_MIN_COMPACTION_LAG_MS_PROP)
   def logCleanerMaxCompactionLagMs = getLong(CleanerConfig.LOG_CLEANER_MAX_COMPACTION_LAG_MS_PROP)
-  val logCleanerBackoffMs = getLong(CleanerConfig.LOG_CLEANER_BACKOFF_MS_PROP)
+  def logCleanerBackoffMs = getLong(CleanerConfig.LOG_CLEANER_BACKOFF_MS_PROP)
   def logCleanerMinCleanRatio = getDouble(CleanerConfig.LOG_CLEANER_MIN_CLEAN_RATIO_PROP)
   val logCleanerEnable = getBoolean(CleanerConfig.LOG_CLEANER_ENABLE_PROP)
   def logIndexSizeMaxBytes = getInt(ServerLogConfigs.LOG_INDEX_SIZE_MAX_BYTES_CONFIG)
@@ -526,6 +547,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   val autoLeaderRebalanceEnable = getBoolean(ReplicationConfigs.AUTO_LEADER_REBALANCE_ENABLE_CONFIG)
   val leaderImbalancePerBrokerPercentage = getInt(ReplicationConfigs.LEADER_IMBALANCE_PER_BROKER_PERCENTAGE_CONFIG)
   val leaderImbalanceCheckIntervalSeconds: Long = getLong(ReplicationConfigs.LEADER_IMBALANCE_CHECK_INTERVAL_SECONDS_CONFIG)
+  val uncleanLeaderElectionCheckIntervalMs: Long = getLong(ReplicationConfigs.UNCLEAN_LEADER_ELECTION_INTERVAL_MS_CONFIG)
   def uncleanLeaderElectionEnable: java.lang.Boolean = getBoolean(ReplicationConfigs.UNCLEAN_LEADER_ELECTION_ENABLE_CONFIG)
 
   // We keep the user-provided String as `MetadataVersion.fromVersionString` can choose a slightly different version (eg if `0.10.0`
@@ -560,6 +582,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   def isFeatureVersioningSupported = interBrokerProtocolVersion.isFeatureVersioningSupported
 
   /** New group coordinator configs */
+  val isNewGroupCoordinatorEnabled = getBoolean(GroupCoordinatorConfig.NEW_GROUP_COORDINATOR_ENABLE_CONFIG)
   val groupCoordinatorRebalanceProtocols = {
     val protocols = getList(GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG)
       .asScala.map(_.toUpperCase).map(GroupType.valueOf).toSet
@@ -567,50 +590,19 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
       throw new ConfigException(s"Disabling the '${GroupType.CLASSIC}' protocol is not supported.")
     }
     if (protocols.contains(GroupType.CONSUMER)) {
-      if (processRoles.isEmpty) {
-        throw new ConfigException(s"The new '${GroupType.CONSUMER}' rebalance protocol is only supported in KRaft cluster.")
+      if (processRoles.isEmpty || !isNewGroupCoordinatorEnabled) {
+        warn(s"The new '${GroupType.CONSUMER}' rebalance protocol is only supported in KRaft cluster with the new group coordinator.")
       }
-      warn(s"The new '${GroupType.CONSUMER}' rebalance protocol is enabled along with the new group coordinator. " +
-        "This is part of the preview of KIP-848 and MUST NOT be used in production.")
+    }
+    if (protocols.contains(GroupType.SHARE)) {
+      if (processRoles.isEmpty || !isNewGroupCoordinatorEnabled) {
+        warn(s"The new '${GroupType.SHARE}' rebalance protocol is only supported in KRaft cluster with the new group coordinator.")
+      }
+      warn(s"Share groups and the new '${GroupType.SHARE}' rebalance protocol are enabled. " +
+        "This is part of the early access of KIP-932 and MUST NOT be used in production.")
     }
     protocols
   }
-  // The new group coordinator is enabled in two cases: 1) The internal configuration to enable
-  // it is explicitly set; or 2) the consumer rebalance protocol is enabled.
-  val isNewGroupCoordinatorEnabled = getBoolean(GroupCoordinatorConfig.NEW_GROUP_COORDINATOR_ENABLE_CONFIG) ||
-    groupCoordinatorRebalanceProtocols.contains(GroupType.CONSUMER)
-
-  /** Share group configuration **/
-  val isShareGroupEnabled = getBoolean(ShareGroupConfigs.SHARE_GROUP_ENABLE_CONFIG)
-  val shareGroupPartitionMaxRecordLocks = getInt(ShareGroupConfigs.SHARE_GROUP_PARTITION_MAX_RECORD_LOCKS_CONFIG)
-  val shareGroupDeliveryCountLimit = getInt(ShareGroupConfigs.SHARE_GROUP_DELIVERY_COUNT_LIMIT_CONFIG)
-  val shareGroupMaxGroups = getShort(ShareGroupConfigs.SHARE_GROUP_MAX_GROUPS_CONFIG)
-  val shareGroupMaxSize = getShort(ShareGroupConfigs.SHARE_GROUP_MAX_SIZE_CONFIG)
-  val shareGroupSessionTimeoutMs = getInt(ShareGroupConfigs.SHARE_GROUP_SESSION_TIMEOUT_MS_CONFIG)
-  val shareGroupMinSessionTimeoutMs = getInt(ShareGroupConfigs.SHARE_GROUP_MIN_SESSION_TIMEOUT_MS_CONFIG)
-  val shareGroupMaxSessionTimeoutMs = getInt(ShareGroupConfigs.SHARE_GROUP_MAX_SESSION_TIMEOUT_MS_CONFIG)
-  val shareGroupHeartbeatIntervalMs = getInt(ShareGroupConfigs.SHARE_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG)
-  val shareGroupMinHeartbeatIntervalMs = getInt(ShareGroupConfigs.SHARE_GROUP_MIN_HEARTBEAT_INTERVAL_MS_CONFIG)
-  val shareGroupMaxHeartbeatIntervalMs = getInt(ShareGroupConfigs.SHARE_GROUP_MAX_HEARTBEAT_INTERVAL_MS_CONFIG)
-  val shareGroupRecordLockDurationMs = getInt(ShareGroupConfigs.SHARE_GROUP_RECORD_LOCK_DURATION_MS_CONFIG)
-  val shareGroupMaxRecordLockDurationMs = getInt(ShareGroupConfigs.SHARE_GROUP_MAX_RECORD_LOCK_DURATION_MS_CONFIG)
-  val shareGroupMinRecordLockDurationMs = getInt(ShareGroupConfigs.SHARE_GROUP_MIN_RECORD_LOCK_DURATION_MS_CONFIG)
-
-  /** ********* Transaction management configuration ***********/
-  val transactionalIdExpirationMs = getInt(TransactionStateManagerConfigs.TRANSACTIONAL_ID_EXPIRATION_MS_CONFIG)
-  val transactionMaxTimeoutMs = getInt(TransactionStateManagerConfigs.TRANSACTIONS_MAX_TIMEOUT_MS_CONFIG)
-  val transactionTopicMinISR = getInt(TransactionLogConfigs.TRANSACTIONS_TOPIC_MIN_ISR_CONFIG)
-  val transactionsLoadBufferSize = getInt(TransactionLogConfigs.TRANSACTIONS_LOAD_BUFFER_SIZE_CONFIG)
-  val transactionTopicReplicationFactor = getShort(TransactionLogConfigs.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG)
-  val transactionTopicPartitions = getInt(TransactionLogConfigs.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG)
-  val transactionTopicSegmentBytes = getInt(TransactionLogConfigs.TRANSACTIONS_TOPIC_SEGMENT_BYTES_CONFIG)
-  val transactionAbortTimedOutTransactionCleanupIntervalMs = getInt(TransactionStateManagerConfigs.TRANSACTIONS_ABORT_TIMED_OUT_TRANSACTION_CLEANUP_INTERVAL_MS_CONFIG)
-  val transactionRemoveExpiredTransactionalIdCleanupIntervalMs = getInt(TransactionStateManagerConfigs.TRANSACTIONS_REMOVE_EXPIRED_TRANSACTIONAL_ID_CLEANUP_INTERVAL_MS_CONFIG)
-
-  def transactionPartitionVerificationEnable = getBoolean(TransactionLogConfigs.TRANSACTION_PARTITION_VERIFICATION_ENABLE_CONFIG)
-
-  def producerIdExpirationMs = getInt(TransactionLogConfigs.PRODUCER_ID_EXPIRATION_MS_CONFIG)
-  val producerIdExpirationCheckIntervalMs = getInt(TransactionLogConfigs.PRODUCER_ID_EXPIRATION_CHECK_INTERVAL_MS_CONFIG)
 
   /** ********* Metric Configuration **************/
   val metricNumSamples = getInt(MetricConfigs.METRIC_NUM_SAMPLES_CONFIG)
@@ -640,8 +632,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   val saslInterBrokerHandshakeRequestEnable = interBrokerProtocolVersion.isSaslInterBrokerHandshakeRequestEnabled
 
   /** ********* DelegationToken Configuration **************/
-  val delegationTokenSecretKey = Option(getPassword(DelegationTokenManagerConfigs.DELEGATION_TOKEN_SECRET_KEY_CONFIG))
-    .getOrElse(getPassword(DelegationTokenManagerConfigs.DELEGATION_TOKEN_SECRET_KEY_ALIAS_CONFIG))
+  val delegationTokenSecretKey = getPassword(DelegationTokenManagerConfigs.DELEGATION_TOKEN_SECRET_KEY_CONFIG)
   val tokenAuthEnabled = delegationTokenSecretKey != null && delegationTokenSecretKey.value.nonEmpty
   val delegationTokenMaxLifeMs = getLong(DelegationTokenManagerConfigs.DELEGATION_TOKEN_MAX_LIFETIME_CONFIG)
   val delegationTokenExpiryTimeMs = getLong(DelegationTokenManagerConfigs.DELEGATION_TOKEN_EXPIRY_TIME_MS_CONFIG)
@@ -654,16 +645,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   def passwordEncoderKeyFactoryAlgorithm = getString(PasswordEncoderConfigs.PASSWORD_ENCODER_KEYFACTORY_ALGORITHM_CONFIG)
   def passwordEncoderKeyLength = getInt(PasswordEncoderConfigs.PASSWORD_ENCODER_KEY_LENGTH_CONFIG)
   def passwordEncoderIterations = getInt(PasswordEncoderConfigs.PASSWORD_ENCODER_ITERATIONS_CONFIG)
-
-  /** ********* Quota Configuration **************/
-  val numQuotaSamples = getInt(QuotaConfigs.NUM_QUOTA_SAMPLES_CONFIG)
-  val quotaWindowSizeSeconds = getInt(QuotaConfigs.QUOTA_WINDOW_SIZE_SECONDS_CONFIG)
-  val numReplicationQuotaSamples = getInt(QuotaConfigs.NUM_REPLICATION_QUOTA_SAMPLES_CONFIG)
-  val replicationQuotaWindowSizeSeconds = getInt(QuotaConfigs.REPLICATION_QUOTA_WINDOW_SIZE_SECONDS_CONFIG)
-  val numAlterLogDirsReplicationQuotaSamples = getInt(QuotaConfigs.NUM_ALTER_LOG_DIRS_REPLICATION_QUOTA_SAMPLES_CONFIG)
-  val alterLogDirsReplicationQuotaWindowSizeSeconds = getInt(QuotaConfigs.ALTER_LOG_DIRS_REPLICATION_QUOTA_WINDOW_SIZE_SECONDS_CONFIG)
-  val numControllerQuotaSamples = getInt(QuotaConfigs.NUM_CONTROLLER_QUOTA_SAMPLES_CONFIG)
-  val controllerQuotaWindowSizeSeconds = getInt(QuotaConfigs.CONTROLLER_QUOTA_WINDOW_SIZE_SECONDS_CONFIG)
 
   /** ********* Fetch Configuration **************/
   val maxIncrementalFetchSessionCacheSlots = getInt(ServerConfigs.MAX_INCREMENTAL_FETCH_SESSION_CACHE_SLOTS_CONFIG)
@@ -678,16 +659,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   def gzipCompressionLevel = getInt(ServerConfigs.COMPRESSION_GZIP_LEVEL_CONFIG)
   def lz4CompressionLevel = getInt(ServerConfigs.COMPRESSION_LZ4_LEVEL_CONFIG)
   def zstdCompressionLevel = getInt(ServerConfigs.COMPRESSION_ZSTD_LEVEL_CONFIG)
-
-  /** ********* Raft Quorum Configuration *********/
-  val quorumVoters = getList(QuorumConfig.QUORUM_VOTERS_CONFIG)
-  val quorumBootstrapServers = getList(QuorumConfig.QUORUM_BOOTSTRAP_SERVERS_CONFIG)
-  val quorumElectionTimeoutMs = getInt(QuorumConfig.QUORUM_ELECTION_TIMEOUT_MS_CONFIG)
-  val quorumFetchTimeoutMs = getInt(QuorumConfig.QUORUM_FETCH_TIMEOUT_MS_CONFIG)
-  val quorumElectionBackoffMs = getInt(QuorumConfig.QUORUM_ELECTION_BACKOFF_MAX_MS_CONFIG)
-  val quorumLingerMs = getInt(QuorumConfig.QUORUM_LINGER_MS_CONFIG)
-  val quorumRequestTimeoutMs = getInt(QuorumConfig.QUORUM_REQUEST_TIMEOUT_MS_CONFIG)
-  val quorumRetryBackoffMs = getInt(QuorumConfig.QUORUM_RETRY_BACKOFF_MS_CONFIG)
 
   /** Internal Configurations **/
   val unstableApiVersionsEnabled = getBoolean(ServerConfigs.UNSTABLE_API_VERSIONS_ENABLE_CONFIG)
@@ -861,6 +832,9 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
         throw new ConfigException(s"Missing required configuration `${ZkConfigs.ZK_CONNECT_CONFIG}` which has no default value.")
       }
       if (brokerIdGenerationEnable) {
+        if (migrationEnabled) {
+          require(brokerId >= 0, "broker.id generation is incompatible with ZooKeeper migration. Please stop using it before enabling migration (set broker.id to a value greater or equal to 0).")
+        }
         require(brokerId >= -1 && brokerId <= maxReservedBrokerId, "broker.id must be greater than or equal to -1 and not greater than reserved.broker.max.id")
       } else {
         require(brokerId >= 0, "broker.id must be greater than or equal to 0")
@@ -890,31 +864,35 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
     val advertisedBrokerListenerNames = effectiveAdvertisedBrokerListeners.map(_.listenerName).toSet
 
     // validate KRaft-related configs
-    val voterIds = QuorumConfig.parseVoterIds(quorumVoters)
-    def validateNonEmptyQuorumVotersForKRaft(): Unit = {
-      if (voterIds.isEmpty) {
-        throw new ConfigException(s"If using ${KRaftConfigs.PROCESS_ROLES_CONFIG}, ${QuorumConfig.QUORUM_VOTERS_CONFIG} must contain a parseable set of voters.")
+    val voterIds = QuorumConfig.parseVoterIds(quorumConfig.voters)
+    def validateQuorumVotersAndQuorumBootstrapServerForKRaft(): Unit = {
+      if (voterIds.isEmpty && quorumConfig.bootstrapServers.isEmpty) {
+        throw new ConfigException(
+          s"""If using ${KRaftConfigs.PROCESS_ROLES_CONFIG}, either ${QuorumConfig.QUORUM_BOOTSTRAP_SERVERS_CONFIG} must
+          |contain the set of bootstrap controllers or ${QuorumConfig.QUORUM_VOTERS_CONFIG} must contain a parseable
+          |set of controllers.""".stripMargin.replace("\n", " ")
+        )
       }
     }
-    def validateNonEmptyQuorumVotersForMigration(): Unit = {
-      if (voterIds.isEmpty) {
-        throw new ConfigException(s"If using ${KRaftConfigs.MIGRATION_ENABLED_CONFIG}, ${QuorumConfig.QUORUM_VOTERS_CONFIG} must contain a parseable set of voters.")
+    def validateQuorumVotersAndQuorumBootstrapServerForMigration(): Unit = {
+      if (voterIds.isEmpty && quorumConfig.bootstrapServers.isEmpty) {
+        throw new ConfigException(
+          s"""If using ${KRaftConfigs.MIGRATION_ENABLED_CONFIG}, either ${QuorumConfig.QUORUM_BOOTSTRAP_SERVERS_CONFIG} must
+          |contain the set of bootstrap controllers or ${QuorumConfig.QUORUM_VOTERS_CONFIG} must contain a parseable
+          |set of controllers.""".stripMargin.replace("\n", " ")
+        )
       }
     }
     def validateControlPlaneListenerEmptyForKRaft(): Unit = {
       require(controlPlaneListenerName.isEmpty,
         s"${SocketServerConfigs.CONTROL_PLANE_LISTENER_NAME_CONFIG} is not supported in KRaft mode.")
     }
-    def validateAdvertisedListenersDoesNotContainControllerListenersForKRaftBroker(): Unit = {
-      require(advertisedBrokerListenerNames.forall(aln => !controllerListenerNames.contains(aln.value())),
-        s"The advertised.listeners config must not contain KRaft controller listeners from ${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} when ${KRaftConfigs.PROCESS_ROLES_CONFIG} contains the broker role because Kafka clients that send requests via advertised listeners do not send requests to KRaft controllers -- they only send requests to KRaft brokers.")
-    }
     def validateControllerQuorumVotersMustContainNodeIdForKRaftController(): Unit = {
-      require(voterIds.contains(nodeId),
+      require(voterIds.isEmpty || voterIds.contains(nodeId),
         s"If ${KRaftConfigs.PROCESS_ROLES_CONFIG} contains the 'controller' role, the node id $nodeId must be included in the set of voters ${QuorumConfig.QUORUM_VOTERS_CONFIG}=${voterIds.asScala.toSet}")
     }
-    def validateControllerListenerExistsForKRaftController(): Unit = {
-      require(controllerListeners.nonEmpty,
+    def validateAdvertisedControllerListenersNonEmptyForKRaftController(): Unit = {
+      require(effectiveAdvertisedControllerListeners.nonEmpty,
         s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} must contain at least one value appearing in the '${SocketServerConfigs.LISTENERS_CONFIG}' configuration when running the KRaft controller role")
     }
     def validateControllerListenerNamesMustAppearInListenersForKRaftController(): Unit = {
@@ -922,16 +900,15 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
       require(controllerListenerNames.forall(cln => listenerNameValues.contains(cln)),
         s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} must only contain values appearing in the '${SocketServerConfigs.LISTENERS_CONFIG}' configuration when running the KRaft controller role")
     }
-    def validateAdvertisedListenersNonEmptyForBroker(): Unit = {
+    def validateAdvertisedBrokerListenersNonEmptyForBroker(): Unit = {
       require(advertisedBrokerListenerNames.nonEmpty,
-        "There must be at least one advertised listener." + (
+        "There must be at least one broker advertised listener." + (
           if (processRoles.contains(ProcessRole.BrokerRole)) s" Perhaps all listeners appear in ${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG}?" else ""))
     }
     if (processRoles == Set(ProcessRole.BrokerRole)) {
       // KRaft broker-only
-      validateNonEmptyQuorumVotersForKRaft()
+      validateQuorumVotersAndQuorumBootstrapServerForKRaft()
       validateControlPlaneListenerEmptyForKRaft()
-      validateAdvertisedListenersDoesNotContainControllerListenersForKRaftBroker()
       // nodeId must not appear in controller.quorum.voters
       require(!voterIds.contains(nodeId),
         s"If ${KRaftConfigs.PROCESS_ROLES_CONFIG} contains just the 'broker' role, the node id $nodeId must not be included in the set of voters ${QuorumConfig.QUORUM_VOTERS_CONFIG}=${voterIds.asScala.toSet}")
@@ -953,10 +930,9 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
       if (controllerListenerNames.size > 1) {
         warn(s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} has multiple entries; only the first will be used since ${KRaftConfigs.PROCESS_ROLES_CONFIG}=broker: ${controllerListenerNames.asJava}")
       }
-      validateAdvertisedListenersNonEmptyForBroker()
     } else if (processRoles == Set(ProcessRole.ControllerRole)) {
       // KRaft controller-only
-      validateNonEmptyQuorumVotersForKRaft()
+      validateQuorumVotersAndQuorumBootstrapServerForKRaft()
       validateControlPlaneListenerEmptyForKRaft()
       // listeners should only contain listeners also enumerated in the controller listener
       require(
@@ -964,21 +940,21 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
         s"The ${SocketServerConfigs.LISTENERS_CONFIG} config must only contain KRaft controller listeners from ${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} when ${KRaftConfigs.PROCESS_ROLES_CONFIG}=controller"
       )
       validateControllerQuorumVotersMustContainNodeIdForKRaftController()
-      validateControllerListenerExistsForKRaftController()
+      validateAdvertisedControllerListenersNonEmptyForKRaftController()
       validateControllerListenerNamesMustAppearInListenersForKRaftController()
     } else if (isKRaftCombinedMode) {
       // KRaft combined broker and controller
-      validateNonEmptyQuorumVotersForKRaft()
+      validateQuorumVotersAndQuorumBootstrapServerForKRaft()
       validateControlPlaneListenerEmptyForKRaft()
-      validateAdvertisedListenersDoesNotContainControllerListenersForKRaftBroker()
       validateControllerQuorumVotersMustContainNodeIdForKRaftController()
-      validateControllerListenerExistsForKRaftController()
+      validateAdvertisedControllerListenersNonEmptyForKRaftController()
       validateControllerListenerNamesMustAppearInListenersForKRaftController()
-      validateAdvertisedListenersNonEmptyForBroker()
     } else {
       // ZK-based
       if (migrationEnabled) {
-        validateNonEmptyQuorumVotersForMigration()
+        require(brokerId >= 0,
+          "broker.id generation is incompatible with ZooKeeper migration. Please stop using it before enabling migration (set broker.id to a value greater or equal to 0).")
+        validateQuorumVotersAndQuorumBootstrapServerForMigration()
         require(controllerListenerNames.nonEmpty,
           s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} must not be empty when running in ZooKeeper migration mode: ${controllerListenerNames.asJava}")
         require(interBrokerProtocolVersion.isMigrationSupported, s"Cannot enable ZooKeeper migration without setting " +
@@ -993,13 +969,12 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
         require(controllerListenerNames.isEmpty,
           s"${KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG} must be empty when not running in KRaft mode: ${controllerListenerNames.asJava}")
       }
-      validateAdvertisedListenersNonEmptyForBroker()
     }
 
     val listenerNames = listeners.map(_.listenerName).toSet
     if (processRoles.isEmpty || processRoles.contains(ProcessRole.BrokerRole)) {
       // validations for all broker setups (i.e. ZooKeeper and KRaft broker-only and KRaft co-located)
-      validateAdvertisedListenersNonEmptyForBroker()
+      validateAdvertisedBrokerListenersNonEmptyForBroker()
       require(advertisedBrokerListenerNames.contains(interBrokerListenerName),
         s"${ReplicationConfigs.INTER_BROKER_LISTENER_NAME_CONFIG} must be a listener name defined in ${SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG}. " +
           s"The valid options based on currently configured listeners are ${advertisedBrokerListenerNames.map(_.value).mkString(",")}")
@@ -1049,7 +1024,7 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
     require(!interBrokerUsesSasl || saslEnabledMechanisms(interBrokerListenerName).contains(saslMechanismInterBrokerProtocol),
       s"${BrokerSecurityConfigs.SASL_MECHANISM_INTER_BROKER_PROTOCOL_CONFIG} must be included in ${BrokerSecurityConfigs.SASL_ENABLED_MECHANISMS_CONFIG} when SASL is used for inter-broker communication")
     require(queuedMaxBytes <= 0 || queuedMaxBytes >= socketRequestMaxBytes,
-      s"${ServerConfigs.QUEUED_MAX_BYTES_CONFIG} must be larger or equal to ${SocketServerConfigs.SOCKET_REQUEST_MAX_BYTES_CONFIG}")
+      s"${SocketServerConfigs.QUEUED_MAX_BYTES_CONFIG} must be larger or equal to ${SocketServerConfigs.SOCKET_REQUEST_MAX_BYTES_CONFIG}")
 
     if (maxConnectionsPerIp == 0)
       require(maxConnectionsPerIpOverrides.nonEmpty, s"${SocketServerConfigs.MAX_CONNECTIONS_PER_IP_CONFIG} can be set to zero only if" +
@@ -1069,37 +1044,6 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
     require(principalBuilderClass != null, s"${BrokerSecurityConfigs.PRINCIPAL_BUILDER_CLASS_CONFIG} must be non-null")
     require(classOf[KafkaPrincipalSerde].isAssignableFrom(principalBuilderClass),
       s"${BrokerSecurityConfigs.PRINCIPAL_BUILDER_CLASS_CONFIG} must implement KafkaPrincipalSerde")
-
-    require(shareGroupMaxHeartbeatIntervalMs >= shareGroupMinHeartbeatIntervalMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_MAX_HEARTBEAT_INTERVAL_MS_CONFIG} must be greater than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_MIN_HEARTBEAT_INTERVAL_MS_CONFIG}")
-    require(shareGroupHeartbeatIntervalMs >= shareGroupMinHeartbeatIntervalMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG} must be greater than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_MIN_HEARTBEAT_INTERVAL_MS_CONFIG}")
-    require(shareGroupHeartbeatIntervalMs <= shareGroupMaxHeartbeatIntervalMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG} must be less than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_MAX_HEARTBEAT_INTERVAL_MS_CONFIG}")
-
-    require(shareGroupMaxSessionTimeoutMs >= shareGroupMinSessionTimeoutMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_MAX_SESSION_TIMEOUT_MS_CONFIG} must be greater than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_MIN_SESSION_TIMEOUT_MS_CONFIG}")
-    require(shareGroupSessionTimeoutMs >= shareGroupMinSessionTimeoutMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_SESSION_TIMEOUT_MS_CONFIG} must be greater than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_MIN_SESSION_TIMEOUT_MS_CONFIG}")
-    require(shareGroupSessionTimeoutMs <= shareGroupMaxSessionTimeoutMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_SESSION_TIMEOUT_MS_CONFIG} must be less than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_MAX_SESSION_TIMEOUT_MS_CONFIG}")
-
-    require(shareGroupRecordLockDurationMs >= shareGroupMinRecordLockDurationMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_RECORD_LOCK_DURATION_MS_CONFIG} must be greater than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_MIN_RECORD_LOCK_DURATION_MS_CONFIG}")
-    require(shareGroupMaxRecordLockDurationMs >= shareGroupRecordLockDurationMs,
-      s"${ShareGroupConfigs.SHARE_GROUP_MAX_RECORD_LOCK_DURATION_MS_CONFIG} must be greater than or equals " +
-        s"to ${ShareGroupConfigs.SHARE_GROUP_RECORD_LOCK_DURATION_MS_CONFIG}")
-
-    if (originals.containsKey(GroupCoordinatorConfig.OFFSET_COMMIT_REQUIRED_ACKS_CONFIG)) {
-      warn(s"${GroupCoordinatorConfig.OFFSET_COMMIT_REQUIRED_ACKS_CONFIG} is deprecated and it will be removed in Apache Kafka 4.0.")
-    }
   }
 
   /**

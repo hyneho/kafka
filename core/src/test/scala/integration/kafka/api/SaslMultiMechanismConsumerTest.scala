@@ -12,12 +12,13 @@
   */
 package kafka.api
 
-import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo, Timeout}
-import kafka.utils.{JaasTestUtils, TestUtils}
+import kafka.security.JaasTestUtils
+import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.server.config.ZkConfigs
+import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo, Timeout}
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.MethodSource
 
 import scala.jdk.CollectionConverters._
 
@@ -34,7 +35,7 @@ class SaslMultiMechanismConsumerTest extends BaseConsumerTest with SaslSetup {
   @BeforeEach
   override def setUp(testInfo: TestInfo): Unit = {
     startSasl(jaasSections(kafkaServerSaslMechanisms, Some(kafkaClientSaslMechanism), Both,
-      JaasTestUtils.KafkaServerContextName))
+      JaasTestUtils.KAFKA_SERVER_CONTEXT_NAME))
     super.setUp(testInfo)
   }
 
@@ -44,9 +45,9 @@ class SaslMultiMechanismConsumerTest extends BaseConsumerTest with SaslSetup {
     closeSasl()
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testMultipleBrokerMechanisms(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testMultipleBrokerMechanisms(quorum: String, groupProtocol: String): Unit = {
     val plainSaslProducer = createProducer()
     val plainSaslConsumer = createConsumer()
 

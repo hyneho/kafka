@@ -18,23 +18,26 @@
 
 package kafka.server
 
-import java.util.{Collections, Objects, Properties}
+import java.util.{Collections, Objects, Optional, Properties}
 import java.util.concurrent.TimeUnit
 import kafka.api.SaslSetup
-import kafka.utils.JaasTestUtils.JaasSection
-import kafka.utils.{JaasTestUtils, TestUtils}
+import kafka.security.JaasTestUtils
+import kafka.security.JaasTestUtils.JaasSection
+import kafka.utils.{TestInfoUtils, TestUtils}
 import kafka.utils.Implicits._
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs
 import org.apache.kafka.common.config.{SaslConfigs, SslConfigs}
 import org.apache.kafka.common.internals.Topic
-import org.apache.kafka.common.network.{ListenerName, ConnectionMode}
+import org.apache.kafka.common.network.{ConnectionMode, ListenerName}
 import org.apache.kafka.server.config.{ReplicationConfigs, ZkConfigs}
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.network.SocketServerConfigs
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.{AfterEach, BeforeEach, Test, TestInfo}
+import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -91,7 +94,7 @@ abstract class MultipleListenersWithSameSecurityProtocolBaseTest extends QuorumT
       props.put(SaslConfigs.SASL_KERBEROS_SERVICE_NAME, "kafka")
       props ++= dynamicJaasSections
 
-      props ++= TestUtils.sslConfigs(ConnectionMode.SERVER, clientCert = false, Some(trustStoreFile), s"server$brokerId")
+      props ++= JaasTestUtils.sslConfigs(ConnectionMode.SERVER, false, Optional.of(trustStoreFile), s"server$brokerId")
 
       // set listener-specific configs and set an invalid path for the global config to verify that the overrides work
       Seq(SecureInternal, SecureExternal).foreach { listenerName =>
@@ -113,13 +116,13 @@ abstract class MultipleListenersWithSameSecurityProtocolBaseTest extends QuorumT
     TestUtils.createTopic(zkClient, Topic.GROUP_METADATA_TOPIC_NAME, GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_DEFAULT,
       replicationFactor = 2, servers, servers.head.groupCoordinator.groupMetadataTopicConfigs)
 
-    createScramCredentials(zkConnect, JaasTestUtils.KafkaScramUser, JaasTestUtils.KafkaScramPassword)
+    createScramCredentials(zkConnect, JaasTestUtils.KAFKA_SCRAM_USER, JaasTestUtils.KAFKA_SCRAM_PASSWORD)
 
     servers.head.config.listeners.foreach { endPoint =>
       val listenerName = endPoint.listenerName
 
       val trustStoreFile =
-        if (TestUtils.usesSslTransportLayer(endPoint.securityProtocol)) Some(this.trustStoreFile)
+        if (JaasTestUtils.usesSslTransportLayer(endPoint.securityProtocol)) Some(this.trustStoreFile)
         else None
 
       val bootstrapServers = TestUtils.bootstrapServers(servers, listenerName)
@@ -133,11 +136,12 @@ abstract class MultipleListenersWithSameSecurityProtocolBaseTest extends QuorumT
         producers(clientMetadata) = TestUtils.createProducer(bootstrapServers, acks = -1,
           securityProtocol = endPoint.securityProtocol, trustStoreFile = trustStoreFile, saslProperties = saslProps)
 
-        consumers(clientMetadata) = TestUtils.createConsumer(bootstrapServers, groupId = clientMetadata.toString,
+        consumers(clientMetadata) = TestUtils.createConsumer(bootstrapServers,
+          groupProtocolFromTestParameters(), groupId = clientMetadata.toString,
           securityProtocol = endPoint.securityProtocol, trustStoreFile = trustStoreFile, saslProperties = saslProps)
       }
 
-      if (TestUtils.usesSaslAuthentication(endPoint.securityProtocol)) {
+      if (JaasTestUtils.usesSaslAuthentication(endPoint.securityProtocol)) {
         kafkaServerSaslMechanisms(endPoint.listenerName.value).foreach { mechanism =>
           addProducerConsumer(listenerName, mechanism, Some(kafkaClientSaslProperties(mechanism, dynamicJaasConfig = true)))
         }
@@ -160,8 +164,9 @@ abstract class MultipleListenersWithSameSecurityProtocolBaseTest extends QuorumT
     * Tests that we can produce and consume to/from all broker-defined listeners and security protocols. We produce
     * with acks=-1 to ensure that replication is also working.
     */
-  @Test
-  def testProduceConsume(): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  def testProduceConsume(quorum: String, groupProtocol: String): Unit = {
     producers.foreach { case (clientMetadata, producer) =>
       val producerRecords = (1 to 10).map(i => new ProducerRecord(clientMetadata.topic, s"key$i".getBytes,
         s"value$i".getBytes))
@@ -176,7 +181,7 @@ abstract class MultipleListenersWithSameSecurityProtocolBaseTest extends QuorumT
   protected def addDynamicJaasSection(props: Properties, listener: String, mechanism: String, jaasSection: JaasSection): Unit = {
     val listenerName = new ListenerName(listener)
     val prefix = listenerName.saslMechanismConfigPrefix(mechanism)
-    val jaasConfig = jaasSection.modules.head.toString
+    val jaasConfig = jaasSection.getModules.get(0).toString
     props.put(s"${prefix}${SaslConfigs.SASL_JAAS_CONFIG}", jaasConfig)
   }
 

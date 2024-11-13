@@ -45,6 +45,7 @@ import org.apache.kafka.test.MockStandbyUpdateListener;
 import org.apache.kafka.test.MockStateRestoreListener;
 import org.apache.kafka.test.StreamsTestUtils;
 
+import org.apache.log4j.Level;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -65,7 +66,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.singletonMap;
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
-import static org.apache.kafka.common.utils.Utils.mkSet;
 import static org.apache.kafka.streams.processor.internals.StoreChangelogReader.ChangelogReaderState.ACTIVE_RESTORING;
 import static org.apache.kafka.streams.processor.internals.StoreChangelogReader.ChangelogReaderState.STANDBY_UPDATING;
 import static org.apache.kafka.streams.processor.internals.Task.TaskType.ACTIVE;
@@ -94,7 +94,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.STRICT_STUBS)
-@SuppressWarnings("this-escape")
 public class StoreChangelogReaderTest {
 
     @Mock
@@ -1255,8 +1254,8 @@ public class StoreChangelogReaderTest {
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp).state());
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp1).state());
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp2).state());
-        assertEquals(mkSet(tp, tp1, tp2), consumer.assignment());
-        assertEquals(mkSet(tp1, tp2), consumer.paused());
+        assertEquals(Set.of(tp, tp1, tp2), consumer.assignment());
+        assertEquals(Set.of(tp1, tp2), consumer.paused());
         assertEquals(ACTIVE_RESTORING, changelogReader.state());
 
         // transition to restore active is idempotent
@@ -1269,7 +1268,7 @@ public class StoreChangelogReaderTest {
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp).state());
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp1).state());
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp2).state());
-        assertEquals(mkSet(tp, tp1, tp2), consumer.assignment());
+        assertEquals(Set.of(tp, tp1, tp2), consumer.assignment());
         assertEquals(Collections.emptySet(), consumer.paused());
 
         // transition to update standby is NOT idempotent
@@ -1287,14 +1286,14 @@ public class StoreChangelogReaderTest {
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp).state());
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp1).state());
         assertEquals(StoreChangelogReader.ChangelogState.RESTORING, changelogReader.changelogMetadata(tp2).state());
-        assertEquals(mkSet(tp, tp1, tp2), consumer.assignment());
+        assertEquals(Set.of(tp, tp1, tp2), consumer.assignment());
         assertEquals(Collections.emptySet(), consumer.paused());
         assertEquals(STANDBY_UPDATING, changelogReader.state());
 
         changelogReader.enforceRestoreActive();
         assertEquals(ACTIVE_RESTORING, changelogReader.state());
-        assertEquals(mkSet(tp, tp1, tp2), consumer.assignment());
-        assertEquals(mkSet(tp1, tp2), consumer.paused());
+        assertEquals(Set.of(tp, tp1, tp2), consumer.assignment());
+        assertEquals(Set.of(tp1, tp2), consumer.paused());
     }
 
     @Test
@@ -1305,7 +1304,7 @@ public class StoreChangelogReaderTest {
         changelogReader.register(tp1, standbyStateManager);
         changelogReader.transitToUpdateStandby();
 
-        changelogReader.unregister(mkSet(tp1));
+        changelogReader.unregister(Set.of(tp1));
         assertTrue(changelogReader.isEmpty());
         assertEquals(ACTIVE_RESTORING, changelogReader.state());
     }
@@ -1354,7 +1353,7 @@ public class StoreChangelogReaderTest {
     @Test
     public void shouldNotThrowOnUnknownRevokedPartition() {
         try (final LogCaptureAppender appender = LogCaptureAppender.createAndRegister(StoreChangelogReader.class)) {
-            appender.setClassLoggerToDebug(StoreChangelogReader.class);
+            appender.setClassLogger(StoreChangelogReader.class, Level.DEBUG);
             changelogReader.unregister(Collections.singletonList(new TopicPartition("unknown", 0)));
 
             assertThat(

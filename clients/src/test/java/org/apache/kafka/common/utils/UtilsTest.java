@@ -57,6 +57,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
@@ -78,7 +79,6 @@ import static org.apache.kafka.common.utils.Utils.getHost;
 import static org.apache.kafka.common.utils.Utils.getPort;
 import static org.apache.kafka.common.utils.Utils.intersection;
 import static org.apache.kafka.common.utils.Utils.mkEntry;
-import static org.apache.kafka.common.utils.Utils.mkSet;
 import static org.apache.kafka.common.utils.Utils.murmur2;
 import static org.apache.kafka.common.utils.Utils.union;
 import static org.apache.kafka.common.utils.Utils.validHostPattern;
@@ -449,6 +449,65 @@ public class UtilsTest {
     }
 
     @Test
+    public void testMax() {
+        assertEquals(1, Utils.max(1));
+        assertEquals(3, Utils.max(1, 2, 3));
+        assertEquals(3, Utils.max(2, 1, 3, 3));
+        assertEquals(100, Utils.max(0, 2, 2, 100));
+        assertEquals(-1, Utils.max(-1, -2, -2, -10, -100, -1000));
+        assertEquals(0, Utils.max(-1, -2, -2, -10, -150, -1800, 0));
+    }
+
+    @Test
+    public void mkStringTest() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("key1", "val1");
+        map.put("key2", "val2");
+        map.put("key3", "val3");
+        String result = Utils.mkString(map, "__begin__", "__end__", "=", ",");
+        assertEquals("__begin__key1=val1,key2=val2,key3=val3__end__", result);
+
+        String result2 = Utils.mkString(Collections.emptyMap(), "__begin__", "__end__", "=", ",");
+        assertEquals("__begin____end__", result2);
+    }
+
+    @Test
+    public void parseMapTest() {
+        Map<String, String> map1 = Utils.parseMap("k1=v1,k2=v2,k3=v3", "=", ",");
+        assertEquals(3, map1.size());
+        assertEquals("v1", map1.get("k1"));
+        assertEquals("v2", map1.get("k2"));
+        assertEquals("v3", map1.get("k3"));
+
+        Map<String, String> map3 = Utils.parseMap("k4=v4,k5=v5=vv5=vvv5", "=", ",");
+        assertEquals(2, map3.size());
+        assertEquals("v4", map3.get("k4"));
+        assertEquals("v5=vv5=vvv5", map3.get("k5"));
+    }
+
+    @Test
+    public void ensureCapacityTest() {
+        ByteBuffer byteBuffer = ByteBuffer.allocate(10);
+        ByteBuffer newByteBuffer = Utils.ensureCapacity(byteBuffer, 5);
+        assertEquals(10, newByteBuffer.capacity());
+
+        ByteBuffer byteBuffer2 = ByteBuffer.allocate(10);
+        ByteBuffer newByteBuffer2 = Utils.ensureCapacity(byteBuffer2, 15);
+        assertEquals(15, newByteBuffer2.capacity());
+
+        ByteBuffer byteBuffer3 = ByteBuffer.allocate(10);
+        for (int i = 1; i <= 10; i++) {
+            byteBuffer3.put((byte) i);
+        }
+        ByteBuffer newByteBuffer3 = Utils.ensureCapacity(byteBuffer3, 15);
+        newByteBuffer3.flip();
+        assertEquals(15, newByteBuffer3.capacity());
+        assertEquals(1, newByteBuffer3.get());
+        assertEquals(2, newByteBuffer3.get());
+        assertEquals(3, newByteBuffer3.get());
+    }
+
+    @Test
     public void testCloseAll() {
         TestCloseable[] closeablesWithoutException = TestCloseable.createCloseables(false, false, false);
         try {
@@ -720,7 +779,7 @@ public class UtilsTest {
 
     @Test
     public void testConvertTo32BitField() {
-        Set<Byte> bytes = mkSet((byte) 0, (byte) 1, (byte) 5, (byte) 10, (byte) 31);
+        Set<Byte> bytes = Set.of((byte) 0, (byte) 1, (byte) 5, (byte) 10, (byte) 31);
         int bitField = Utils.to32BitField(bytes);
         assertEquals(bytes, Utils.from32BitField(bitField));
 
@@ -728,37 +787,37 @@ public class UtilsTest {
         bitField = Utils.to32BitField(bytes);
         assertEquals(bytes, Utils.from32BitField(bitField));
 
-        assertThrows(IllegalArgumentException.class, () -> Utils.to32BitField(mkSet((byte) 0, (byte) 11, (byte) 32)));
+        assertThrows(IllegalArgumentException.class, () -> Utils.to32BitField(Set.of((byte) 0, (byte) 11, (byte) 32)));
     }
 
     @Test
     public void testUnion() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
-        final Set<String> anotherSet = mkSet("c", "d", "e");
+        final Set<String> oneSet = Set.of("a", "b", "c");
+        final Set<String> anotherSet = Set.of("c", "d", "e");
         final Set<String> union = union(TreeSet::new, oneSet, anotherSet);
 
-        assertEquals(mkSet("a", "b", "c", "d", "e"), union);
+        assertEquals(Set.of("a", "b", "c", "d", "e"), union);
         assertEquals(TreeSet.class, union.getClass());
     }
 
     @Test
     public void testUnionOfOne() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
+        final Set<String> oneSet = Set.of("a", "b", "c");
         final Set<String> union = union(TreeSet::new, oneSet);
 
-        assertEquals(mkSet("a", "b", "c"), union);
+        assertEquals(Set.of("a", "b", "c"), union);
         assertEquals(TreeSet.class, union.getClass());
     }
 
     @Test
     public void testUnionOfMany() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
-        final Set<String> twoSet = mkSet("c", "d", "e");
-        final Set<String> threeSet = mkSet("b", "c", "d");
-        final Set<String> fourSet = mkSet("x", "y", "z");
+        final Set<String> oneSet = Set.of("a", "b", "c");
+        final Set<String> twoSet = Set.of("c", "d", "e");
+        final Set<String> threeSet = Set.of("b", "c", "d");
+        final Set<String> fourSet = Set.of("x", "y", "z");
         final Set<String> union = union(TreeSet::new, oneSet, twoSet, threeSet, fourSet);
 
-        assertEquals(mkSet("a", "b", "c", "d", "e", "x", "y", "z"), union);
+        assertEquals(Set.of("a", "b", "c", "d", "e", "x", "y", "z"), union);
         assertEquals(TreeSet.class, union.getClass());
     }
 
@@ -772,40 +831,40 @@ public class UtilsTest {
 
     @Test
     public void testIntersection() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
-        final Set<String> anotherSet = mkSet("c", "d", "e");
+        final Set<String> oneSet = Set.of("a", "b", "c");
+        final Set<String> anotherSet = Set.of("c", "d", "e");
         final Set<String> intersection = intersection(TreeSet::new, oneSet, anotherSet);
 
-        assertEquals(mkSet("c"), intersection);
+        assertEquals(Set.of("c"), intersection);
         assertEquals(TreeSet.class, intersection.getClass());
     }
 
     @Test
     public void testIntersectionOfOne() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
+        final Set<String> oneSet = Set.of("a", "b", "c");
         final Set<String> intersection = intersection(TreeSet::new, oneSet);
 
-        assertEquals(mkSet("a", "b", "c"), intersection);
+        assertEquals(Set.of("a", "b", "c"), intersection);
         assertEquals(TreeSet.class, intersection.getClass());
     }
 
     @Test
     public void testIntersectionOfMany() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
-        final Set<String> twoSet = mkSet("c", "d", "e");
-        final Set<String> threeSet = mkSet("b", "c", "d");
+        final Set<String> oneSet = Set.of("a", "b", "c");
+        final Set<String> twoSet = Set.of("c", "d", "e");
+        final Set<String> threeSet = Set.of("b", "c", "d");
         final Set<String> intersection = intersection(TreeSet::new, oneSet, twoSet, threeSet);
 
-        assertEquals(mkSet("c"), intersection);
+        assertEquals(Set.of("c"), intersection);
         assertEquals(TreeSet.class, intersection.getClass());
     }
 
     @Test
     public void testDisjointIntersectionOfMany() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
-        final Set<String> twoSet = mkSet("c", "d", "e");
-        final Set<String> threeSet = mkSet("b", "c", "d");
-        final Set<String> fourSet = mkSet("x", "y", "z");
+        final Set<String> oneSet = Set.of("a", "b", "c");
+        final Set<String> twoSet = Set.of("c", "d", "e");
+        final Set<String> threeSet = Set.of("b", "c", "d");
+        final Set<String> fourSet = Set.of("x", "y", "z");
         final Set<String> intersection = intersection(TreeSet::new, oneSet, twoSet, threeSet, fourSet);
 
         assertEquals(emptySet(), intersection);
@@ -814,11 +873,11 @@ public class UtilsTest {
 
     @Test
     public void testDiff() {
-        final Set<String> oneSet = mkSet("a", "b", "c");
-        final Set<String> anotherSet = mkSet("c", "d", "e");
+        final Set<String> oneSet = Set.of("a", "b", "c");
+        final Set<String> anotherSet = Set.of("c", "d", "e");
         final Set<String> diff = diff(TreeSet::new, oneSet, anotherSet);
 
-        assertEquals(mkSet("a", "b"), diff);
+        assertEquals(Set.of("a", "b"), diff);
         assertEquals(TreeSet.class, diff.getClass());
     }
 

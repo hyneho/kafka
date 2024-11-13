@@ -29,6 +29,7 @@ import org.apache.kafka.common.record._
 import org.apache.kafka.common.requests.{ProduceRequest, ProduceResponse}
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.server.record.BrokerCompressionType
+import org.apache.kafka.storage.log.metrics.BrokerTopicMetrics
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{Arguments, MethodSource}
@@ -46,7 +47,7 @@ class ProduceRequestTest extends BaseRequestTest {
   val metricsKeySet = KafkaYammerMetrics.defaultRegistry.allMetrics.keySet.asScala
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testSimpleProduceRequest(quorum: String): Unit = {
     val (partition, leader) = createTopicAndFindPartitionWithLeader("topic")
 
@@ -131,7 +132,7 @@ class ProduceRequestTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testProduceToNonReplica(quorum: String): Unit = {
     val topic = "topic"
     val partition = 0
@@ -174,7 +175,7 @@ class ProduceRequestTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testCorruptLz4ProduceRequest(quorum: String): Unit = {
     val (partition, leader) = createTopicAndFindPartitionWithLeader("topic")
     val timestamp = 1000000
@@ -204,12 +205,12 @@ class ProduceRequestTest extends BaseRequestTest {
     assertEquals(Errors.CORRUPT_MESSAGE, Errors.forCode(partitionProduceResponse.errorCode))
     assertEquals(-1, partitionProduceResponse.baseOffset)
     assertEquals(-1, partitionProduceResponse.logAppendTimeMs)
-    assertEquals(metricsKeySet.count(_.getMBeanName.endsWith(s"${BrokerTopicStats.InvalidMessageCrcRecordsPerSec}")), 1)
-    assertTrue(TestUtils.meterCount(s"${BrokerTopicStats.InvalidMessageCrcRecordsPerSec}") > 0)
+    assertEquals(metricsKeySet.count(_.getMBeanName.endsWith(s"${BrokerTopicMetrics.INVALID_MESSAGE_CRC_RECORDS_PER_SEC}")), 1)
+    assertTrue(TestUtils.meterCount(s"${BrokerTopicMetrics.INVALID_MESSAGE_CRC_RECORDS_PER_SEC}") > 0)
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testZSTDProduceRequest(quorum: String): Unit = {
     val topic = "topic"
     val partition = 0

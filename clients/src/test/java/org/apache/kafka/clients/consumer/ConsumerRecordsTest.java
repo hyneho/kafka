@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -81,6 +82,7 @@ public class ConsumerRecordsTest {
 
         ConsumerRecords<Integer, String> consumerRecords = buildTopicTestRecords(recordSize, partitionSize, emptyPartitionIndex, topics);
 
+        assertEquals(partitionSize * topics.size(), consumerRecords.nextOffsets().size());
         for (String topic : topics) {
             for (int partition = 0; partition < partitionSize; partition++) {
                 TopicPartition topicPartition = new TopicPartition(topic, partition);
@@ -90,6 +92,8 @@ public class ConsumerRecordsTest {
                     assertTrue(records.isEmpty());
                 } else {
                     assertEquals(recordSize, records.size());
+                    final ConsumerRecord<Integer, String> lastRecord = records.get(recordSize - 1);
+                    assertEquals(new OffsetAndMetadata(lastRecord.offset() + 1, lastRecord.leaderEpoch(), ""), consumerRecords.nextOffsets().get(topicPartition));
                     for (int i = 0; i < records.size(); i++) {
                         ConsumerRecord<Integer, String> record = records.get(i);
                         validateRecordPayload(topic, record, partition, i, recordSize);
@@ -107,7 +111,6 @@ public class ConsumerRecordsTest {
         assertEquals("Topic must be non-null.", exception.getMessage());
     }
 
-
     @Test
     public void testRecordsByTopic() {
         List<String> topics = Arrays.asList("topic1", "topic2", "topic3", "topic4");
@@ -117,6 +120,8 @@ public class ConsumerRecordsTest {
         int expectedTotalRecordSizeOfEachTopic = recordSize * (partitionSize - 1);
 
         ConsumerRecords<Integer, String> consumerRecords = buildTopicTestRecords(recordSize, partitionSize, emptyPartitionIndex, topics);
+
+        assertEquals(partitionSize * topics.size(), consumerRecords.nextOffsets().size());
 
         for (String topic : topics) {
             Iterable<ConsumerRecord<Integer, String>> records = consumerRecords.records(topic);
@@ -145,11 +150,42 @@ public class ConsumerRecordsTest {
         }
     }
 
+    @Test
+    public void testRecordsAreImmutable() {
+        String topic = "topic";
+        int recordSize = 3;
+        int partitionSize = 6;
+        int emptyPartitionIndex = 2;
+        TopicPartition topicPartition = new TopicPartition(topic, 0);
+        ConsumerRecord<Integer, String> newRecord = new ConsumerRecord<>(topic, 0, 0, 0L, TimestampType.CREATE_TIME,
+            0, 0, 0, "0", new RecordHeaders(), Optional.empty());
+        ConsumerRecords<Integer, String> records = buildTopicTestRecords(recordSize, partitionSize, emptyPartitionIndex, Collections.singleton(topic));
+        ConsumerRecords<Integer, String> emptyRecords = ConsumerRecords.empty();
+
+        assertEquals(partitionSize, records.nextOffsets().size());
+        // check records(TopicPartition) / partitions by add method
+        // check iterator / records(String) by remove method
+        // check data count after all operations
+        assertThrows(UnsupportedOperationException.class, () -> records.records(topicPartition).add(newRecord));
+        assertThrows(UnsupportedOperationException.class, () -> records.partitions().add(topicPartition));
+        assertThrows(UnsupportedOperationException.class, () -> records.iterator().remove());
+        assertThrows(UnsupportedOperationException.class, () -> records.records(topic).iterator().remove());
+        assertEquals(recordSize * (partitionSize - 1), records.count());
+
+        // do the same unittest on the empty records
+        assertThrows(UnsupportedOperationException.class, () -> emptyRecords.records(topicPartition).add(newRecord));
+        assertThrows(UnsupportedOperationException.class, () -> emptyRecords.partitions().add(topicPartition));
+        assertThrows(UnsupportedOperationException.class, () -> emptyRecords.iterator().remove());
+        assertThrows(UnsupportedOperationException.class, () -> emptyRecords.records(topic).iterator().remove());
+        assertEquals(0, emptyRecords.count());
+    }
+
     private ConsumerRecords<Integer, String> buildTopicTestRecords(int recordSize,
                                                                    int partitionSize,
                                                                    int emptyPartitionIndex,
                                                                    Collection<String> topics) {
         Map<TopicPartition, List<ConsumerRecord<Integer, String>>> partitionToRecords = new LinkedHashMap<>();
+        Map<TopicPartition, OffsetAndMetadata> nextOffsets = new HashMap<>();
         for (String topic : topics) {
             for (int i = 0; i < partitionSize; i++) {
                 List<ConsumerRecord<Integer, String>> records = new ArrayList<>(recordSize);
@@ -161,11 +197,13 @@ public class ConsumerRecordsTest {
                         );
                     }
                 }
-                partitionToRecords.put(new TopicPartition(topic, i), records);
+                final TopicPartition tp = new TopicPartition(topic, i);
+                partitionToRecords.put(tp, records);
+                nextOffsets.put(tp, new OffsetAndMetadata(recordSize, Optional.empty(), ""));
             }
         }
 
-        return new ConsumerRecords<>(partitionToRecords);
+        return new ConsumerRecords<>(partitionToRecords, nextOffsets);
     }
 
     private void validateEmptyPartition(ConsumerRecord<Integer, String> record, int emptyPartitionIndex) {

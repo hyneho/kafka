@@ -16,12 +16,6 @@
  */
 package kafka.server;
 
-import kafka.test.ClusterInstance;
-import kafka.test.annotation.ClusterTest;
-import kafka.test.annotation.Type;
-import kafka.test.junit.ClusterTestExtensions;
-import kafka.test.junit.RaftClusterInvocationContext;
-
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -37,10 +31,14 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.test.api.ClusterInstance;
+import org.apache.kafka.common.test.api.ClusterTest;
+import org.apache.kafka.common.test.api.ClusterTestExtensions;
+import org.apache.kafka.common.test.api.RaftClusterInvocationContext;
+import org.apache.kafka.common.test.api.Type;
 import org.apache.kafka.storage.internals.checkpoint.PartitionMetadataFile;
 import org.apache.kafka.test.TestUtils;
 
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
@@ -60,7 +58,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(value = ClusterTestExtensions.class)
-@Tag("integration")
 public class LogManagerIntegrationTest {
     private final ClusterInstance cluster;
 
@@ -73,7 +70,7 @@ public class LogManagerIntegrationTest {
         RaftClusterInvocationContext.RaftClusterInstance raftInstance =
                 (RaftClusterInvocationContext.RaftClusterInstance) cluster;
 
-        try (Admin admin = cluster.createAdminClient()) {
+        try (Admin admin = cluster.admin()) {
             admin.createTopics(Collections.singletonList(new NewTopic("foo", 1, (short) 3))).all().get();
         }
         cluster.waitForTopic("foo", 1);
@@ -85,7 +82,7 @@ public class LogManagerIntegrationTest {
         assertTrue(partitionMetadataFile.isPresent());
 
         raftInstance.getUnderlying().brokers().get(0).shutdown();
-        try (Admin admin = cluster.createAdminClient()) {
+        try (Admin admin = cluster.admin()) {
             TestUtils.waitForCondition(() -> {
                 List<TopicPartitionInfo> partitionInfos = admin.describeTopics(Collections.singletonList("foo"))
                         .topicNameValues().get("foo").get().partitions();
@@ -99,7 +96,7 @@ public class LogManagerIntegrationTest {
         raftInstance.getUnderlying().brokers().get(0).startup();
         // make sure there is no error during load logs
         assertDoesNotThrow(() -> raftInstance.getUnderlying().fatalFaultHandler().maybeRethrowFirstException());
-        try (Admin admin = cluster.createAdminClient()) {
+        try (Admin admin = cluster.admin()) {
             TestUtils.waitForCondition(() -> {
                 List<TopicPartitionInfo> partitionInfos = admin.describeTopics(Collections.singletonList("foo"))
                         .topicNameValues().get("foo").get().partitions();

@@ -98,7 +98,7 @@ import org.apache.kafka.common.message.CreateTopicsRequestData;
 import org.apache.kafka.common.message.CreateTopicsRequestData.CreatableReplicaAssignment;
 import org.apache.kafka.common.message.CreateTopicsRequestData.CreatableTopic;
 import org.apache.kafka.common.message.CreateTopicsRequestData.CreatableTopicCollection;
-import org.apache.kafka.common.message.CreateTopicsRequestData.CreateableTopicConfig;
+import org.apache.kafka.common.message.CreateTopicsRequestData.CreatableTopicConfig;
 import org.apache.kafka.common.message.CreateTopicsResponseData;
 import org.apache.kafka.common.message.CreateTopicsResponseData.CreatableTopicConfigs;
 import org.apache.kafka.common.message.CreateTopicsResponseData.CreatableTopicResult;
@@ -278,7 +278,6 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.security.token.delegation.DelegationToken;
 import org.apache.kafka.common.security.token.delegation.TokenInformation;
 import org.apache.kafka.common.utils.SecurityUtils;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.Assertions;
@@ -327,6 +326,7 @@ import static org.apache.kafka.common.protocol.ApiKeys.STOP_REPLICA;
 import static org.apache.kafka.common.protocol.ApiKeys.SYNC_GROUP;
 import static org.apache.kafka.common.protocol.ApiKeys.UPDATE_METADATA;
 import static org.apache.kafka.common.protocol.ApiKeys.WRITE_TXN_MARKERS;
+import static org.apache.kafka.common.requests.EndTxnRequest.LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2;
 import static org.apache.kafka.common.requests.FetchMetadata.INVALID_SESSION_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -1365,8 +1365,16 @@ public class RequestResponseTest {
     }
 
     private UpdateRaftVoterResponse createUpdateRaftVoterResponse() {
-        return new UpdateRaftVoterResponse(new UpdateRaftVoterResponseData().
-            setErrorCode((short) 0));
+        return new UpdateRaftVoterResponse(
+            new UpdateRaftVoterResponseData()
+                .setErrorCode((short) 0)
+                .setCurrentLeader(new UpdateRaftVoterResponseData.CurrentLeader()
+                    .setLeaderId(1)
+                    .setLeaderEpoch(2)
+                    .setHost("localhost")
+                    .setPort(9999)
+                )
+        );
     }
 
     private DescribeTopicPartitionsResponse createDescribeTopicPartitionsResponse() {
@@ -2347,7 +2355,7 @@ public class RequestResponseTest {
                             .setMaxNumOffsets(10)
                             .setCurrentLeaderEpoch(5)));
             return ListOffsetsRequest.Builder
-                    .forConsumer(false, IsolationLevel.READ_UNCOMMITTED, false)
+                    .forConsumer(false, IsolationLevel.READ_UNCOMMITTED)
                     .setTargetTimes(singletonList(topic))
                     .build(version);
         } else if (version == 1) {
@@ -2358,7 +2366,7 @@ public class RequestResponseTest {
                             .setTimestamp(1000000L)
                             .setCurrentLeaderEpoch(5)));
             return ListOffsetsRequest.Builder
-                    .forConsumer(true, IsolationLevel.READ_UNCOMMITTED, false)
+                    .forConsumer(true, IsolationLevel.READ_UNCOMMITTED)
                     .setTargetTimes(singletonList(topic))
                     .build(version);
         } else if (version >= 2 && version <= LIST_OFFSETS.latestVersion()) {
@@ -2371,7 +2379,7 @@ public class RequestResponseTest {
                     .setName("test")
                     .setPartitions(singletonList(partition));
             return ListOffsetsRequest.Builder
-                    .forConsumer(true, IsolationLevel.READ_COMMITTED, false)
+                    .forConsumer(true, IsolationLevel.READ_COMMITTED)
                     .setTargetTimes(singletonList(topic))
                     .build(version);
         } else {
@@ -2688,7 +2696,7 @@ public class RequestResponseTest {
             .setReplicas(replicas)
             .setIsNew(false));
 
-        Set<Node> leaders = Utils.mkSet(
+        Set<Node> leaders = Set.of(
                 new Node(0, "test0", 1223),
                 new Node(1, "test1", 1223)
         );
@@ -2875,7 +2883,7 @@ public class RequestResponseTest {
         topic2.assignments().add(new CreatableReplicaAssignment()
             .setPartitionIndex(1)
             .setBrokerIds(asList(2, 3, 4)));
-        topic2.configs().add(new CreateableTopicConfig()
+        topic2.configs().add(new CreatableTopicConfig()
             .setName("config1").setValue("value1"));
 
         return new CreateTopicsRequest.Builder(data).build(version);
@@ -3020,7 +3028,7 @@ public class RequestResponseTest {
                             .setName("topic")
                             .setPartitions(Collections.singletonList(73))).iterator())))
                     .iterator());
-            return AddPartitionsToTxnRequest.Builder.forBroker(transactions).build(version);  
+            return AddPartitionsToTxnRequest.Builder.forBroker(transactions).build(version);
         }
     }
 
@@ -3029,7 +3037,7 @@ public class RequestResponseTest {
         AddPartitionsToTxnResponseData.AddPartitionsToTxnResult result = AddPartitionsToTxnResponse.resultForTransaction(
                 txnId, Collections.singletonMap(new TopicPartition("t", 0), Errors.NONE));
         AddPartitionsToTxnResponseData data = new AddPartitionsToTxnResponseData().setThrottleTimeMs(0);
-        
+
         if (version < 4) {
             data.setResultsByTopicV3AndBelow(result.topicResults());
         } else {
@@ -3055,12 +3063,14 @@ public class RequestResponseTest {
     }
 
     private EndTxnRequest createEndTxnRequest(short version) {
+        boolean isTransactionV2Enabled = version > LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2;
         return new EndTxnRequest.Builder(
             new EndTxnRequestData()
                 .setTransactionalId("tid")
                 .setProducerId(21L)
                 .setProducerEpoch((short) 42)
-                .setCommitted(TransactionResult.COMMIT.id)
+                .setCommitted(TransactionResult.COMMIT.id),
+            isTransactionV2Enabled
             ).build(version);
     }
 
@@ -3865,7 +3875,7 @@ public class RequestResponseTest {
             .setSubscriptionId(1)
             .setTerminating(false)
             .setCompressionType(CompressionType.ZSTD.id)
-            .setMetrics("test-metrics".getBytes(StandardCharsets.UTF_8))
+            .setMetrics(ByteBuffer.wrap("test-metrics".getBytes(StandardCharsets.UTF_8)))
         ).build(version);
     }
 

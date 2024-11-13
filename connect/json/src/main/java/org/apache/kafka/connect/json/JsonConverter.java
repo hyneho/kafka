@@ -55,8 +55,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-
-import static org.apache.kafka.common.utils.Utils.mkSet;
+import java.util.Set;
 
 /**
  * Implementation of {@link Converter} and {@link HeaderConverter} that uses JSON to store schemas and objects. By
@@ -242,25 +241,25 @@ public class JsonConverter implements Converter, HeaderConverter, Versioned {
     /**
      * Creates a JsonConvert initializing serializer and deserializer.
      *
-     * @param enableModules permits to enable/disable the registration of additional Jackson modules.
+     * @param enableAfterburner permits to enable/disable the registration of Jackson Afterburner module.
      * <p>
      * NOTE: This is visible only for testing
      */
-    public JsonConverter(boolean enableModules) {
+    public JsonConverter(boolean enableAfterburner) {
         serializer = new JsonSerializer(
-            mkSet(),
+            Set.of(),
             JSON_NODE_FACTORY,
-            enableModules
+            enableAfterburner
         );
 
         deserializer = new JsonDeserializer(
-            mkSet(
+            Set.of(
                 // this ensures that the JsonDeserializer maintains full precision on
                 // floating point numbers that cannot fit into float64
                 DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS
             ),
             JSON_NODE_FACTORY,
-            enableModules
+            enableAfterburner
         );
     }
 
