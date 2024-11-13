@@ -82,6 +82,11 @@ trait PartitionListener {
    * that the partition was deleted but only that this broker does not host a replica of it any more.
    */
   def onDeleted(partition: TopicPartition): Unit = {}
+
+  /**
+   * Called when the Partition on this broker is marked as follower.
+   */
+  def onFollower(partition: TopicPartition): Unit = {}
 }
 
 trait AlterPartitionListener {
@@ -701,6 +706,15 @@ class Partition(val topicPartition: TopicPartition,
     }
   }
 
+  /**
+   * Invoke the partition listeners when the partition has been marked as follower.
+   */
+  def invokeFollowerListeners(): Unit = {
+    listeners.forEach { listener =>
+      listener.onFollower(topicPartition)
+    }
+  }
+
   private def clear(): Unit = {
     remoteReplicasMap.clear()
     assignmentState = SimpleAssignmentState(Seq.empty)
@@ -891,6 +905,8 @@ class Partition(val topicPartition: TopicPartition,
           s"and partition state $partitionState since it is already a follower with leader epoch $leaderEpoch.")
       }
 
+      // Invoke the follower transition listeners for the partition.
+      invokeFollowerListeners()
       // We must restart the fetchers when the leader epoch changed regardless of
       // whether the leader changed as well.
       isNewLeaderEpoch

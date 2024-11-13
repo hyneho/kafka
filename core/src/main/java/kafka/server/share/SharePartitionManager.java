@@ -16,6 +16,7 @@
  */
 package kafka.server.share;
 
+import kafka.cluster.PartitionListener;
 import kafka.server.ReplicaManager;
 
 import org.apache.kafka.clients.consumer.AcknowledgeType;
@@ -639,6 +640,12 @@ public class SharePartitionManager implements AutoCloseable {
                 k -> {
                     long start = time.hiResClockMs();
                     int leaderEpoch = ShareFetchUtils.leaderEpoch(replicaManager, sharePartitionKey.topicIdPartition().topicPartition());
+                    // Attach listener to Partition which shall invoke partition changes handlers.
+                    // However, as there could be multiple share partitions (per group name) for a single topic-partition,
+                    // hence create separate listener per share group which holds the share partition key
+                    // to identify the share partition.
+                    replicaManager.maybeAddListener(sharePartitionKey.topicIdPartition().topicPartition(),
+                        new SharePartitionListener(sharePartitionKey));
                     SharePartition partition = new SharePartition(
                             sharePartitionKey.groupId(),
                             sharePartitionKey.topicIdPartition(),
@@ -670,7 +677,7 @@ public class SharePartitionManager implements AutoCloseable {
         }
 
         // Remove the partition from the cache as it's failed to initialize.
-        partitionCacheMap.remove(sharePartitionKey);
+        removeSharePartitionFromCache(sharePartitionKey);
         // The partition initialization failed, so complete the request with the exception.
         // The server should not be in this state, so log the error on broker and surface the same
         // to the client. The broker should not be in this state, investigate the root cause of the error.
@@ -688,10 +695,7 @@ public class SharePartitionManager implements AutoCloseable {
             // The share partition is fenced hence remove the partition from map and let the client retry.
             // But surface the error to the client so client might take some action i.e. re-fetch
             // the metadata and retry the fetch on new leader.
-            SharePartition sharePartition = partitionCacheMap.remove(sharePartitionKey);
-            if (sharePartition != null) {
-                sharePartition.markFenced();
-            }
+            removeSharePartitionFromCache(sharePartitionKey);
         }
     }
 
@@ -714,6 +718,75 @@ public class SharePartitionManager implements AutoCloseable {
 
     private SharePartitionKey sharePartitionKey(String groupId, TopicIdPartition topicIdPartition) {
         return new SharePartitionKey(groupId, topicIdPartition);
+    }
+
+    private void removeSharePartitionFromCache(SharePartitionKey sharePartitionKey) {
+        SharePartition sharePartition = partitionCacheMap.remove(sharePartitionKey);
+        if (sharePartition != null) {
+            sharePartition.markFenced();
+        }
+    }
+
+    /**
+     * The SharePartitionListener is used to listen for partition events. The share partition is associated with
+     * the topic-partition, we need to handle the partition events for the share partition.
+     * <p>
+     * The partition cache map stores share partitions against share partition key which comprises
+     * group and topic-partition. Instead of maintaining a separate map for topic-partition to share partitions,
+     * we can maintain the share partition key in the listener and create a new listener for each share partition.
+     */
+    private class SharePartitionListener implements PartitionListener {
+
+        private final SharePartitionKey sharePartitionKey;
+
+        private SharePartitionListener(SharePartitionKey sharePartitionKey) {
+            this.sharePartitionKey = sharePartitionKey;
+        }
+
+        /**
+         * The onFailed method is called when a Partition is marked offline.
+         *
+         * @param topicPartition The topic-partition that has been marked offline.
+         */
+        @Override
+        public void onFailed(TopicPartition topicPartition) {
+            log.info("The share partition failed listener is invoked for the topic-partition: {}, share-partition: {}",
+                topicPartition, sharePartitionKey);
+            onUpdate(topicPartition);
+        }
+
+        /**
+         * The onDeleted method is called when a Partition is deleted.
+         *
+         * @param topicPartition The topic-partition that has been deleted.
+         */
+        @Override
+        public void onDeleted(TopicPartition topicPartition) {
+            log.info("The share partition delete listener is invoked for the topic-partition: {}, share-partition: {}",
+                topicPartition, sharePartitionKey);
+            onUpdate(topicPartition);
+        }
+
+        /**
+         * The onFollower method is called when a Partition is marked follower.
+         *
+         * @param topicPartition The topic-partition that has been marked as follower.
+         */
+        @Override
+        public void onFollower(TopicPartition topicPartition) {
+            log.info("The share partition leader change listener is invoked for the topic-partition: {}, share-partition: {}",
+                topicPartition, sharePartitionKey);
+            onUpdate(topicPartition);
+        }
+
+        private void onUpdate(TopicPartition topicPartition) {
+            if (!sharePartitionKey.topicIdPartition().topicPartition().equals(topicPartition)) {
+                log.error("The share partition listener is invoked for the wrong topic-partition: {}, share-partition: {}",
+                    topicPartition, sharePartitionKey);
+                return;
+            }
+            removeSharePartitionFromCache(sharePartitionKey);
+        }
     }
 
     static class ShareGroupMetrics {
