@@ -104,6 +104,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.internal.stubbing.answers.CallsRealMethods;
 
 import java.lang.management.ManagementFactory;
@@ -156,13 +157,16 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -241,6 +245,89 @@ public class KafkaConsumerTest {
 
         Map<MetricName, ? extends Metric> consumerMetrics = consumer.metrics();
         customMetrics.forEach((name, metric) -> assertFalse(consumerMetrics.containsKey(name)));
+    }
+
+    @ParameterizedTest
+    @EnumSource(GroupProtocol.class)
+    public void testSubscribingCustomMetricsWithSameNameDoesntAffectConsumerMetrics(GroupProtocol groupProtocol) {
+        Properties props = new Properties();
+        props.setProperty(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name());
+        props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+        consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
+
+        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(consumer.metrics());
+        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+        
+        Object lock = new Object();
+        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
+        KafkaMetric metricCopy = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
+        consumer.registerMetricForSubscription(metricCopy);
+
+        sortedMetrics = new LinkedHashMap<>(consumer.metrics());
+        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+        assertSame(firstMetric, secondMetric);
+        assertNotSame(firstMetric, metricCopy);
+    }
+
+    @ParameterizedTest
+    @EnumSource(GroupProtocol.class)
+    public void testUnsubscribingCustomMetricsWithSameNameDoesntAffectConsumerMetrics(GroupProtocol groupProtocol) {
+        Properties props = new Properties();
+        props.setProperty(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name());
+        props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+        consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
+
+        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(consumer.metrics());
+        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+
+        Object lock = new Object();
+        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
+        KafkaMetric metricToRemove = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
+        consumer.unregisterMetricFromSubscription(metricToRemove);
+
+        sortedMetrics = new LinkedHashMap<>(consumer.metrics());
+        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+        assertSame(firstMetric, secondMetric);
+        assertNotSame(firstMetric, metricToRemove);
+    }
+
+    @ParameterizedTest
+    @EnumSource(GroupProtocol.class)
+    public void testShouldOnlyCallMetricReporterMetricChangeOnceWithExistingConsumerMetric(GroupProtocol groupProtocol) {
+        try (MockedStatic<CommonClientConfigs> mockedCommonClientConfigs = mockStatic(CommonClientConfigs.class, new CallsRealMethods())) {
+            ClientTelemetryReporter clientTelemetryReporter = mock(ClientTelemetryReporter.class);
+            clientTelemetryReporter.configure(any());
+            mockedCommonClientConfigs.when(() -> CommonClientConfigs.telemetryReporter(anyString(), any())).thenReturn(Optional.of(clientTelemetryReporter));
+
+            Properties props = new Properties();
+            props.setProperty(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name());
+            props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+            consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
+
+            KafkaMetric existingMetric = (KafkaMetric) consumer.metrics().entrySet().iterator().next().getValue();
+            consumer.registerMetricForSubscription(existingMetric);
+            // This test would fail without the check as the exising metric is registered in the consumer on startup
+            Mockito.verify(clientTelemetryReporter, atMostOnce()).metricChange(existingMetric);
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(GroupProtocol.class)
+    public void testShouldNotCallMetricReporterMetricRemovalWithExistingConsumerMetric(GroupProtocol groupProtocol) {
+        try (MockedStatic<CommonClientConfigs> mockedCommonClientConfigs = mockStatic(CommonClientConfigs.class, new CallsRealMethods())) {
+            ClientTelemetryReporter clientTelemetryReporter = mock(ClientTelemetryReporter.class);
+            clientTelemetryReporter.configure(any());
+            mockedCommonClientConfigs.when(() -> CommonClientConfigs.telemetryReporter(anyString(), any())).thenReturn(Optional.of(clientTelemetryReporter));
+
+            Properties props = new Properties();
+            props.setProperty(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name());
+            props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+            consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
+
+            KafkaMetric existingMetric = (KafkaMetric) consumer.metrics().entrySet().iterator().next().getValue();
+            consumer.unregisterMetricFromSubscription(existingMetric);
+            Mockito.verify(clientTelemetryReporter, never()).metricRemoval(existingMetric);
+        }
     }
 
     @ParameterizedTest
