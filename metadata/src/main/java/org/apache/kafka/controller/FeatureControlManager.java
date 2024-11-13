@@ -177,10 +177,9 @@ public class FeatureControlManager {
         List<ApiMessageAndVersion> records =
                 BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
 
-        Map<String, Short> proposedUpdatedVersions = new HashMap<>();
-        finalizedVersions.forEach(proposedUpdatedVersions::put);
+        Map<String, Short> proposedUpdatedVersions = new HashMap<>(finalizedVersions);
         proposedUpdatedVersions.put(MetadataVersion.FEATURE_NAME, metadataVersion.get().featureLevel());
-        updates.forEach(proposedUpdatedVersions::put);
+        proposedUpdatedVersions.putAll(updates);
 
         for (Entry<String, Short> entry : updates.entrySet()) {
             ApiError error = updateFeature(entry.getKey(), entry.getValue(),
@@ -395,16 +394,6 @@ public class FeatureControlManager {
             features.put(entry.getKey(), entry.getValue());
         }
         return new FinalizedControllerFeatures(features, epoch);
-    }
-
-    /**
-     * Tests if the controller should be preventing metadata updates due to being in the PRE_MIGRATION
-     * state. If the controller does not yet support migrations (before 3.4-IV0), then the migration state
-     * will be NONE and this will return false. Once the controller has been upgraded to a version that supports
-     * migrations, then this method checks if the migration state is equal to PRE_MIGRATION.
-     */
-    boolean inPreMigrationMode() {
-        return migrationControlState.get().equals(ZkMigrationState.PRE_MIGRATION);
     }
 
     public void replay(FeatureLevelRecord record) {

@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.connect.integration;
 
+import org.apache.kafka.clients.MetadataRecoveryStrategy;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.provider.FileConfigProvider;
@@ -78,6 +79,7 @@ import javax.ws.rs.core.Response;
 
 import static javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR;
 import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG;
+import static org.apache.kafka.clients.CommonClientConfigs.METADATA_RECOVERY_STRATEGY_CONFIG;
 import static org.apache.kafka.common.config.AbstractConfig.CONFIG_PROVIDERS_CONFIG;
 import static org.apache.kafka.common.config.TopicConfig.DELETE_RETENTION_MS_CONFIG;
 import static org.apache.kafka.common.config.TopicConfig.SEGMENT_MS_CONFIG;
@@ -105,8 +107,6 @@ import static org.apache.kafka.connect.runtime.distributed.DistributedConfig.REB
 import static org.apache.kafka.connect.runtime.distributed.DistributedConfig.SCHEDULED_REBALANCE_MAX_DELAY_MS_CONFIG;
 import static org.apache.kafka.connect.util.clusters.ConnectAssertions.CONNECTOR_SETUP_DURATION_MS;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -592,7 +592,7 @@ public class ConnectWorkerIntegrationTest {
             List<LogCaptureAppender.Event> logEvents = logCaptureAppender.getEvents();
             assertEquals(1, logEvents.size());
             assertEquals(Level.WARN.toString(), logEvents.get(0).getLevel());
-            assertThat(logEvents.get(0).getMessage(), containsString("deprecated"));
+            assertTrue(logEvents.get(0).getMessage().contains("deprecated"));
         }
 
     }
@@ -842,6 +842,7 @@ public class ConnectWorkerIntegrationTest {
         // Workaround for KAFKA-15676, which can cause the scheduled rebalance delay to
         // be spuriously triggered after the group coordinator for a Connect cluster is bounced
         workerProps.put(SCHEDULED_REBALANCE_MAX_DELAY_MS_CONFIG, "0");
+        workerProps.put(METADATA_RECOVERY_STRATEGY_CONFIG, MetadataRecoveryStrategy.NONE.name);
 
         useFixedBrokerPort();
 
@@ -1042,7 +1043,7 @@ public class ConnectWorkerIntegrationTest {
                 maxTasks
         );
         String errorMessage = connect.connectorStatus(CONNECTOR_NAME).connector().trace();
-        assertThat(errorMessage, containsString(expectedErrorSnippet));
+        assertTrue(errorMessage.contains(expectedErrorSnippet));
 
         // Stop all workers in the cluster
         connect.workers().forEach(connect::removeWorker);

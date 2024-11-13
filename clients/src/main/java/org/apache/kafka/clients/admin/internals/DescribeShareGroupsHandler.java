@@ -85,7 +85,7 @@ public class DescribeShareGroupsHandler extends AdminApiHandler.Batched<Coordina
     public ShareGroupDescribeRequest.Builder buildBatchedRequest(int coordinatorId, Set<CoordinatorKey> keys) {
         List<String> groupIds = keys.stream().map(key -> {
             if (key.type != FindCoordinatorRequest.CoordinatorType.GROUP) {
-                throw new IllegalArgumentException("Invalid transaction coordinator key " + key +
+                throw new IllegalArgumentException("Invalid group coordinator key " + key +
                     " when building `DescribeShareGroups` request");
             }
             return key.idValue;

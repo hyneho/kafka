@@ -20,7 +20,6 @@ import kafka.cluster.Partition
 import kafka.integration.KafkaServerTestHarness
 import kafka.log.UnifiedLog
 import kafka.log.remote.RemoteLogManager
-import kafka.server.Constants._
 import kafka.utils.TestUtils.random
 import kafka.utils._
 import kafka.zk.ConfigEntityChangeNotificationZNode
@@ -38,7 +37,7 @@ import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.{TopicPartition, Uuid}
 import org.apache.kafka.coordinator.group.GroupConfig
 import org.apache.kafka.server.common.MetadataVersion.IBP_3_0_IV1
-import org.apache.kafka.server.config.{ConfigType, QuotaConfigs, ServerLogConfigs, ZooKeeperInternals}
+import org.apache.kafka.server.config.{ConfigType, QuotaConfig, ServerLogConfigs, ZooKeeperInternals}
 import org.apache.kafka.storage.internals.log.LogConfig
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{Test, Timeout}
@@ -66,7 +65,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testConfigChange(quorum: String): Unit = {
     if (!isKRaftTest()) {
       assertTrue(this.servers.head.dynamicConfigHandlers.contains(ConfigType.TOPIC),
@@ -110,7 +109,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testDynamicTopicConfigChange(quorum: String): Unit = {
     val tp = new TopicPartition("test", 0)
     val oldSegmentSize = 1000
@@ -186,8 +185,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     try {
       val alterations = util.Arrays.asList(
         new ClientQuotaAlteration(entity, util.Arrays.asList(
-          new Op(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, 1000),
-          new Op(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, 2000))))
+          new Op(QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, 1000),
+          new Op(QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, 2000))))
       admin.alterClientQuotas(alterations).all().get()
 
       val quotaManagers = brokers.head.dataPlaneRequestProcessor.quotas
@@ -205,8 +204,8 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
 
       val removals = util.Arrays.asList(
         new ClientQuotaAlteration(entity, util.Arrays.asList(
-          new Op(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, null),
-          new Op(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, null))))
+          new Op(QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, null),
+          new Op(QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, null))))
 
       // validate only
       admin.alterClientQuotas(removals, new AlterClientQuotasOptions().validateOnly(true)).all().get()
@@ -231,7 +230,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testClientIdQuotaConfigChange(quorum: String): Unit = {
     val m = new util.HashMap[String, String]
     m.put(CLIENT_ID, "testClient")
@@ -239,7 +238,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testUserQuotaConfigChange(quorum: String): Unit = {
     val m = new util.HashMap[String, String]
     m.put(USER, "ANONYMOUS")
@@ -247,7 +246,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testUserClientIdQuotaChange(quorum: String): Unit = {
     val m = new util.HashMap[String, String]
     m.put(USER, "ANONYMOUS")
@@ -256,7 +255,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testDefaultClientIdQuotaConfigChange(quorum: String): Unit = {
     val m = new util.HashMap[String, String]
     m.put(CLIENT_ID, null)
@@ -264,7 +263,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testDefaultUserQuotaConfigChange(quorum: String): Unit = {
     val m = new util.HashMap[String, String]
     m.put(USER, null)
@@ -272,7 +271,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testDefaultUserClientIdQuotaConfigChange(quorum: String): Unit = {
     val m = new util.HashMap[String, String]
     m.put(USER, null)
@@ -286,14 +285,14 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     val server = servers.head
     val clientIdProps = new Properties()
     server.shutdown()
-    clientIdProps.put(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "1000")
-    clientIdProps.put(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
+    clientIdProps.put(QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "1000")
+    clientIdProps.put(QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
     val userProps = new Properties()
-    userProps.put(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "10000")
-    userProps.put(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "20000")
+    userProps.put(QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "10000")
+    userProps.put(QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "20000")
     val userClientIdProps = new Properties()
-    userClientIdProps.put(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "100000")
-    userClientIdProps.put(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "200000")
+    userClientIdProps.put(QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "100000")
+    userClientIdProps.put(QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "200000")
 
     adminZkClient.changeClientIdConfig("overriddenClientId", clientIdProps)
     adminZkClient.changeUserOrUserClientIdConfig("overriddenUser", userProps)
@@ -313,7 +312,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testIpQuotaInitialization(quorum: String): Unit = {
     val broker = brokers.head
     if (isKRaftTest()) {
@@ -321,9 +320,9 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       try {
         val alterations = util.Arrays.asList(
           new ClientQuotaAlteration(new ClientQuotaEntity(singletonMap(IP, null)),
-            singletonList(new Op(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 20))),
+            singletonList(new Op(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 20))),
           new ClientQuotaAlteration(new ClientQuotaEntity(singletonMap(IP, "1.2.3.4")),
-            singletonList(new Op(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 10))))
+            singletonList(new Op(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 10))))
         admin.alterClientQuotas(alterations).all().get()
       } finally {
         admin.close()
@@ -332,11 +331,11 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       broker.shutdown()
 
       val ipDefaultProps = new Properties()
-      ipDefaultProps.put(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, "20")
+      ipDefaultProps.put(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, "20")
       adminZkClient.changeIpConfig(ZooKeeperInternals.DEFAULT_STRING, ipDefaultProps)
 
       val ipOverrideProps = new Properties()
-      ipOverrideProps.put(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, "10")
+      ipOverrideProps.put(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, "10")
       adminZkClient.changeIpConfig("1.2.3.4", ipOverrideProps)
 
       // Remove config change znodes to force quota initialization only through loading of ip quotas
@@ -353,15 +352,15 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testIpQuotaConfigChange(quorum: String): Unit = {
     val admin = createAdminClient()
     try {
       val alterations = util.Arrays.asList(
         new ClientQuotaAlteration(new ClientQuotaEntity(singletonMap(IP, null)),
-          singletonList(new Op(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 20))),
+          singletonList(new Op(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 20))),
         new ClientQuotaAlteration(new ClientQuotaEntity(singletonMap(IP, "1.2.3.4")),
-          singletonList(new Op(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 10))))
+          singletonList(new Op(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, 10))))
       admin.alterClientQuotas(alterations).all().get()
 
       def verifyConnectionQuota(ip: InetAddress, expectedQuota: Integer): Unit = {
@@ -380,15 +379,15 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
 
       val deletions1 = util.Arrays.asList(
         new ClientQuotaAlteration(new ClientQuotaEntity(singletonMap(IP, "1.2.3.4")),
-          singletonList(new Op(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, null))))
+          singletonList(new Op(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, null))))
       admin.alterClientQuotas(deletions1).all().get()
       verifyConnectionQuota(overrideQuotaIp, 20)
 
       val deletions2 = util.Arrays.asList(
         new ClientQuotaAlteration(new ClientQuotaEntity(singletonMap(IP, null)),
-          singletonList(new Op(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, null))))
+          singletonList(new Op(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, null))))
       admin.alterClientQuotas(deletions2).all().get()
-      verifyConnectionQuota(overrideQuotaIp, QuotaConfigs.IP_CONNECTION_RATE_DEFAULT)
+      verifyConnectionQuota(overrideQuotaIp, QuotaConfig.IP_CONNECTION_RATE_DEFAULT)
     } finally {
       admin.close()
     }
@@ -406,7 +405,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   private def tempTopic() : String = "testTopic" + random.nextInt(1000000)
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testConfigChangeOnNonExistingTopicWithAdminClient(quorum: String): Unit = {
     val topic = tempTopic()
     val admin = createAdminClient()
@@ -457,7 +456,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testIncrementalAlterDefaultTopicConfig(quorum: String): Unit = {
     val admin = createAdminClient()
     try {
@@ -472,7 +471,7 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
 
   @nowarn("cat=deprecation")
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testAlterDefaultTopicConfig(quorum: String): Unit = {
     val admin = createAdminClient()
     try {
@@ -492,9 +491,9 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
       val admin = createAdminClient()
       try {
         val resource = new ConfigResource(ConfigResource.Type.BROKER, brokerId)
-        val configOp = new AlterConfigOp(new ConfigEntry(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString), op)
-        val configOp2 = new AlterConfigOp(new ConfigEntry(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString), op)
-        val configOp3 = new AlterConfigOp(new ConfigEntry(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, newValue.toString), op)
+        val configOp = new AlterConfigOp(new ConfigEntry(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString), op)
+        val configOp2 = new AlterConfigOp(new ConfigEntry(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString), op)
+        val configOp3 = new AlterConfigOp(new ConfigEntry(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, newValue.toString), op)
         val configOps = List(configOp, configOp2, configOp3).asJavaCollection
         admin.incrementalAlterConfigs(Map(
           resource -> configOps,
@@ -505,9 +504,9 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     } else {
       val newProps = new Properties()
       if (op == OpType.SET) {
-        newProps.put(QuotaConfigs.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString)
-        newProps.put(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString)
-        newProps.put(QuotaConfigs.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, newValue.toString)
+        newProps.put(QuotaConfig.LEADER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString)
+        newProps.put(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_RATE_CONFIG, newValue.toString)
+        newProps.put(QuotaConfig.REPLICA_ALTER_LOG_DIRS_IO_MAX_BYTES_PER_SECOND_CONFIG, newValue.toString)
       }
       val brokerIdOption = if (brokerId != "") Option(brokerId.toInt) else None
       adminZkClient.changeBrokerConfig(brokerIdOption, newProps)
@@ -515,13 +514,13 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testBrokerIdConfigChangeAndDelete(quorum: String): Unit = {
     val newValue: Long = 100000L
     val brokerId: String = this.brokers.head.config.brokerId.toString
     setBrokerConfigs(brokerId, newValue)
     for (b <- this.brokers) {
-      val value = if (b.config.brokerId.toString == brokerId) newValue else QuotaConfigs.QUOTA_BYTES_PER_SECOND_DEFAULT
+      val value = if (b.config.brokerId.toString == brokerId) newValue else QuotaConfig.QUOTA_BYTES_PER_SECOND_DEFAULT
       TestUtils.retry(10000) {
         assertEquals(value, b.quotaManagers.leader.upperBound)
         assertEquals(value, b.quotaManagers.follower.upperBound)
@@ -531,15 +530,15 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     deleteBrokerConfigs(brokerId)
     for (b <- this.brokers) {
       TestUtils.retry(10000) {
-        assertEquals(QuotaConfigs.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.leader.upperBound)
-        assertEquals(QuotaConfigs.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.follower.upperBound)
-        assertEquals(QuotaConfigs.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.alterLogDirs.upperBound)
+        assertEquals(QuotaConfig.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.leader.upperBound)
+        assertEquals(QuotaConfig.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.follower.upperBound)
+        assertEquals(QuotaConfig.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.alterLogDirs.upperBound)
       }
     }
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testDefaultBrokerIdConfigChangeAndDelete(quorum: String): Unit = {
     val newValue: Long = 100000L
     val brokerId: String = ""
@@ -554,15 +553,15 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     deleteBrokerConfigs(brokerId)
     for (b <- this.brokers) {
       TestUtils.retry(10000) {
-        assertEquals(QuotaConfigs.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.leader.upperBound)
-        assertEquals(QuotaConfigs.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.follower.upperBound)
-        assertEquals(QuotaConfigs.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.alterLogDirs.upperBound)
+        assertEquals(QuotaConfig.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.leader.upperBound)
+        assertEquals(QuotaConfig.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.follower.upperBound)
+        assertEquals(QuotaConfig.QUOTA_BYTES_PER_SECOND_DEFAULT, b.quotaManagers.alterLogDirs.upperBound)
       }
     }
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testDefaultAndBrokerIdConfigChange(quorum: String): Unit = {
     val newValue: Long = 100000L
     val brokerId: String = this.brokers.head.config.brokerId.toString
@@ -603,7 +602,34 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     }
 
     val groupConfig = brokerServers.head.groupCoordinator.groupConfig(consumerGroupId).get()
-    assertEquals(newSessionTimeoutMs, groupConfig.sessionTimeoutMs)
+    assertEquals(newSessionTimeoutMs, groupConfig.consumerSessionTimeoutMs())
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = Array("kraft+kip848"))
+  def testDynamicShareGroupConfigChange(quorum: String): Unit = {
+    val newRecordLockDurationMs = 50000
+    val shareGroupId = "group-foo"
+    val admin = createAdminClient()
+    try {
+      val resource = new ConfigResource(ConfigResource.Type.GROUP, shareGroupId)
+      val op = new AlterConfigOp(
+        new ConfigEntry(GroupConfig.SHARE_RECORD_LOCK_DURATION_MS_CONFIG, newRecordLockDurationMs.toString),
+        OpType.SET
+      )
+      admin.incrementalAlterConfigs(Map(resource -> List(op).asJavaCollection).asJava).all.get
+    } finally {
+      admin.close()
+    }
+
+    TestUtils.retry(10000) {
+      brokers.head.groupCoordinator.groupMetadataTopicConfigs()
+      val configOpt = brokerServers.head.groupCoordinator.groupConfig(shareGroupId)
+      assertTrue(configOpt.isPresent)
+    }
+
+    val groupConfig = brokerServers.head.groupCoordinator.groupConfig(shareGroupId).get()
+    assertEquals(newRecordLockDurationMs, groupConfig.shareRecordLockDurationMs)
   }
 
   @ParameterizedTest
@@ -632,7 +658,7 @@ class DynamicConfigChangeUnitTest {
   def testIpHandlerUnresolvableAddress(): Unit = {
     val configHandler = new IpConfigHandler(null)
     val props: Properties = new Properties()
-    props.put(QuotaConfigs.IP_CONNECTION_RATE_OVERRIDE_CONFIG, "1")
+    props.put(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG, "1")
 
     assertThrows(classOf[IllegalArgumentException], () => configHandler.processConfigChanges("illegal-hostname", props))
   }
@@ -643,11 +669,11 @@ class DynamicConfigChangeUnitTest {
     val props: Properties = new Properties()
 
     //Given
-    props.put(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "0:101,0:102,1:101,1:102")
+    props.put(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "0:101,0:102,1:101,1:102")
 
     //When/Then
-    assertEquals(Seq(0,1), configHandler.parseThrottledPartitions(props, 102, QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG))
-    assertEquals(Seq(), configHandler.parseThrottledPartitions(props, 103, QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG))
+    assertEquals(Seq(0,1), configHandler.parseThrottledPartitions(props, 102, QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG))
+    assertEquals(Seq(), configHandler.parseThrottledPartitions(props, 103, QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG))
   }
 
   @Test
@@ -656,24 +682,24 @@ class DynamicConfigChangeUnitTest {
     val props: Properties = new Properties()
 
     //Given
-    props.put(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "*")
+    props.put(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "*")
 
     //When
-    val result = configHandler.parseThrottledPartitions(props, 102, QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
+    val result = configHandler.parseThrottledPartitions(props, 102, QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
 
     //Then
-    assertEquals(AllReplicas, result)
+    assertEquals(ReplicationQuotaManager.ALL_REPLICAS.asScala.map(_.toInt).toSeq, result)
   }
 
   @Test
   def shouldParseRegardlessOfWhitespaceAroundValues(): Unit = {
     def parse(configHandler: TopicConfigHandler, value: String): Seq[Int] = {
       configHandler.parseThrottledPartitions(
-        CoreUtils.propsWith(QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, value),
-        102, QuotaConfigs.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
+        CoreUtils.propsWith(QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG, value),
+        102, QuotaConfig.LEADER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
     }
     val configHandler: TopicConfigHandler = new TopicConfigHandler(null, null, null, null)
-    assertEquals(AllReplicas, parse(configHandler, "* "))
+    assertEquals(ReplicationQuotaManager.ALL_REPLICAS.asScala.map(_.toInt).toSeq, parse(configHandler, "* "))
     assertEquals(Seq(), parse(configHandler, " "))
     assertEquals(Seq(6), parse(configHandler, "6:102"))
     assertEquals(Seq(6), parse(configHandler, "6:102 "))
@@ -686,10 +712,10 @@ class DynamicConfigChangeUnitTest {
     val props: Properties = new Properties()
 
     //Given
-    props.put(QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "")
+    props.put(QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_REPLICAS_CONFIG, "")
 
     //When
-    val result = configHandler.parseThrottledPartitions(props, 102, QuotaConfigs.FOLLOWER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
+    val result = configHandler.parseThrottledPartitions(props, 102, QuotaConfig.FOLLOWER_REPLICATION_THROTTLED_REPLICAS_CONFIG)
 
     //Then
     assertEquals(Seq(), result)

@@ -40,6 +40,7 @@ import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.compress.Compression;
+import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
 import org.apache.kafka.common.errors.RecordTooLargeException;
 import org.apache.kafka.common.errors.SerializationException;
@@ -120,6 +121,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -134,9 +136,10 @@ import static java.util.Collections.singletonMap;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.common.requests.FetchMetadata.INVALID_SESSION_ID;
-import static org.apache.kafka.common.utils.Utils.mkSet;
+import static org.apache.kafka.test.TestUtils.assertFutureThrows;
 import static org.apache.kafka.test.TestUtils.assertOptional;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -241,8 +244,12 @@ public class FetchRequestManagerTest {
     }
 
     private int sendFetches() {
+        return sendFetches(true);
+    }
+
+    private int sendFetches(boolean requestFetch) {
         offsetFetcher.validatePositionsOnMetadataChange();
-        return fetcher.sendFetches();
+        return fetcher.sendFetches(requestFetch);
     }
 
     @Test
@@ -1446,7 +1453,7 @@ public class FetchRequestManagerTest {
 
         Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> fetchedRecords;
 
-        assignFromUser(mkSet(tp0, tp1));
+        assignFromUser(Set.of(tp0, tp1));
 
         // seek to tp0 and tp1 in two polls to generate 2 complete requests and responses
 
@@ -1478,7 +1485,7 @@ public class FetchRequestManagerTest {
     public void testFetchOnCompletedFetchesForAllPausedPartitions() {
         buildFetcher();
 
-        assignFromUser(mkSet(tp0, tp1));
+        assignFromUser(Set.of(tp0, tp1));
 
         // seek to tp0 and tp1 in two polls to generate 2 complete requests and responses
 
@@ -1512,7 +1519,7 @@ public class FetchRequestManagerTest {
 
         Map<TopicPartition, List<ConsumerRecord<byte[], byte[]>>> fetchedRecords;
 
-        assignFromUser(mkSet(tp0, tp1));
+        assignFromUser(Set.of(tp0, tp1));
 
         subscriptions.seek(tp0, 1);
         assertEquals(1, sendFetches());
@@ -1732,7 +1739,7 @@ public class FetchRequestManagerTest {
         // some fetched partitions cause Exception. This ensures that consumer won't lose record upon exception
         buildFetcher(OffsetResetStrategy.NONE, new ByteArrayDeserializer(),
                 new ByteArrayDeserializer(), Integer.MAX_VALUE, IsolationLevel.READ_UNCOMMITTED);
-        assignFromUser(mkSet(tp0, tp1));
+        assignFromUser(Set.of(tp0, tp1));
         subscriptions.seek(tp0, 1);
         subscriptions.seek(tp1, 1);
 
@@ -1778,7 +1785,7 @@ public class FetchRequestManagerTest {
         // Ensure the removal of completed fetches that cause an Exception if and only if they contain empty records.
         buildFetcher(OffsetResetStrategy.NONE, new ByteArrayDeserializer(),
                 new ByteArrayDeserializer(), Integer.MAX_VALUE, IsolationLevel.READ_UNCOMMITTED);
-        assignFromUser(mkSet(tp0, tp1, tp2, tp3));
+        assignFromUser(Set.of(tp0, tp1, tp2, tp3));
 
         subscriptions.seek(tp0, 1);
         subscriptions.seek(tp1, 1);
@@ -1855,7 +1862,7 @@ public class FetchRequestManagerTest {
         buildFetcher(OffsetResetStrategy.NONE, new ByteArrayDeserializer(),
                 new ByteArrayDeserializer(), 2, IsolationLevel.READ_UNCOMMITTED);
 
-        assignFromUser(mkSet(tp0));
+        assignFromUser(Set.of(tp0));
         subscriptions.seek(tp0, 1);
         assertEquals(1, sendFetches());
         Map<TopicIdPartition, FetchResponseData.PartitionData> partitions = new HashMap<>();
@@ -1868,7 +1875,7 @@ public class FetchRequestManagerTest {
 
         assertEquals(2, fetchRecords().get(tp0).size());
 
-        subscriptions.assignFromUser(mkSet(tp0, tp1));
+        subscriptions.assignFromUser(Set.of(tp0, tp1));
         subscriptions.seekUnvalidated(tp1, new SubscriptionState.FetchPosition(1, Optional.empty(), metadata.currentLeader(tp1)));
 
         assertEquals(1, sendFetches());
@@ -2092,7 +2099,7 @@ public class FetchRequestManagerTest {
         TopicPartition tp1 = new TopicPartition(topic1, 0);
         TopicPartition tp2 = new TopicPartition(topic2, 0);
 
-        subscriptions.assignFromUser(mkSet(tp1, tp2));
+        subscriptions.assignFromUser(Set.of(tp1, tp2));
 
         Map<String, Integer> partitionCounts = new HashMap<>();
         partitionCounts.put(topic1, 1);
@@ -2106,7 +2113,7 @@ public class FetchRequestManagerTest {
         int expectedBytes = 0;
         LinkedHashMap<TopicIdPartition, FetchResponseData.PartitionData> fetchPartitionData = new LinkedHashMap<>();
 
-        for (TopicIdPartition tp : mkSet(tidp1, tidp2)) {
+        for (TopicIdPartition tp : Set.of(tidp1, tidp2)) {
             subscriptions.seek(tp.topicPartition(), 0);
 
             MemoryRecordsBuilder builder = MemoryRecords.builder(ByteBuffer.allocate(1024), Compression.NONE,
@@ -2170,7 +2177,7 @@ public class FetchRequestManagerTest {
     @Test
     public void testFetchResponseMetricsWithOnePartitionError() {
         buildFetcher();
-        assignFromUser(mkSet(tp0, tp1));
+        assignFromUser(Set.of(tp0, tp1));
         subscriptions.seek(tp0, 0);
         subscriptions.seek(tp1, 0);
 
@@ -2213,7 +2220,7 @@ public class FetchRequestManagerTest {
     public void testFetchResponseMetricsWithOnePartitionAtTheWrongOffset() {
         buildFetcher();
 
-        assignFromUser(mkSet(tp0, tp1));
+        assignFromUser(Set.of(tp0, tp1));
         subscriptions.seek(tp0, 0);
         subscriptions.seek(tp1, 0);
 
@@ -2447,7 +2454,7 @@ public class FetchRequestManagerTest {
         for (ConsumerRecord<byte[], byte[]> consumerRecord : fetchedConsumerRecords) {
             fetchedKeys.add(new String(consumerRecord.key(), StandardCharsets.UTF_8));
         }
-        assertEquals(mkSet("commit1-1", "commit1-2", "commit2-1"), fetchedKeys);
+        assertEquals(Set.of("commit1-1", "commit1-2", "commit2-1"), fetchedKeys);
     }
 
     @Test
@@ -3390,6 +3397,71 @@ public class FetchRequestManagerTest {
         assertTrue(subscriptions.isFetchable(tp1));
     }
 
+    @Test
+    public void testPollWithoutCreateFetchRequests() {
+        buildFetcher();
+
+        assignFromUser(singleton(tp0));
+        subscriptions.seek(tp0, 0);
+
+        assertEquals(0, sendFetches(false));
+    }
+
+    @Test
+    public void testPollWithCreateFetchRequests() {
+        buildFetcher();
+
+        assignFromUser(singleton(tp0));
+        subscriptions.seek(tp0, 0);
+
+        CompletableFuture<Void> future = fetcher.createFetchRequests();
+        assertNotNull(future);
+        assertFalse(future.isDone());
+
+        assertEquals(1, sendFetches(false));
+        assertTrue(future.isDone());
+
+        assertEquals(0, sendFetches(false));
+    }
+
+    @Test
+    public void testPollWithCreateFetchRequestsError() {
+        buildFetcher();
+
+        assignFromUser(singleton(tp0));
+        subscriptions.seek(tp0, 0);
+
+        fetcher.setAuthenticationException(new AuthenticationException("Intentional error"));
+        CompletableFuture<Void> future = fetcher.createFetchRequests();
+        assertNotNull(future);
+        assertFalse(future.isDone());
+
+        assertDoesNotThrow(() -> sendFetches(false));
+        assertFutureThrows(future, AuthenticationException.class);
+    }
+
+    @Test
+    public void testPollWithRedundantCreateFetchRequests() {
+        buildFetcher();
+
+        assignFromUser(singleton(tp0));
+        subscriptions.seek(tp0, 0);
+
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        for (int i = 0; i < 10; i++) {
+            CompletableFuture<Void> future = fetcher.createFetchRequests();
+            assertNotNull(future);
+            futures.add(future);
+        }
+
+        assertEquals(0, futures.stream().filter(CompletableFuture::isDone).count());
+
+        assertEquals(1, sendFetches(false));
+        assertEquals(futures.size(), futures.stream().filter(CompletableFuture::isDone).count());
+
+    }
+
     private OffsetsForLeaderEpochResponse prepareOffsetsForLeaderEpochResponse(
             TopicPartition topicPartition,
             Errors error,
@@ -3643,6 +3715,7 @@ public class FetchRequestManagerTest {
     private class TestableFetchRequestManager<K, V> extends FetchRequestManager {
 
         private final FetchCollector<K, V> fetchCollector;
+        private AuthenticationException authenticationException;
 
         public TestableFetchRequestManager(LogContext logContext,
                                            Time time,
@@ -3658,11 +3731,37 @@ public class FetchRequestManagerTest {
             this.fetchCollector = fetchCollector;
         }
 
+        public void setAuthenticationException(AuthenticationException authenticationException) {
+            this.authenticationException = authenticationException;
+        }
+
+        @Override
+        protected boolean isUnavailable(Node node) {
+            if (authenticationException != null)
+                return true;
+
+            return super.isUnavailable(node);
+        }
+
+        @Override
+        protected void maybeThrowAuthFailure(Node node) {
+            if (authenticationException != null) {
+                AuthenticationException e = authenticationException;
+                authenticationException = null;
+                throw e;
+            }
+
+            super.maybeThrowAuthFailure(node);
+        }
+
         private Fetch<K, V> collectFetch() {
             return fetchCollector.collectFetch(fetchBuffer);
         }
 
-        private int sendFetches() {
+        private int sendFetches(boolean requestFetch) {
+            if (requestFetch)
+                createFetchRequests();
+
             NetworkClientDelegate.PollResult pollResult = poll(time.milliseconds());
             networkClientDelegate.addAll(pollResult.unsentRequests);
             return pollResult.unsentRequests.size();
