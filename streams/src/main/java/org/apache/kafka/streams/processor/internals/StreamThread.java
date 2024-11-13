@@ -1401,7 +1401,6 @@ public class StreamThread extends Thread implements ProcessingThread {
             );
 
             // Process assignment from Streams Rebalance Protocol
-//            final Assignment newAssignment = streamsAssignmentInterface.targetAssignment.get();
             streamsAssignmentInterface.processStreamsRebalanceEvents();
         }
     }
