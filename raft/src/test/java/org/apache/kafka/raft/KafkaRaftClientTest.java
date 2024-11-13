@@ -2153,8 +2153,8 @@ public class KafkaRaftClientTest {
         RaftClientTestContext context = RaftClientTestContext.initializeAsLeader(localId, voters, epoch, contextVersion);
 
         FetchRequestData fetchRequestData = context.fetchRequest(epoch, otherNodeKey, 1L, epoch, 0);
-        FetchRequestData request = new FetchRequest.SimpleBuilder(fetchRequestData).build(contextVersion).data();
-        context.deliverRequest(request, contextVersion);
+        FetchRequestData request = new FetchRequest.SimpleBuilder(fetchRequestData).build(fetchVersion).data();
+        context.deliverRequest(request, fetchVersion);
         context.pollUntilResponse();
         context.assertSentFetchPartitionResponse(Errors.NONE, epoch, OptionalInt.of(localId));
         assertEquals(OptionalLong.of(1L), context.client.highWatermark());
