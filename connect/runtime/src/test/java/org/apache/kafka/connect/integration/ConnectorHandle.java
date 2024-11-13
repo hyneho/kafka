@@ -45,7 +45,7 @@ public class ConnectorHandle {
     private final StartAndStopCounter startAndStopCounter = new StartAndStopCounter();
 
     private CountDownLatch recordsRemainingLatch;
-    private CountDownLatch recordsToCommitLatch;
+    public CountDownLatch recordsToCommitLatch;
     private int expectedRecords = -1;
     private int expectedCommits = -1;
 

@@ -84,7 +84,7 @@ import static org.apache.kafka.common.config.AbstractConfig.CONFIG_PROVIDERS_CON
 import static org.apache.kafka.common.config.TopicConfig.DELETE_RETENTION_MS_CONFIG;
 import static org.apache.kafka.common.config.TopicConfig.SEGMENT_MS_CONFIG;
 import static org.apache.kafka.connect.integration.BlockingConnectorTest.TASK_STOP;
-import static org.apache.kafka.connect.integration.MonitorableSourceConnector.TOPIC_CONFIG;
+import static org.apache.kafka.connect.integration.TestableSourceConnector.TOPIC_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLIENT_PRODUCER_OVERRIDES_PREFIX;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.HEADER_CONVERTER_CLASS_CONFIG;
@@ -333,7 +333,7 @@ public class ConnectWorkerIntegrationTest {
 
         // base connector props
         Map<String, String> props = defaultSourceConnectorProps(TOPIC_NAME);
-        props.put(CONNECTOR_CLASS_CONFIG, MonitorableSourceConnector.class.getSimpleName());
+        props.put(CONNECTOR_CLASS_CONFIG, TestableSourceConnector.class.getSimpleName());
 
         // start the connector with only one task
         int initialNumTasks = 1;
@@ -828,7 +828,7 @@ public class ConnectWorkerIntegrationTest {
     private Map<String, String> defaultSinkConnectorProps(String topics) {
         // setup props for the sink connector
         Map<String, String> props = new HashMap<>();
-        props.put(CONNECTOR_CLASS_CONFIG, MonitorableSinkConnector.class.getSimpleName());
+        props.put(CONNECTOR_CLASS_CONFIG, TestableSinkConnector.class.getSimpleName());
         props.put(TASKS_MAX_CONFIG, String.valueOf(NUM_TASKS));
         props.put(TOPICS_CONFIG, topics);
 
@@ -1025,7 +1025,7 @@ public class ConnectWorkerIntegrationTest {
         int maxTasks = 1;
         connectorProps.put(TASKS_MAX_CONFIG, Integer.toString(maxTasks));
         int numTasks = 2;
-        connectorProps.put(MonitorableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
+        connectorProps.put(TestableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
         connect.configureConnector(CONNECTOR_NAME, connectorProps);
 
         // A connector that generates excessive tasks will be failed with an expected error message
@@ -1057,7 +1057,7 @@ public class ConnectWorkerIntegrationTest {
             );
 
             for (int i = 0; i < numTasks; i++) {
-                Map<String, String> taskConfig = MonitorableSourceConnector.taskConfig(
+                Map<String, String> taskConfig = TestableSourceConnector.taskConfig(
                         connectorProps,
                         CONNECTOR_NAME,
                         i
@@ -1108,7 +1108,7 @@ public class ConnectWorkerIntegrationTest {
         );
 
         numTasks++;
-        connectorProps.put(MonitorableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
+        connectorProps.put(TestableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
         connect.configureConnector(CONNECTOR_NAME, connectorProps);
 
         // A connector will be allowed to generate excessive tasks when tasks.max.enforce is set to false
@@ -1119,7 +1119,7 @@ public class ConnectWorkerIntegrationTest {
         );
 
         numTasks = maxTasks;
-        connectorProps.put(MonitorableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
+        connectorProps.put(TestableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
         connectorProps.put(TASKS_MAX_ENFORCE_CONFIG, "true");
         connect.configureConnector(CONNECTOR_NAME, connectorProps);
 
@@ -1130,7 +1130,7 @@ public class ConnectWorkerIntegrationTest {
         );
 
         numTasks = maxTasks + 1;
-        connectorProps.put(MonitorableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
+        connectorProps.put(TestableSourceConnector.NUM_TASKS, Integer.toString(numTasks));
         connect.configureConnector(CONNECTOR_NAME, connectorProps);
 
         // A connector that generates excessive tasks after being reconfigured will be failed, but its existing tasks will continue running
@@ -1424,7 +1424,7 @@ public class ConnectWorkerIntegrationTest {
         final String sourceConnectorName = "plugins-alias-test-source";
         Map<String, String> sourceConnectorConfig = new HashMap<>(baseConnectorConfig);
         // Aliased source connector class
-        sourceConnectorConfig.put(CONNECTOR_CLASS_CONFIG, MonitorableSourceConnector.class.getSimpleName());
+        sourceConnectorConfig.put(CONNECTOR_CLASS_CONFIG, TestableSourceConnector.class.getSimpleName());
         // Connector-specific properties
         sourceConnectorConfig.put(TOPIC_CONFIG, topic);
         sourceConnectorConfig.put("throughput", "10");
@@ -1438,7 +1438,7 @@ public class ConnectWorkerIntegrationTest {
         final String sinkConnectorName = "plugins-alias-test-sink";
         Map<String, String> sinkConnectorConfig = new HashMap<>(baseConnectorConfig);
         // Aliased sink connector class
-        sinkConnectorConfig.put(CONNECTOR_CLASS_CONFIG, MonitorableSinkConnector.class.getSimpleName());
+        sinkConnectorConfig.put(CONNECTOR_CLASS_CONFIG, TestableSinkConnector.class.getSimpleName());
         // Connector-specific properties
         sinkConnectorConfig.put(TOPICS_CONFIG, topic);
         // Create the connector and ensure it and its tasks can start
@@ -1450,7 +1450,7 @@ public class ConnectWorkerIntegrationTest {
     private Map<String, String> defaultSourceConnectorProps(String topic) {
         // setup props for the source connector
         Map<String, String> props = new HashMap<>();
-        props.put(CONNECTOR_CLASS_CONFIG, MonitorableSourceConnector.class.getSimpleName());
+        props.put(CONNECTOR_CLASS_CONFIG, TestableSourceConnector.class.getSimpleName());
         props.put(TASKS_MAX_CONFIG, String.valueOf(NUM_TASKS));
         props.put(TOPIC_CONFIG, topic);
         props.put("throughput", "10");
