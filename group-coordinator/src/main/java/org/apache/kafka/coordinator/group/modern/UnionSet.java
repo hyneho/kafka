@@ -25,7 +25,8 @@ import java.util.Set;
 
 /**
  * A set which presents the union of two underlying sets without
- * materializing it.
+ * materializing it. This class expects the underlying sets to
+ * be immutable.
  *
  * @param <T> The set type.
  */
