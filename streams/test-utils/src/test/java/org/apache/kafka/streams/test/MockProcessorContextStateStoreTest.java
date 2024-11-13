@@ -155,7 +155,7 @@ public class MockProcessorContextStateStoreTest {
         return values.stream();
     }
 
-    @ParameterizedTest(name = "builder = {0}, timestamped = {1}, caching = {2}, logging = {3}")
+    @ParameterizedTest(name = "shouldEitherInitOrThrow(builder = {0}, timestamped = {1}, caching = {2}, logging = {3})")
     @MethodSource(value = "parameters")
     public void shouldEitherInitOrThrow(final StoreBuilder<StateStore> builder,
                                         final boolean timestamped,
