@@ -97,6 +97,7 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.internal.stubbing.answers.CallsRealMethods;
 
 import java.lang.management.ManagementFactory;
@@ -107,6 +108,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -137,7 +139,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -147,6 +151,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -2572,6 +2577,84 @@ public class KafkaProducerTest {
         Map<MetricName, KafkaMetric> customMetrics = customMetrics();
         //Metrics never registered but removed should not cause an error
         customMetrics.forEach((name, metric) -> assertDoesNotThrow(() -> producer.unregisterMetricFromSubscription(metric)));
+    }
+
+    @Test
+    public void testSubscribingCustomMetricWithSameNameAsExistingMetricDoesntAffectProducerMetric() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+        KafkaProducer<String, String> producer = new KafkaProducer<>(
+            props, new StringSerializer(), new StringSerializer());
+
+        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(producer.metrics());
+        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+
+        Object lock = new Object();
+        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
+        KafkaMetric metricCopy = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
+        producer.registerMetricForSubscription(metricCopy);
+
+        sortedMetrics = new LinkedHashMap<>(producer.metrics());
+        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+        assertSame(firstMetric, secondMetric);
+        assertNotSame(firstMetric, metricCopy);
+    }
+
+    @Test
+    public void testUnsubscribingCustomMetricWithSameNameAsExistingMetricDoesntAffectProducerMetric() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+        KafkaProducer<String, String> producer = new KafkaProducer<>(
+            props, new StringSerializer(), new StringSerializer());
+
+        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(producer.metrics());
+        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+
+        Object lock = new Object();
+        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
+        KafkaMetric metricToRemove = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
+        producer.unregisterMetricFromSubscription(metricToRemove);
+
+        sortedMetrics = new LinkedHashMap<>(producer.metrics());
+        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
+        assertSame(firstMetric, secondMetric);
+        assertNotSame(firstMetric, metricToRemove);
+    }
+
+    @Test
+    public void testShouldOnlyCallMetricReporterMetricChangeOnceWithExistingProducerMetric() {
+        try (MockedStatic<CommonClientConfigs> mockedCommonClientConfigs = mockStatic(CommonClientConfigs.class, new CallsRealMethods())) {
+            ClientTelemetryReporter clientTelemetryReporter = mock(ClientTelemetryReporter.class);
+            clientTelemetryReporter.configure(any());
+            mockedCommonClientConfigs.when(() -> CommonClientConfigs.telemetryReporter(anyString(), any())).thenReturn(Optional.of(clientTelemetryReporter));
+
+            Map<String, Object> props = new HashMap<>();
+            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+            KafkaProducer<String, String> producer = new KafkaProducer<>(
+                    props, new StringSerializer(), new StringSerializer());
+            KafkaMetric existingMetric = (KafkaMetric) producer.metrics().entrySet().iterator().next().getValue();
+            producer.registerMetricForSubscription(existingMetric);
+            // This test would fail without the check as the exising metric is registered in the producer on startup
+            Mockito.verify(clientTelemetryReporter, atMostOnce()).metricChange(existingMetric);
+        }
+    }
+
+    @Test
+    public void testShouldNotCallMetricReporterMetricRemovalWithExistingProducerMetric() {
+        try (MockedStatic<CommonClientConfigs> mockedCommonClientConfigs = mockStatic(CommonClientConfigs.class, new CallsRealMethods())) {
+            ClientTelemetryReporter clientTelemetryReporter = mock(ClientTelemetryReporter.class);
+            clientTelemetryReporter.configure(any());
+            mockedCommonClientConfigs.when(() -> CommonClientConfigs.telemetryReporter(anyString(), any())).thenReturn(Optional.of(clientTelemetryReporter));
+
+            Map<String, Object> props = new HashMap<>();
+            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+            KafkaProducer<String, String> producer = new KafkaProducer<>(
+                    props, new StringSerializer(), new StringSerializer());
+            KafkaMetric existingMetric = (KafkaMetric) producer.metrics().entrySet().iterator().next().getValue();
+            producer.unregisterMetricFromSubscription(existingMetric);
+            // This test would fail without the check as the exising metric is registered in the consumer on startup
+            Mockito.verify(clientTelemetryReporter, never()).metricRemoval(existingMetric);
+        }
     }
 
 
