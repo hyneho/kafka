@@ -26,14 +26,15 @@ import org.apache.kafka.common.errors.SaslAuthenticationException
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Test, TestInfo}
 import org.junit.jupiter.api.Assertions._
 import kafka.utils.{TestInfoUtils, TestUtils}
-import kafka.zk.ConfigEntityChangeNotificationZNode
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
+import org.apache.kafka.metadata.storage.Formatter
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{MethodSource, ValueSource}
 
 import scala.jdk.javaapi.OptionConverters
+import scala.util.Using
 
 
 class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
@@ -57,9 +58,11 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
 
   override def configureSecurityBeforeServersStart(testInfo: TestInfo): Unit = {
     super.configureSecurityBeforeServersStart(testInfo)
-    zkClient.makeSurePersistentPathExists(ConfigEntityChangeNotificationZNode.path)
-    // Create broker credentials before starting brokers
-    createScramCredentials(zkConnect, JaasTestUtils.KAFKA_SCRAM_ADMIN, JaasTestUtils.KAFKA_SCRAM_ADMIN_PASSWORD)
+  }
+
+  override def addFormatterSettings(formatter: Formatter): Unit = {
+    formatter.setScramArguments(
+      List(s"SCRAM-SHA-256=[name=${JaasTestUtils.KAFKA_SCRAM_ADMIN},password=${JaasTestUtils.KAFKA_SCRAM_ADMIN_PASSWORD}]").asJava)
   }
 
   override def createPrivilegedAdminClient() = {
@@ -72,7 +75,11 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
     startSasl(jaasSections(kafkaServerSaslMechanisms, Some(kafkaClientSaslMechanism), Both,
       JaasTestUtils.KAFKA_SERVER_CONTEXT_NAME))
     super.setUp(testInfo)
-    createTopic(topic, numPartitions, brokerCount)
+    Using(createPrivilegedAdminClient()) { superuserAdminClient =>
+      TestUtils.createTopicWithAdmin(
+        superuserAdminClient, topic, brokers, controllerServers, numPartitions
+      )
+    }
   }
 
   @AfterEach
@@ -111,7 +118,7 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testConsumerWithAuthenticationFailure(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     consumer.subscribe(List(topic).asJava)
@@ -119,7 +126,7 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testManualAssignmentConsumerWithAuthenticationFailure(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
     consumer.assign(List(tp).asJava)
@@ -127,7 +134,7 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit"))
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testManualAssignmentConsumerWithAutoCommitDisabledWithAuthenticationFailure(quorum: String, groupProtocol: String): Unit = {
     this.consumerConfig.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false.toString)
     val consumer = createConsumer()
