@@ -681,6 +681,66 @@ public class DelayedShareFetchTest {
         delayedShareFetch.lock().unlock();
     }
 
+    @Test
+    public void testPartitionLockReleaseOnCompletingAnAlreadyCompletedFuture() {
+        String groupId = "grp";
+        Uuid topicId = Uuid.randomUuid();
+        ReplicaManager replicaManager = mock(ReplicaManager.class);
+        TopicIdPartition tp0 = new TopicIdPartition(topicId, new TopicPartition("foo", 0));
+        Map<TopicIdPartition, Integer> partitionMaxBytes = new HashMap<>();
+        partitionMaxBytes.put(tp0, PARTITION_MAX_BYTES);
+
+        SharePartition sp0 = mock(SharePartition.class);
+
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
+        sharePartitions.put(tp0, sp0);
+
+        CompletableFuture<Map<TopicIdPartition, ShareFetchResponseData.PartitionData>> future = new CompletableFuture<>();
+        ShareFetchData shareFetchData = new ShareFetchData(FETCH_PARAMS, groupId, Uuid.randomUuid().toString(),
+            future, partitionMaxBytes, MAX_FETCH_RECORDS);
+
+        DelayedShareFetch delayedShareFetch1 = spy(DelayedShareFetchBuilder.builder()
+            .withShareFetchData(shareFetchData)
+            .withReplicaManager(replicaManager)
+            .withSharePartitions(sharePartitions)
+            .build());
+        assertFalse(delayedShareFetch1.isCompleted());
+
+        when(sp0.maybeAcquireFetchLock()).thenReturn(true);
+        when(sp0.canAcquireRecords()).thenReturn(false);
+
+        // Force completing the share fetch request for the first time should complete the future with an empty map.
+        delayedShareFetch1.forceComplete();
+        assertTrue(delayedShareFetch1.isCompleted());
+        // Verifying that the first forceComplete calls acquirablePartitions method in DelayedShareFetch.
+        Mockito.verify(delayedShareFetch1, times(1)).acquirablePartitions();
+        assertEquals(0, shareFetchData.future().join().size());
+        assertTrue(delayedShareFetch1.lock().tryLock());
+        delayedShareFetch1.lock().unlock();
+
+        DelayedShareFetch delayedShareFetch2 = spy(DelayedShareFetchBuilder.builder()
+            .withShareFetchData(shareFetchData)
+            .withReplicaManager(replicaManager)
+            .withSharePartitions(sharePartitions)
+            .build());
+        assertFalse(delayedShareFetch2.isCompleted());
+
+        // While first fetch request was unable to acquire lock on sp0, second (concurrent) fetch request was able to acquire records.
+        when(sp0.canAcquireRecords()).thenReturn(true);
+        when(sp0.acquire(anyString(), anyInt(), any(FetchPartitionData.class))).thenReturn(
+            ShareAcquiredRecords.fromAcquiredRecords(new ShareFetchResponseData.AcquiredRecords().setFirstOffset(0).setLastOffset(3).setDeliveryCount((short) 1)));
+        doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp0))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
+
+        // Try completing the second share fetch request for the second time should hit the future completion check and not
+        // proceed ahead in the function.
+        delayedShareFetch2.tryComplete();
+        assertTrue(delayedShareFetch2.isCompleted());
+        // Second share fetch request has 1 releasePartitionLocks call from onComplete.
+        Mockito.verify(delayedShareFetch2, times(1)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch2.lock().tryLock());
+        delayedShareFetch2.lock().unlock();
+    }
+
     static void mockTopicIdPartitionToReturnDataEqualToMinBytes(ReplicaManager replicaManager, TopicIdPartition topicIdPartition, int minBytes) {
         LogOffsetMetadata hwmOffsetMetadata = new LogOffsetMetadata(1, 1, minBytes);
         LogOffsetSnapshot endOffsetSnapshot = new LogOffsetSnapshot(1, mock(LogOffsetMetadata.class),
