@@ -144,11 +144,12 @@ public class RaftUtil {
     public static VoteRequestData singletonVoteRequest(
         TopicPartition topicPartition,
         String clusterId,
-        int candidateEpoch,
-        ReplicaKey candidateKey,
+        int replicaEpoch,
+        ReplicaKey replicaKey,
         ReplicaKey voterKey,
         int lastEpoch,
-        long lastEpochEndOffset
+        long lastEpochEndOffset,
+        boolean preVote
     ) {
         return new VoteRequestData()
             .setClusterId(clusterId)
@@ -161,10 +162,10 @@ public class RaftUtil {
                             Collections.singletonList(
                                 new VoteRequestData.PartitionData()
                                     .setPartitionIndex(topicPartition.partition())
-                                    .setCandidateEpoch(candidateEpoch)
-                                    .setCandidateId(candidateKey.id())
-                                    .setCandidateDirectoryId(
-                                        candidateKey
+                                    .setReplicaEpoch(replicaEpoch)
+                                    .setReplicaId(replicaKey.id())
+                                    .setReplicaDirectoryId(
+                                        replicaKey
                                             .directoryId()
                                             .orElse(ReplicaKey.NO_DIRECTORY_ID)
                                     )
@@ -175,6 +176,7 @@ public class RaftUtil {
                                     )
                                     .setLastOffsetEpoch(lastEpoch)
                                     .setLastOffset(lastEpochEndOffset)
+                                    .setPreVote(preVote)
                             )
                         )
                 )
@@ -190,19 +192,24 @@ public class RaftUtil {
         int leaderEpoch,
         int leaderId,
         boolean voteGranted,
+        boolean preVote,
         Endpoints endpoints
     ) {
+        VoteResponseData.PartitionData partitionData = new VoteResponseData.PartitionData()
+            .setErrorCode(partitionLevelError.code())
+            .setLeaderId(leaderId)
+            .setLeaderEpoch(leaderEpoch)
+            .setVoteGranted(voteGranted);
+        if (apiVersion >= 2) {
+            partitionData.setPreVote(preVote);
+        }
+
         VoteResponseData response = new VoteResponseData()
             .setErrorCode(topLevelError.code())
             .setTopics(Collections.singletonList(
                 new VoteResponseData.TopicData()
                     .setTopicName(topicPartition.topic())
-                    .setPartitions(Collections.singletonList(
-                        new VoteResponseData.PartitionData()
-                            .setErrorCode(partitionLevelError.code())
-                            .setLeaderId(leaderId)
-                            .setLeaderEpoch(leaderEpoch)
-                            .setVoteGranted(voteGranted)))));
+                    .setPartitions(Collections.singletonList(partitionData))));
 
         if (apiVersion >= 1) {
             Optional<InetSocketAddress> address = endpoints.address(listenerName);

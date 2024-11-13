@@ -187,13 +187,19 @@ public class RaftUtilTest {
         return Stream.of(
                 Arguments.of((short) 0,
                         "{\"clusterId\":\"I4ZmrWqfT2e-upky_4fdPA\",\"topics\":[{\"topicName\":\"topic\"," +
-                            "\"partitions\":[{\"partitionIndex\":1,\"candidateEpoch\":1,\"candidateId\":1," +
+                            "\"partitions\":[{\"partitionIndex\":1,\"replicaEpoch\":1,\"replicaId\":1," +
                             "\"lastOffsetEpoch\":1000,\"lastOffset\":1000}]}]}"),
                 Arguments.of((short) 1,
                         "{\"clusterId\":\"I4ZmrWqfT2e-upky_4fdPA\",\"voterId\":2,\"topics\":[{" +
-                            "\"topicName\":\"topic\",\"partitions\":[{\"partitionIndex\":1,\"candidateEpoch\":1," +
-                            "\"candidateId\":1,\"candidateDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\"," +
-                            "\"voterDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\",\"lastOffsetEpoch\":1000,\"lastOffset\":1000}]}]}")
+                            "\"topicName\":\"topic\",\"partitions\":[{\"partitionIndex\":1,\"replicaEpoch\":1," +
+                            "\"replicaId\":1,\"replicaDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\"," +
+                            "\"voterDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\",\"lastOffsetEpoch\":1000,\"lastOffset\":1000}]}]}"),
+                Arguments.of((short) 2,
+                        "{\"clusterId\":\"I4ZmrWqfT2e-upky_4fdPA\",\"voterId\":2,\"topics\":[{" +
+                            "\"topicName\":\"topic\",\"partitions\":[{\"partitionIndex\":1,\"replicaEpoch\":1," +
+                            "\"replicaId\":1,\"replicaDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\"," +
+                            "\"voterDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\",\"lastOffsetEpoch\":1000,\"lastOffset\":1000," +
+                            "\"preVote\":false}]}]}")
         );
     }
 
@@ -377,18 +383,19 @@ public class RaftUtilTest {
     @ParameterizedTest
     @MethodSource("voteRequestTestCases")
     public void testSingletonVoteRequestForAllVersion(final short version, final String expectedJson) {
-        int candidateEpoch = 1;
+        int replicaEpoch = 1;
         int lastEpoch = 1000;
         long lastEpochOffset = 1000;
 
         VoteRequestData voteRequestData = RaftUtil.singletonVoteRequest(
                 topicPartition,
                 clusterId,
-                candidateEpoch,
+                replicaEpoch,
                 ReplicaKey.of(1, Uuid.ONE_UUID),
                 ReplicaKey.of(2, Uuid.ONE_UUID),
                 lastEpoch,
-                lastEpochOffset
+                lastEpochOffset,
+                false
         );
         JsonNode json = VoteRequestDataJsonConverter.write(voteRequestData, version);
         assertEquals(expectedJson, json.toString());
@@ -408,6 +415,7 @@ public class RaftUtilTest {
                 Errors.NONE,
                 leaderEpoch,
                 leaderId,
+                true,
                 true,
                 Endpoints.fromInetSocketAddresses(singletonMap(listenerName, address))
         );
