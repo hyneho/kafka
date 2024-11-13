@@ -155,8 +155,7 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
      */
     @Override
     public NetworkClientDelegate.PollResult poll(long currentTimeMs) {
-        if (!coordinatorRequestManager.coordinator().isPresent() ||
-                membershipManager().shouldSkipHeartbeat()) {
+        if (coordinatorRequestManager.coordinator().isEmpty() || membershipManager().shouldSkipHeartbeat()) {
             membershipManager().onHeartbeatRequestSkipped();
             return NetworkClientDelegate.PollResult.EMPTY;
         }
@@ -336,7 +335,6 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
 
         resetHeartbeatState();
         this.heartbeatRequestState.onFailedAttempt(currentTimeMs);
-        membershipManager().onHeartbeatFailure(false);
 
         switch (error) {
             case NOT_COORDINATOR:
@@ -415,6 +413,9 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
                 }
                 break;
         }
+
+        // Notify the group manager about the failure after all errors have been handled and propagated.
+        membershipManager().onHeartbeatFailure(false);
     }
 
     protected void logInfo(final String message, final R response, final long currentTimeMs) {
