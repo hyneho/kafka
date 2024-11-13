@@ -136,7 +136,7 @@ class GssapiAuthenticationTest extends IntegrationTestHarness with SaslSetup {
    */
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  def testReLogin(): Unit = {
+  def testReLogin(quorum: String): Unit = {
     val selector = createSelectorWithRelogin()
     try {
       val login = TestableKerberosLogin.instance
