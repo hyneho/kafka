@@ -300,10 +300,12 @@ if __name__ == "__main__":
                     logger.debug(f"Found flaky test: {test_failure}")
                     simple_class_name = test_failure.class_name.split(".")[-1]
                     flaky_table.append((simple_class_name, test_failure.test_name, test_failure.failure_message, f"{test_failure.time:0.2f}s"))
+                for skipped_test in suite.skipped_tests:
+                    simple_class_name = skipped_test.class_name.split(".")[-1]
+                    logger.debug(f"Found skipped test: {skipped_test}")
+                    skipped_table.append((simple_class_name, skipped_test.test_name))
 
-                # Conditional processing:
-                # 1) Only collect quarantined tests from the "quarantinedTest" task
-                # 2) Only collect skipped tests from the "test" task
+                # Only collect quarantined tests from the "quarantinedTest" task
                 if task == "quarantinedTest":
                     for test in all_suite_passed.values():
                         simple_class_name = test.class_name.split(".")[-1]
@@ -311,11 +313,6 @@ if __name__ == "__main__":
                     for test in all_suite_failed.values():
                         simple_class_name = test.class_name.split(".")[-1]
                         quarantined_table.append((simple_class_name, test.test_name))
-                else:
-                    for skipped_test in suite.skipped_tests:
-                        simple_class_name = skipped_test.class_name.split(".")[-1]
-                        logger.debug(f"Found skipped test: {skipped_test}")
-                        skipped_table.append((simple_class_name, skipped_test.test_name))
 
                 if args.export_test_catalog:
                     exporter.handle_suite(module_path, suite)
@@ -337,7 +334,7 @@ if __name__ == "__main__":
     report_md = f"Download [HTML report]({report_url})."
     summary = (f"{total_run} tests cases run in {duration}. "
                f"{total_success} {PASSED}, {total_failures} {FAILED}, "
-               f"{total_flaky} {FLAKY}, {total_skipped} {SKIPPED}, and {total_errors} errors.")
+               f"{total_flaky} {FLAKY}, {total_skipped} {SKIPPED}, {len(quarantined_table)} {QUARANTINED}, and {total_errors} errors.")
     print("## Test Summary\n")
     print(f"{summary} {report_md}\n")
     if len(failed_table) > 0:
