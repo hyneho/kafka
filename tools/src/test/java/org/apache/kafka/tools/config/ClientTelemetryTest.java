@@ -29,7 +29,7 @@ import org.apache.kafka.common.test.api.Type;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import static java.util.Arrays.asList;
-import static kafka.admin.ConfigCommandTest.toArray;
+import static org.apache.kafka.tools.config.ConfigCommandTest.toArray;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

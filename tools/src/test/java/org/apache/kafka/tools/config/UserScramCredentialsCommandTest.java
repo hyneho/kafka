@@ -14,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.admin;
+package org.apache.kafka.tools.config;
 
+import kafka.admin.ConfigCommand;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
@@ -65,7 +66,7 @@ public class UserScramCredentialsCommandTest {
     private ConfigCommandResult runConfigCommandViaBroker(String...args) {
         AtomicReference<OptionalInt> exitStatus = new AtomicReference<>(OptionalInt.empty());
         Exit.setExitProcedure((status, __) -> {
-            exitStatus.set(OptionalInt.of((Integer) status));
+            exitStatus.set(OptionalInt.of(status));
             throw new RuntimeException();
         });
 
