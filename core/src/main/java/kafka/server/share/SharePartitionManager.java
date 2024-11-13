@@ -640,10 +640,10 @@ public class SharePartitionManager implements AutoCloseable {
                 k -> {
                     long start = time.hiResClockMs();
                     int leaderEpoch = ShareFetchUtils.leaderEpoch(replicaManager, sharePartitionKey.topicIdPartition().topicPartition());
-                    // Attach listener to Partition which shall invoke partition changes handlers.
+                    // Attach listener to Partition which shall invoke partition change handlers.
                     // However, as there could be multiple share partitions (per group name) for a single topic-partition,
-                    // hence create separate listener per share group which holds the share partition key
-                    // to identify the share partition.
+                    // hence create separate listeners per share partition which holds the share partition key
+                    // to identify the respective share partition.
                     replicaManager.maybeAddListener(sharePartitionKey.topicIdPartition().topicPartition(),
                         new SharePartitionListener(sharePartitionKey));
                     SharePartition partition = new SharePartition(
