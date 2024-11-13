@@ -2142,8 +2142,11 @@ public class KafkaRaftClientTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"17,15", "17,16", "17, 14", "17,13"})
-    public void testNewFetchToOldController(short fetchVersion, short contextVersion) throws Exception {
+    @CsvSource({"17,15", "17,16", "17, 14", "17,13",
+                "16,15", "16,14", "16,13",
+                "15,14", "15,13",
+                "14,13"})
+    public void testNewFetchRequestToOldController(short fetchVersion, short contextVersion) throws Exception {
         int localId = randomReplicaId();
         int otherNodeId = localId + 1;
         ReplicaKey otherNodeKey = replicaKey(otherNodeId, fetchVersion >= 17);
