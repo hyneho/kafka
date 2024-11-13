@@ -174,9 +174,9 @@ public class ShareFetch {
     }
 
     /**
-     * Filter out the erroneous partitions from the given set of topicIdPartitions. As the fetch order
-     * of partitions is important hence the method expected ordered set as input and returns the ordered set
-     * as well.
+     * Filter out the erroneous partitions from the given set of topicIdPartitions. The order of
+     * partitions is important hence the method expects an ordered set as input and returns the ordered
+     * set as well.
      *
      * @param topicIdPartitions The topic id partitions to filter.
      * @return The topic id partitions without the erroneous partitions.
