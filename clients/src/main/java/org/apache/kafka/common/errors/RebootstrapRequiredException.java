@@ -14,12 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.server.share;
 
-import org.apache.kafka.server.purgatory.DelayedOperationKey;
+package org.apache.kafka.common.errors;
 
-/**
- * A key for delayed operations that fetch data for share consumers.
- */
-public interface DelayedShareFetchKey extends DelayedOperationKey {
+public class RebootstrapRequiredException extends ApiException {
+    private static final long serialVersionUID = 1L;
+
+    public RebootstrapRequiredException(String message) {
+        super(message);
+    }
+
+    public RebootstrapRequiredException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }
