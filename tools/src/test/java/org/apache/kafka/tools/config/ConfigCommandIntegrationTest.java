@@ -17,6 +17,7 @@
 package org.apache.kafka.tools.config;
 
 import kafka.admin.ConfigCommand;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.common.config.ConfigResource;

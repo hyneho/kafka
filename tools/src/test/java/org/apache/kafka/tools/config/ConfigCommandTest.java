@@ -17,6 +17,7 @@
 package org.apache.kafka.tools.config;
 
 import kafka.admin.ConfigCommand;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AlterClientQuotasOptions;
 import org.apache.kafka.clients.admin.AlterClientQuotasResult;

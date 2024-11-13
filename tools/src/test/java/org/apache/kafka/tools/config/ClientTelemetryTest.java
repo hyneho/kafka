@@ -14,19 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.kafka.tools.config;
 
-import java.util.List;
-import java.util.concurrent.ExecutionException;
 import kafka.admin.ConfigCommand;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.errors.InvalidConfigurationException;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
 import org.apache.kafka.common.test.api.Type;
+
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static java.util.Arrays.asList;
 import static org.apache.kafka.tools.config.ConfigCommandTest.toArray;
