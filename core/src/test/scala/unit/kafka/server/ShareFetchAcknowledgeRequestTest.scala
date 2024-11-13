@@ -2292,10 +2292,25 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
     compareFetchResponsePartitions(expectedPartitionData, partitionData)
   }
 
+  // For initial fetch request, the response may not be available in the first attempt when the share
+  // partition is not initialized yet. Hence, wait for response from all partitions before proceeding.
   private def sendFirstShareFetchRequest(memberId: Uuid, groupId: String, topicIdPartitions: Seq[TopicIdPartition]): Unit = {
-    val metadata: ShareRequestMetadata = new ShareRequestMetadata(memberId, ShareRequestMetadata.INITIAL_EPOCH)
-    val shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, topicIdPartitions, Seq.empty, Map.empty)
-    connectAndReceive[ShareFetchResponse](shareFetchRequest)
+    val partitions: util.Set[Integer] = new util.HashSet()
+    TestUtils.waitUntilTrue(() => {
+      val metadata = new ShareRequestMetadata(memberId, ShareRequestMetadata.INITIAL_EPOCH)
+      val shareFetchRequest = createShareFetchRequest(groupId, metadata, MAX_PARTITION_BYTES, topicIdPartitions, Seq.empty, Map.empty)
+      val shareFetchResponse = connectAndReceive[ShareFetchResponse](shareFetchRequest)
+      val shareFetchResponseData = shareFetchResponse.data()
+
+      assertEquals(Errors.NONE.code, shareFetchResponseData.errorCode)
+      shareFetchResponseData.responses().foreach(response => {
+        if (!response.partitions().isEmpty) {
+          response.partitions().forEach(partitionData => partitions.add(partitionData.partitionIndex))
+        }
+      })
+
+      partitions.size() == topicIdPartitions.size
+    }, "Share fetch request failed", 5000)
   }
 
   private def expectedAcquiredRecords(firstOffsets: util.List[Long], lastOffsets: util.List[Long], deliveryCounts: util.List[Int]): util.List[AcquiredRecords] = {
