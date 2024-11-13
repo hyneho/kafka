@@ -96,7 +96,7 @@ public class ShareGroupCommand {
         Set<GroupState> validStates = GroupState.groupStatesForType(GroupType.SHARE);
         if (!validStates.containsAll(parsedStates)) {
             throw new IllegalArgumentException("Invalid state list '" + input + "'. Valid states are: " +
-                GroupState.groupStatesForType(GroupType.SHARE).stream().map(Object::toString).collect(Collectors.joining(", ")));
+                    validStates.stream().map(GroupState::toString).collect(Collectors.joining(", ")));
         }
         return parsedStates;
     }
