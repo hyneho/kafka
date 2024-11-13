@@ -1159,7 +1159,10 @@ class DynamicRemoteLogConfig(server: KafkaBroker) extends BrokerReconfigurable w
     newConfig.values.forEach { (k, v) =>
       if (RemoteLogManagerConfig.REMOTE_LOG_INDEX_FILE_CACHE_TOTAL_SIZE_BYTES_PROP.equals(k) ||
         RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPY_MAX_BYTES_PER_SECOND_PROP.equals(k) ||
-        RemoteLogManagerConfig.REMOTE_LOG_MANAGER_FETCH_MAX_BYTES_PER_SECOND_PROP.equals(k)) {
+        RemoteLogManagerConfig.REMOTE_LOG_MANAGER_FETCH_MAX_BYTES_PER_SECOND_PROP.equals(k) ||
+        RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP.equals(k) ||
+        RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP.equals(k) ||
+        RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP.equals(k)) {
         val newValue = v.asInstanceOf[Long]
         val oldValue = getValue(server.config, k)
         if (newValue != oldValue && newValue <= 0) {
@@ -1199,6 +1202,21 @@ class DynamicRemoteLogConfig(server: KafkaBroker) extends BrokerReconfigurable w
         info(s"Dynamic remote log manager config: ${RemoteLogManagerConfig.REMOTE_LOG_MANAGER_FETCH_MAX_BYTES_PER_SECOND_PROP} updated, " +
           s"old value: $oldValue, new value: $newValue")
       }
+      if (isChangedLongValue(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP)) {
+        val oldValue = oldLongValue(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP)
+        val newValue = newLongValue(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP)
+        remoteLogManager.get.updateCopyThreadPoolSize(newValue)
+      }
+      if (isChangedLongValue(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP)) {
+        val oldValue = oldLongValue(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP)
+        val newValue = newLongValue(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP)
+        remoteLogManager.get.updateExpirationThreadPoolSize(newValue)
+      }
+      if (isChangedLongValue(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP)) {
+        val oldValue = oldLongValue(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP)
+        val newValue = newLongValue(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP)
+        remoteLogManager.get.updateReaderThreadPoolSize(newValue)
+      }
     }
   }
 
@@ -1206,7 +1224,10 @@ class DynamicRemoteLogConfig(server: KafkaBroker) extends BrokerReconfigurable w
     name match {
       case RemoteLogManagerConfig.REMOTE_LOG_INDEX_FILE_CACHE_TOTAL_SIZE_BYTES_PROP |
            RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPY_MAX_BYTES_PER_SECOND_PROP |
-           RemoteLogManagerConfig.REMOTE_LOG_MANAGER_FETCH_MAX_BYTES_PER_SECOND_PROP =>
+           RemoteLogManagerConfig.REMOTE_LOG_MANAGER_FETCH_MAX_BYTES_PER_SECOND_PROP |
+           RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP |
+           RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP |
+           RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP =>
         config.getLong(name)
       case n => throw new IllegalStateException(s"Unexpected dynamic remote log manager config $n")
     }
@@ -1219,6 +1240,9 @@ object DynamicRemoteLogConfig {
     RemoteLogManagerConfig.REMOTE_FETCH_MAX_WAIT_MS_PROP,
     RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPY_MAX_BYTES_PER_SECOND_PROP,
     RemoteLogManagerConfig.REMOTE_LOG_MANAGER_FETCH_MAX_BYTES_PER_SECOND_PROP,
-    RemoteLogManagerConfig.REMOTE_LIST_OFFSETS_REQUEST_TIMEOUT_MS_PROP
+    RemoteLogManagerConfig.REMOTE_LIST_OFFSETS_REQUEST_TIMEOUT_MS_PROP,
+    RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP,
+    RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP,
+    RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP
   )
 }

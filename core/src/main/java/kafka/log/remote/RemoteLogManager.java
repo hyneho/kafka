@@ -289,6 +289,21 @@ public class RemoteLogManager implements Closeable {
         rlmFetchQuotaManager.updateQuota(new Quota(quota, true));
     }
 
+    public void updateCopyThreadPoolSize(int size) {
+        LOGGER.info("Updating remote copy thread pool size to {}", size);
+        rlmCopyThreadPool.resize(size);
+    }
+
+    public void updateExpirationThreadPoolSize(int size) {
+        LOGGER.info("Updating remote expiration thread pool size to {}", size);
+        rlmExpirationThreadPool.resize(size);
+    }
+
+    public void updateReaderThreadPoolSize(int size) {
+        LOGGER.info("Updating remote reader thread pool size to {}", size);
+        remoteStorageReaderThreadPool.resize(size);
+    }
+
     private void removeMetrics() {
         metricsGroup.removeMetric(REMOTE_LOG_MANAGER_TASKS_AVG_IDLE_PERCENT_METRIC);
         metricsGroup.removeMetric(REMOTE_LOG_READER_FETCH_RATE_AND_TIME_METRIC);
@@ -797,6 +812,11 @@ public class RemoteLogManager implements Closeable {
                 Optional<UnifiedLog> unifiedLogOptional = fetchLog.apply(topicIdPartition.topicPartition());
 
                 if (unifiedLogOptional.isEmpty()) {
+                    return;
+                }
+
+                if (!remoteLogMetadataManager.isReady(topicIdPartition)) {
+                    logger.debug("RLMM not ready for partition {}, will retry later", topicIdPartition);
                     return;
                 }
 
