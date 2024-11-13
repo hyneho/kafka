@@ -24,7 +24,6 @@ import org.apache.kafka.common.errors.IllegalGenerationException;
 import org.apache.kafka.common.errors.RebalanceInProgressException;
 import org.apache.kafka.common.errors.StaleMemberEpochException;
 import org.apache.kafka.common.errors.UnknownMemberIdException;
-import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.JoinGroupRequestData;
 import org.apache.kafka.common.message.OffsetCommitRequestData;
 import org.apache.kafka.common.message.OffsetCommitResponseData;
@@ -48,25 +47,30 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.annotation.ApiKeyVersionsSource;
+import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
+import org.apache.kafka.coordinator.common.runtime.CoordinatorResult;
+import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer;
 import org.apache.kafka.coordinator.group.assignor.RangeAssignor;
-import org.apache.kafka.coordinator.group.consumer.ConsumerGroup;
-import org.apache.kafka.coordinator.group.consumer.ConsumerGroupMember;
-import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
-import org.apache.kafka.coordinator.group.generated.OffsetCommitValue;
 import org.apache.kafka.coordinator.group.classic.ClassicGroup;
 import org.apache.kafka.coordinator.group.classic.ClassicGroupMember;
 import org.apache.kafka.coordinator.group.classic.ClassicGroupState;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupMemberMetadataValue;
+import org.apache.kafka.coordinator.group.generated.OffsetCommitKey;
+import org.apache.kafka.coordinator.group.generated.OffsetCommitValue;
 import org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetricsShard;
-import org.apache.kafka.coordinator.group.runtime.CoordinatorResult;
+import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup;
+import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.timeline.SnapshotRegistry;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import java.net.InetAddress;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -102,14 +106,15 @@ public class OffsetMetadataManagerTest {
             private MetadataImage metadataImage = null;
             private GroupCoordinatorConfig config = null;
             private GroupCoordinatorMetricsShard metrics = mock(GroupCoordinatorMetricsShard.class);
+            private GroupConfigManager configManager = mock(GroupConfigManager.class);
 
             Builder withOffsetMetadataMaxSize(int offsetMetadataMaxSize) {
-                config = GroupCoordinatorConfigTest.createGroupCoordinatorConfig(offsetMetadataMaxSize, 60000L, 24 * 60 * 1000);
+                config = GroupCoordinatorConfigTest.createGroupCoordinatorConfig(offsetMetadataMaxSize, 60000L, 24 * 60);
                 return this;
             }
 
-            Builder withOffsetsRetentionMs(long offsetsRetentionMs) {
-                config = GroupCoordinatorConfigTest.createGroupCoordinatorConfig(4096, 60000L, offsetsRetentionMs);
+            Builder withOffsetsRetentionMinutes(int offsetsRetentionMinutes) {
+                config = GroupCoordinatorConfigTest.createGroupCoordinatorConfig(4096, 60000L, offsetsRetentionMinutes);
                 return this;
             }
 
@@ -121,7 +126,7 @@ public class OffsetMetadataManagerTest {
             OffsetMetadataManagerTestContext build() {
                 if (metadataImage == null) metadataImage = MetadataImage.EMPTY;
                 if (config == null) {
-                    config = GroupCoordinatorConfigTest.createGroupCoordinatorConfig(4096, 60000L, 24 * 60 * 1000);
+                    config = GroupCoordinatorConfigTest.createGroupCoordinatorConfig(4096, 60000L, 24);
                 }
 
                 if (groupMetadataManager == null) {
@@ -133,6 +138,7 @@ public class OffsetMetadataManagerTest {
                         .withMetadataImage(metadataImage)
                         .withConsumerGroupAssignors(Collections.singletonList(new RangeAssignor()))
                         .withGroupCoordinatorMetricsShard(metrics)
+                        .withGroupConfigManager(configManager)
                         .build();
                 }
 
@@ -431,7 +437,7 @@ public class OffsetMetadataManagerTest {
             int leaderEpoch,
             long commitTimestamp
         ) {
-            replay(producerId, CoordinatorRecordHelpers.newOffsetCommitRecord(
+            replay(producerId, GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 groupId,
                 topic,
                 partition,
@@ -451,7 +457,7 @@ public class OffsetMetadataManagerTest {
             String topic,
             int partition
         ) {
-            replay(CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(
+            replay(GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(
                 groupId,
                 topic,
                 partition
@@ -479,7 +485,7 @@ public class OffsetMetadataManagerTest {
             long producerId,
             CoordinatorRecord record
         ) {
-            snapshotRegistry.getOrCreateSnapshot(lastWrittenOffset);
+            snapshotRegistry.idempotentCreateSnapshot(lastWrittenOffset);
 
             ApiMessageAndVersion key = record.key();
             ApiMessageAndVersion value = record.value();
@@ -510,7 +516,7 @@ public class OffsetMetadataManagerTest {
             long producerId,
             TransactionResult result
         ) {
-            snapshotRegistry.getOrCreateSnapshot(lastWrittenOffset);
+            snapshotRegistry.idempotentCreateSnapshot(lastWrittenOffset);
             offsetMetadataManager.replayEndTransactionMarker(producerId, result);
             lastWrittenOffset++;
         }
@@ -548,7 +554,7 @@ public class OffsetMetadataManagerTest {
             List<CoordinatorRecord> expectedRecords = Collections.emptyList();
             if (hasOffset(groupId, topic, partition) && expectedError == Errors.NONE) {
                 expectedRecords = Collections.singletonList(
-                    CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(groupId, topic, partition)
+                    GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(groupId, topic, partition)
                 );
             }
 
@@ -889,7 +895,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 0,
@@ -961,7 +967,7 @@ public class OffsetMetadataManagerTest {
         List<MockCoordinatorTimer.ExpiredTimeout<Void, CoordinatorRecord>> timeouts =
             context.sleep(5000 / 2);
         assertEquals(1, timeouts.size());
-        assertFalse(group.hasMemberId(member.memberId()));
+        assertFalse(group.hasMember(member.memberId()));
     }
 
     @Test
@@ -997,7 +1003,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 0,
@@ -1057,7 +1063,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 0,
@@ -1142,14 +1148,8 @@ public class OffsetMetadataManagerTest {
         assertThrows(StaleMemberEpochException.class, () -> context.commitOffset(request));
     }
 
-    @ParameterizedTest
-    @ApiKeyVersionsSource(apiKey = ApiKeys.OFFSET_COMMIT)
-    public void testConsumerGroupOffsetCommitWithVersionSmallerThanVersion9(short version) {
-        // All the newer versions are fine.
-        if (version >= 9) return;
-        // Version 0 does not support MemberId and GenerationIdOrMemberEpoch fields.
-        if (version == 0) return;
-
+    @Test
+    public void testConsumerGroupOffsetCommitWithIllegalGenerationId() {
         OffsetMetadataManagerTestContext context = new OffsetMetadataManagerTestContext.Builder().build();
 
         // Create an empty group.
@@ -1162,27 +1162,30 @@ public class OffsetMetadataManagerTest {
         group.updateMember(new ConsumerGroupMember.Builder("member")
             .setMemberEpoch(10)
             .setPreviousMemberEpoch(10)
+            .setClassicMemberMetadata(new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata())
             .build()
         );
 
-        // Verify that the request is rejected with the correct exception.
-        assertThrows(UnsupportedVersionException.class, () -> context.commitOffset(
-            version,
-            new OffsetCommitRequestData()
-                .setGroupId("foo")
-                .setMemberId("member")
-                .setGenerationIdOrMemberEpoch(9)
-                .setTopics(Collections.singletonList(
-                    new OffsetCommitRequestData.OffsetCommitRequestTopic()
-                        .setName("bar")
-                        .setPartitions(Collections.singletonList(
-                            new OffsetCommitRequestData.OffsetCommitRequestPartition()
-                                .setPartitionIndex(0)
-                                .setCommittedOffset(100L)
-                        ))
-                ))
-            )
-        );
+        OffsetCommitRequestData request = new OffsetCommitRequestData()
+            .setGroupId("foo")
+            .setMemberId("member")
+            .setGenerationIdOrMemberEpoch(9)
+            .setTopics(Collections.singletonList(
+                new OffsetCommitRequestData.OffsetCommitRequestTopic()
+                    .setName("bar")
+                    .setPartitions(Collections.singletonList(
+                        new OffsetCommitRequestData.OffsetCommitRequestPartition()
+                            .setPartitionIndex(0)
+                            .setCommittedOffset(100L)
+                    ))
+            ));
+
+        // Verify that a smaller epoch is rejected.
+        assertThrows(IllegalGenerationException.class, () -> context.commitOffset(request));
+
+        // Verify that a larger epoch is rejected.
+        request.setGenerationIdOrMemberEpoch(11);
+        assertThrows(IllegalGenerationException.class, () -> context.commitOffset(request));
     }
 
     @Test
@@ -1224,7 +1227,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 0,
@@ -1292,7 +1295,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 0,
@@ -1371,7 +1374,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 1,
@@ -1438,7 +1441,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 0,
@@ -1596,7 +1599,7 @@ public class OffsetMetadataManagerTest {
         );
 
         assertEquals(
-            Collections.singletonList(CoordinatorRecordHelpers.newOffsetCommitRecord(
+            Collections.singletonList(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
                 "foo",
                 "bar",
                 0,
@@ -2295,6 +2298,30 @@ public class OffsetMetadataManagerTest {
     }
 
     @Test
+    public void testConsumerGroupOffsetFetchWithIllegalGenerationId() {
+        OffsetMetadataManagerTestContext context = new OffsetMetadataManagerTestContext.Builder().build();
+        ConsumerGroup group = context.groupMetadataManager.getOrMaybeCreatePersistedConsumerGroup("group", true);
+        group.updateMember(new ConsumerGroupMember.Builder("member")
+                .setClassicMemberMetadata(new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata())
+                .build()
+        );
+
+        List<OffsetFetchRequestData.OffsetFetchRequestTopics> topics = Collections.singletonList(
+            new OffsetFetchRequestData.OffsetFetchRequestTopics()
+                .setName("foo")
+                .setPartitionIndexes(Collections.singletonList(0))
+        );
+
+        // Fetch offsets case.
+        assertThrows(IllegalGenerationException.class,
+            () -> context.fetchOffsets("group", "member", 10, topics, Long.MAX_VALUE));
+
+        // Fetch all offsets case.
+        assertThrows(IllegalGenerationException.class,
+            () -> context.fetchAllOffsets("group", "member", 10, Long.MAX_VALUE));
+    }
+
+    @Test
     public void testGenericGroupOffsetDelete() {
         OffsetMetadataManagerTestContext context = new OffsetMetadataManagerTestContext.Builder().build();
         ClassicGroup group = context.groupMetadataManager.getOrMaybeCreateClassicGroup(
@@ -2401,9 +2428,9 @@ public class OffsetMetadataManagerTest {
         context.commitOffset("foo", "bar-1", 0, 100L, 0);
 
         List<CoordinatorRecord> expectedRecords = Arrays.asList(
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-1", 0),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 0),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 1)
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-1", 0),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 0),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 1)
         );
 
         List<CoordinatorRecord> records = new ArrayList<>();
@@ -2427,10 +2454,10 @@ public class OffsetMetadataManagerTest {
         context.commitOffset(10L, "foo", "bar-2", 0, 100L, 0, context.time.milliseconds());
 
         List<CoordinatorRecord> expectedRecords = Arrays.asList(
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-1", 0),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 0),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 1),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-2", 0)
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-1", 0),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 0),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-0", 1),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("foo", "bar-2", 0)
         );
 
         List<CoordinatorRecord> records = new ArrayList<>();
@@ -2493,7 +2520,7 @@ public class OffsetMetadataManagerTest {
 
         OffsetMetadataManagerTestContext context = new OffsetMetadataManagerTestContext.Builder()
             .withGroupMetadataManager(groupMetadataManager)
-            .withOffsetsRetentionMs(1000)
+            .withOffsetsRetentionMinutes(1)
             .build();
 
         long commitTimestamp = context.time.milliseconds();
@@ -2502,13 +2529,13 @@ public class OffsetMetadataManagerTest {
         context.commitOffset("group-id", "secondTopic", 0, 100L, 0, commitTimestamp);
         context.commitOffset("group-id", "secondTopic", 1, 100L, 0, commitTimestamp + 500);
 
-        context.time.sleep(1000);
+        context.time.sleep(Duration.ofMinutes(1).toMillis());
 
         // firstTopic-0: group is still subscribed to firstTopic. Do not expire.
         // secondTopic-0: should expire as offset retention has passed.
         // secondTopic-1: has not passed offset retention. Do not expire.
         List<CoordinatorRecord> expectedRecords = Collections.singletonList(
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 0)
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 0)
         );
 
         when(groupMetadataManager.group("group-id")).thenReturn(group);
@@ -2524,7 +2551,7 @@ public class OffsetMetadataManagerTest {
         // Expire secondTopic-1.
         context.time.sleep(500);
         expectedRecords = Collections.singletonList(
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 1)
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 1)
         );
 
         records = new ArrayList<>();
@@ -2537,9 +2564,9 @@ public class OffsetMetadataManagerTest {
         context.commitOffset("group-id", "secondTopic", 0, 101L, 0, commitTimestamp + 500);
 
         expectedRecords = Arrays.asList(
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "firstTopic", 0),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "firstTopic", 1),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 0)
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "firstTopic", 0),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "firstTopic", 1),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 0)
         );
 
         records = new ArrayList<>();
@@ -2554,7 +2581,7 @@ public class OffsetMetadataManagerTest {
 
         OffsetMetadataManagerTestContext context = new OffsetMetadataManagerTestContext.Builder()
             .withGroupMetadataManager(groupMetadataManager)
-            .withOffsetsRetentionMs(1000)
+            .withOffsetsRetentionMinutes(1)
             .build();
 
         long commitTimestamp = context.time.milliseconds();
@@ -2562,7 +2589,7 @@ public class OffsetMetadataManagerTest {
         context.commitOffset("group-id", "foo", 0, 100L, 0, commitTimestamp);
         context.commitOffset(10L, "group-id", "foo", 0, 101L, 0, commitTimestamp + 500);
 
-        context.time.sleep(1000);
+        context.time.sleep(Duration.ofMinutes(1).toMillis());
 
         when(groupMetadataManager.group("group-id")).thenReturn(group);
         when(group.offsetExpirationCondition()).thenReturn(Optional.of(
@@ -2575,7 +2602,7 @@ public class OffsetMetadataManagerTest {
         assertEquals(Collections.emptyList(), records);
     }
 
-    static private OffsetFetchResponseData.OffsetFetchResponsePartitions mkOffsetPartitionResponse(
+    private static OffsetFetchResponseData.OffsetFetchResponsePartitions mkOffsetPartitionResponse(
         int partition,
         long offset,
         int leaderEpoch,
@@ -2588,7 +2615,7 @@ public class OffsetMetadataManagerTest {
             .setMetadata(metadata);
     }
 
-    static private OffsetFetchResponseData.OffsetFetchResponsePartitions mkInvalidOffsetPartitionResponse(int partition) {
+    private static OffsetFetchResponseData.OffsetFetchResponsePartitions mkInvalidOffsetPartitionResponse(int partition) {
         return new OffsetFetchResponseData.OffsetFetchResponsePartitions()
             .setPartitionIndex(partition)
             .setCommittedOffset(INVALID_OFFSET)
@@ -2596,7 +2623,7 @@ public class OffsetMetadataManagerTest {
             .setMetadata("");
     }
 
-    static private OffsetFetchResponseData.OffsetFetchResponsePartitions mkOffsetPartitionResponse(int partition, Errors error) {
+    private static OffsetFetchResponseData.OffsetFetchResponsePartitions mkOffsetPartitionResponse(int partition, Errors error) {
         return new OffsetFetchResponseData.OffsetFetchResponsePartitions()
             .setPartitionIndex(partition)
             .setErrorCode(error.code())
@@ -2738,13 +2765,13 @@ public class OffsetMetadataManagerTest {
         ));
 
         // Delete the offsets.
-        context.replay(CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(
+        context.replay(GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(
             "foo",
             "bar",
             0
         ));
 
-        context.replay(CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(
+        context.replay(GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord(
             "foo",
             "bar",
             1
@@ -2979,7 +3006,7 @@ public class OffsetMetadataManagerTest {
 
         OffsetMetadataManagerTestContext context = new OffsetMetadataManagerTestContext.Builder()
             .withGroupMetadataManager(groupMetadataManager)
-            .withOffsetsRetentionMs(1000)
+            .withOffsetsRetentionMinutes(1)
             .build();
 
         long commitTimestamp = context.time.milliseconds();
@@ -2988,13 +3015,13 @@ public class OffsetMetadataManagerTest {
         context.commitOffset("group-id", "secondTopic", 0, 100L, 0, commitTimestamp);
         context.commitOffset("group-id", "secondTopic", 1, 100L, 0, commitTimestamp + 500);
 
-        context.time.sleep(1000);
+        context.time.sleep(Duration.ofMinutes(1).toMillis());
 
         // firstTopic-0: group is still subscribed to firstTopic. Do not expire.
         // secondTopic-0: should expire as offset retention has passed.
         // secondTopic-1: has not passed offset retention. Do not expire.
         List<CoordinatorRecord> expectedRecords = Collections.singletonList(
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 0)
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("group-id", "secondTopic", 0)
         );
 
         when(groupMetadataManager.group("group-id")).thenReturn(group);
@@ -3079,13 +3106,13 @@ public class OffsetMetadataManagerTest {
 
         // Verify.
         List<CoordinatorRecord> expectedRecords = Arrays.asList(
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-0", "foo", 1),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-0", "foo", 2),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-0", "foo", 3),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-1", "bar", 1),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-2", "foo", 1),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-2", "foo", 2),
-            CoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-2", "foo", 3)
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-0", "foo", 1),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-0", "foo", 2),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-0", "foo", 3),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-1", "bar", 1),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-2", "foo", 1),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-2", "foo", 2),
+            GroupCoordinatorRecordHelpers.newOffsetCommitTombstoneRecord("grp-2", "foo", 3)
         );
 
         assertEquals(new HashSet<>(expectedRecords), new HashSet<>(records));
@@ -3106,7 +3133,7 @@ public class OffsetMetadataManagerTest {
         int partition,
         OffsetAndMetadata offsetAndMetadata
     ) {
-        context.replay(CoordinatorRecordHelpers.newOffsetCommitRecord(
+        context.replay(GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
             groupId,
             topic,
             partition,
@@ -3129,7 +3156,7 @@ public class OffsetMetadataManagerTest {
         int partition,
         OffsetAndMetadata offsetAndMetadata
     ) {
-        context.replay(producerId, CoordinatorRecordHelpers.newOffsetCommitRecord(
+        context.replay(producerId, GroupCoordinatorRecordHelpers.newOffsetCommitRecord(
             groupId,
             topic,
             partition,

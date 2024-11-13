@@ -16,7 +16,7 @@
  */
 package kafka.server
 
-import kafka.utils.{CoreUtils, Exit, TestUtils}
+import kafka.utils.{CoreUtils, TestInfoUtils, TestUtils}
 
 import java.io.{DataInputStream, File}
 import java.net.ServerSocket
@@ -36,14 +36,14 @@ import org.apache.kafka.common.protocol.ApiKeys
 import org.apache.kafka.common.requests.LeaderAndIsrRequest
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.{IntegerDeserializer, IntegerSerializer, StringDeserializer, StringSerializer}
-import org.apache.kafka.common.utils.Time
+import org.apache.kafka.common.utils.{Exit, Time}
 import org.apache.kafka.metadata.BrokerState
 import org.apache.kafka.server.config.{KRaftConfigs, ServerLogConfigs, ZkConfigs}
 import org.junit.jupiter.api.{BeforeEach, TestInfo, Timeout}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.function.Executable
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.{MethodSource, ValueSource}
 
 import java.time.Duration
 import java.util.Properties
@@ -84,9 +84,9 @@ class ServerShutdownTest extends KafkaServerTestHarness {
     super.setUp(testInfo)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testCleanShutdown(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testCleanShutdown(quorum: String, groupProtocol: String): Unit = {
 
     def createProducer(): KafkaProducer[Integer, String] =
       TestUtils.createProducer(
@@ -98,6 +98,7 @@ class ServerShutdownTest extends KafkaServerTestHarness {
     def createConsumer(): Consumer[Integer, String] =
       TestUtils.createConsumer(
         bootstrapServers(),
+        groupProtocolFromTestParameters(),
         securityProtocol = SecurityProtocol.PLAINTEXT,
         keyDeserializer = new IntegerDeserializer,
         valueDeserializer = new StringDeserializer
@@ -144,7 +145,7 @@ class ServerShutdownTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testCleanShutdownAfterFailedStartup(quorum: String): Unit = {
     if (isKRaftTest()) {
       propsToChangeUponRestart.setProperty(KRaftConfigs.INITIAL_BROKER_REGISTRATION_TIMEOUT_MS_CONFIG, "1000")
@@ -159,7 +160,7 @@ class ServerShutdownTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testNoCleanShutdownAfterFailedStartupDueToCorruptLogs(quorum: String): Unit = {
     createTopic(topic)
     shutdownBroker()
@@ -245,7 +246,7 @@ class ServerShutdownTest extends KafkaServerTestHarness {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testConsecutiveShutdown(quorum: String): Unit = {
     shutdownBroker()
     brokers.head.shutdown()
@@ -272,7 +273,9 @@ class ServerShutdownTest extends KafkaServerTestHarness {
       val receiveFuture = executor.submit(new Runnable {
         override def run(): Unit = {
           val socket = serverSocket.accept()
-          new DataInputStream(socket.getInputStream).readByte()
+          val inputStream = new DataInputStream(socket.getInputStream)
+          inputStream.readByte()
+          inputStream.close()
         }
       })
 

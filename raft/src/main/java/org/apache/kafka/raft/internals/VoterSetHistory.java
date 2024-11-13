@@ -16,7 +16,10 @@
  */
 package org.apache.kafka.raft.internals;
 
+import org.apache.kafka.raft.VoterSet;
+
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * A type for storing the historical value of the set of voters.
@@ -25,11 +28,11 @@ import java.util.Optional;
  * and the log segments. This is useful when generating a new snapshot at a given offset or when
  * evaluating the latest set of voters.
  */
-final public class VoterSetHistory {
-    private final Optional<VoterSet> staticVoterSet;
+public final class VoterSetHistory {
+    private final VoterSet staticVoterSet;
     private final LogHistory<VoterSet> votersHistory = new TreeMapLogHistory<>();
 
-    VoterSetHistory(Optional<VoterSet> staticVoterSet) {
+    VoterSetHistory(VoterSet staticVoterSet) {
         this.staticVoterSet = staticVoterSet;
     }
 
@@ -82,13 +85,33 @@ final public class VoterSetHistory {
      * Returns the latest set of voters.
      */
     public VoterSet lastValue() {
-        Optional<LogHistory.Entry<VoterSet>> result = votersHistory.lastEntry();
-        if (result.isPresent()) {
-            return result.get().value();
-        }
+        return votersHistory.lastEntry()
+            .map(LogHistory.Entry::value)
+            .orElse(staticVoterSet);
+    }
 
-        return staticVoterSet
-            .orElseThrow(() -> new IllegalStateException("No voter set found"));
+    /**
+     * Return the latest entry for the set of voters.
+     */
+    public Optional<LogHistory.Entry<VoterSet>> lastEntry() {
+        return votersHistory.lastEntry();
+    }
+
+    /**
+     * Returns the offset of the last voter set stored in the partition history.
+     *
+     * Returns {@code OptionalLong.empty} if the last voter set is from the static voters
+     * configuration.
+     *
+     * @return the offset storing the last voter set
+     */
+    public OptionalLong lastVoterSetOffset() {
+        Optional<LogHistory.Entry<VoterSet>> lastEntry = votersHistory.lastEntry();
+        if (lastEntry.isPresent()) {
+            return OptionalLong.of(lastEntry.get().offset());
+        } else {
+            return OptionalLong.empty();
+        }
     }
 
     /**

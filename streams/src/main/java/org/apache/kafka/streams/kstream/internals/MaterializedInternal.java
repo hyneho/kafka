@@ -16,19 +16,19 @@
  */
 package org.apache.kafka.streams.kstream.internals;
 
-import java.util.Optional;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.TopologyConfig;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.processor.StateStore;
-import org.apache.kafka.streams.TopologyConfig;
 import org.apache.kafka.streams.state.DslStoreSuppliers;
 import org.apache.kafka.streams.state.StoreSupplier;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 
-public class MaterializedInternal<K, V, S extends StateStore> extends Materialized<K, V, S> {
+public final class MaterializedInternal<K, V, S extends StateStore> extends Materialized<K, V, S> {
 
     private final boolean queryable;
 
@@ -36,7 +36,6 @@ public class MaterializedInternal<K, V, S extends StateStore> extends Materializ
         this(materialized, null, null);
     }
 
-    @SuppressWarnings("this-escape")
     public MaterializedInternal(final Materialized<K, V, S> materialized,
                                 final InternalNameProvider nameProvider,
                                 final String generatedStorePrefix) {

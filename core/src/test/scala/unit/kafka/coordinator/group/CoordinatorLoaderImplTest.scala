@@ -19,13 +19,15 @@ package kafka.coordinator.group
 import kafka.log.UnifiedLog
 import kafka.server.ReplicaManager
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException
-import org.apache.kafka.common.record.{CompressionType, ControlRecordType, EndTransactionMarker, FileRecords, MemoryRecords, RecordBatch, SimpleRecord}
+import org.apache.kafka.common.record.{ControlRecordType, EndTransactionMarker, FileRecords, MemoryRecords, RecordBatch, SimpleRecord}
 import org.apache.kafka.common.requests.TransactionResult
 import org.apache.kafka.common.utils.{MockTime, Time}
-import org.apache.kafka.coordinator.group.runtime.CoordinatorLoader.UnknownRecordTypeException
-import org.apache.kafka.coordinator.group.runtime.{CoordinatorPlayback, Deserializer}
-import org.apache.kafka.storage.internals.log.{FetchDataInfo, FetchIsolation, LogOffsetMetadata}
+import org.apache.kafka.coordinator.common.runtime.CoordinatorLoader.UnknownRecordTypeException
+import org.apache.kafka.coordinator.common.runtime.{CoordinatorPlayback, Deserializer}
+import org.apache.kafka.server.storage.log.FetchIsolation
+import org.apache.kafka.storage.internals.log.{FetchDataInfo, LogOffsetMetadata}
 import org.apache.kafka.test.TestUtils.assertFutureThrows
 import org.junit.jupiter.api.Assertions.{assertEquals, assertNotNull}
 import org.junit.jupiter.api.{Test, Timeout}
@@ -639,13 +641,13 @@ class CoordinatorLoaderImplTest {
     val memoryRecords = if (producerId == RecordBatch.NO_PRODUCER_ID) {
       MemoryRecords.withRecords(
         startOffset,
-        CompressionType.NONE,
+        Compression.NONE,
         records: _*
       )
     } else {
       MemoryRecords.withTransactionalRecords(
         startOffset,
-        CompressionType.NONE,
+        Compression.NONE,
         producerId,
         producerEpoch,
         0,

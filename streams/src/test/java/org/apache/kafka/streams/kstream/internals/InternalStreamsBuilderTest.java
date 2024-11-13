@@ -16,13 +16,8 @@
  */
 package org.apache.kafka.streams.kstream.internals;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Properties;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.utils.Bytes;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.errors.TopologyException;
@@ -35,8 +30,8 @@ import org.apache.kafka.streams.kstream.KeyValueMapper;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.internals.foreignkeyjoin.ForeignTableJoinProcessorSupplier;
 import org.apache.kafka.streams.kstream.internals.foreignkeyjoin.SubscriptionSendProcessorSupplier;
-import org.apache.kafka.streams.kstream.internals.graph.ForeignTableJoinNode;
 import org.apache.kafka.streams.kstream.internals.graph.ForeignJoinSubscriptionSendNode;
+import org.apache.kafka.streams.kstream.internals.graph.ForeignTableJoinNode;
 import org.apache.kafka.streams.kstream.internals.graph.GraphNode;
 import org.apache.kafka.streams.kstream.internals.graph.KTableKTableJoinNode;
 import org.apache.kafka.streams.kstream.internals.graph.StreamStreamJoinNode;
@@ -53,28 +48,33 @@ import org.apache.kafka.test.MockMapper;
 import org.apache.kafka.test.MockTimestampExtractor;
 import org.apache.kafka.test.MockValueJoiner;
 import org.apache.kafka.test.StreamsTestUtils;
-import org.junit.Test;
 
+import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import static java.time.Duration.ofMillis;
 import static java.util.Arrays.asList;
 import static org.apache.kafka.streams.Topology.AutoOffsetReset;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class InternalStreamsBuilderTest {
 
@@ -211,7 +211,7 @@ public class InternalStreamsBuilderTest {
         final List<StateStore> stateStores = topology.globalStateStores();
         final Set<String> sourceTopics = topology.sourceTopics();
 
-        assertEquals(Utils.mkSet("table", "table2"), sourceTopics);
+        assertEquals(Set.of("table", "table2"), sourceTopics);
         assertEquals(2, stateStores.size());
     }
 
@@ -372,7 +372,7 @@ public class InternalStreamsBuilderTest {
         builder.buildAndOptimizeTopology();
         builder.internalTopologyBuilder.rewriteTopology(new StreamsConfig(StreamsTestUtils.getStreamsConfig(APP_ID)));
         final ProcessorTopology processorTopology = builder.internalTopologyBuilder.buildTopology();
-        assertNull(processorTopology.source("topic").getTimestampExtractor());
+        assertNull(processorTopology.source("topic").timestampExtractor());
     }
 
     @Test
@@ -383,7 +383,7 @@ public class InternalStreamsBuilderTest {
         final ProcessorTopology processorTopology = builder.internalTopologyBuilder
             .rewriteTopology(new StreamsConfig(StreamsTestUtils.getStreamsConfig(APP_ID)))
             .buildTopology();
-        assertThat(processorTopology.source("topic").getTimestampExtractor(), instanceOf(MockTimestampExtractor.class));
+        assertThat(processorTopology.source("topic").timestampExtractor(), instanceOf(MockTimestampExtractor.class));
     }
 
     @Test
@@ -393,7 +393,7 @@ public class InternalStreamsBuilderTest {
         final ProcessorTopology processorTopology = builder.internalTopologyBuilder
             .rewriteTopology(new StreamsConfig(StreamsTestUtils.getStreamsConfig(APP_ID)))
             .buildTopology();
-        assertNull(processorTopology.source("topic").getTimestampExtractor());
+        assertNull(processorTopology.source("topic").timestampExtractor());
     }
 
     @Test
@@ -404,7 +404,7 @@ public class InternalStreamsBuilderTest {
         final ProcessorTopology processorTopology = builder.internalTopologyBuilder
             .rewriteTopology(new StreamsConfig(StreamsTestUtils.getStreamsConfig(APP_ID)))
             .buildTopology();
-        assertThat(processorTopology.source("topic").getTimestampExtractor(), instanceOf(MockTimestampExtractor.class));
+        assertThat(processorTopology.source("topic").timestampExtractor(), instanceOf(MockTimestampExtractor.class));
     }
 
     @Test
@@ -1234,9 +1234,7 @@ public class InternalStreamsBuilderTest {
             return currentNode;
         }
         for (final GraphNode child: currentNode.children()) {
-            if (!visited.contains(child)) {
-                visited.add(child);
-            }
+            visited.add(child);
             final GraphNode result = getNodeByType(child, clazz, visited);
             if (result != null) {
                 return result;

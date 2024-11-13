@@ -17,6 +17,7 @@
 package org.apache.kafka.clients.consumer.internals;
 
 import org.apache.kafka.common.errors.WakeupException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -40,7 +41,7 @@ import static org.mockito.Mockito.verify;
 
 @MockitoSettings(strictness = Strictness.STRICT_STUBS)
 public class WakeupTriggerTest {
-    private final static long DEFAULT_TIMEOUT_MS = 1000;
+    private static final long DEFAULT_TIMEOUT_MS = 1000;
     private WakeupTrigger wakeupTrigger;
 
     @BeforeEach
@@ -100,6 +101,19 @@ public class WakeupTriggerTest {
     public void testWakeupFromFetchAction() {
         try (final FetchBuffer fetchBuffer = mock(FetchBuffer.class)) {
             wakeupTrigger.setFetchAction(fetchBuffer);
+
+            wakeupTrigger.wakeup();
+
+            verify(fetchBuffer).wakeup();
+            final WakeupTrigger.Wakeupable wakeupable = wakeupTrigger.getPendingTask();
+            assertInstanceOf(WakeupTrigger.WakeupFuture.class, wakeupable);
+        }
+    }
+
+    @Test
+    public void testWakeupFromShareFetchAction() {
+        try (final ShareFetchBuffer fetchBuffer = mock(ShareFetchBuffer.class)) {
+            wakeupTrigger.setShareFetchAction(fetchBuffer);
 
             wakeupTrigger.wakeup();
 

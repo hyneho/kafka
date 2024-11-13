@@ -16,15 +16,14 @@
 */
 package kafka.server
 
+import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.{TopicIdPartition, TopicPartition, Uuid}
 import org.apache.kafka.common.message.FetchResponseData
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
-import org.apache.kafka.common.record.CompressionType
 import org.apache.kafka.common.record.MemoryRecords
 import org.apache.kafka.common.record.SimpleRecord
 import org.apache.kafka.common.requests.FetchMetadata.{FINAL_EPOCH, INVALID_SESSION_ID}
 import org.apache.kafka.common.requests.{FetchRequest, FetchResponse, FetchMetadata => JFetchMetadata}
-import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.server.util.MockTime
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, Test, Timeout}
@@ -1739,7 +1738,7 @@ class FetchSessionTest {
     val resp1 = context1.updateAndGenerateResponseData(respData)
     assertEquals(Errors.NONE, resp1.error)
     assertNotEquals(INVALID_SESSION_ID, resp1.sessionId)
-    assertEquals(Utils.mkSet(tp1.topicPartition, tp2.topicPartition), resp1.responseData(topicNames, request1.version).keySet)
+    assertEquals(util.Set.of(tp1.topicPartition, tp2.topicPartition), resp1.responseData(topicNames, request1.version).keySet)
 
     // Incremental fetch context returns partitions with divergent epoch even if none
     // of the other conditions for return are met.
@@ -1768,7 +1767,7 @@ class FetchSessionTest {
     val resp3 = context2.updateAndGenerateResponseData(respData)
     assertEquals(Errors.NONE, resp3.error)
     assertEquals(resp1.sessionId, resp3.sessionId)
-    assertEquals(Utils.mkSet(tp1.topicPartition, tp2.topicPartition), resp3.responseData(topicNames, request2.version).keySet)
+    assertEquals(util.Set.of(tp1.topicPartition, tp2.topicPartition), resp3.responseData(topicNames, request2.version).keySet)
 
     // Partitions that meet other conditions should be returned regardless of whether
     // divergingEpoch is set or not.
@@ -1780,7 +1779,7 @@ class FetchSessionTest {
     val resp4 = context2.updateAndGenerateResponseData(respData)
     assertEquals(Errors.NONE, resp4.error)
     assertEquals(resp1.sessionId, resp4.sessionId)
-    assertEquals(Utils.mkSet(tp1.topicPartition, tp2.topicPartition), resp4.responseData(topicNames, request2.version).keySet)
+    assertEquals(util.Set.of(tp1.topicPartition, tp2.topicPartition), resp4.responseData(topicNames, request2.version).keySet)
   }
 
   @Test
@@ -1824,7 +1823,7 @@ class FetchSessionTest {
     val resp1 = context1.updateAndGenerateResponseData(respData1)
     assertEquals(Errors.NONE, resp1.error)
     assertNotEquals(INVALID_SESSION_ID, resp1.sessionId)
-    assertEquals(Utils.mkSet(tp1.topicPartition, tp2.topicPartition, tp3.topicPartition), resp1.responseData(topicNames, ApiKeys.FETCH.latestVersion()).keySet())
+    assertEquals(util.Set.of(tp1.topicPartition, tp2.topicPartition, tp3.topicPartition), resp1.responseData(topicNames, ApiKeys.FETCH.latestVersion()).keySet())
 
     // Incremental fetch context returns partitions with changes but only deprioritizes
     // the partitions with records
@@ -1854,7 +1853,7 @@ class FetchSessionTest {
       .setHighWatermark(60)
       .setLastStableOffset(50)
       .setLogStartOffset(0)
-      .setRecords(MemoryRecords.withRecords(CompressionType.NONE,
+      .setRecords(MemoryRecords.withRecords(Compression.NONE,
         new SimpleRecord(100, null))))
     respData3.put(tp3, new FetchResponseData.PartitionData()
       .setPartitionIndex(tp3.topicPartition.partition)
@@ -1864,7 +1863,7 @@ class FetchSessionTest {
     val resp3 = context2.updateAndGenerateResponseData(respData3)
     assertEquals(Errors.NONE, resp3.error)
     assertEquals(resp1.sessionId, resp3.sessionId)
-    assertEquals(Utils.mkSet(tp1.topicPartition, tp2.topicPartition), resp3.responseData(topicNames, ApiKeys.FETCH.latestVersion()).keySet)
+    assertEquals(util.Set.of(tp1.topicPartition, tp2.topicPartition), resp3.responseData(topicNames, ApiKeys.FETCH.latestVersion()).keySet)
 
     // Only the partitions whose returned records in the last response
     // were deprioritized

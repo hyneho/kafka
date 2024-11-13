@@ -23,6 +23,7 @@ import org.apache.kafka.common.{TopicPartition, Uuid}
 import org.apache.kafka.common.requests.FetchResponse
 import org.apache.kafka.server.common.{DirectoryEventHandler, OffsetAndEpoch, TopicIdPartition}
 import org.apache.kafka.storage.internals.log.{LogAppendInfo, LogStartOffsetIncrementReason}
+import org.apache.kafka.storage.log.metrics.BrokerTopicStats
 
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.{Map, Set}
@@ -40,7 +41,7 @@ class ReplicaAlterLogDirsThread(name: String,
                                 clientId = name,
                                 leader = leader,
                                 failedPartitions,
-                                fetchTierStateMachine = new ReplicaAlterLogDirsTierStateMachine(),
+                                fetchTierStateMachine = new TierStateMachine(leader, replicaMgr, true),
                                 fetchBackOffMs = fetchBackOffMs,
                                 isInterruptible = false,
                                 brokerTopicStats) {

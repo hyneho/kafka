@@ -69,6 +69,7 @@ import org.apache.kafka.common.requests.TxnOffsetCommitRequest.CommittedOffset;
 import org.apache.kafka.common.requests.TxnOffsetCommitResponse;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.ProducerIdAndEpoch;
+
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -192,6 +193,8 @@ public class TransactionManager {
     private volatile ProducerIdAndEpoch producerIdAndEpoch;
     private volatile boolean transactionStarted = false;
     private volatile boolean epochBumpRequired = false;
+    private volatile long latestFinalizedFeaturesEpoch = -1;
+    private volatile boolean isTransactionV2Enabled = false;
 
     private enum State {
         UNINITIALIZED,
@@ -309,6 +312,7 @@ public class TransactionManager {
         throwIfPendingState("beginTransaction");
         maybeFailWithError();
         transitionTo(State.IN_TRANSACTION);
+        maybeUpdateTransactionV2Enabled();
     }
 
     public synchronized TransactionalRequestResult beginCommit() {
@@ -344,7 +348,9 @@ public class TransactionManager {
                             .setTransactionalId(transactionalId)
                             .setProducerId(producerIdAndEpoch.producerId)
                             .setProducerEpoch(producerIdAndEpoch.epoch)
-                            .setCommitted(transactionResult.id));
+                            .setCommitted(transactionResult.id),
+                    isTransactionV2Enabled
+            );
 
             EndTxnHandler handler = new EndTxnHandler(builder);
             enqueueRequest(handler);
@@ -424,6 +430,21 @@ public class TransactionManager {
         return transactionalId != null;
     }
 
+    // Check all the finalized features from apiVersions to whether the transaction V2 is enabled.
+    public synchronized void maybeUpdateTransactionV2Enabled() {
+        if (latestFinalizedFeaturesEpoch >= apiVersions.getMaxFinalizedFeaturesEpoch()) {
+            return;
+        }
+        ApiVersions.FinalizedFeaturesInfo info = apiVersions.getFinalizedFeaturesInfo();
+        latestFinalizedFeaturesEpoch = info.finalizedFeaturesEpoch;
+        Short transactionVersion = info.finalizedFeatures.get("transaction.version");
+        isTransactionV2Enabled = transactionVersion != null && transactionVersion >= 2;
+    }
+
+    public boolean isTransactionV2Enabled() {
+        return isTransactionV2Enabled;
+    }
+
     synchronized boolean hasPartitionsToAdd() {
         return !newPartitionsInTransaction.isEmpty() || !pendingPartitionsInTransaction.isEmpty();
     }
@@ -480,7 +501,7 @@ public class TransactionManager {
         return producerIdAndEpoch;
     }
 
-    synchronized public void maybeUpdateProducerIdAndEpoch(TopicPartition topicPartition) {
+    public synchronized void maybeUpdateProducerIdAndEpoch(TopicPartition topicPartition) {
         if (hasFatalError()) {
             log.debug("Ignoring producer ID and epoch update request since the producer is in fatal error state");
             return;
@@ -1497,7 +1518,10 @@ public class TransactionManager {
                         break;
                     case TRANSACTION:
                         transactionCoordinator = node;
-
+                        break;
+                    default:
+                        log.error("Group coordinator lookup failed: Unexpected coordinator type in response");
+                        fatalError(new IllegalStateException("Group coordinator lookup failed: Unexpected coordinator type in response"));
                 }
                 result.done();
                 log.info("Discovered {} coordinator {}", coordinatorType.toString().toLowerCase(Locale.ROOT), node);
@@ -1546,6 +1570,19 @@ public class TransactionManager {
             Errors error = endTxnResponse.error();
 
             if (error == Errors.NONE) {
+                // For End Txn version 5+, the broker includes the producerId and producerEpoch in the EndTxnResponse.
+                // For versions lower than 5, the producer Id and epoch are set to -1 by default.
+                // When Transaction Version 2 is enabled, the end txn request 5+ is used,
+                // it mandates bumping the epoch after every transaction.
+                // If the epoch overflows, a new producerId is returned with epoch set to 0.
+                if (endTxnResponse.data().producerId() != -1) {
+                    ProducerIdAndEpoch producerIdAndEpoch = new ProducerIdAndEpoch(
+                        endTxnResponse.data().producerId(),
+                        endTxnResponse.data().producerEpoch()
+                    );
+                    setProducerIdAndEpoch(producerIdAndEpoch);
+                    resetSequenceNumbers();
+                }
                 completeTransaction();
                 result.done();
             } else if (error == Errors.COORDINATOR_NOT_AVAILABLE || error == Errors.NOT_COORDINATOR) {

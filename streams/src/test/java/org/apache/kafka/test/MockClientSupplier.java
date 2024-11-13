@@ -34,7 +34,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class MockClientSupplier implements KafkaClientSupplier {
     private static final ByteArraySerializer BYTE_ARRAY_SERIALIZER = new ByteArraySerializer();
@@ -43,7 +43,7 @@ public class MockClientSupplier implements KafkaClientSupplier {
     private String applicationId;
 
     public MockAdminClient adminClient = new MockAdminClient();
-    private List<MockProducer<byte[], byte[]>> preparedProducers = new LinkedList<>();
+    private final List<MockProducer<byte[], byte[]>> preparedProducers = new LinkedList<>();
     public final List<MockProducer<byte[], byte[]>> producers = new LinkedList<>();
     public final MockConsumer<byte[], byte[]> consumer = new MockConsumer<>(OffsetResetStrategy.EARLIEST);
     public final MockConsumer<byte[], byte[]> restoreConsumer = new MockConsumer<>(OffsetResetStrategy.LATEST);

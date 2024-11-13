@@ -19,6 +19,7 @@ package org.apache.kafka.metadata.properties;
 
 import org.apache.kafka.common.DirectoryId;
 import org.apache.kafka.common.Uuid;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,14 +101,7 @@ public final class MetaPropertiesEnsemble {
         private Optional<String> metadataLogDir = Optional.empty();
 
         public Loader addLogDirs(Collection<String> logDirs) {
-            for (String logDir : logDirs) {
-                this.logDirs.add(logDir);
-            }
-            return this;
-        }
-
-        public Loader addLogDir(String logDir) {
-            this.logDirs.add(logDir);
+            this.logDirs.addAll(logDirs);
             return this;
         }
 
@@ -424,7 +418,7 @@ public final class MetaPropertiesEnsemble {
      * @return An iterator that returns (logDir, metaProps) for all non-failed directories.
      */
     public Iterator<Entry<String, Optional<MetaProperties>>> nonFailedDirectoryProps() {
-        return new Iterator<Entry<String, Optional<MetaProperties>>>() {
+        return new Iterator<>() {
             private final Iterator<String> emptyLogDirsIterator = emptyLogDirs.iterator();
             private final Iterator<Entry<String, MetaProperties>> logDirsIterator =
                     logDirProps.entrySet().iterator();
@@ -497,22 +491,22 @@ public final class MetaPropertiesEnsemble {
                         "(which is implicit when the `version` field is missing).");
                 }
             }
-            if (!metaProps.clusterId().isPresent()) {
+            if (metaProps.clusterId().isEmpty()) {
                 if (metaProps.version().alwaysHasClusterId()) {
                     throw new RuntimeException("cluster.id was not specified in the v1 file: " +
                         path);
                 }
-            } else if (!expectedClusterId.isPresent()) {
+            } else if (expectedClusterId.isEmpty()) {
                 expectedClusterId = metaProps.clusterId();
             } else if (!metaProps.clusterId().get().equals(expectedClusterId.get())) {
                 throw new RuntimeException("Invalid cluster.id in: " + path + ". Expected " +
                     expectedClusterId.get() + ", but read " + metaProps.clusterId().get());
             }
-            if (!metaProps.nodeId().isPresent()) {
+            if (metaProps.nodeId().isEmpty()) {
                 if (metaProps.version().alwaysHasNodeId()) {
                     throw new RuntimeException("node.id was not specified in " + path);
                 }
-            } else if (!expectedNodeId.isPresent()) {
+            } else if (expectedNodeId.isEmpty()) {
                 expectedNodeId = metaProps.nodeId();
             } else if (metaProps.nodeId().getAsInt() != expectedNodeId.getAsInt()) {
                 throw new RuntimeException("Stored node id " + metaProps.nodeId().getAsInt() +
@@ -535,7 +529,7 @@ public final class MetaPropertiesEnsemble {
             }
         }
         if (verificationFlags.contains(VerificationFlag.REQUIRE_METADATA_LOG_DIR)) {
-            if (!metadataLogDir.isPresent()) {
+            if (metadataLogDir.isEmpty()) {
                 throw new RuntimeException("No metadata log directory was specified.");
             }
         }

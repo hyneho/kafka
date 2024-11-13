@@ -49,6 +49,7 @@ import org.apache.kafka.connect.storage.StatusBackingStore;
 import org.apache.kafka.connect.util.Callback;
 import org.apache.kafka.connect.util.ConnectUtils;
 import org.apache.kafka.connect.util.ConnectorTaskId;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,11 +69,12 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Single process, in-memory "herder". Useful for a standalone Kafka Connect process.
  */
-public class StandaloneHerder extends AbstractHerder {
+public final class StandaloneHerder extends AbstractHerder {
     private static final Logger log = LoggerFactory.getLogger(StandaloneHerder.class);
 
     private final AtomicLong requestSeqNum = new AtomicLong();
     private final ScheduledExecutorService requestExecutorService;
+    private final HealthCheckThread healthCheckThread;
 
     // Visible for testing
     ClusterConfigState configState;
@@ -100,6 +102,7 @@ public class StandaloneHerder extends AbstractHerder {
         super(worker, workerId, kafkaClusterId, statusBackingStore, configBackingStore, connectorClientConfigOverridePolicy, time);
         this.configState = ClusterConfigState.EMPTY;
         this.requestExecutorService = Executors.newSingleThreadScheduledExecutor();
+        this.healthCheckThread = new HealthCheckThread(this);
         configBackingStore.setUpdateListener(new ConfigUpdateListener());
     }
 
@@ -107,7 +110,6 @@ public class StandaloneHerder extends AbstractHerder {
     public synchronized void start() {
         log.info("Herder starting");
         startServices();
-        running = true;
         log.info("Herder started");
     }
 
@@ -123,8 +125,19 @@ public class StandaloneHerder extends AbstractHerder {
             worker.stopAndAwaitConnector(connName);
         }
         stopServices();
-        running = false;
+        healthCheckThread.shutDown();
         log.info("Herder stopped");
+    }
+
+    @Override
+    public void ready() {
+        super.ready();
+        healthCheckThread.start();
+    }
+
+    @Override
+    public void healthCheck(Callback<Void> cb) {
+        healthCheckThread.check(cb);
     }
 
     @Override
@@ -519,10 +532,10 @@ public class StandaloneHerder extends AbstractHerder {
         }
 
         List<Map<String, String>> newTaskConfigs = recomputeTaskConfigs(connName);
+        List<Map<String, String>> rawTaskConfigs = reverseTransform(connName, configState, newTaskConfigs);
 
-        if (taskConfigsChanged(configState, connName, newTaskConfigs)) {
+        if (taskConfigsChanged(configState, connName, rawTaskConfigs)) {
             removeConnectorTasks(connName);
-            List<Map<String, String>> rawTaskConfigs = reverseTransform(connName, configState, newTaskConfigs);
             configBackingStore.putTaskConfigs(connName, rawTaskConfigs);
             createConnectorTasks(connName);
         }

@@ -18,11 +18,12 @@ package kafka.coordinator.group
 
 import kafka.server.ReplicaManager
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.errors.NotLeaderOrFollowerException
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
-import org.apache.kafka.common.record.{CompressionType, MemoryRecords, RecordBatch, SimpleRecord}
+import org.apache.kafka.common.record.{MemoryRecords, RecordBatch, SimpleRecord}
 import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
-import org.apache.kafka.coordinator.group.runtime.PartitionWriter
+import org.apache.kafka.coordinator.common.runtime.PartitionWriter
 import org.apache.kafka.storage.internals.log.{AppendOrigin, LogConfig, VerificationGuard}
 import org.apache.kafka.test.TestUtils.assertFutureThrows
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows}
@@ -122,7 +123,7 @@ class CoordinatorPartitionWriterTest {
     })
 
     val batch = MemoryRecords.withRecords(
-      CompressionType.NONE,
+      Compression.NONE,
       new SimpleRecord(
         0L,
         "foo".getBytes(Charset.defaultCharset()),
@@ -223,7 +224,7 @@ class CoordinatorPartitionWriterTest {
     })
 
     val batch = MemoryRecords.withRecords(
-      CompressionType.NONE,
+      Compression.NONE,
       new SimpleRecord(
         0L,
         "foo".getBytes(Charset.defaultCharset()),

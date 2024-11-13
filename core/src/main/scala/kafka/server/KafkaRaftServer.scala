@@ -30,7 +30,7 @@ import org.apache.kafka.metadata.bootstrap.{BootstrapDirectory, BootstrapMetadat
 import org.apache.kafka.metadata.properties.MetaPropertiesEnsemble.VerificationFlag.{REQUIRE_AT_LEAST_ONE_VALID, REQUIRE_METADATA_LOG_DIR}
 import org.apache.kafka.metadata.properties.{MetaProperties, MetaPropertiesEnsemble}
 import org.apache.kafka.raft.QuorumConfig
-import org.apache.kafka.server.ProcessRole
+import org.apache.kafka.server.{ProcessRole, ServerSocketFactory}
 import org.apache.kafka.server.config.ServerTopicConfigSynonyms
 import org.apache.kafka.server.metrics.KafkaYammerMetrics
 import org.apache.kafka.storage.internals.log.LogConfig
@@ -70,8 +70,10 @@ class KafkaRaftServer(
     metaPropsEnsemble,
     time,
     metrics,
-    CompletableFuture.completedFuture(QuorumConfig.parseVoterConnections(config.quorumVoters)),
+    CompletableFuture.completedFuture(QuorumConfig.parseVoterConnections(config.quorumConfig.voters)),
+    QuorumConfig.parseBootstrapServers(config.quorumConfig.bootstrapServers),
     new StandardFaultHandlerFactory(),
+    ServerSocketFactory.INSTANCE,
   )
 
   private val broker: Option[BrokerServer] = if (config.processRoles.contains(ProcessRole.BrokerRole)) {
@@ -92,6 +94,8 @@ class KafkaRaftServer(
 
   override def startup(): Unit = {
     Mx4jLoader.maybeLoad()
+    // Controller component must be started before the broker component so that
+    // the controller endpoints are passed to the KRaft manager
     controller.foreach(_.startup())
     broker.foreach(_.startup())
     AppInfoParser.registerAppInfo(Server.MetricsPrefix, config.brokerId.toString, metrics, time.milliseconds())
@@ -135,7 +139,7 @@ object KafkaRaftServer {
     // Load and verify the original ensemble.
     val loader = new MetaPropertiesEnsemble.Loader()
     loader.addMetadataLogDir(config.metadataLogDir)
-    config.logDirs.foreach(loader.addLogDir)
+          .addLogDirs(config.logDirs.asJava)
     val initialMetaPropsEnsemble = loader.load()
     val verificationFlags = util.EnumSet.of(REQUIRE_AT_LEAST_ONE_VALID, REQUIRE_METADATA_LOG_DIR)
     initialMetaPropsEnsemble.verify(Optional.empty(), OptionalInt.of(config.nodeId), verificationFlags)

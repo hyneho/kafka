@@ -23,9 +23,7 @@ import java.io._
 import com.fasterxml.jackson.databind.node.{IntNode, JsonNodeFactory, ObjectNode, TextNode}
 import kafka.coordinator.transaction.TransactionLog
 import kafka.log._
-import kafka.serializer.Decoder
-import kafka.utils._
-import kafka.utils.Implicits._
+import kafka.utils.CoreUtils
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol
 import org.apache.kafka.common.message.ConsumerProtocolAssignment
 import org.apache.kafka.common.message.ConsumerProtocolAssignmentJsonConverter
@@ -39,14 +37,18 @@ import org.apache.kafka.common.metadata.{MetadataJsonConverters, MetadataRecordT
 import org.apache.kafka.common.protocol.{ByteBufferAccessor, Message}
 import org.apache.kafka.common.record._
 import org.apache.kafka.common.utils.Utils
-import org.apache.kafka.coordinator.group.CoordinatorRecordSerde
-import org.apache.kafka.coordinator.group.generated.{ConsumerGroupCurrentMemberAssignmentKey, ConsumerGroupCurrentMemberAssignmentKeyJsonConverter, ConsumerGroupCurrentMemberAssignmentValue, ConsumerGroupCurrentMemberAssignmentValueJsonConverter, ConsumerGroupMemberMetadataKey, ConsumerGroupMemberMetadataKeyJsonConverter, ConsumerGroupMemberMetadataValue, ConsumerGroupMemberMetadataValueJsonConverter, ConsumerGroupMetadataKey, ConsumerGroupMetadataKeyJsonConverter, ConsumerGroupMetadataValue, ConsumerGroupMetadataValueJsonConverter, ConsumerGroupPartitionMetadataKey, ConsumerGroupPartitionMetadataKeyJsonConverter, ConsumerGroupPartitionMetadataValue, ConsumerGroupPartitionMetadataValueJsonConverter, ConsumerGroupTargetAssignmentMemberKey, ConsumerGroupTargetAssignmentMemberKeyJsonConverter, ConsumerGroupTargetAssignmentMemberValue, ConsumerGroupTargetAssignmentMemberValueJsonConverter, ConsumerGroupTargetAssignmentMetadataKey, ConsumerGroupTargetAssignmentMetadataKeyJsonConverter, ConsumerGroupTargetAssignmentMetadataValue, ConsumerGroupTargetAssignmentMetadataValueJsonConverter, GroupMetadataKey, GroupMetadataKeyJsonConverter, GroupMetadataValue, GroupMetadataValueJsonConverter, OffsetCommitKey, OffsetCommitKeyJsonConverter, OffsetCommitValue, OffsetCommitValueJsonConverter}
-import org.apache.kafka.coordinator.group.runtime.CoordinatorLoader.UnknownRecordTypeException
+import org.apache.kafka.coordinator.group.generated.{ConsumerGroupCurrentMemberAssignmentKey, ConsumerGroupCurrentMemberAssignmentKeyJsonConverter, ConsumerGroupCurrentMemberAssignmentValue, ConsumerGroupCurrentMemberAssignmentValueJsonConverter, ConsumerGroupMemberMetadataKey, ConsumerGroupMemberMetadataKeyJsonConverter, ConsumerGroupMemberMetadataValue, ConsumerGroupMemberMetadataValueJsonConverter, ConsumerGroupMetadataKey, ConsumerGroupMetadataKeyJsonConverter, ConsumerGroupMetadataValue, ConsumerGroupMetadataValueJsonConverter, ConsumerGroupPartitionMetadataKey, ConsumerGroupPartitionMetadataKeyJsonConverter, ConsumerGroupPartitionMetadataValue, ConsumerGroupPartitionMetadataValueJsonConverter, ConsumerGroupTargetAssignmentMemberKey, ConsumerGroupTargetAssignmentMemberKeyJsonConverter, ConsumerGroupTargetAssignmentMemberValue, ConsumerGroupTargetAssignmentMemberValueJsonConverter, ConsumerGroupTargetAssignmentMetadataKey, ConsumerGroupTargetAssignmentMetadataKeyJsonConverter, ConsumerGroupTargetAssignmentMetadataValue, ConsumerGroupTargetAssignmentMetadataValueJsonConverter, GroupMetadataKey, GroupMetadataKeyJsonConverter, GroupMetadataValue, GroupMetadataValueJsonConverter, OffsetCommitKey, OffsetCommitKeyJsonConverter, OffsetCommitValue, OffsetCommitValueJsonConverter, ShareGroupCurrentMemberAssignmentKey, ShareGroupCurrentMemberAssignmentKeyJsonConverter, ShareGroupCurrentMemberAssignmentValue, ShareGroupCurrentMemberAssignmentValueJsonConverter, ShareGroupMemberMetadataKey, ShareGroupMemberMetadataKeyJsonConverter, ShareGroupMemberMetadataValue, ShareGroupMemberMetadataValueJsonConverter, ShareGroupMetadataKey, ShareGroupMetadataKeyJsonConverter, ShareGroupMetadataValue, ShareGroupMetadataValueJsonConverter, ShareGroupPartitionMetadataKey, ShareGroupPartitionMetadataKeyJsonConverter, ShareGroupPartitionMetadataValue, ShareGroupPartitionMetadataValueJsonConverter, ShareGroupStatePartitionMetadataKey, ShareGroupStatePartitionMetadataKeyJsonConverter, ShareGroupStatePartitionMetadataValue, ShareGroupStatePartitionMetadataValueJsonConverter, ShareGroupTargetAssignmentMemberKey, ShareGroupTargetAssignmentMemberKeyJsonConverter, ShareGroupTargetAssignmentMemberValue, ShareGroupTargetAssignmentMemberValueJsonConverter, ShareGroupTargetAssignmentMetadataKey, ShareGroupTargetAssignmentMetadataKeyJsonConverter, ShareGroupTargetAssignmentMetadataValue, ShareGroupTargetAssignmentMetadataValueJsonConverter}
+import org.apache.kafka.coordinator.common.runtime.CoordinatorLoader.UnknownRecordTypeException
+import org.apache.kafka.coordinator.group.GroupCoordinatorRecordSerde
+import org.apache.kafka.coordinator.share.ShareCoordinatorRecordSerde
+import org.apache.kafka.coordinator.share.generated.{ShareSnapshotKey, ShareSnapshotKeyJsonConverter, ShareSnapshotValue, ShareSnapshotValueJsonConverter, ShareUpdateKey, ShareUpdateKeyJsonConverter, ShareUpdateValue, ShareUpdateValueJsonConverter}
 import org.apache.kafka.metadata.MetadataRecordSerde
 import org.apache.kafka.metadata.bootstrap.BootstrapDirectory
 import org.apache.kafka.snapshot.Snapshots
+import org.apache.kafka.server.log.remote.metadata.storage.serialization.RemoteLogMetadataSerde
 import org.apache.kafka.server.util.{CommandDefaultOptions, CommandLineUtils}
 import org.apache.kafka.storage.internals.log.{CorruptSnapshotException, LogFileUtils, OffsetIndex, ProducerStateManager, TimeIndex, TransactionIndex}
+import org.apache.kafka.tools.api.{Decoder, StringDecoder}
 
 import java.nio.ByteBuffer
 import scala.jdk.CollectionConverters._
@@ -54,7 +56,6 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object DumpLogSegments {
-
   // visible for testing
   private[tools] val RecordIndent = "|"
 
@@ -90,7 +91,7 @@ object DumpLogSegments {
       }
     }
 
-    misMatchesForIndexFilesMap.forKeyValue { (fileName, listOfMismatches) =>
+    misMatchesForIndexFilesMap.foreachEntry { (fileName, listOfMismatches) =>
       System.err.println(s"Mismatches in :$fileName")
       listOfMismatches.foreach { case (indexOffset, logOffset) =>
         System.err.println(s"  Index offset: $indexOffset, log offset: $logOffset")
@@ -99,7 +100,7 @@ object DumpLogSegments {
 
     timeIndexDumpErrors.printErrors()
 
-    nonConsecutivePairsForLogFilesMap.forKeyValue { (fileName, listOfNonConsecutivePairs) =>
+    nonConsecutivePairsForLogFilesMap.foreachEntry { (fileName, listOfNonConsecutivePairs) =>
       System.err.println(s"Non-consecutive offsets in $fileName")
       listOfNonConsecutivePairs.foreach { case (first, second) =>
         System.err.println(s"  $first is followed by $second")
@@ -419,7 +420,7 @@ object DumpLogSegments {
 
   // Package private for testing.
   class OffsetsMessageParser extends MessageParser[String, String] {
-    private val serde = new CoordinatorRecordSerde()
+    private val serde = new GroupCoordinatorRecordSerde()
 
     private def prepareKey(message: Message, version: Short): String = {
       val messageAsJson = message match {
@@ -439,6 +440,20 @@ object DumpLogSegments {
           ConsumerGroupTargetAssignmentMemberKeyJsonConverter.write(m, version)
         case m: ConsumerGroupCurrentMemberAssignmentKey =>
           ConsumerGroupCurrentMemberAssignmentKeyJsonConverter.write(m, version)
+        case m: ShareGroupMetadataKey =>
+          ShareGroupMetadataKeyJsonConverter.write(m, version)
+        case m: ShareGroupPartitionMetadataKey =>
+          ShareGroupPartitionMetadataKeyJsonConverter.write(m, version)
+        case m: ShareGroupMemberMetadataKey =>
+          ShareGroupMemberMetadataKeyJsonConverter.write(m, version)
+        case m: ShareGroupTargetAssignmentMetadataKey =>
+          ShareGroupTargetAssignmentMetadataKeyJsonConverter.write(m, version)
+        case m: ShareGroupTargetAssignmentMemberKey =>
+          ShareGroupTargetAssignmentMemberKeyJsonConverter.write(m, version)
+        case m: ShareGroupCurrentMemberAssignmentKey =>
+          ShareGroupCurrentMemberAssignmentKeyJsonConverter.write(m, version)
+        case m: ShareGroupStatePartitionMetadataKey =>
+          ShareGroupStatePartitionMetadataKeyJsonConverter.write(m, version)
         case _ => throw new UnknownRecordTypeException(version)
       }
 
@@ -519,6 +534,20 @@ object DumpLogSegments {
           ConsumerGroupTargetAssignmentMemberValueJsonConverter.write(m, version)
         case m: ConsumerGroupCurrentMemberAssignmentValue =>
           ConsumerGroupCurrentMemberAssignmentValueJsonConverter.write(m, version)
+        case m: ShareGroupMetadataValue =>
+          ShareGroupMetadataValueJsonConverter.write(m, version)
+        case m: ShareGroupPartitionMetadataValue =>
+          ShareGroupPartitionMetadataValueJsonConverter.write(m, version)
+        case m: ShareGroupMemberMetadataValue =>
+          ShareGroupMemberMetadataValueJsonConverter.write(m, version)
+        case m: ShareGroupTargetAssignmentMetadataValue =>
+          ShareGroupTargetAssignmentMetadataValueJsonConverter.write(m, version)
+        case m: ShareGroupTargetAssignmentMemberValue =>
+          ShareGroupTargetAssignmentMemberValueJsonConverter.write(m, version)
+        case m: ShareGroupCurrentMemberAssignmentValue =>
+          ShareGroupCurrentMemberAssignmentValueJsonConverter.write(m, version)
+        case m: ShareGroupStatePartitionMetadataValue =>
+          ShareGroupStatePartitionMetadataValueJsonConverter.write(m, version)
         case _ => throw new IllegalStateException(s"Message value ${message.getClass.getSimpleName} is not supported.")
       }
 
@@ -584,10 +613,89 @@ object DumpLogSegments {
     }
   }
 
+  private class RemoteMetadataLogMessageParser extends MessageParser[String, String] {
+    private val metadataRecordSerde = new RemoteLogMetadataSerde
+    
+    override def parse(record: Record): (Option[String], Option[String]) = {
+      val output = try {
+        val data = new Array[Byte](record.value.remaining)
+        record.value.get(data)
+        metadataRecordSerde.deserialize(data).toString
+      } catch {
+        case e: Throwable =>
+          s"Error at offset ${record.offset}, skipping. ${e.getMessage}"
+      }
+      // No keys for metadata records
+      (None, Some(output))
+    }
+  }
+
+  // for test visibility
+  class ShareGroupStateMessageParser extends MessageParser[String, String] {
+    private val serde = new ShareCoordinatorRecordSerde()
+
+    private def prepareKey(message: Message, version: Short): String = {
+      val messageAsJson = message match {
+        case m: ShareSnapshotKey =>
+          ShareSnapshotKeyJsonConverter.write(m, version)
+        case m: ShareUpdateKey =>
+          ShareUpdateKeyJsonConverter.write(m, version)
+        case _ => throw new UnknownRecordTypeException(version)
+      }
+
+      jsonString(messageAsJson, version)
+    }
+
+    private def prepareValue(message: Message, version: Short): String = {
+      val messageAsJson = message match {
+        case m: ShareSnapshotValue =>
+          ShareSnapshotValueJsonConverter.write(m, version)
+        case m: ShareUpdateValue =>
+          ShareUpdateValueJsonConverter.write(m, version)
+        case _ => throw new IllegalStateException(s"Message value ${message.getClass.getSimpleName} is not supported.")
+      }
+
+      jsonString(messageAsJson, version)
+    }
+
+    private def jsonString(jsonNode: JsonNode, version: Short): String = {
+      val json = new ObjectNode(JsonNodeFactory.instance)
+      json.set("type", new TextNode(version.toString))
+      json.set("data", jsonNode)
+      json.toString
+    }
+
+    override def parse(record: Record): (Option[String], Option[String]) = {
+      if (!record.hasKey)
+        throw new RuntimeException(s"Failed to decode message at offset ${record.offset} using share group state " +
+          "topic decoder (message had a missing key)")
+
+      try {
+        val r = serde.deserialize(record.key, record.value)
+        (
+          Some(prepareKey(r.key.message, r.key.version)),
+          Option(r.value).map(v => prepareValue(v.message, v.version)).orElse(Some("<DELETE>"))
+        )
+      } catch {
+        case e: UnknownRecordTypeException =>
+          (
+            Some(s"Unknown record type ${e.unknownType} at offset ${record.offset}, skipping."),
+            None
+          )
+
+        case e: Throwable =>
+          (
+            Some(s"Error at offset ${record.offset}, skipping. ${e.getMessage}"),
+            None
+          )
+      }
+    }
+  }
+
   private class DumpLogSegmentsOptions(args: Array[String]) extends CommandDefaultOptions(args) {
-    private val printOpt = parser.accepts("print-data-log", "if set, printing the messages content when dumping data logs. Automatically set if any decoder option is specified.")
-    private val verifyOpt = parser.accepts("verify-index-only", "if set, just verify the index log without printing its content.")
-    private val indexSanityOpt = parser.accepts("index-sanity-check", "if set, just checks the index sanity without printing its content. " +
+    private val printOpt = parser.accepts("print-data-log", "If set, printing the messages content when dumping data logs. Automatically set if any decoder option is specified.")
+    private val verifyOpt = parser.accepts("verify-index-only", "If set, just verify the index log without printing its content.")
+    private val indexSanityOpt = parser.accepts("index-sanity-check", "If set, just checks the index sanity without printing its content. " +
       "This is the same check that is executed on broker startup to determine if an index needs rebuilding or not.")
     private val filesOpt = parser.accepts("files", "REQUIRED: The comma separated list of data and index log files to be dumped.")
       .withRequiredArg
@@ -603,21 +711,25 @@ object DumpLogSegments {
        .describedAs("size")
        .ofType(classOf[java.lang.Integer])
        .defaultsTo(Integer.MAX_VALUE)
-    private val deepIterationOpt = parser.accepts("deep-iteration", "if set, uses deep instead of shallow iteration. Automatically set if print-data-log is enabled.")
-    private val valueDecoderOpt = parser.accepts("value-decoder-class", "if set, used to deserialize the messages. This class should implement kafka.serializer.Decoder trait. Custom jar should be available in kafka/libs directory.")
+    private val deepIterationOpt = parser.accepts("deep-iteration", "If set, uses deep instead of shallow iteration. Automatically set if print-data-log is enabled.")
+    private val valueDecoderOpt = parser.accepts("value-decoder-class", "If set, used to deserialize the messages. This class should implement org.apache.kafka.tools.api.Decoder trait. Custom jar should be available in kafka/libs directory.")
       .withOptionalArg()
       .ofType(classOf[java.lang.String])
-      .defaultsTo("kafka.serializer.StringDecoder")
-    private val keyDecoderOpt = parser.accepts("key-decoder-class", "if set, used to deserialize the keys. This class should implement kafka.serializer.Decoder trait. Custom jar should be available in kafka/libs directory.")
+      .defaultsTo(classOf[StringDecoder].getName)
+    private val keyDecoderOpt = parser.accepts("key-decoder-class", "If set, used to deserialize the keys. This class should implement org.apache.kafka.tools.api.Decoder trait. Custom jar should be available in kafka/libs directory.")
       .withOptionalArg()
       .ofType(classOf[java.lang.String])
-      .defaultsTo("kafka.serializer.StringDecoder")
-    private val offsetsOpt = parser.accepts("offsets-decoder", "if set, log data will be parsed as offset data from the " +
+      .defaultsTo(classOf[StringDecoder].getName)
+    private val offsetsOpt = parser.accepts("offsets-decoder", "If set, log data will be parsed as offset data from the " +
       "__consumer_offsets topic.")
-    private val transactionLogOpt = parser.accepts("transaction-log-decoder", "if set, log data will be parsed as " +
+    private val transactionLogOpt = parser.accepts("transaction-log-decoder", "If set, log data will be parsed as " +
       "transaction metadata from the __transaction_state topic.")
-    private val clusterMetadataOpt = parser.accepts("cluster-metadata-decoder", "if set, log data will be parsed as cluster metadata records.")
-    private val skipRecordMetadataOpt = parser.accepts("skip-record-metadata", "whether to skip printing metadata for each record.")
+    private val clusterMetadataOpt = parser.accepts("cluster-metadata-decoder", "If set, log data will be parsed as cluster metadata records.")
+    private val remoteMetadataOpt = parser.accepts("remote-log-metadata-decoder", "If set, log data will be parsed as TopicBasedRemoteLogMetadataManager (RLMM) metadata records." + 
+      " Instead, the value-decoder-class option can be used if a custom RLMM implementation is configured.")
+    private val shareStateOpt = parser.accepts("share-group-state-decoder", "If set, log data will be parsed as share group state data from the " +
+      "__share_group_state topic.")
+    private val skipRecordMetadataOpt = parser.accepts("skip-record-metadata", "Whether to skip printing metadata for each record.")
     options = parser.parse(args : _*)
 
     def messageParser: MessageParser[_, _] =
@@ -627,9 +739,13 @@ object DumpLogSegments {
         new TransactionLogMessageParser
       } else if (options.has(clusterMetadataOpt)) {
         new ClusterMetadataLogMessageParser
+      } else if (options.has(remoteMetadataOpt)) {
+        new RemoteMetadataLogMessageParser
+      } else if (options.has(shareStateOpt)) {
+        new ShareGroupStateMessageParser
       } else {
-        val valueDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(valueDecoderOpt), new VerifiableProperties)
-        val keyDecoder: Decoder[_] = CoreUtils.createObject[Decoder[_]](options.valueOf(keyDecoderOpt), new VerifiableProperties)
+        val valueDecoder = CoreUtils.createObject[org.apache.kafka.tools.api.Decoder[_]](options.valueOf(valueDecoderOpt))
+        val keyDecoder = CoreUtils.createObject[org.apache.kafka.tools.api.Decoder[_]](options.valueOf(keyDecoderOpt))
         new DecoderMessageParser(keyDecoder, valueDecoder)
       }
 
@@ -637,8 +753,10 @@ object DumpLogSegments {
       options.has(offsetsOpt) ||
       options.has(transactionLogOpt) ||
       options.has(clusterMetadataOpt) ||
+      options.has(remoteMetadataOpt) ||
       options.has(valueDecoderOpt) ||
-      options.has(keyDecoderOpt)
+      options.has(keyDecoderOpt) ||
+      options.has(shareStateOpt)
 
     lazy val skipRecordMetadata: Boolean = options.has(skipRecordMetadataOpt)
     lazy val isDeepIteration: Boolean = options.has(deepIterationOpt) || shouldPrintDataLog
@@ -649,6 +767,5 @@ object DumpLogSegments {
     lazy val maxBytes: Int = options.valueOf(maxBytesOpt).intValue()
 
     def checkArgs(): Unit = CommandLineUtils.checkRequiredArgs(parser, options, filesOpt)
-
   }
 }

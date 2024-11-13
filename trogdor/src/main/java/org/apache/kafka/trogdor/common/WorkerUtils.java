@@ -36,6 +36,7 @@ import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.internals.KafkaFutureImpl;
 import org.apache.kafka.common.requests.CreateTopicsRequest;
 import org.apache.kafka.common.utils.Time;
+
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -332,7 +333,7 @@ public final class WorkerUtils {
         return out;
     }
 
-    private static Admin createAdminClient(
+    public static Admin createAdminClient(
         String bootstrapServers,
         Map<String, String> commonClientConf, Map<String, String> adminClientConf) {
         Properties props = new Properties();

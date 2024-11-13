@@ -40,6 +40,7 @@ import org.apache.kafka.common.requests.RequestHeader;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Utils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -267,7 +267,6 @@ public class TestUtils {
         } catch (final IOException ex) {
             throw new RuntimeException("Failed to create a temp dir", ex);
         }
-        file.deleteOnExit();
 
         Exit.addShutdownHook("delete-temp-file-shutdown-hook", () -> {
             try {
@@ -516,10 +515,6 @@ public class TestUtils {
         return list;
     }
 
-    public static <T> Set<T> toSet(Collection<T> collection) {
-        return new HashSet<>(collection);
-    }
-
     public static ByteBuffer toBuffer(Send send) {
         ByteBufferChannel channel = new ByteBufferChannel(send.size());
         try {
@@ -697,12 +692,13 @@ public class TestUtils {
             Features<SupportedVersionRange> latestSupportedFeatures,
             boolean zkMigrationEnabled
     ) {
-        return ApiVersionsResponse.createApiVersionsResponse(
-                throttleTimeMs,
-                apiVersions,
-                latestSupportedFeatures,
-                Collections.emptyMap(),
-                ApiVersionsResponse.UNKNOWN_FINALIZED_FEATURES_EPOCH,
-                zkMigrationEnabled);
+        return new ApiVersionsResponse.Builder().
+            setThrottleTimeMs(throttleTimeMs).
+            setApiVersions(apiVersions).
+            setSupportedFeatures(latestSupportedFeatures).
+            setFinalizedFeatures(Collections.emptyMap()).
+            setFinalizedFeaturesEpoch(ApiVersionsResponse.UNKNOWN_FINALIZED_FEATURES_EPOCH).
+            setZkMigrationEnabled(zkMigrationEnabled).
+            build();
     }
 }

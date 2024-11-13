@@ -12,18 +12,17 @@
   */
 package kafka.api
 
-import kafka.utils.TestInfoUtils
+import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.common.{MetricName, TopicPartition}
 import org.apache.kafka.common.utils.Utils
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.{Arguments, MethodSource}
+import org.junit.jupiter.params.provider.MethodSource
 
 import java.time.Duration
 import java.util
-import java.util.stream.Stream
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
@@ -32,17 +31,6 @@ import scala.jdk.CollectionConverters._
  */
 @Timeout(600)
 class PlaintextConsumerPollTest extends AbstractConsumerTest {
-
-  // Deprecated poll(timeout) not supported for consumer group protocol
-  @deprecated("poll(Duration) is the replacement", since = "2.0")
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
-  def testDeprecatedPollBlocksForAssignment(quorum: String, groupProtocol: String): Unit = {
-    val consumer = createConsumer()
-    consumer.subscribe(Set(topic).asJava)
-    consumer.poll(0)
-    assertEquals(Set(tp, tp2), consumer.assignment().asScala)
-  }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
@@ -238,6 +226,33 @@ class PlaintextConsumerPollTest extends AbstractConsumerTest {
     runMultiConsumerSessionTimeoutTest(true)
   }
 
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testPollEventuallyReturnsRecordsWithZeroTimeout(quorum: String, groupProtocol: String): Unit = {
+    val numMessages = 100
+    val producer = createProducer()
+    sendRecords(producer, numMessages, tp)
+
+    val consumer = createConsumer()
+    consumer.subscribe(Set(topic).asJava)
+    val records = awaitNonEmptyRecords(consumer, tp, 0L)
+    assertEquals(numMessages, records.count())
+  }
+
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testNoOffsetForPartitionExceptionOnPollZero(quorum: String, groupProtocol: String): Unit = {
+    this.consumerConfig.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "none")
+    val consumer = createConsumer(configOverrides = this.consumerConfig)
+
+    consumer.assign(List(tp).asJava)
+
+    // continuous poll should eventually fail because there is no offset reset strategy set (fail only when resetting positions after coordinator is known)
+    TestUtils.tryUntilNoAssertionError() {
+      assertThrows(classOf[NoOffsetForPartitionException], () => consumer.poll(Duration.ZERO))
+    }
+  }
+
   def runMultiConsumerSessionTimeoutTest(closeConsumer: Boolean): Unit = {
     // use consumers defined in this class plus one additional consumer
     // Use topic defined in this class + one additional topic
@@ -273,12 +288,4 @@ class PlaintextConsumerPollTest extends AbstractConsumerTest {
     for (poller <- consumerPollers)
       poller.shutdown()
   }
-}
-
-object PlaintextConsumerPollTest {
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly: Stream[Arguments] =
-    BaseConsumerTest.getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly()
-
-  def getTestQuorumAndGroupProtocolParametersAll: Stream[Arguments] =
-    BaseConsumerTest.getTestQuorumAndGroupProtocolParametersAll()
 }

@@ -17,22 +17,24 @@
 package org.apache.kafka.tools.consumer.group;
 
 import kafka.api.AbstractAuthorizerIntegrationTest;
+
 import org.apache.kafka.common.acl.AccessControlEntry;
+
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import scala.collection.JavaConverters;
 
 import java.util.Collections;
+
+import scala.jdk.javaapi.CollectionConverters;
 
 import static org.apache.kafka.common.acl.AclOperation.DESCRIBE;
 import static org.apache.kafka.common.acl.AclPermissionType.ALLOW;
 
 public class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
-    @SuppressWarnings({"deprecation"})
     @ParameterizedTest
-    @ValueSource(strings = {"zk", "kraft"})
+    @ValueSource(strings = {"kraft"})
     public void testDescribeGroupCliWithGroupDescribe(String quorum) throws Exception {
-        addAndVerifyAcls(JavaConverters.asScalaSet(Collections.singleton(new AccessControlEntry(ClientPrincipal().toString(), "*", DESCRIBE, ALLOW))).toSet(), groupResource());
+        addAndVerifyAcls(CollectionConverters.asScala(Collections.singleton(new AccessControlEntry(ClientPrincipal().toString(), "*", DESCRIBE, ALLOW))).toSet(), groupResource());
 
         String[] cgcArgs = new String[]{"--bootstrap-server", bootstrapServers(listenerName()), "--describe", "--group", group()};
         ConsumerGroupCommandOptions opts = ConsumerGroupCommandOptions.fromArgs(cgcArgs);

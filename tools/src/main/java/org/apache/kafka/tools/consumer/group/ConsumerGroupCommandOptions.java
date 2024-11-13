@@ -16,9 +16,9 @@
  */
 package org.apache.kafka.tools.consumer.group;
 
-import joptsimple.OptionSpec;
 import org.apache.kafka.server.util.CommandDefaultOptions;
 import org.apache.kafka.server.util.CommandLineUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +27,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import joptsimple.OptionSpec;
 
 import static org.apache.kafka.tools.ToolsUtils.minus;
 
@@ -213,7 +215,7 @@ public class ConsumerGroupCommandOptions extends CommandDefaultOptions {
         if (options.has(describeOpt)) {
             if (!options.has(groupOpt) && !options.has(allGroupsOpt))
                 CommandLineUtils.printUsageAndExit(parser,
-            "Option " + describeOpt + " takes one of these options: " + allConsumerGroupLevelOpts.stream().map(Object::toString).collect(Collectors.joining(", ")));
+            "Option " + describeOpt + " takes one of these options: " + allGroupSelectionScopeOpts.stream().map(Object::toString).collect(Collectors.joining(", ")));
             List<OptionSpec<?>> mutuallyExclusiveOpts = Arrays.asList(membersOpt, offsetsOpt, stateOpt);
             if (mutuallyExclusiveOpts.stream().mapToInt(o -> options.has(o) ? 1 : 0).sum() > 1) {
                 CommandLineUtils.printUsageAndExit(parser,
@@ -239,7 +241,7 @@ public class ConsumerGroupCommandOptions extends CommandDefaultOptions {
         if (options.has(deleteOffsetsOpt)) {
             if (!options.has(groupOpt) || !options.has(topicOpt))
                 CommandLineUtils.printUsageAndExit(parser,
-            "Option " + deleteOffsetsOpt + " takes the following options: " + allGroupSelectionScopeOpts.stream().map(Object::toString).collect(Collectors.joining(", ")));
+            "Option " + deleteOffsetsOpt + " takes the following options: " + allDeleteOffsetsOpts.stream().map(Object::toString).collect(Collectors.joining(", ")));
         }
 
         if (options.has(resetOffsetsOpt)) {

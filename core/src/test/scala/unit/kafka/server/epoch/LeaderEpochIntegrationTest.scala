@@ -16,10 +16,8 @@
   */
 package kafka.server.epoch
 
-import kafka.cluster.BrokerEndPoint
 import kafka.server.KafkaConfig._
 import kafka.server._
-import kafka.utils.Implicits._
 import kafka.utils.TestUtils._
 import kafka.utils.{Logging, TestUtils}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -34,7 +32,8 @@ import org.apache.kafka.common.requests.OffsetsForLeaderEpochResponse.UNDEFINED_
 import org.apache.kafka.common.requests.{OffsetsForLeaderEpochRequest, OffsetsForLeaderEpochResponse}
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.serialization.StringSerializer
-import org.apache.kafka.common.utils.{LogContext, SystemTime}
+import org.apache.kafka.common.utils.{LogContext, Time}
+import org.apache.kafka.server.network.BrokerEndPoint
 import org.apache.kafka.test.{TestUtils => JTestUtils}
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions._
@@ -67,7 +66,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def shouldAddCurrentLeaderEpochToMessagesAsTheyAreWrittenToLeader(quorum: String): Unit = {
     brokers ++= (0 to 1).map { id => createBroker(fromProps(createBrokerConfig(id, zkConnectOrNull))) }
 
@@ -100,7 +99,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def shouldSendLeaderEpochRequestAndGetAResponse(quorum: String): Unit = {
 
     //3 brokers, put partition on 100/101 and then pretend to be 102
@@ -148,7 +147,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def shouldIncreaseLeaderEpochBetweenLeaderRestarts(quorum: String): Unit = {
     //Setup: we are only interested in the single partition on broker 101
     brokers += createBroker(fromProps(createBrokerConfig(100, zkConnectOrNull)))
@@ -246,7 +245,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
     val node = from.metadataCache.getAliveBrokerNode(to.config.brokerId,
       from.config.interBrokerListenerName).get
     val endPoint = new BrokerEndPoint(node.id(), node.host(), node.port())
-    new BrokerBlockingSender(endPoint, from.config, new Metrics(), new SystemTime(), 42, "TestFetcher", new LogContext())
+    new BrokerBlockingSender(endPoint, from.config, new Metrics(), Time.SYSTEM, 42, "TestFetcher", new LogContext())
   }
 
   private def waitForEpochChangeTo(topic: String, partition: Int, epoch: Int): Unit = {
@@ -289,13 +288,17 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
 
   private def createTopic(topic: String, partitionReplicaAssignment: collection.Map[Int, Seq[Int]]): Unit = {
     Using(createAdminClient(brokers, ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT))) { admin =>
-      TestUtils.createTopicWithAdmin(
-        admin = admin,
-        topic = topic,
-        replicaAssignment = partitionReplicaAssignment,
-        brokers = brokers,
-        controllers = controllerServers
-      )
+      try {
+        TestUtils.createTopicWithAdmin(
+          admin = admin,
+          topic = topic,
+          replicaAssignment = partitionReplicaAssignment,
+          brokers = brokers,
+          controllers = controllerServers
+        )
+      } finally {
+        admin.close()
+      }
     }
   }
 
@@ -311,7 +314,7 @@ class LeaderEpochIntegrationTest extends QuorumTestHarness with Logging {
 
     def leaderOffsetsFor(partitions: Map[TopicPartition, Int]): Map[TopicPartition, EpochEndOffset] = {
       val topics = new OffsetForLeaderTopicCollection(partitions.size)
-      partitions.forKeyValue { (topicPartition, leaderEpoch) =>
+      partitions.foreachEntry { (topicPartition, leaderEpoch) =>
         var topic = topics.find(topicPartition.topic)
         if (topic == null) {
           topic = new OffsetForLeaderTopic().setTopic(topicPartition.topic)

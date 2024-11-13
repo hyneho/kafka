@@ -37,6 +37,7 @@ import org.apache.kafka.server.log.remote.storage.RemoteLogSegmentMetadataUpdate
 import org.apache.kafka.server.log.remote.storage.RemoteLogSegmentState;
 import org.apache.kafka.server.log.remote.storage.RemotePartitionDeleteMetadata;
 import org.apache.kafka.server.log.remote.storage.RemoteStorageException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -356,6 +357,17 @@ public class TopicBasedRemoteLogMetadataManager implements RemoteLogMetadataMana
     }
 
     @Override
+    public Optional<RemoteLogSegmentMetadata> nextSegmentWithTxnIndex(TopicIdPartition topicIdPartition, int epoch, long offset) throws RemoteStorageException {
+        lock.readLock().lock();
+        try {
+            ensureInitializedAndNotClosed();
+            return remotePartitionMetadataStore.nextSegmentWithTxnIndex(topicIdPartition, epoch, offset);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
     public void configure(Map<String, ?> configs) {
         Objects.requireNonNull(configs, "configs can not be null.");
 
@@ -382,6 +394,11 @@ public class TopicBasedRemoteLogMetadataManager implements RemoteLogMetadataMana
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    @Override
+    public boolean isReady(TopicIdPartition topicIdPartition) {
+        return remotePartitionMetadataStore.isInitialized(topicIdPartition);
     }
 
     private void initializeResources() {
@@ -447,6 +464,7 @@ public class TopicBasedRemoteLogMetadataManager implements RemoteLogMetadataMana
                     log.info("Initialized topic-based RLMM resources successfully");
                 } catch (Exception e) {
                     log.error("Encountered error while initializing producer/consumer", e);
+                    initializationFailed = true;
                     return;
                 } finally {
                     lock.writeLock().unlock();
@@ -567,23 +585,18 @@ public class TopicBasedRemoteLogMetadataManager implements RemoteLogMetadataMana
         // Close all the resources.
         log.info("Closing topic-based RLMM resources");
         if (closing.compareAndSet(false, true)) {
-            lock.writeLock().lock();
-            try {
-                if (initializationThread != null) {
-                    try {
-                        initializationThread.join();
-                    } catch (InterruptedException e) {
-                        log.error("Initialization thread was interrupted while waiting to join on close.", e);
-                    }
+            if (initializationThread != null) {
+                try {
+                    initializationThread.join();
+                } catch (InterruptedException e) {
+                    log.error("Initialization thread was interrupted while waiting to join on close.", e);
                 }
-
-                Utils.closeQuietly(producerManager, "ProducerTask");
-                Utils.closeQuietly(consumerManager, "RLMMConsumerManager");
-                Utils.closeQuietly(remotePartitionMetadataStore, "RemotePartitionMetadataStore");
-            } finally {
-                lock.writeLock().unlock();
-                log.info("Closed topic-based RLMM resources");
             }
+
+            Utils.closeQuietly(producerManager, "ProducerTask");
+            Utils.closeQuietly(consumerManager, "RLMMConsumerManager");
+            Utils.closeQuietly(remotePartitionMetadataStore, "RemotePartitionMetadataStore");
+            log.info("Closed topic-based RLMM resources");
         }
     }
 }

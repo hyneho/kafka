@@ -27,7 +27,10 @@
   // Version 4 adds support for batching via CoordinatorKeys (KIP-699)
   //
   // Version 5 adds support for new error code TRANSACTION_ABORTABLE (KIP-890).
-  "validVersions": "0-5",
+  //
+  // Version 6 adds support for share groups (KIP-932).
+  // For key type SHARE (2), the coordinator key format is "groupId:topicId:partition".
+  "validVersions": "0-6",
   "deprecatedVersions": "0",
   "flexibleVersions": "3+",
   "fields": [

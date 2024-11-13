@@ -29,9 +29,7 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
-import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.StreamsConfig.InternalConfig;
@@ -57,10 +55,11 @@ import org.apache.kafka.test.InternalMockProcessorContext;
 import org.apache.kafka.test.MockRecordCollector;
 import org.apache.kafka.test.StreamsTestUtils;
 import org.apache.kafka.test.TestUtils;
+
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.rocksdb.WriteBatch;
 
 import java.io.File;
@@ -86,18 +85,20 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends Segment> {
+public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
 
+    private static final String METRICS_SCOPE = "metrics-scope";
+    
     private final long windowSizeForTimeWindow = 500;
     private InternalMockProcessorContext context;
-    private AbstractDualSchemaRocksDBSegmentedBytesStore<S> bytesStore;
+    private AbstractDualSchemaRocksDBSegmentedBytesStore<KeyValueSegment> bytesStore;
     private File stateDir;
     private final Window[] windows = new Window[4];
     private Window nextSegmentWindow, startEdgeWindow, endEdgeWindow;
@@ -108,7 +109,16 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
     final long segmentInterval = 60_000L;
     final String storeName = "bytes-store";
 
-    @Before
+    abstract SchemaType schemaType();
+
+    enum SchemaType {
+        WindowSchemaWithIndex,
+        WindowSchemaWithoutIndex,
+        SessionSchemaWithIndex,
+        SessionSchemaWithoutIndex
+    }
+    
+    @BeforeEach
     public void before() {
         if (getBaseSchema() instanceof TimeFirstSessionKeySchema) {
             windows[0] = new SessionWindow(10L, 10L);
@@ -152,18 +162,77 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         bytesStore.init((StateStoreContext) context, bytesStore);
     }
 
-    @After
+    @AfterEach
     public void close() {
         bytesStore.close();
     }
 
-    abstract AbstractDualSchemaRocksDBSegmentedBytesStore<S> getBytesStore();
+    AbstractDualSchemaRocksDBSegmentedBytesStore<KeyValueSegment> getBytesStore() {
+        switch (schemaType()) {
+            case WindowSchemaWithIndex:
+                return new RocksDBTimeOrderedWindowSegmentedBytesStore(
+                        storeName,
+                        METRICS_SCOPE,
+                        retention,
+                        segmentInterval,
+                        true
+                );
+            case WindowSchemaWithoutIndex:
+                return new RocksDBTimeOrderedWindowSegmentedBytesStore(
+                        storeName,
+                        METRICS_SCOPE,
+                        retention,
+                        segmentInterval,
+                        false
+                );
+            case SessionSchemaWithIndex:
+                return new RocksDBTimeOrderedSessionSegmentedBytesStore(
+                        storeName,
+                        METRICS_SCOPE,
+                        retention,
+                        segmentInterval,
+                        true
+                );
+            case SessionSchemaWithoutIndex:
+                return new RocksDBTimeOrderedSessionSegmentedBytesStore(
+                        storeName,
+                        METRICS_SCOPE,
+                        retention,
+                        segmentInterval,
+                        false
+                );
+            default:
+                throw new IllegalStateException("Unknown SchemaType: " + schemaType());
+        }
+    };
 
-    abstract AbstractSegments<S> newSegments();
+    AbstractSegments<KeyValueSegment> newSegments() {
+        return new KeyValueSegments(storeName, METRICS_SCOPE, retention, segmentInterval);
+    }
 
-    abstract KeySchema getBaseSchema();
+    KeySchema getBaseSchema() {
+        switch (schemaType()) {
+            case WindowSchemaWithIndex:
+            case WindowSchemaWithoutIndex:
+                return new TimeFirstWindowKeySchema();
+            case SessionSchemaWithIndex:
+            case SessionSchemaWithoutIndex:
+                return new TimeFirstSessionKeySchema();
+            default:
+                throw new IllegalStateException("Unknown SchemaType: " + schemaType());
+        }
+    }
 
-    abstract KeySchema getIndexSchema();
+    KeySchema getIndexSchema() {
+        switch (schemaType()) {
+            case WindowSchemaWithIndex:
+                return new KeyFirstWindowKeySchema();
+            case SessionSchemaWithIndex:
+                return new KeyFirstSessionKeySchema();
+            default:
+                return null;
+        }
+    }
 
     @Test
     public void shouldPutAndFetch() {
@@ -413,7 +482,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
             null, Bytes.wrap(keyA.getBytes()), startEdgeTime, endEdgeTime - 1L)) {
 
-            final List<KeyValue<Windowed<String>, Long>> expected = asList(
+            final List<KeyValue<Windowed<String>, Long>> expected = Collections.singletonList(
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
 
@@ -423,7 +492,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
             Bytes.wrap(keyB.getBytes()), null, startEdgeTime + 1, endEdgeTime)) {
 
-            final List<KeyValue<Windowed<String>, Long>> expected = asList(
+            final List<KeyValue<Windowed<String>, Long>> expected = Collections.singletonList(
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
 
@@ -593,7 +662,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
             null, Bytes.wrap(keyA.getBytes()), startEdgeTime, endEdgeTime - 1L)) {
 
-            final List<KeyValue<Windowed<String>, Long>> expected = asList(
+            final List<KeyValue<Windowed<String>, Long>> expected = Collections.singletonList(
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
 
@@ -603,7 +672,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
             Bytes.wrap(keyB.getBytes()), null, startEdgeTime + 1, endEdgeTime)) {
 
-            final List<KeyValue<Windowed<String>, Long>> expected = asList(
+            final List<KeyValue<Windowed<String>, Long>> expected = Collections.singletonList(
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
 
@@ -671,7 +740,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
             Bytes.wrap(keyA.getBytes()), 0, Long.MAX_VALUE)) {
 
-            final List<KeyValue<Windowed<String>, Long>> expected = asList(
+            final List<KeyValue<Windowed<String>, Long>> expected = Collections.singletonList(
                 KeyValue.pair(new Windowed<>(keyA, maxWindow), 10L)
             );
 
@@ -754,7 +823,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
             Bytes.wrap(keyA.getBytes()), 0, Long.MAX_VALUE)) {
 
-            final List<KeyValue<Windowed<String>, Long>> expected = asList(
+            final List<KeyValue<Windowed<String>, Long>> expected = Collections.singletonList(
                 KeyValue.pair(new Windowed<>(keyA, maxWindow), 10L)
             );
 
@@ -1058,7 +1127,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
     @Test
     public void shouldRollSegments() {
         // just to validate directories
-        final AbstractSegments<S> segments = newSegments();
+        final AbstractSegments<KeyValueSegment> segments = newSegments();
         final String key = "a";
 
         bytesStore.put(serializeKey(new Windowed<>(key, windows[0])), serializeValue(50));
@@ -1067,7 +1136,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         assertEquals(Collections.singleton(segments.segmentName(0)), segmentDirs());
 
         bytesStore.put(serializeKey(new Windowed<>(key, windows[3])), serializeValue(1000));
-        assertEquals(Utils.mkSet(segments.segmentName(0), segments.segmentName(1)), segmentDirs());
+        assertEquals(Set.of(segments.segmentName(0), segments.segmentName(1)), segmentDirs());
 
         final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.fetch(Bytes.wrap(key.getBytes()), 0, 1500));
 
@@ -1095,7 +1164,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
     @Test
     public void shouldGetAllSegments() {
         // just to validate directories
-        final AbstractSegments<S> segments = newSegments();
+        final AbstractSegments<KeyValueSegment> segments = newSegments();
         final String keyA = "a";
         final String keyB = "b";
 
@@ -1104,7 +1173,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
 
         bytesStore.put(serializeKey(new Windowed<>(keyB, windows[3])), serializeValue(100L));
         assertEquals(
-            Utils.mkSet(
+            Set.of(
                 segments.segmentName(0),
                 segments.segmentName(1)
             ),
@@ -1128,7 +1197,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
     @Test
     public void shouldGetAllBackwards() {
         // just to validate directories
-        final AbstractSegments<S> segments = newSegments();
+        final AbstractSegments<KeyValueSegment> segments = newSegments();
         final String keyA = "a";
         final String keyB = "b";
 
@@ -1137,7 +1206,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
 
         bytesStore.put(serializeKey(new Windowed<>(keyB, windows[3])), serializeValue(100L));
         assertEquals(
-            Utils.mkSet(
+            Set.of(
                 segments.segmentName(0),
                 segments.segmentName(1)
             ),
@@ -1160,7 +1229,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
     @Test
     public void shouldFetchAllSegments() {
         // just to validate directories
-        final AbstractSegments<S> segments = newSegments();
+        final AbstractSegments<KeyValueSegment> segments = newSegments();
         final String key = "a";
 
         bytesStore.put(serializeKey(new Windowed<>(key, windows[0])), serializeValue(50L));
@@ -1168,7 +1237,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
 
         bytesStore.put(serializeKey(new Windowed<>(key, windows[3])), serializeValue(100L));
         assertEquals(
-            Utils.mkSet(
+            Set.of(
                 segments.segmentName(0),
                 segments.segmentName(1)
             ),
@@ -1191,7 +1260,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
 
     @Test
     public void shouldLoadSegmentsWithOldStyleDateFormattedName() {
-        final AbstractSegments<S> segments = newSegments();
+        final AbstractSegments<KeyValueSegment> segments = newSegments();
         final String key = "a";
 
         bytesStore.put(serializeKey(new Windowed<>(key, windows[0])), serializeValue(50L));
@@ -1227,7 +1296,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
 
     @Test
     public void shouldLoadSegmentsWithOldStyleColonFormattedName() {
-        final AbstractSegments<S> segments = newSegments();
+        final AbstractSegments<KeyValueSegment> segments = newSegments();
         final String key = "a";
 
         bytesStore.put(serializeKey(new Windowed<>(key, windows[0])), serializeValue(50L));
@@ -1273,7 +1342,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
         final Collection<ConsumerRecord<byte[], byte[]>> records = new ArrayList<>();
         records.add(new ConsumerRecord<>("", 0, 0L, serializeKey(new Windowed<>(key, windows[0]), true).get(), serializeValue(50L)));
         records.add(new ConsumerRecord<>("", 0, 0L, serializeKey(new Windowed<>(key, windows[3]), true).get(), serializeValue(100L)));
-        final Map<S, WriteBatch> writeBatchMap = bytesStore.getWriteBatches(records);
+        final Map<KeyValueSegment, WriteBatch> writeBatchMap = bytesStore.getWriteBatches(records);
         assertEquals(2, writeBatchMap.size());
 
         final int expectedCount = getIndexSchema() == null ? 1 : 2;
@@ -1346,7 +1415,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
                 dir,
                 Serdes.String(),
                 Serdes.String(),
-                new StreamsMetricsImpl(new Metrics(), "mock", StreamsConfig.METRICS_LATEST, new MockTime()),
+                new StreamsMetricsImpl(new Metrics(), "mock", "processId", new MockTime()),
                 new StreamsConfig(props),
                 MockRecordCollector::new,
                 new ThreadCache(new LogContext("testCache "), 0, new MockStreamsMetrics(new Metrics())),
@@ -1382,7 +1451,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
                 dir,
                 Serdes.String(),
                 Serdes.String(),
-                new StreamsMetricsImpl(new Metrics(), "mock", StreamsConfig.METRICS_LATEST, new MockTime()),
+                new StreamsMetricsImpl(new Metrics(), "mock", "processId", new MockTime()),
                 new StreamsConfig(props),
                 MockRecordCollector::new,
                 new ThreadCache(new LogContext("testCache "), 0, new MockStreamsMetrics(new Metrics())),
@@ -1421,7 +1490,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
                 dir,
                 Serdes.String(),
                 Serdes.String(),
-                new StreamsMetricsImpl(new Metrics(), "mock", StreamsConfig.METRICS_LATEST, new MockTime()),
+                new StreamsMetricsImpl(new Metrics(), "mock", "processId", new MockTime()),
                 new StreamsConfig(props),
                 MockRecordCollector::new,
                 new ThreadCache(new LogContext("testCache "), 0, new MockStreamsMetrics(new Metrics())),
@@ -1462,7 +1531,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
                 dir,
                 Serdes.String(),
                 Serdes.String(),
-                new StreamsMetricsImpl(new Metrics(), "mock", StreamsConfig.METRICS_LATEST, new MockTime()),
+                new StreamsMetricsImpl(new Metrics(), "mock", "processId", new MockTime()),
                 new StreamsConfig(props),
                 MockRecordCollector::new,
                 new ThreadCache(new LogContext("testCache "), 0, new MockStreamsMetrics(new Metrics())),
@@ -1579,12 +1648,12 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
     @Test
     public void shouldMeasureExpiredRecords() {
         final Properties streamsConfig = StreamsTestUtils.getStreamsConfig();
-        final AbstractDualSchemaRocksDBSegmentedBytesStore<S> bytesStore = getBytesStore();
+        final AbstractDualSchemaRocksDBSegmentedBytesStore<KeyValueSegment> bytesStore = getBytesStore();
         final InternalMockProcessorContext context = new InternalMockProcessorContext(
             TestUtils.tempDirectory(),
             new StreamsConfig(streamsConfig)
         );
-        final Time time = new SystemTime();
+        final Time time = Time.SYSTEM;
         context.setSystemTimeMs(time.milliseconds());
         bytesStore.init((StateStoreContext) context, bytesStore);
 
@@ -1628,7 +1697,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest<S extends
     private Set<String> segmentDirs() {
         final File windowDir = new File(stateDir, storeName);
 
-        return Utils.mkSet(Objects.requireNonNull(windowDir.list()));
+        return Set.of(Objects.requireNonNull(windowDir.list()));
     }
 
     private Bytes serializeKey(final Windowed<String> key) {

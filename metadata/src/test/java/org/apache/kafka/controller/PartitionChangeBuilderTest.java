@@ -29,6 +29,7 @@ import org.apache.kafka.metadata.Replicas;
 import org.apache.kafka.metadata.placement.DefaultDirProvider;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -54,7 +55,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 
 @Timeout(value = 40)
@@ -82,13 +82,13 @@ public class PartitionChangeBuilderTest {
         assertFalse(changeRecordIsNoOp(new PartitionChangeRecord().
             setIsr(Arrays.asList(1, 2, 3))));
         assertFalse(changeRecordIsNoOp(new PartitionChangeRecord().
-            setRemovingReplicas(Arrays.asList(1))));
+            setRemovingReplicas(Collections.singletonList(1))));
         assertFalse(changeRecordIsNoOp(new PartitionChangeRecord().
-            setAddingReplicas(Arrays.asList(4))));
+            setAddingReplicas(Collections.singletonList(4))));
         assertFalse(changeRecordIsNoOp(new PartitionChangeRecord().
-                setEligibleLeaderReplicas(Arrays.asList(5))));
+                setEligibleLeaderReplicas(Collections.singletonList(5))));
         assertFalse(changeRecordIsNoOp(new PartitionChangeRecord().
-                setLastKnownElr(Arrays.asList(6))));
+                setLastKnownElr(Collections.singletonList(6))));
         assertFalse(
             changeRecordIsNoOp(
                 new PartitionChangeRecord()
@@ -116,7 +116,7 @@ public class PartitionChangeBuilderTest {
         setPartitionEpoch(200).
         build();
 
-    private final static Uuid FOO_ID = Uuid.fromString("FbrrdcfiR-KC2CPSTHaJrg");
+    private static final Uuid FOO_ID = Uuid.fromString("FbrrdcfiR-KC2CPSTHaJrg");
 
     private static MetadataVersion metadataVersionForPartitionChangeRecordVersion(short version) {
         switch (version) {
@@ -125,7 +125,7 @@ public class PartitionChangeBuilderTest {
             case (short) 1:
                 return MetadataVersion.IBP_3_7_IV2;
             case (short) 2:
-                return MetadataVersion.IBP_3_8_IV0;
+                return MetadataVersion.IBP_4_0_IV1;
             default:
                 throw new RuntimeException("Unknown PartitionChangeRecord version " + version);
         }
@@ -163,7 +163,7 @@ public class PartitionChangeBuilderTest {
         setPartitionEpoch(200).
         build();
 
-    private final static Uuid BAR_ID = Uuid.fromString("LKfUsCBnQKekvL9O5dY9nw");
+    private static final Uuid BAR_ID = Uuid.fromString("LKfUsCBnQKekvL9O5dY9nw");
 
     private static boolean isElrEnabled(short partitionChangeRecordVersion) {
         return partitionChangeRecordVersion >= 2;
@@ -194,7 +194,7 @@ public class PartitionChangeBuilderTest {
         setPartitionEpoch(200).
         build();
 
-    private final static Uuid BAZ_ID = Uuid.fromString("wQzt5gkSTwuQNXZF5gIw7A");
+    private static final Uuid BAZ_ID = Uuid.fromString("wQzt5gkSTwuQNXZF5gIw7A");
 
     private static PartitionChangeBuilder createBazBuilder(short version) {
         return new PartitionChangeBuilder(BAZ,
@@ -237,7 +237,7 @@ public class PartitionChangeBuilderTest {
             setPartitionEpoch(200).
             build();
 
-    private final static Uuid OFFLINE_ID = Uuid.fromString("LKfUsCBnQKekvL9O5dY9nw");
+    private static final Uuid OFFLINE_ID = Uuid.fromString("LKfUsCBnQKekvL9O5dY9nw");
 
     private static PartitionChangeBuilder createOfflineBuilder(short partitionChangeRecordVersion) {
         MetadataVersion metadataVersion =
@@ -274,12 +274,12 @@ public class PartitionChangeBuilderTest {
         assertElectLeaderEquals(createFooBuilder(version).setElection(Election.UNCLEAN)
             .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(1, 3))), 1, false);
         assertElectLeaderEquals(createFooBuilder(version)
-            .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(3))), NO_LEADER, false);
+            .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Collections.singletonList(3))), NO_LEADER, false);
         assertElectLeaderEquals(createFooBuilder(version).setElection(Election.UNCLEAN).
-            setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(3))), 2, true);
+            setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Collections.singletonList(3))), 2, true);
         assertElectLeaderEquals(
             createFooBuilder(version).setElection(Election.UNCLEAN)
-                .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(4))).setTargetReplicas(Arrays.asList(2, 1, 3, 4)),
+                .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Collections.singletonList(4))).setTargetReplicas(Arrays.asList(2, 1, 3, 4)),
             4,
             false
         );
@@ -312,7 +312,7 @@ public class PartitionChangeBuilderTest {
      * Test that shrinking the ISR doesn't increase the leader epoch in later MVs.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"3.6-IV0", "3.7-IV4"})
+    @ValueSource(strings = {"3.6-IV0", "3.7-IV2", "4.0-IV0"})
     public void testNoLeaderEpochBumpOnIsrShrink(String metadataVersionString) {
         MetadataVersion metadataVersion = MetadataVersion.fromVersionString(metadataVersionString);
         testTriggerLeaderEpochBumpIfNeeded(
@@ -338,26 +338,10 @@ public class PartitionChangeBuilderTest {
     }
 
     /**
-     * Test that shrinking the ISR does increase the leader epoch in later MVs when ZK migration is on.
-     */
-    @ParameterizedTest
-    @ValueSource(strings = {"3.6-IV0", "3.7-IV4"})
-    public void testLeaderEpochBumpOnIsrShrinkWithZkMigration(String metadataVersionString) {
-        MetadataVersion metadataVersion = MetadataVersion.fromVersionString(metadataVersionString);
-        testTriggerLeaderEpochBumpIfNeeded(
-            createFooBuilder(metadataVersion).
-                setZkMigrationEnabled(true).
-                setTargetIsrWithBrokerStates(
-                    AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(2, 1))),
-            new PartitionChangeRecord(),
-            1);
-    }
-
-    /**
      * Test that expanding the ISR doesn't increase the leader epoch.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"3.4-IV0", "3.5-IV2", "3.6-IV0", "3.7-IV4"})
+    @ValueSource(strings = {"3.4-IV0", "3.5-IV2", "3.6-IV0", "3.7-IV2", "4.0-IV0"})
     public void testNoLeaderEpochBumpOnIsrExpansion(String metadataVersionString) {
         MetadataVersion metadataVersion = MetadataVersion.fromVersionString(metadataVersionString);
         testTriggerLeaderEpochBumpIfNeeded(
@@ -368,27 +352,11 @@ public class PartitionChangeBuilderTest {
     }
 
     /**
-     * Test that expanding the ISR doesn't increase the leader epoch during ZK migration.
-     */
-    @ParameterizedTest
-    @ValueSource(strings = {"3.4-IV0", "3.5-IV2", "3.6-IV0", "3.7-IV4"})
-    public void testNoLeaderEpochBumpOnIsrExpansionDuringMigration(String metadataVersionString) {
-        MetadataVersion metadataVersion = MetadataVersion.fromVersionString(metadataVersionString);
-        testTriggerLeaderEpochBumpIfNeeded(
-            createFooBuilder(metadataVersion).
-                setZkMigrationEnabled(true).
-                setTargetIsrWithBrokerStates(
-                    AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(2, 1, 3, 4))),
-            new PartitionChangeRecord(),
-            NO_LEADER_CHANGE);
-    }
-
-    /**
      * Test that changing the replica set such that not all the old replicas remain
      * always results in a leader epoch increase.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"3.4-IV0", "3.5-IV2", "3.6-IV0", "3.7-IV4"})
+    @ValueSource(strings = {"3.4-IV0", "3.5-IV2", "3.6-IV0", "3.7-IV2", "4.0-IV0"})
     public void testLeaderEpochBumpOnNewReplicaSetDisjoint(String metadataVersionString) {
         MetadataVersion metadataVersion = MetadataVersion.fromVersionString(metadataVersionString);
         testTriggerLeaderEpochBumpIfNeeded(
@@ -402,7 +370,7 @@ public class PartitionChangeBuilderTest {
      * cannot actually change the ISR, triggerLeaderEpochBumpForIsrShrinkIfNeeded does not engage.
      */
     @ParameterizedTest
-    @ValueSource(strings = {"3.4-IV0", "3.5-IV2", "3.6-IV0", "3.7-IV4"})
+    @ValueSource(strings = {"3.4-IV0", "3.5-IV2", "3.6-IV0", "3.7-IV2"})
     public void testNoLeaderEpochBumpOnEmptyTargetIsr(String metadataVersionString) {
         MetadataVersion metadataVersion = MetadataVersion.fromVersionString(metadataVersionString);
         PartitionRegistration partition = new PartitionRegistration.Builder().
@@ -424,7 +392,7 @@ public class PartitionChangeBuilderTest {
             2).
             setEligibleLeaderReplicasEnabled(metadataVersion.isElrSupported()).
             setDefaultDirProvider(DEFAULT_DIR_PROVIDER).
-            setTargetReplicas(Arrays.asList());
+            setTargetReplicas(Collections.emptyList());
         PartitionChangeRecord record = new PartitionChangeRecord();
         builder.triggerLeaderEpochBumpForIsrShrinkIfNeeded(record);
         assertEquals(NO_LEADER_CHANGE, record.leader());
@@ -593,7 +561,7 @@ public class PartitionChangeBuilderTest {
             new PartitionChangeRecord()
                 .setTopicId(FOO_ID)
                 .setPartitionId(0)
-                .setIsr(Arrays.asList(2))
+                .setIsr(Collections.singletonList(2))
                 .setLeader(2)
                 .setLeaderRecoveryState(LeaderRecoveryState.RECOVERING.value()),
             version
@@ -601,13 +569,13 @@ public class PartitionChangeBuilderTest {
         assertEquals(
             Optional.of(expectedRecord),
             createFooBuilder(version).setElection(Election.UNCLEAN)
-                .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(3))).build()
+                .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Collections.singletonList(3))).build()
         );
 
         PartitionChangeRecord record = new PartitionChangeRecord()
             .setTopicId(OFFLINE_ID)
             .setPartitionId(0)
-            .setIsr(Arrays.asList(1))
+            .setIsr(Collections.singletonList(1))
             .setLeader(1)
             .setLeaderRecoveryState(LeaderRecoveryState.RECOVERING.value());
 
@@ -626,22 +594,13 @@ public class PartitionChangeBuilderTest {
         assertEquals(
             Optional.of(expectedRecord),
             createOfflineBuilder(version).setElection(Election.UNCLEAN)
-                .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Arrays.asList(2))).build()
-        );
-    }
-
-    private static Stream<Arguments> leaderRecoveryAndZkMigrationParams() {
-        return Stream.of(
-                arguments(true, true),
-                arguments(true, false),
-                arguments(false, true),
-                arguments(false, false)
+                .setTargetIsrWithBrokerStates(AlterPartitionRequest.newIsrToSimpleNewIsrWithBrokerEpochs(Collections.singletonList(2))).build()
         );
     }
 
     @ParameterizedTest
-    @MethodSource("leaderRecoveryAndZkMigrationParams")
-    public void testChangeInLeadershipDoesNotChangeRecoveryState(boolean isLeaderRecoverySupported, boolean zkMigrationsEnabled) {
+    @ValueSource(booleans = {true, false})
+    public void testChangeInLeadershipDoesNotChangeRecoveryState(boolean isLeaderRecoverySupported) {
         final byte noChange = (byte) -1;
         int leaderId = 1;
         LeaderRecoveryState recoveryState = LeaderRecoveryState.RECOVERING;
@@ -670,7 +629,6 @@ public class PartitionChangeBuilderTest {
             metadataVersion,
             2
         );
-        offlineBuilder.setZkMigrationEnabled(zkMigrationsEnabled);
         // Set the target ISR to empty to indicate that the last leader is offline
         offlineBuilder.setTargetIsrWithBrokerStates(Collections.emptyList());
 
@@ -697,7 +655,6 @@ public class PartitionChangeBuilderTest {
             metadataVersion,
             2
         );
-        onlineBuilder.setZkMigrationEnabled(zkMigrationsEnabled);
 
         // The only broker in the ISR is elected leader and stays in the recovering
         changeRecord = (PartitionChangeRecord) onlineBuilder.build().get().message();
@@ -711,8 +668,8 @@ public class PartitionChangeBuilderTest {
     }
 
     @ParameterizedTest
-    @MethodSource("leaderRecoveryAndZkMigrationParams")
-    void testUncleanSetsLeaderRecoveringState(boolean isLeaderRecoverySupported, boolean zkMigrationsEnabled) {
+    @ValueSource(booleans = {true, false})
+    void testUncleanSetsLeaderRecoveringState(boolean isLeaderRecoverySupported) {
         final byte noChange = (byte) -1;
         int leaderId = 1;
         PartitionRegistration registration = new PartitionRegistration.Builder().
@@ -740,7 +697,6 @@ public class PartitionChangeBuilderTest {
             metadataVersion,
             2
         ).setElection(Election.UNCLEAN);
-        onlineBuilder.setZkMigrationEnabled(zkMigrationsEnabled);
         // The partition should stay as recovering
         PartitionChangeRecord changeRecord = (PartitionChangeRecord) onlineBuilder
             .build()
@@ -1017,7 +973,7 @@ public class PartitionChangeBuilderTest {
             .setDefaultDirProvider(DEFAULT_DIR_PROVIDER)
             .setUseLastKnownLeaderInBalancedRecovery(false);
 
-        builder.setUncleanShutdownReplicas(Arrays.asList(3));
+        builder.setUncleanShutdownReplicas(Collections.singletonList(3));
 
         PartitionChangeRecord record = new PartitionChangeRecord()
             .setTopicId(topicId)
@@ -1025,8 +981,8 @@ public class PartitionChangeBuilderTest {
             .setLeader(-2)
             .setLeaderRecoveryState(LeaderRecoveryState.NO_CHANGE);
         if (version >= 2) {
-            record.setEligibleLeaderReplicas(Arrays.asList(2))
-                .setLastKnownElr(Arrays.asList(3));
+            record.setEligibleLeaderReplicas(Collections.singletonList(2))
+                .setLastKnownElr(Collections.singletonList(3));
         } else {
             record.setEligibleLeaderReplicas(Collections.emptyList());
         }
@@ -1146,8 +1102,8 @@ public class PartitionChangeBuilderTest {
             new PartitionChangeRecord()
                 .setTopicId(topicId)
                 .setPartitionId(0)
-                .setIsr(Arrays.asList(3))
-                .setEligibleLeaderReplicas(Arrays.asList(1))
+                .setIsr(Collections.singletonList(3))
+                .setEligibleLeaderReplicas(Collections.singletonList(1))
                 .setLeader(3)
                 .setLeaderRecoveryState(LeaderRecoveryState.NO_CHANGE),
             version
@@ -1200,7 +1156,7 @@ public class PartitionChangeBuilderTest {
             .setEligibleLeaderReplicas(Arrays.asList(1, 2, 3, 4));
 
         if (lastKnownLeaderEnabled) {
-            record.setLastKnownElr(Arrays.asList(1));
+            record.setLastKnownElr(Collections.singletonList(1));
         }
 
         ApiMessageAndVersion expectedRecord = new ApiMessageAndVersion(record, version);
@@ -1213,7 +1169,7 @@ public class PartitionChangeBuilderTest {
                     metadataVersionForPartitionChangeRecordVersion(version), 3)
                 .setElection(Election.PREFERRED)
                 .setEligibleLeaderReplicasEnabled(true)
-                .setUncleanShutdownReplicas(Arrays.asList(2))
+                .setUncleanShutdownReplicas(Collections.singletonList(2))
                 .setDefaultDirProvider(DEFAULT_DIR_PROVIDER)
                 .setUseLastKnownLeaderInBalancedRecovery(lastKnownLeaderEnabled);
             PartitionChangeRecord changeRecord = (PartitionChangeRecord) builder.build().get().message();
@@ -1253,7 +1209,7 @@ public class PartitionChangeBuilderTest {
             new PartitionChangeRecord()
                 .setTopicId(topicId)
                 .setPartitionId(0)
-                .setIsr(Arrays.asList(1))
+                .setIsr(Collections.singletonList(1))
                 .setLeader(1)
                 .setLeaderRecoveryState(LeaderRecoveryState.RECOVERING.value())
                 .setLastKnownElr(Collections.emptyList()),
