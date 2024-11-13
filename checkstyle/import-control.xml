@@ -354,6 +354,10 @@
       <allow pkg="javax.imageio" />
       <allow pkg="scala" />
     </subpackage>
+
+    <subpackage name="config">
+      <allow pkg="org.apache.kafka.security" />
+    </subpackage>
   </subpackage>
 
   <subpackage name="trogdor">
