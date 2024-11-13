@@ -168,7 +168,7 @@ class GssapiAuthenticationTest extends IntegrationTestHarness with SaslSetup {
    */
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
-  def testServerNotFoundInKerberosDatabase(): Unit = {
+  def testServerNotFoundInKerberosDatabase(quorum: String): Unit = {
     val jaasConfig = clientConfig.getProperty(SaslConfigs.SASL_JAAS_CONFIG)
     val invalidServiceConfig = jaasConfig.replace("serviceName=\"kafka\"", "serviceName=\"invalid-service\"")
     clientConfig.put(SaslConfigs.SASL_JAAS_CONFIG, invalidServiceConfig)
