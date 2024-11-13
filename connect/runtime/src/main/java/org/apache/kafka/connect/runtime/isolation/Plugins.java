@@ -243,13 +243,7 @@ public class Plugins {
      * @return A {@link LoaderSwap} handle which restores the prior classloader on {@link LoaderSwap#close()}.
      */
     public LoaderSwap withClassLoader(ClassLoader loader) {
-        ClassLoader savedLoader = compareAndSwapLoaders(loader);
-        try {
-            return new LoaderSwap(savedLoader);
-        } catch (Throwable t) {
-            compareAndSwapLoaders(savedLoader);
-            throw t;
-        }
+        return swapLoader(loader);
     }
 
     /**
@@ -266,6 +260,17 @@ public class Plugins {
             }
         };
     }
+
+    public static LoaderSwap swapLoader(ClassLoader loader) {
+        ClassLoader savedLoader = compareAndSwapLoaders(loader);
+        try {
+            return new LoaderSwap(savedLoader);
+        } catch (Throwable t) {
+            compareAndSwapLoaders(savedLoader);
+            throw t;
+        }
+    }
+
 
     public String latestVersion(String classOrAlias) {
         return delegatingLoader.latestVersion(classOrAlias);
