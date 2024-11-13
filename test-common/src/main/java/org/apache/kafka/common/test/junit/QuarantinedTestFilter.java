@@ -43,7 +43,7 @@ public class QuarantinedTestFilter implements PostDiscoveryFilter {
         }
 
         TestSource source = sourceOpt.get();
-        if (!(source instanceof MethodSource)){
+        if (!(source instanceof MethodSource)) {
             return FilterResult.included("No method");
         }
 
