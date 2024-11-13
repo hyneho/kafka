@@ -91,4 +91,9 @@ public class NoOpRemoteLogMetadataManager implements RemoteLogMetadataManager {
     @Override
     public void configure(Map<String, ?> configs) {
     }
+
+    @Override
+    public boolean isReady(TopicIdPartition topicIdPartition) {
+        return true;
+    }
 }

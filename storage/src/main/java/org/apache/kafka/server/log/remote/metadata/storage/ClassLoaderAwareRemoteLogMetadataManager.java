@@ -137,4 +137,8 @@ public class ClassLoaderAwareRemoteLogMetadataManager implements RemoteLogMetada
         }
     }
 
+    @Override
+    public boolean isReady(TopicIdPartition topicIdPartition) {
+        return withClassLoader(() -> delegate.isReady(topicIdPartition));
+    }
 }

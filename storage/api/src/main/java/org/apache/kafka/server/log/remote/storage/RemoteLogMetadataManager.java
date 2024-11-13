@@ -51,6 +51,15 @@ import java.util.concurrent.CompletableFuture;
  */
 @InterfaceStability.Evolving
 public interface RemoteLogMetadataManager extends Configurable, Closeable {
+    /**
+     * Denotes whether the partition metadata is ready to serve.
+     *
+     * @param topicIdPartition topic partition
+     * @return True if the partition is ready to serve for remote storage operations.
+     */
+    default boolean isReady(TopicIdPartition topicIdPartition) {
+        return true;
+    }
 
     /**
      * This method is used to add {@link RemoteLogSegmentMetadata} asynchronously with the containing {@link RemoteLogSegmentId} into {@link RemoteLogMetadataManager}.
