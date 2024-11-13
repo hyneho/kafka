@@ -135,7 +135,7 @@ ext {
   runtimeTestLibs = [
     libs.slf4jReload4j,
     libs.junitPlatformLanucher,
-    project(":test-common")
+    project(":test-common:test-common-runtime")
   ]
 }
 
@@ -1540,6 +1540,7 @@ project(':group-coordinator') {
 }
 
 project(':test-common') {
+  // Test framework stuff. Implementations that support test-common-api
   base {
     archivesName = "kafka-test-common"
   }
@@ -1569,10 +1570,10 @@ project(':test-common') {
 }
 
 project(':test-common:test-common-api') {
+  // Interfaces, config classes, and other test APIs
   base {
     archivesName = "kafka-test-common-api"
   }
-
 
   dependencies {
     implementation project(':clients')
@@ -1590,6 +1591,28 @@ project(':test-common:test-common-api') {
     testImplementation libs.mockitoCore
 
     testRuntimeOnly runtimeTestLibs
+  }
+
+  checkstyle {
+    configProperties = checkstyleConfigProperties("import-control-test-common-api.xml")
+  }
+
+  javadoc {
+    enabled = false
+  }
+}
+
+project(':test-common:test-common-runtime') {
+  // Runtime-only test code including JUnit extentions
+  base {
+    archivesName = "kafka-test-common-runtime"
+  }
+
+  dependencies {
+    implementation libs.slf4jApi
+    implementation libs.junitPlatformLanucher
+    implementation libs.junitJupiterApi
+    implementation libs.junitJupiter
   }
 
   checkstyle {
