@@ -27,17 +27,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
 public class QuarantinedDataLoader {
+    public static final String CATALOG_FILE_PROP = "kafka.test.catalog.file";
 
     private static final QuarantinedTestSelector DEFAULT = (className, methodName) -> Optional.empty();
 
     private static final Logger log = LoggerFactory.getLogger(QuarantinedDataLoader.class);
 
     public static QuarantinedTestSelector loadTestCatalog() {
-        String name = System.getProperty("kafka.test.catalog.file");
+        String name = System.getProperty(CATALOG_FILE_PROP);
         if (name == null || name.isEmpty()) {
             log.debug("No test catalog specified, will not quarantine any recently added tests.");
             return DEFAULT;
@@ -76,6 +78,37 @@ public class QuarantinedDataLoader {
                     return Optional.of("new test");
                 }
             };
+        }
+    }
+
+    public static class TestAndMethod {
+        private final String testClass;
+        private final String testMethod;
+
+        public TestAndMethod(String testClass, String testMethod) {
+            this.testClass = testClass;
+            this.testMethod = testMethod;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TestAndMethod that = (TestAndMethod) o;
+            return Objects.equals(testClass, that.testClass) && Objects.equals(testMethod, that.testMethod);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(testClass, testMethod);
+        }
+
+        @Override
+        public String toString() {
+            return "TestAndMethod{" +
+                    "testClass='" + testClass + '\'' +
+                    ", testMethod='" + testMethod + '\'' +
+                    '}';
         }
     }
 }

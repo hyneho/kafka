@@ -17,6 +17,7 @@
 
 package org.apache.kafka.common.test.junit;
 
+import org.apache.kafka.common.test.api.Flaky;
 import org.junit.platform.engine.FilterResult;
 import org.junit.platform.engine.TestDescriptor;
 import org.junit.platform.engine.TestSource;
@@ -27,7 +28,9 @@ import org.junit.platform.launcher.PostDiscoveryFilter;
 import java.util.Optional;
 
 public class QuarantinedTestFilter implements PostDiscoveryFilter {
-    private static final TestTag FLAKY_TAG = TestTag.create("flaky");
+
+    public static final String RUN_QUARANTINED_PROP = "kafka.test.run.quarantined";
+    private static final TestTag FLAKY_TEST_TAG = TestTag.create(Flaky.FLAKY_TAG);
 
     private final QuarantinedTestSelector selector;
 
@@ -39,15 +42,15 @@ public class QuarantinedTestFilter implements PostDiscoveryFilter {
     public FilterResult apply(TestDescriptor testDescriptor) {
         Optional<TestSource> sourceOpt = testDescriptor.getSource();
         if (sourceOpt.isEmpty()) {
-            return FilterResult.included("No test source");
+            return FilterResult.included(null);
         }
 
         TestSource source = sourceOpt.get();
         if (!(source instanceof MethodSource)) {
-            return FilterResult.included("No method");
+            return FilterResult.included(null);
         }
 
-        boolean runQuarantined = System.getProperty("kafka.test.run.quarantined", "false")
+        boolean runQuarantined = System.getProperty(RUN_QUARANTINED_PROP, "false")
             .equalsIgnoreCase("true");
 
         MethodSource methodSource = (MethodSource) source;
@@ -66,7 +69,7 @@ public class QuarantinedTestFilter implements PostDiscoveryFilter {
         }
 
         // Only include "flaky" tag if given "kafka.test.run.quarantined=true", otherwise skip it
-        boolean isFlaky = testDescriptor.getTags().contains(FLAKY_TAG);
+        boolean isFlaky = testDescriptor.getTags().contains(FLAKY_TEST_TAG);
         if (runQuarantined) {
             if (isFlaky) {
                 return FilterResult.included("run flaky test");
