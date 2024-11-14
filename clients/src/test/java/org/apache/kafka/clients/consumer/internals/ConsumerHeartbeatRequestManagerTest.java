@@ -27,6 +27,7 @@ import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
@@ -421,12 +422,27 @@ public class ConsumerHeartbeatRequestManagerTest {
     }
 
     @Test
-    public void testHeartbeatFailureNotifiedToGroupManagerAfterErrorPropagated() {
+    public void testHeartbeatResponseErrorNotifiedToGroupManagerAfterErrorPropagated() {
         time.sleep(DEFAULT_HEARTBEAT_INTERVAL_MS);
         NetworkClientDelegate.PollResult result = heartbeatRequestManager.poll(time.milliseconds());
         assertEquals(1, result.unsentRequests.size());
         ClientResponse response = createHeartbeatResponse(result.unsentRequests.get(0), Errors.GROUP_AUTHORIZATION_FAILED);
         result.unsentRequests.get(0).handler().onComplete(response);
+
+        // The error should be propagated before notifying the group manager. This ensures that the app thread is aware
+        // of the HB error before the manager completes any ongoing unsubscribe.
+        InOrder inOrder = inOrder(backgroundEventHandler, membershipManager);
+        inOrder.verify(backgroundEventHandler).add(any(ErrorEvent.class));
+        inOrder.verify(membershipManager).onHeartbeatFailure(false);
+    }
+
+    @Test
+    public void testHeartbeatRequestFailureNotifiedToGroupManagerAfterErrorPropagated() {
+        time.sleep(DEFAULT_HEARTBEAT_INTERVAL_MS);
+        NetworkClientDelegate.PollResult result = heartbeatRequestManager.poll(time.milliseconds());
+        assertEquals(1, result.unsentRequests.size());
+        ClientResponse response = createHeartbeatResponse(result.unsentRequests.get(0), Errors.GROUP_AUTHORIZATION_FAILED);
+        result.unsentRequests.get(0).handler().onFailure(time.milliseconds(), new AuthenticationException("Fatal error in HB"));
 
         // The error should be propagated before notifying the group manager. This ensures that the app thread is aware
         // of the HB error before the manager completes any ongoing unsubscribe.
