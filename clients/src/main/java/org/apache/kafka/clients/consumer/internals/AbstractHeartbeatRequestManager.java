@@ -304,7 +304,6 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
     private void onFailure(final Throwable exception, final long responseTimeMs) {
         this.heartbeatRequestState.onFailedAttempt(responseTimeMs);
         resetHeartbeatState();
-        membershipManager().onHeartbeatFailure(exception instanceof RetriableException);
         if (exception instanceof RetriableException) {
             coordinatorRequestManager.handleCoordinatorDisconnect(exception, responseTimeMs);
             String message = String.format("%s failed because of the retriable exception. Will retry in %s ms: %s",
@@ -316,6 +315,8 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
             logger.error("{} failed due to fatal error: {}", heartbeatRequestName(), exception.getMessage());
             handleFatalFailure(exception);
         }
+        // Notify the group manager about the failure after all errors have been handled and propagated.
+        membershipManager().onHeartbeatFailure(exception instanceof RetriableException);
     }
 
     private void onResponse(final R response, final long currentTimeMs) {
