@@ -154,6 +154,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
@@ -534,7 +535,7 @@ public enum Errors {
      * @return The throwable itself or its cause if it is an instance of a commonly wrapped exception type
      */
     public static Throwable maybeUnwrapException(Throwable t) {
-        if (t instanceof CompletionException || t instanceof ExecutionException) {
+        if (t instanceof CompletionException || t instanceof ExecutionException || t instanceof CancellationException) {
             return t.getCause();
         } else {
             return t;
