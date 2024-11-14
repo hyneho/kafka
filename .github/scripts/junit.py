@@ -337,6 +337,17 @@ if __name__ == "__main__":
                f"{total_flaky} {FLAKY}, {total_skipped} {SKIPPED}, {len(quarantined_table)} {QUARANTINED}, and {total_errors} errors.")
     print("## Test Summary\n")
     print(f"{summary} {report_md}\n")
+    if len(quarantined_table) > 0:
+        logger.info(f"Ran {len(quarantined_table)} quarantined test:")
+        print("<details>")
+        print(f"<summary>{len(quarantined_table)} Quarantined Tests</summary>\n")
+        print(f"| Module | Test |")
+        print(f"| ------ | ---- |")
+        for row in quarantined_table:
+            logger.info(f"{QUARANTINED} {row[0]} > {row[1]}")
+            row_joined = " | ".join(row)
+            print(f"| {row_joined} |")
+        print("\n</details>")
     if len(failed_table) > 0:
         logger.info(f"Found {len(failed_table)} test failures:")
         print("### Failed Tests\n")
@@ -363,18 +374,6 @@ if __name__ == "__main__":
         print(f"| Module | Test |")
         print(f"| ------ | ---- |")
         for row in skipped_table:
-            row_joined = " | ".join(row)
-            print(f"| {row_joined} |")
-        print("\n</details>")
-
-    if len(quarantined_table) > 0:
-        logger.info(f"Ran {len(quarantined_table)} quarantined test:")
-        print("<details>")
-        print(f"<summary>{len(quarantined_table)} Quarantined Tests</summary>\n")
-        print(f"| Module | Test |")
-        print(f"| ------ | ---- |")
-        for row in quarantined_table:
-            logger.info(f"{QUARANTINED} {row[0]} > {row[1]}")
             row_joined = " | ".join(row)
             print(f"| {row_joined} |")
         print("\n</details>")
