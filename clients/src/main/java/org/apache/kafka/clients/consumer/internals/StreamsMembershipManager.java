@@ -867,7 +867,7 @@ public class StreamsMembershipManager implements RequestManager {
 
     private SortedSet<TopicPartition> topicPartitionsForActiveTasks(final SortedSet<StreamsAssignmentInterface.TaskId> activeTasks) {
         final SortedSet<TopicPartition> topicPartitions = new TreeSet<>(TOPIC_PARTITION_COMPARATOR);
-        activeTasks.forEach((task) ->
+        activeTasks.forEach(task ->
             Stream.concat(
                 streamsAssignmentInterface.subtopologyMap().get(task.subtopologyId()).sourceTopics.stream(),
                 streamsAssignmentInterface.subtopologyMap().get(task.subtopologyId()).repartitionSourceTopics.keySet().stream()

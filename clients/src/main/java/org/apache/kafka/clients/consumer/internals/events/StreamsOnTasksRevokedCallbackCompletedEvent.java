@@ -22,7 +22,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-public class StreamsOnTasksRevokedCallbackCompletedEvent extends ApplicationEvent{
+public class StreamsOnTasksRevokedCallbackCompletedEvent extends ApplicationEvent {
 
     private final CompletableFuture<Void> future;
     private final Optional<KafkaException> error;

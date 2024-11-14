@@ -27,6 +27,8 @@ import org.apache.kafka.clients.consumer.internals.FetchRequestManager;
 import org.apache.kafka.clients.consumer.internals.NetworkClientDelegate;
 import org.apache.kafka.clients.consumer.internals.OffsetsRequestManager;
 import org.apache.kafka.clients.consumer.internals.RequestManagers;
+import org.apache.kafka.clients.consumer.internals.StreamsGroupHeartbeatRequestManager;
+import org.apache.kafka.clients.consumer.internals.StreamsMembershipManager;
 import org.apache.kafka.clients.consumer.internals.SubscriptionState;
 import org.apache.kafka.clients.consumer.internals.TopicMetadataRequestManager;
 import org.apache.kafka.common.TopicPartition;
@@ -70,6 +72,8 @@ public class ApplicationEventProcessorTest {
     private final CommitRequestManager commitRequestManager = mock(CommitRequestManager.class);
     private final ConsumerHeartbeatRequestManager heartbeatRequestManager = mock(ConsumerHeartbeatRequestManager.class);
     private final ConsumerMembershipManager membershipManager = mock(ConsumerMembershipManager.class);
+    private final StreamsGroupHeartbeatRequestManager streamsGroupHeartbeatRequestManager = mock(StreamsGroupHeartbeatRequestManager.class);
+    private final StreamsMembershipManager streamsMembershipManager = mock(StreamsMembershipManager.class);
     private final OffsetsRequestManager offsetsRequestManager = mock(OffsetsRequestManager.class);
     private final SubscriptionState subscriptionState = mock(SubscriptionState.class);
     private final ConsumerMetadata metadata = mock(ConsumerMetadata.class);
@@ -97,6 +101,28 @@ public class ApplicationEventProcessorTest {
         );
     }
 
+    private void setupProcessorWithStreamsMembershipManager() {
+        RequestManagers requestManagers = new RequestManagers(
+                new LogContext(),
+                offsetsRequestManager,
+                mock(TopicMetadataRequestManager.class),
+                mock(FetchRequestManager.class),
+                Optional.of(mock(CoordinatorRequestManager.class)),
+                Optional.of(commitRequestManager),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(streamsGroupHeartbeatRequestManager),
+                Optional.of(streamsMembershipManager)
+        );
+
+        processor = new ApplicationEventProcessor(
+                new LogContext(),
+                requestManagers,
+                metadata,
+                subscriptionState
+        );
+    }
+
     @Test
     public void testPrepClosingCommitEvents() {
         setupProcessor(true);
@@ -113,6 +139,15 @@ public class ApplicationEventProcessorTest {
         when(membershipManager.leaveGroup()).thenReturn(CompletableFuture.completedFuture(null));
         processor.process(new UnsubscribeEvent(0));
         verify(membershipManager).leaveGroup();
+    }
+
+    @Test
+    public void testProcessUnsubscribeEventWithStreamsMembershipManager() {
+        setupProcessorWithStreamsMembershipManager();
+        when(heartbeatRequestManager.membershipManager()).thenReturn(membershipManager);
+        when(streamsMembershipManager.leaveGroup()).thenReturn(CompletableFuture.completedFuture(null));
+        processor.process(new UnsubscribeEvent(0));
+        verify(streamsMembershipManager).leaveGroup();
     }
 
     @Test
@@ -246,6 +281,53 @@ public class ApplicationEventProcessorTest {
         verify(membershipManager).onSubscriptionUpdated();
         // verify member state doesn't transition to JOINING.
         verify(membershipManager, never()).onConsumerPoll();
+    }
+
+    @Test
+    public void testSubscriptionChangeEventWithStreamsMembershipManager() {
+        SubscriptionChangeEvent event = new SubscriptionChangeEvent();
+
+        setupProcessorWithStreamsMembershipManager();
+        processor.process(event);
+        verify(streamsMembershipManager).onSubscriptionUpdated();
+        // verify member state doesn't transition to JOINING.
+        verify(streamsMembershipManager, never()).onConsumerPoll();
+    }
+
+    @Test
+    public void testOnTasksRevokedCallbackExecuted() {
+        StreamsOnTasksRevokedCallbackCompletedEvent event = new StreamsOnTasksRevokedCallbackCompletedEvent(
+            new CompletableFuture<>(),
+            Optional.empty()
+        );
+
+        setupProcessorWithStreamsMembershipManager();
+        processor.process(event);
+        verify(streamsMembershipManager).onTasksRevokedCallbackCompleted(event);
+    }
+
+    @Test
+    public void testOnTasksAssignedCallbackExecuted() {
+        StreamsOnTasksAssignedCallbackCompletedEvent event = new StreamsOnTasksAssignedCallbackCompletedEvent(
+            new CompletableFuture<>(),
+            Optional.empty()
+        );
+
+        setupProcessorWithStreamsMembershipManager();
+        processor.process(event);
+        verify(streamsMembershipManager).onTasksAssignedCallbackCompleted(event);
+    }
+
+    @Test
+    public void testOnAllTasksLostCallbackExecuted() {
+        StreamsOnAllTasksLostCallbackCompletedEvent event = new StreamsOnAllTasksLostCallbackCompletedEvent(
+            new CompletableFuture<>(),
+            Optional.empty()
+        );
+
+        setupProcessorWithStreamsMembershipManager();
+        processor.process(event);
+        verify(streamsMembershipManager).onAllTasksLostCallbackCompleted(event);
     }
 
     private List<NetworkClientDelegate.UnsentRequest> mockCommitResults() {

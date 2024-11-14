@@ -16,10 +16,6 @@
  */
 package org.apache.kafka.clients.consumer.internals.events;
 
-import org.apache.kafka.clients.consumer.internals.StreamsAssignmentInterface;
-
-import java.util.Objects;
-
 public class StreamsOnAllTasksLostCallbackNeededEvent extends CompletableBackgroundEvent<Void> {
 
     public StreamsOnAllTasksLostCallbackNeededEvent() {

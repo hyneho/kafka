@@ -708,9 +708,11 @@ public class StreamThread extends Thread implements ProcessingThread {
         this.streamsUncaughtExceptionHandler = streamsUncaughtExceptionHandler;
         this.cacheResizer = cacheResizer;
         this.streamsAssignmentInterface = streamsAssignmentInterface;
-        streamsAssignmentInterface.setOnTasksRevokedCallback(this::onTasksRevoked);
-        streamsAssignmentInterface.setOnTasksAssignedCallback(this::onTasksAssigned);
-        streamsAssignmentInterface.setOnAllTasksLostCallback(this::onAllTasksLost);
+        if (streamsAssignmentInterface != null) {
+            streamsAssignmentInterface.setOnTasksRevokedCallback(this::onTasksRevoked);
+            streamsAssignmentInterface.setOnTasksAssignedCallback(this::onTasksAssigned);
+            streamsAssignmentInterface.setOnAllTasksLostCallback(this::onAllTasksLost);
+        }
         this.streamsMetadataState = streamsMetadataState;
 
         // The following sensors are created here but their references are not stored in this object, since within
