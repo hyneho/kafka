@@ -1072,11 +1072,11 @@ public class StreamThread extends Thread implements ProcessingThread {
         final long startMs = time.milliseconds();
         now = startMs;
 
+        maybeHandleAssignmentFromStreamsRebalanceProtocol();
+
         final long pollLatency;
         taskManager.resumePollingForPartitionsWithAvailableSpace();
         pollLatency = pollPhase();
-
-        maybeHandleAssignmentFromStreamsRebalanceProtocol();
 
         // Shutdown hook could potentially be triggered and transit the thread state to PENDING_SHUTDOWN during #pollRequests().
         // The task manager internal states could be uninitialized if the state transition happens during #onPartitionsAssigned().

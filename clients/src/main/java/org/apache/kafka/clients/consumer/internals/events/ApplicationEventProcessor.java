@@ -281,6 +281,10 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         if (requestManagers.consumerMembershipManager.isPresent()) {
             CompletableFuture<Void> future = requestManagers.consumerMembershipManager.get().leaveGroup();
             future.whenComplete(complete(event.future()));
+        }
+        else if (requestManagers.streamsMembershipManager.isPresent()) {
+            CompletableFuture<Void> future = requestManagers.streamsMembershipManager.get().leaveGroup();
+            future.whenComplete(complete(event.future()));
         } else {
             // If the consumer is not using the group management capabilities, we still need to clear all assignments it may have.
             subscriptions.unsubscribe();

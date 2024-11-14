@@ -538,14 +538,14 @@ public class StreamsMembershipManager implements RequestManager {
         CompletableFuture<Void> callbackResult = streamsAssignmentInterface.requestOnAllTasksLostCallbackInvocation();
         callbackResult.whenComplete((result, error) -> {
             if (error != null) {
-                log.error("onTaskAssignment callback invocation failed while releasing assignment" +
+                log.error("onAllTasksLost callback invocation failed while releasing assignment" +
                     " after member got fenced. Member will rejoin the group anyways.", error);
             }
             clearTaskAndPartitionAssignment();
             if (state == MemberState.FENCED) {
                 transitionToJoining();
             } else {
-                log.debug("Fenced member onTaskAssignment callback completed but the state has " +
+                log.debug("Fenced member onAllTasksLost callback completed but the state has " +
                     "already changed to {}, so the member won't rejoin the group", state);
             }
         });
@@ -656,8 +656,8 @@ public class StreamsMembershipManager implements RequestManager {
                     "to clear its assignment and send a leave group heartbeat",
                 memberIdInfoForLog());
         }
-        subscriptionState.unsubscribe();
         clearTaskAndPartitionAssignment();
+        subscriptionState.unsubscribe();
         transitionToSendingLeaveGroup(false);
     }
 
