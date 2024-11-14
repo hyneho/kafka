@@ -1254,7 +1254,7 @@ public class KafkaStreams implements AutoCloseable {
     }
 
     private int calculateMetricsRecordingLevel() {
-        int recordingLevel;
+        final int recordingLevel;
         final String recordingLevelString = applicationConfigs.getString(METRICS_RECORDING_LEVEL_CONFIG);
         if (recordingLevelString.equals("INFO")) {
             recordingLevel = 0;
