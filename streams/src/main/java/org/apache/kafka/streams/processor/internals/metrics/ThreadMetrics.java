@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.streams.processor.internals.metrics;
 
+import org.apache.kafka.common.metrics.Gauge;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.Sensor.RecordingLevel;
 import org.apache.kafka.streams.processor.internals.StreamThread;
@@ -45,6 +46,7 @@ public class ThreadMetrics {
     private static final String CREATE_TASK = "task-created";
     private static final String CLOSE_TASK = "task-closed";
     private static final String BLOCKED_TIME = "blocked-time-ns-total";
+    private static final String STATE  = "state";
     private static final String THREAD_START_TIME = "thread-start-time";
     private static final String THREAD_STATE = "thread-state";
 
@@ -296,14 +298,27 @@ public class ThreadMetrics {
 
     public static void addThreadStateTelemetryMetric(final String threadId,
                                                      final StreamsMetricsImpl streamsMetrics,
-                                                     final StreamThread streamThread) {
+                                                     final Gauge<Integer> threadStateProvider) {
         streamsMetrics.addThreadLevelMutableMetric(
                 THREAD_STATE,
                 THREAD_STATE_DESCRIPTION,
                 threadId,
-                (config, now) -> streamThread.state().ordinal()
+                threadStateProvider
         );
     }
+
+    public static void addThreadStateMetric(final String threadId,
+                                            final StreamsMetricsImpl streamsMetrics,
+                                            final Gauge<String> threadStateProvider) {
+        streamsMetrics.addThreadLevelMutableMetric(
+                STATE,
+                THREAD_STATE_DESCRIPTION,
+                threadId,
+                threadStateProvider
+        );
+    }
+
+
 
     public static void addThreadBlockedTimeMetric(final String threadId,
                                                   final StreamThreadTotalBlockedTime blockedTime,
