@@ -650,11 +650,12 @@ public class ShareConsumerTest {
         // The 3rd record should be reassigned to 2nd consumer when it polls, kept higher wait time
         // as time out for locks is 15 secs.
         TestUtils.waitForCondition(() -> {
-            ConsumerRecords<byte[], byte[]> records2 = shareConsumer2.poll(Duration.ofMillis(200));
+            ConsumerRecords<byte[], byte[]> records2 = shareConsumer2.poll(Duration.ofMillis(1000));
             return records2.count() == 1 && records2.iterator().next().offset() == 2L;
         }, 30000, 100L, () -> "Didn't receive timed out record");
 
         assertFalse(partitionExceptionMap1.containsKey(tp));
+
         // The callback will receive the acknowledgement responses asynchronously after the next poll.
         shareConsumer1.poll(Duration.ofMillis(500));
 
@@ -1387,7 +1388,7 @@ public class ShareConsumerTest {
      */
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
-    public void testAcknowledgeCommitCallbackCallsShareConsumerWakeup(String persister) {
+    public void testAcknowledgeCommitCallbackCallsShareConsumerWakeup(String persister) throws InterruptedException {
         ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
         KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         producer.send(record);
@@ -1399,9 +1400,12 @@ public class ShareConsumerTest {
         shareConsumer.setAcknowledgementCommitCallback(new TestableAcknowledgeCommitCallbackWakeup<>(shareConsumer));
         shareConsumer.subscribe(Collections.singleton(tp.topic()));
 
-        shareConsumer.poll(Duration.ofMillis(5000));
+        TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
+            DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records for share consumer");
+
         // The second poll sends the acknowledgments implicitly.
-        shareConsumer.poll(Duration.ofMillis(1000));
+        shareConsumer.poll(Duration.ofMillis(2000));
+
         // Till now acknowledgement commit callback has not been called, so no exception thrown yet.
         // On 3rd poll, the acknowledgement commit callback will be called and the exception is thrown.
         assertThrows(WakeupException.class, () -> shareConsumer.poll(Duration.ofMillis(500)));
@@ -1428,7 +1432,7 @@ public class ShareConsumerTest {
      */
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
-    public void testAcknowledgeCommitCallbackThrowsException(String persister) {
+    public void testAcknowledgeCommitCallbackThrowsException(String persister) throws InterruptedException {
         ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(tp.topic(), tp.partition(), null, "key".getBytes(), "value".getBytes());
         KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
         producer.send(record);
@@ -1439,10 +1443,11 @@ public class ShareConsumerTest {
         shareConsumer.setAcknowledgementCommitCallback(new TestableAcknowledgeCommitCallbackThrows<>());
         shareConsumer.subscribe(Collections.singleton(tp.topic()));
 
-        shareConsumer.poll(Duration.ofMillis(5000));
+        TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
+            DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records for share consumer");
 
         // The second poll sends the acknowledgments implicitly.
-        shareConsumer.poll(Duration.ofMillis(1000));
+        shareConsumer.poll(Duration.ofMillis(2000));
 
         // On the third poll, the acknowledgement commit callback will be called and the exception is thrown.
         assertThrows(org.apache.kafka.common.errors.OutOfOrderSequenceException.class, () -> shareConsumer.poll(Duration.ofMillis(500)));
@@ -1574,7 +1579,7 @@ public class ShareConsumerTest {
         TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
             DEFAULT_MAX_WAIT_MS, 100L, () -> "incorrect number of records");
 
-        producer.send(recordTopic2);
+        producer.send(recordTopic2).get();
         TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
             DEFAULT_MAX_WAIT_MS, 100L, () -> "incorrect number of records");
 
@@ -1583,12 +1588,12 @@ public class ShareConsumerTest {
         ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(500));
         assertEquals(0, records.count());
 
-        producer.send(recordTopic2);
+        producer.send(recordTopic2).get();
         // Poll should give the record from the non-deleted topic baz.
         TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
             DEFAULT_MAX_WAIT_MS, 100L, () -> "incorrect number of records");
 
-        producer.send(recordTopic2);
+        producer.send(recordTopic2).get();
         TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
             DEFAULT_MAX_WAIT_MS, 100L, () -> "incorrect number of records");
         shareConsumer.close();
