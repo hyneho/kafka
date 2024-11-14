@@ -88,7 +88,7 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
     closeSasl()
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name="{displayName}.quorum=kraft.isIdempotenceEnabled={0}")
   @ValueSource(booleans = Array(true, false))
   def testProducerWithAuthenticationFailure(isIdempotenceEnabled: Boolean): Unit = {
     val prop = new Properties()
@@ -108,8 +108,9 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
     verifyWithRetry(sendOneRecord(producer2))
   }
 
-  @Test
-  def testTransactionalProducerWithAuthenticationFailure(): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
+  def testTransactionalProducerWithAuthenticationFailure(quorum: String, groupProtocol: String): Unit = {
     val txProducer = createTransactionalProducer()
     verifyAuthenticationException(txProducer.initTransactions())
 
@@ -153,8 +154,9 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
     verifyWithRetry(assertEquals(1, consumer.poll(Duration.ofMillis(1000)).count))
   }
 
-  @Test
-  def testKafkaAdminClientWithAuthenticationFailure(): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
+  def testKafkaAdminClientWithAuthenticationFailure(quorum: String, groupProtocol: String): Unit = {
     val props = JaasTestUtils.adminClientSecurityConfigs(securityProtocol, OptionConverters.toJava(trustStoreFile), OptionConverters.toJava(clientSaslProperties))
     props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers())
     val adminClient = Admin.create(props)
