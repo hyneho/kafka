@@ -97,15 +97,6 @@ public class DelayedShareFetch extends DelayedOperation {
             partitionsAcquired.keySet());
 
         try {
-            if (shareFetchData.future().isDone()) {
-                // If there are locks acquired for share partitions but the share fetch future is already completed, then
-                // we will release those locks and return.
-                if (!partitionsAcquired.isEmpty()) {
-                    releasePartitionLocks(partitionsAcquired.keySet());
-                }
-                return;
-            }
-
             LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData;
             // tryComplete did not invoke forceComplete, so we need to check if we have any partitions to fetch.
             if (partitionsAcquired.isEmpty())
