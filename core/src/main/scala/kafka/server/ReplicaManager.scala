@@ -898,8 +898,6 @@ class ReplicaManager(val config: KafkaConfig,
                    Errors.COORDINATOR_NOT_AVAILABLE |
                    Errors.NOT_COORDINATOR => Some(new NotEnoughReplicasException(
                 s"Unable to verify the partition has been added to the transaction. Underlying error: ${error.toString}"))
-              case Errors.UNKNOWN_PRODUCER_ID => Some(new OutOfOrderSequenceException(
-                s"Unable to verify the partition has been added to the transaction. Underlying error: ${error.toString}"))
               case _ => None
             }
           topicPartition -> LogAppendResult(

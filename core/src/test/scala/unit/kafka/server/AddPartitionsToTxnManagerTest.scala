@@ -159,7 +159,7 @@ class AddPartitionsToTxnManagerTest {
     mockTransactionStateMetadata(0, 0, Some(node0))
     mockTransactionStateMetadata(1, 1, Some(node1))
     mockTransactionStateMetadata(2, 2, Some(node2))
-    val transactionSupportedOperation = if (shouldAddPartition) addPartition else genericError
+    val transactionSupportedOperation = if (shouldAddPartition) addPartition else genericErrorSupported
 
     val transactionErrors = mutable.Map[TopicPartition, Errors]()
 
@@ -320,7 +320,7 @@ class AddPartitionsToTxnManagerTest {
     assertEquals(expectedTransactionAbortableErrorsTxn1LowerVersion, transaction1Errors)
     assertEquals(expectedTransactionAbortableErrorsTxn2LowerVersion, transaction2Errors)
 
-    addTransactionsToVerifyRequestVersion(genericError)
+    addTransactionsToVerifyRequestVersion(genericErrorSupported)
     receiveResponse(mixedAbortableErrorsResponse)
     assertEquals(expectedTransactionAbortableErrorsTxn1HigherVersion, transaction1Errors)
     assertEquals(expectedTransactionAbortableErrorsTxn2HigherVersion, transaction2Errors)

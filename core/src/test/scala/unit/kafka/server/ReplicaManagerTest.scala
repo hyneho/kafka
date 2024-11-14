@@ -121,7 +121,7 @@ class ReplicaManagerTest {
   private var mockRemoteLogManager: RemoteLogManager = _
   private var addPartitionsToTxnManager: AddPartitionsToTxnManager = _
   private var brokerTopicStats: BrokerTopicStats = _
-  private val transactionSupportedOperation = genericError
+  private val transactionSupportedOperation = genericErrorSupported
   private val quotaExceededThrottleTime = 1000
   private val quotaAvailableThrottleTime = 0
 
@@ -2633,8 +2633,7 @@ class ReplicaManagerTest {
       "CONCURRENT_TRANSACTIONS",
       "NETWORK_EXCEPTION",
       "COORDINATOR_LOAD_IN_PROGRESS",
-      "COORDINATOR_NOT_AVAILABLE",
-      "UNKNOWN_PRODUCER_ID"
+      "COORDINATOR_NOT_AVAILABLE"
     )
   )
   def testVerificationErrorConversions(error: Errors): Unit = {
@@ -2669,11 +2668,7 @@ class ReplicaManagerTest {
       // Confirm we did not write to the log and instead returned the converted error with the correct error message.
       val callback: AddPartitionsToTxnManager.AppendCallback = appendCallback.getValue()
       callback(Map(tp0 -> error).toMap)
-      if (error == Errors.UNKNOWN_PRODUCER_ID) {
-        assertEquals(Errors.OUT_OF_ORDER_SEQUENCE_NUMBER, result.assertFired.error)
-      } else {
-        assertEquals(Errors.NOT_ENOUGH_REPLICAS, result.assertFired.error)
-      }
+      assertEquals(Errors.NOT_ENOUGH_REPLICAS, result.assertFired.error)
       assertEquals(expectedMessage, result.assertFired.errorMessage)
     } finally {
       replicaManager.shutdown(checkpointHW = false)

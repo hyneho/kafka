@@ -44,7 +44,7 @@ object AddPartitionsToTxnManager {
     if (version > 11) {
       addPartition
     } else if (version > 10) {
-      genericError
+      genericErrorSupported
     } else {
       defaultError
     }
@@ -54,7 +54,7 @@ object AddPartitionsToTxnManager {
     if (version > 4) {
       addPartition
     } else if (version > 3) {
-      genericError
+      genericErrorSupported
     } else {
       defaultError
     }
@@ -63,13 +63,13 @@ object AddPartitionsToTxnManager {
 
 /**
  * This is an enum which handles the Partition Response based on the Request Version and the exact operation
- *    defaultError:       This is the default workflow which maps to cases when the Produce Request Version or the Txn_offset_commit request was lower than the first version supporting the new Error Class
- *    genericError:       This maps to the case when the clients are updated to handle the TransactionAbortableException
- *    addPartition:       This allows the partition to be added to the transactions inflight with the Produce and TxnOffsetCommit requests. Plus the behaviors in genericError.
+ *    defaultError:          This is the default workflow which maps to cases when the Produce Request Version or the Txn_offset_commit request was lower than the first version supporting the new Error Class
+ *    genericErrorSupported: This maps to the case when the clients are updated to handle the TransactionAbortableException
+ *    addPartition:          This allows the partition to be added to the transactions inflight with the Produce and TxnOffsetCommit requests. Plus the behaviors in genericErrorSupported.
  */
 sealed trait TransactionSupportedOperation
 case object defaultError extends TransactionSupportedOperation
-case object genericError extends TransactionSupportedOperation
+case object genericErrorSupported extends TransactionSupportedOperation
 case object addPartition extends TransactionSupportedOperation
 
 /*
@@ -245,7 +245,7 @@ class AddPartitionsToTxnManager(
                   val code =
                     if (partitionResult.partitionErrorCode == Errors.PRODUCER_FENCED.code)
                       Errors.INVALID_PRODUCER_EPOCH.code
-                    else if (partitionResult.partitionErrorCode() == Errors.TRANSACTION_ABORTABLE.code && transactionDataAndCallbacks.transactionSupportedOperation != genericError) // For backward compatibility with clients.
+                    else if (partitionResult.partitionErrorCode() == Errors.TRANSACTION_ABORTABLE.code && transactionDataAndCallbacks.transactionSupportedOperation != genericErrorSupported) // For backward compatibility with clients.
                       Errors.INVALID_TXN_STATE.code
                     else
                       partitionResult.partitionErrorCode

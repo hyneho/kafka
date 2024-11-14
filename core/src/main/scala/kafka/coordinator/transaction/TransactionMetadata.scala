@@ -75,6 +75,7 @@ private[transaction] sealed trait TransactionState {
  *
  * transition: received AddPartitionsToTxnRequest => Ongoing
  *             received AddOffsetsToTxnRequest => Ongoing
+ *             received EndTxnRequest with abort and TransactionV2 enabled => PrepareAbort
  */
 private[transaction] case object Empty extends TransactionState {
   val id: Byte = 0
@@ -112,11 +113,14 @@ private[transaction] case object PrepareCommit extends TransactionState {
  * Group is preparing to abort
  *
  * transition: received acks from all partitions => CompleteAbort
+ *
+ * Note, In transaction v2, we allow Empty to transition to PrepareCommit. because the client may not know the
+ * txn state on the server side, it needs to endTxn when uncertain.
  */
 private[transaction] case object PrepareAbort extends TransactionState {
   val id: Byte = 3
   val name: String = "PrepareAbort"
-  val validPreviousStates: Set[TransactionState] = Set(Ongoing, PrepareEpochFence)
+  val validPreviousStates: Set[TransactionState] = Set(Ongoing, PrepareEpochFence, Empty)
 }
 
 /**
@@ -490,9 +494,10 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
           }
 
         case CompleteAbort | CompleteCommit => // from write markers
+          // With transaction V2, we allow Empty transaction to be aborted, so the txnStartTimestamp can be -1.
           if (!validProducerEpoch(transitMetadata) ||
             txnTimeoutMs != transitMetadata.txnTimeoutMs ||
-            transitMetadata.txnStartTimestamp == -1) {
+            transitMetadata.txnStartTimestamp == -1 && !clientTransactionVersion.supportsEpochBump()) {
 
             throwStateTransitionFailure(transitMetadata)
           } else {

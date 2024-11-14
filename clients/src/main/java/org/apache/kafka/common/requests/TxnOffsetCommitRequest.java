@@ -48,7 +48,6 @@ public class TxnOffsetCommitRequest extends AbstractRequest {
         public final TxnOffsetCommitRequestData data;
         public final boolean isTransactionV2Enabled;
 
-
         public Builder(final String transactionalId,
                        final String consumerGroupId,
                        final long producerId,

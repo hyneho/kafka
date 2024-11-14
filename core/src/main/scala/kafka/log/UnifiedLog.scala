@@ -633,7 +633,7 @@ class UnifiedLog(@volatile var logStartOffset: Long,
    */
   def hasOngoingTransaction(producerId: Long, producerEpoch: Short): Boolean = lock synchronized {
     val entry = producerStateManager.activeProducers.get(producerId)
-    entry != null && entry.currentTxnFirstOffset.isPresent && entry.producerEpoch() >= producerEpoch
+    entry != null && entry.currentTxnFirstOffset.isPresent && entry.producerEpoch() == producerEpoch
   }
 
   /**

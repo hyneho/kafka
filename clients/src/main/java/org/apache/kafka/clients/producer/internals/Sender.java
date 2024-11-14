@@ -909,11 +909,11 @@ public class Sender implements Runnable {
         //   If it is not transactional, produce version = latest
         //   If it is transactional but transaction V2 disabled, produce version = min(latest, LAST_STABLE_VERSION_BEFORE_TRANSACTION_V2)
         //   If it is transactional and transaction V2 enabled, produce version = latest
-        boolean canUseTransactionV2AboveVersion = true;
+        boolean useTransactionV1Version = false;
         if (transactionManager != null && transactionManager.isTransactional()) {
             transactionalId = transactionManager.transactionalId();
             if (!transactionManager.isTransactionV2Enabled()) {
-                canUseTransactionV2AboveVersion = false;
+                useTransactionV1Version = true;
             }
         }
 
@@ -923,7 +923,7 @@ public class Sender implements Runnable {
                         .setTimeoutMs(timeout)
                         .setTransactionalId(transactionalId)
                         .setTopicData(tpd),
-                canUseTransactionV2AboveVersion
+                useTransactionV1Version
         );
         RequestCompletionHandler callback = response -> handleProduceResponse(response, recordsByPartition, time.milliseconds());
 
