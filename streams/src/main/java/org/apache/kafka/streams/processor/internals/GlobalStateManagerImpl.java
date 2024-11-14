@@ -319,7 +319,9 @@ public class GlobalStateManagerImpl implements GlobalStateManager {
                                 record.headers()));
                             restoreCount++;
                         }
-                    } catch (final RuntimeException deserializationException) {
+                    } catch (final Exception deserializationException) {
+                        // while Java distinguishes checked vs unchecked exceptions, other languages like
+                        // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
                         handleDeserializationFailure(
                             deserializationExceptionHandler,
                             globalProcessorContext,
