@@ -17,8 +17,6 @@
 
 package org.apache.kafka.common.test.junit;
 
-import org.apache.kafka.common.test.api.Flaky;
-
 import org.junit.platform.engine.FilterResult;
 import org.junit.platform.engine.TestDescriptor;
 import org.junit.platform.engine.TestSource;
@@ -31,7 +29,7 @@ import java.util.Optional;
 public class QuarantinedTestFilter implements PostDiscoveryFilter {
 
     public static final String RUN_QUARANTINED_PROP = "kafka.test.run.quarantined";
-    private static final TestTag FLAKY_TEST_TAG = TestTag.create(Flaky.FLAKY_TAG);
+    private static final TestTag FLAKY_TEST_TAG = TestTag.create("flaky");
 
     private final QuarantinedTestSelector selector;
 

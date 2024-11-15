@@ -26,10 +26,8 @@ import java.lang.annotation.Target;
 
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-@Tag(Flaky.FLAKY_TAG)
+@Tag("flaky")
 public @interface Flaky {
-    String FLAKY_TAG = "flaky";
-
     /**
      * Required reference to a KAFKA Jira ticket.
      */

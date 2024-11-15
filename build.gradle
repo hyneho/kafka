@@ -1609,7 +1609,6 @@ project(':test-common:test-common-runtime') {
   }
 
   dependencies {
-    implementation project(':test-common:test-common-api')
     implementation libs.slf4jApi
     implementation libs.junitPlatformLanucher
     implementation libs.junitJupiterApi
