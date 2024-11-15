@@ -2398,11 +2398,12 @@ project(':tools') {
     implementation libs.log4j2Api
     implementation libs.log4j2Core
     implementation libs.log4j1Bridge2Api
-    implementation libs.spotbugs
     implementation libs.joptSimple
 
     implementation libs.jose4j                    // for SASL/OAUTHBEARER JWT validation
     implementation libs.jacksonJaxrsJsonProvider
+
+    compileOnly libs.spotbugs
 
     testImplementation project(':clients')
     testImplementation project(':clients').sourceSets.test.output

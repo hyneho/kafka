@@ -27,7 +27,9 @@ popd
 
 rem Log4j settings
 IF EXIST "%BASE_DIR%/config/connect-log4j.properties" (
-    echo DEPRECATED: using log4j 1.x configuration. To use log4j 2.x configuration, run with: 'set KAFKA_LOG4J_OPTS=-Dlog4j.configurationFile=file:%BASE_DIR%/config/connect-log4j2.properties'
+    echo DEPRECATED: Using Log4j 1.x configuration file %BASE_DIR%/config/connect-log4j.properties
+    echo To use a Log4j 2.x configuration, please see https://logging.apache.org/log4j/2.x/migrate-from-log4j1.html#Log4j2ConfigurationFormat for details about Log4j configuration file migration.
+    echo You can also use the %BASE_DIR%/config/connect-log4j2.properties file as a starting point. Make sure to remove the Log4j 1.x configuration after completing the migration.
     set KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%BASE_DIR%/config/connect-log4j.properties
 ) ELSE IF EXIST "%BASE_DIR%/config/connect-log4j2.properties" (
     set KAFKA_LOG4J_OPTS=-Dlog4j2.configurationFile=%BASE_DIR%/config/connect-log4j2.properties
