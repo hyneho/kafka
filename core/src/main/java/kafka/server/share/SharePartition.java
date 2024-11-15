@@ -2431,6 +2431,7 @@ public class SharePartition {
         private LogOffsetMetadata offsetMetadata;
 
         OffsetMetadata() {
+            offset = -1;
         }
 
         long offset() {
