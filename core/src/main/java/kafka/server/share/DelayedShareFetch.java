@@ -97,24 +97,22 @@ public class DelayedShareFetch extends DelayedOperation {
             + "topic partitions {}", shareFetch.groupId(), shareFetch.memberId(),
             partitionsAcquired.keySet());
 
-        if (shareFetch.isCompleted())
-            return;
+        try {
+            LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData;
+            // tryComplete did not invoke forceComplete, so we need to check if we have any partitions to fetch.
+            if (partitionsAcquired.isEmpty())
+                topicPartitionData = acquirablePartitions();
+            // tryComplete invoked forceComplete, so we can use the data from tryComplete.
+            else
+                topicPartitionData = partitionsAcquired;
 
-        LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData;
-        // tryComplete did not invoke forceComplete, so we need to check if we have any partitions to fetch.
-        if (partitionsAcquired.isEmpty())
-            topicPartitionData = acquirablePartitions();
-        // tryComplete invoked forceComplete, so we can use the data from tryComplete.
-        else
-            topicPartitionData = partitionsAcquired;
-
-        if (topicPartitionData.isEmpty()) {
-            // No locks for share partitions could be acquired, so we complete the request with an empty response.
-            shareFetch.maybeComplete(Collections.emptyMap());
-            return;
-        }
-        log.trace("Fetchable share partitions data: {} with groupId: {} fetch params: {}",
-            topicPartitionData, shareFetch.groupId(), shareFetch.fetchParams());
+            if (topicPartitionData.isEmpty()) {
+                // No locks for share partitions could be acquired, so we complete the request with an empty response.
+                shareFetch.maybeComplete(Collections.emptyMap());
+                return;
+            }
+            log.trace("Fetchable share partitions data: {} with groupId: {} fetch params: {}",
+                topicPartitionData, shareFetch.groupId(), shareFetch.fetchParams());
 
             completeShareFetchRequest(topicPartitionData);
         } finally {

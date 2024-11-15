@@ -632,8 +632,7 @@ public class DelayedShareFetchTest {
         // Read from log and release partition locks should not be called as the request is errored out.
         Mockito.verify(replicaManager, times(1)).readFromLog(
             any(), any(), any(ReplicaQuota.class), anyBoolean());
-        // releasePartitionLocks will be called twice, once from tryComplete and then from onComplete.
-        Mockito.verify(delayedShareFetch, times(2)).releasePartitionLocks(any());
+        Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
         assertTrue(delayedShareFetch.lock().tryLock());
         delayedShareFetch.lock().unlock();
     }
