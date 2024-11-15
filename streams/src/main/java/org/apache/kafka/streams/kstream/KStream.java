@@ -48,8 +48,8 @@ import org.apache.kafka.streams.state.StoreBuilder;
  * A {@code KStream} can be transformed record by record, joined with another {@code KStream}, {@link KTable},
  * {@link GlobalKTable}, or can be aggregated into a {@link KTable}.
  * Kafka Streams DSL can be mixed-and-matched with Processor API (PAPI) (c.f. {@link Topology}) via
- * {@link #process(ProcessorSupplier, String...) process(...)} and {@link #transformValues(ValueTransformerSupplier,
- * String...) transformValues(...)}.
+ * {@link #process(ProcessorSupplier, String...) process(...)} and {@link #processValues(FixedKeyProcessorSupplier,
+ * String...) processValues(...)}.
  *
  * @param <K> Type of keys
  * @param <V> Type of values
@@ -206,8 +206,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      */
     <KR, VR> KStream<KR, VR> map(final KeyValueMapper<? super K, ? super V, ? extends KeyValue<? extends KR, ? extends VR>> mapper);
 
@@ -245,8 +244,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      */
     <KR, VR> KStream<KR, VR> map(final KeyValueMapper<? super K, ? super V, ? extends KeyValue<? extends KR, ? extends VR>> mapper,
                                  final Named named);
@@ -256,7 +254,7 @@ public interface KStream<K, V> {
      * The provided {@link ValueMapper} is applied to each input record value and computes a new value for it.
      * Thus, an input record {@code <K,V>} can be transformed into an output record {@code <K:V'>}.
      * This is a stateless record-by-record operation (cf.
-     * {@link #transformValues(ValueTransformerSupplier, String...)} for stateful value transformation).
+     * {@link #processValues(FixedKeyProcessorSupplier, String...)} for stateful value processing).
      * <p>
      * The example below counts the number of token of the value string.
      * <pre>{@code
@@ -280,8 +278,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      */
     <VR> KStream<K, VR> mapValues(final ValueMapper<? super V, ? extends VR> mapper);
 
@@ -290,7 +287,7 @@ public interface KStream<K, V> {
      * The provided {@link ValueMapper} is applied to each input record value and computes a new value for it.
      * Thus, an input record {@code <K,V>} can be transformed into an output record {@code <K:V'>}.
      * This is a stateless record-by-record operation (cf.
-     * {@link #transformValues(ValueTransformerSupplier, String...)} for stateful value transformation).
+     * {@link #processValues(FixedKeyProcessorSupplier, String...)} for stateful value processing).
      * <p>
      * The example below counts the number of token of the value string.
      * <pre>{@code
@@ -315,8 +312,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      */
     <VR> KStream<K, VR> mapValues(final ValueMapper<? super V, ? extends VR> mapper,
                                   final Named named);
@@ -326,7 +322,7 @@ public interface KStream<K, V> {
      * The provided {@link ValueMapperWithKey} is applied to each input record value and computes a new value for it.
      * Thus, an input record {@code <K,V>} can be transformed into an output record {@code <K:V'>}.
      * This is a stateless record-by-record operation (cf.
-     * {@link #transformValues(ValueTransformerWithKeySupplier, String...)} for stateful value transformation).
+     * {@link #processValues(FixedKeyProcessorSupplier, String...)} for stateful value processing).
      * <p>
      * The example below counts the number of tokens of key and value strings.
      * <pre>{@code
@@ -351,8 +347,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      */
     <VR> KStream<K, VR> mapValues(final ValueMapperWithKey<? super K, ? super V, ? extends VR> mapper);
 
@@ -361,7 +356,7 @@ public interface KStream<K, V> {
      * The provided {@link ValueMapperWithKey} is applied to each input record value and computes a new value for it.
      * Thus, an input record {@code <K,V>} can be transformed into an output record {@code <K:V'>}.
      * This is a stateless record-by-record operation (cf.
-     * {@link #transformValues(ValueTransformerWithKeySupplier, String...)} for stateful value transformation).
+     * {@link #processValues(FixedKeyProcessorSupplier, String...)} for stateful value processing).
      * <p>
      * The example below counts the number of tokens of key and value strings.
      * <pre>{@code
@@ -387,8 +382,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      */
     <VR> KStream<K, VR> mapValues(final ValueMapperWithKey<? super K, ? super V, ? extends VR> mapper,
                                   final Named named);
@@ -436,8 +430,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
      * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
      */
@@ -487,8 +480,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapper)
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
      * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
      */
@@ -502,8 +494,8 @@ public interface KStream<K, V> {
      * stream (value type can be altered arbitrarily).
      * The provided {@link ValueMapper} is applied to each input record and computes zero or more output values.
      * Thus, an input record {@code <K,V>} can be transformed into output records {@code <K:V'>, <K:V''>, ...}.
-     * This is a stateless record-by-record operation (cf. {@link #transformValues(ValueTransformerSupplier, String...)}
-     * for stateful value transformation).
+     * This is a stateless record-by-record operation (cf. {@link #processValues(FixedKeyProcessorSupplier, String...)}
+     * for stateful value processing).
      * <p>
      * The example below splits input records {@code <null:String>} containing sentences as values into their words.
      * <pre>{@code
@@ -530,8 +522,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
      * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
      */
@@ -544,8 +535,8 @@ public interface KStream<K, V> {
      * stream (value type can be altered arbitrarily).
      * The provided {@link ValueMapper} is applied to each input record and computes zero or more output values.
      * Thus, an input record {@code <K,V>} can be transformed into output records {@code <K:V'>, <K:V''>, ...}.
-     * This is a stateless record-by-record operation (cf. {@link #transformValues(ValueTransformerSupplier, String...)}
-     * for stateful value transformation).
+     * This is a stateless record-by-record operation (cf. {@link #processValues(FixedKeyProcessorSupplier, String...)}
+     * for stateful value processing).
      * <p>
      * The example below splits input records {@code <null:String>} containing sentences as values into their words.
      * <pre>{@code
@@ -573,8 +564,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
      * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
      */
@@ -587,8 +577,8 @@ public interface KStream<K, V> {
      * stream (value type can be altered arbitrarily).
      * The provided {@link ValueMapperWithKey} is applied to each input record and computes zero or more output values.
      * Thus, an input record {@code <K,V>} can be transformed into output records {@code <K:V'>, <K:V''>, ...}.
-     * This is a stateless record-by-record operation (cf. {@link #transformValues(ValueTransformerWithKeySupplier, String...)}
-     * for stateful value transformation).
+     * This is a stateless record-by-record operation (cf. {@link #processValues(FixedKeyProcessorSupplier, String...)}
+     * for stateful value processing).
      * <p>
      * The example below splits input records {@code <Integer:String>}, with key=1, containing sentences as values
      * into their words.
@@ -621,8 +611,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
      * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
      */
@@ -635,8 +624,8 @@ public interface KStream<K, V> {
      * stream (value type can be altered arbitrarily).
      * The provided {@link ValueMapperWithKey} is applied to each input record and computes zero or more output values.
      * Thus, an input record {@code <K,V>} can be transformed into output records {@code <K:V'>, <K:V''>, ...}.
-     * This is a stateless record-by-record operation (cf. {@link #transformValues(ValueTransformerWithKeySupplier, String...)}
-     * for stateful value transformation).
+     * This is a stateless record-by-record operation (cf. {@link #processValues(FixedKeyProcessorSupplier, String...)}
+     * for stateful value processing).
      * <p>
      * The example below splits input records {@code <Integer:String>}, with key=1, containing sentences as values
      * into their words.
@@ -670,8 +659,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapper)
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
-     * @see #transformValues(ValueTransformerSupplier, String...)
-     * @see #transformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, String...)
      * @see #flatTransformValues(ValueTransformerSupplier, String...)
      * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
      */
