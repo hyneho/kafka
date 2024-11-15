@@ -204,8 +204,9 @@ public class ProcessorNode<KIn, VIn, KOut, VOut> {
             // Rethrow exceptions that should not be handled here
             throw e;
         } catch (final Exception processingException) {
-            // while Java distinguishes checked vs unchecked exceptions, other languages like
-            // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             final ErrorHandlerContext errorHandlerContext = new DefaultErrorHandlerContext(
                 null, // only required to pass for DeserializationExceptionHandler
                 internalProcessorContext.topic(),
@@ -223,8 +224,9 @@ public class ProcessorNode<KIn, VIn, KOut, VOut> {
                     "Invalid ProductionExceptionHandler response."
                 );
             } catch (final Exception fatalUserException) {
-                // while Java distinguishes checked vs unchecked exceptions, other languages like
-                // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+                // while Java distinguishes checked vs unchecked exceptions, other languages
+                // like Scala or Kotlin do not, and thus we need to catch `Exception`
+                // (instead of `RuntimeException`) to work well with those languages
                 log.error(
                     "Processing error callback failed after processing error for record: {}",
                     errorHandlerContext,

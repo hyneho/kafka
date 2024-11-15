@@ -211,8 +211,9 @@ public class RecordCollectorImpl implements RecordCollector {
                 keySerializer,
                 exception);
         } catch (final Exception serializationException) {
-            // while Java distinguishes checked vs unchecked exceptions, other languages like
-            // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             handleException(
                 ProductionExceptionHandler.SerializationExceptionOrigin.KEY,
                 topic,
@@ -238,8 +239,9 @@ public class RecordCollectorImpl implements RecordCollector {
                 valueSerializer,
                 exception);
         } catch (final Exception serializationException) {
-            // while Java distinguishes checked vs unchecked exceptions, other languages like
-            // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             handleException(
                 ProductionExceptionHandler.SerializationExceptionOrigin.VALUE,
                 topic,
@@ -334,8 +336,9 @@ public class RecordCollectorImpl implements RecordCollector {
                 "Invalid ProductionExceptionHandler response."
             );
         } catch (final Exception fatalUserException) {
-            // while Java distinguishes checked vs unchecked exceptions, other languages like
-            // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             log.error(
                 String.format(
                     "Production error callback failed after serialization error for record %s: %s",
@@ -450,8 +453,9 @@ public class RecordCollectorImpl implements RecordCollector {
                     "Invalid ProductionExceptionHandler response."
                 );
             } catch (final Exception fatalUserException) {
-                // while Java distinguishes checked vs unchecked exceptions, other languages like
-                // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+                // while Java distinguishes checked vs unchecked exceptions, other languages
+                // like Scala or Kotlin do not, and thus we need to catch `Exception`
+                // (instead of `RuntimeException`) to work well with those languages
                 log.error(
                     "Production error callback failed after production error for record {}",
                     serializedRecord,

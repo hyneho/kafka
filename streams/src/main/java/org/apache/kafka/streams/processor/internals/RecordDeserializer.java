@@ -71,8 +71,9 @@ public class RecordDeserializer {
                 rawRecord.leaderEpoch()
             );
         } catch (final Exception deserializationException) {
-            // while Java distinguishes checked vs unchecked exceptions, other languages like
-            // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             handleDeserializationFailure(deserializationExceptionHandler, processorContext, deserializationException, rawRecord, log, droppedRecordsSensor, sourceNode().name());
             return null; //  'handleDeserializationFailure' would either throw or swallow -- if we swallow we need to skip the record by returning 'null'
         }
@@ -103,8 +104,9 @@ public class RecordDeserializer {
                 "Invalid DeserializationExceptionHandler response."
             );
         } catch (final Exception fatalUserException) {
-            // while Java distinguishes checked vs unchecked exceptions, other languages like
-            // Scala or Kotlin do no, and thus we need to `Exception` to work well with those languages
+            // while Java distinguishes checked vs unchecked exceptions, other languages
+            // like Scala or Kotlin do not, and thus we need to catch `Exception`
+            // (instead of `RuntimeException`) to work well with those languages
             log.error(
                 "Deserialization error callback failed after deserialization error for record {}",
                 rawRecord,
