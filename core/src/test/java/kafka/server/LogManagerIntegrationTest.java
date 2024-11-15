@@ -70,19 +70,19 @@ public class LogManagerIntegrationTest {
         RaftClusterInvocationContext.RaftClusterInstance raftInstance =
                 (RaftClusterInvocationContext.RaftClusterInstance) cluster;
 
-        try (Admin admin = cluster.createAdminClient()) {
+        try (Admin admin = cluster.admin()) {
             admin.createTopics(Collections.singletonList(new NewTopic("foo", 1, (short) 3))).all().get();
         }
         cluster.waitForTopic("foo", 1);
 
         Optional<PartitionMetadataFile> partitionMetadataFile = Optional.ofNullable(
-                raftInstance.getUnderlying().brokers().get(0).logManager()
+                raftInstance.brokers().get(0).logManager()
                         .getLog(new TopicPartition("foo", 0), false).get()
                         .partitionMetadataFile().getOrElse(null));
         assertTrue(partitionMetadataFile.isPresent());
 
-        raftInstance.getUnderlying().brokers().get(0).shutdown();
-        try (Admin admin = cluster.createAdminClient()) {
+        raftInstance.brokers().get(0).shutdown();
+        try (Admin admin = cluster.admin()) {
             TestUtils.waitForCondition(() -> {
                 List<TopicPartitionInfo> partitionInfos = admin.describeTopics(Collections.singletonList("foo"))
                         .topicNameValues().get("foo").get().partitions();
@@ -93,10 +93,10 @@ public class LogManagerIntegrationTest {
         // delete partition.metadata file here to simulate the scenario that partition.metadata not flush to disk yet
         partitionMetadataFile.get().delete();
         assertFalse(partitionMetadataFile.get().exists());
-        raftInstance.getUnderlying().brokers().get(0).startup();
+        raftInstance.brokers().get(0).startup();
         // make sure there is no error during load logs
         assertDoesNotThrow(() -> raftInstance.getUnderlying().fatalFaultHandler().maybeRethrowFirstException());
-        try (Admin admin = cluster.createAdminClient()) {
+        try (Admin admin = cluster.admin()) {
             TestUtils.waitForCondition(() -> {
                 List<TopicPartitionInfo> partitionInfos = admin.describeTopics(Collections.singletonList("foo"))
                         .topicNameValues().get("foo").get().partitions();

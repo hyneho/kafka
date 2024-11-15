@@ -406,11 +406,11 @@ class KRaftClusterTest {
       .build()
 
     doOnStartedKafkaCluster(nodes) { implicit cluster =>
-      sendDescribeClusterRequestToBoundPortUntilAllBrokersPropagated(cluster.nodes.externalListenerName, (15L, SECONDS))
+      sendDescribeClusterRequestToBoundPortUntilAllBrokersPropagated(cluster.nodes.brokerListenerName, (15L, SECONDS))
         .nodes.values.forEach { broker =>
           assertEquals("localhost", broker.host,
             "Did not advertise configured advertised host")
-          assertEquals(cluster.brokers.get(broker.id).socketServer.boundPort(cluster.nodes.externalListenerName), broker.port,
+          assertEquals(cluster.brokers.get(broker.id).socketServer.boundPort(cluster.nodes.brokerListenerName), broker.port,
             "Did not advertise bound socket port")
         }
     }
@@ -434,7 +434,7 @@ class KRaftClusterTest {
       .build()
 
     doOnStartedKafkaCluster(nodes) { implicit cluster =>
-      sendDescribeClusterRequestToBoundPortUntilAllBrokersPropagated(cluster.nodes.externalListenerName, (15L, SECONDS))
+      sendDescribeClusterRequestToBoundPortUntilAllBrokersPropagated(cluster.nodes.brokerListenerName, (15L, SECONDS))
         .nodes.values.forEach { broker =>
           assertEquals(s"advertised-host-${broker.id}", broker.host, "Did not advertise configured advertised host")
           assertEquals(broker.id + 100, broker.port, "Did not advertise configured advertised port")
@@ -1289,7 +1289,7 @@ class KRaftClusterTest {
             () => admin.createTopics(newTopics).all().get())
         assertNotNull(executionException.getCause)
         assertEquals(classOf[PolicyViolationException], executionException.getCause.getClass)
-        assertEquals("Unable to perform excessively large batch operation.",
+        assertEquals("Excessively large number of partitions per request.",
           executionException.getCause.getMessage)
       } finally {
         admin.close()
@@ -1389,8 +1389,7 @@ class KRaftClusterTest {
         setName("num.io.threads").
         setValue("9"), 0.toShort))
     val cluster = new KafkaClusterTestKit.Builder(
-      new TestKitNodes.Builder().
-        setBootstrapMetadata(BootstrapMetadata.fromRecords(bootstrapRecords, "testRecords")).
+      new TestKitNodes.Builder(BootstrapMetadata.fromRecords(bootstrapRecords, "testRecords")).
         setNumBrokerNodes(1).
         setNumControllerNodes(1).build()).
       build()

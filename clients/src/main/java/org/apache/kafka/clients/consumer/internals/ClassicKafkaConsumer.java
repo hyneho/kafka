@@ -430,12 +430,18 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public void registerMetricForSubscription(KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        if (clientTelemetryReporter.isPresent()) {
+            ClientTelemetryReporter reporter = clientTelemetryReporter.get();
+            reporter.metricChange(metric);
+        }
     }
 
     @Override
     public void unregisterMetricFromSubscription(KafkaMetric metric) {
-        throw new UnsupportedOperationException("not implemented");
+        if (clientTelemetryReporter.isPresent()) {
+            ClientTelemetryReporter reporter = clientTelemetryReporter.get();
+            reporter.metricRemoval(metric);
+        }
     }
 
     @Override
@@ -637,7 +643,7 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                                 + "since the consumer's position has advanced for at least one topic partition");
                     }
 
-                    return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records()));
+                    return this.interceptors.onConsume(new ConsumerRecords<>(fetch.records(), fetch.nextOffsets()));
                 }
             } while (timer.notExpired());
 
@@ -1118,7 +1124,7 @@ public class ClassicKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         AtomicReference<Throwable> firstException = new AtomicReference<>();
 
         final Timer closeTimer = createTimerForRequest(timeout);
-        clientTelemetryReporter.ifPresent(reporter -> reporter.initiateClose(timeout.toMillis()));
+        clientTelemetryReporter.ifPresent(ClientTelemetryReporter::initiateClose);
         closeTimer.update();
         // Close objects with a timeout. The timeout is required because the coordinator & the fetcher send requests to
         // the server in the process of closing which may not respect the overall timeout defined for closing the

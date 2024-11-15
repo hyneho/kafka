@@ -21,7 +21,6 @@ import kafka.server.BrokerServer;
 import kafka.server.ControllerServer;
 import kafka.server.KafkaBroker;
 
-import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.test.KafkaClusterTestKit;
 import org.apache.kafka.common.test.TestKitNodes;
@@ -45,16 +44,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import scala.compat.java8.OptionConverters;
+import scala.jdk.javaapi.OptionConverters;
+
 
 /**
  * Wraps a {@link KafkaClusterTestKit} inside lifecycle methods for a test invocation. Each instance of this
@@ -105,13 +103,14 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         final AtomicBoolean started = new AtomicBoolean(false);
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final AtomicBoolean formated = new AtomicBoolean(false);
-        private final ConcurrentLinkedQueue<Admin> admins = new ConcurrentLinkedQueue<>();
         private KafkaClusterTestKit clusterTestKit;
         private final boolean isCombined;
+        private final ListenerName listenerName;
 
         RaftClusterInstance(ClusterConfig clusterConfig, boolean isCombined) {
             this.clusterConfig = clusterConfig;
             this.isCombined = isCombined;
+            this.listenerName = clusterConfig.brokerListenerName();
         }
 
         @Override
@@ -126,7 +125,7 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
 
         @Override
         public ListenerName clientListener() {
-            return ListenerName.normalised("EXTERNAL");
+            return listenerName;
         }
 
         @Override
@@ -166,16 +165,8 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
             return controllers().keySet();
         }
 
-        @Override
         public KafkaClusterTestKit getUnderlying() {
             return clusterTestKit;
-        }
-
-        @Override
-        public Admin createAdminClient(Properties configOverrides) {
-            Admin admin = Admin.create(clusterTestKit.newClientPropertiesBuilder(configOverrides).build());
-            admins.add(admin);
-            return admin;
         }
 
         @Override
@@ -197,8 +188,6 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         @Override
         public void stop() {
             if (stopped.compareAndSet(false, true)) {
-                admins.forEach(admin -> Utils.closeQuietly(admin, "admin"));
-                admins.clear();
                 Utils.closeQuietly(clusterTestKit, "cluster");
             }
         }
@@ -281,7 +270,10 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                         .setNumBrokerNodes(clusterConfig.numBrokers())
                         .setNumDisksPerBroker(clusterConfig.numDisksPerBroker())
                         .setPerServerProperties(clusterConfig.perServerOverrideProperties())
-                        .setNumControllerNodes(clusterConfig.numControllers()).build();
+                        .setNumControllerNodes(clusterConfig.numControllers())
+                        .setBrokerListenerName(listenerName)
+                        .setBrokerSecurityProtocol(clusterConfig.brokerSecurityProtocol())
+                        .build();
                 KafkaClusterTestKit.Builder builder = new KafkaClusterTestKit.Builder(nodes);
                 // Copy properties into the TestKit builder
                 clusterConfig.serverProperties().forEach(builder::setConfigProp);

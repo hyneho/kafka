@@ -20,7 +20,7 @@ package kafka.api
 import java.util.{Collections, Properties}
 import kafka.integration.KafkaServerTestHarness
 import kafka.server.KafkaConfig
-import kafka.utils.TestUtils
+import kafka.utils.{TestInfoUtils, TestUtils}
 import kafka.utils.TestUtils.{consumeRecords, createAdminClient}
 import org.apache.kafka.clients.admin.{Admin, ProducerState}
 import org.apache.kafka.clients.consumer.Consumer
@@ -29,11 +29,11 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{InvalidPidMappingException, TransactionalIdNotFoundException}
 import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
-import org.apache.kafka.server.config.{ServerConfigs, ReplicationConfigs, ServerLogConfigs}
+import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.{CsvSource, MethodSource}
 
 import scala.jdk.CollectionConverters._
 import scala.collection.Seq
@@ -60,6 +60,7 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
 
     producer = TestUtils.createTransactionalProducer("transactionalProducer", brokers)
     consumer = TestUtils.createConsumer(bootstrapServers(),
+      groupProtocolFromTestParameters(),
       enableAutoCommit = false,
       readCommitted = true)
     admin = createAdminClient(brokers, listenerName)
@@ -80,9 +81,9 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
     super.tearDown()
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testBumpTransactionalEpochAfterInvalidProducerIdMapping(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testBumpTransactionalEpochAfterInvalidProducerIdMapping(quorum: String, groupProtocol: String): Unit = {
     producer.initTransactions()
 
     // Start and then abort a transaction to allow the transactional ID to expire.
@@ -120,9 +121,14 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testTransactionAfterProducerIdExpires(quorum: String): Unit = {
+  @ParameterizedTest(name = "{displayName}.quorum={0}.groupProtocol={1}.isTV2Enabled={2}")
+  @CsvSource(Array(
+    "kraft,classic,false",
+    "kraft,consumer,false",
+    "kraft,classic,true",
+    "kraft,consumer,true",
+  ))
+  def testTransactionAfterProducerIdExpires(quorum: String, groupProtocol: String, isTV2Enabled: Boolean): Unit = {
     producer.initTransactions()
 
     // Start and then abort a transaction to allow the producer ID to expire.
@@ -163,7 +169,11 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
     // Because the transaction IDs outlive the producer IDs, creating a producer with the same transactional id
     // soon after the first will re-use the same producerId, while bumping the epoch to indicate that they are distinct.
     assertEquals(oldProducerId, newProducerId)
-    assertEquals(oldProducerEpoch + 1, newProducerEpoch)
+    if (isTV2Enabled) {
+      assertEquals(oldProducerEpoch + 3, newProducerEpoch)
+    } else {
+      assertEquals(oldProducerEpoch + 1, newProducerEpoch)
+    }
 
     consumer.subscribe(List(topic1).asJava)
 
