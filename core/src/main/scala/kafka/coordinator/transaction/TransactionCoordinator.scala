@@ -600,8 +600,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                 else
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
               case CompleteAbort =>
-                // The epoch should be valid as it is checked above
-                if (txnMarkerResult == TransactionResult.ABORT || currentTxnMetadataIsAtLeastTransactionsV2)
+                if (txnMarkerResult == TransactionResult.ABORT)
                   Left(Errors.NONE)
                 else
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
