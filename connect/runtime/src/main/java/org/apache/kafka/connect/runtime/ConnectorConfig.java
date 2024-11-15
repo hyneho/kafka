@@ -637,6 +637,9 @@ public class ConnectorConfig extends AbstractConfig {
     }
 
     private static <T> String fetchDefaultPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName, Class<T> pluginClass) {
+        if (connectorClass == null || pluginName == null) {
+            return null;
+        }
         try {
             VersionRange range = VersionRange.createFromVersionSpec(connectorVersion);
             ClassLoader connectorLoader = plugins.connectorLoader(connectorClass, range);
@@ -822,6 +825,9 @@ public class ConnectorConfig extends AbstractConfig {
 
         @SuppressWarnings("unchecked")
         ConfigDef getConfigDefFromPlugin(String key, String classOrAlias, String version, Plugins plugins) {
+            if (classOrAlias == null) {
+                throw new ConfigException(key, null, "Not a " + baseClass.getSimpleName());
+            }
             T pluginInstance;
             try {
                 VersionRange range = PluginVersionUtils.connectorVersionRequirement(version);
