@@ -139,7 +139,8 @@ class ThrottlingTest(ProduceConsumeValidateTest):
                 time_taken))
 
     @cluster(num_nodes=10)
-    @parametrize(bounce_brokers=[True, False], group_protocol=[consumer_group.classic_group_protocol])
+    @parametrize(bounce_brokers=True)
+    @parametrize(bounce_brokers=False)
     def test_throttled_reassignment(self, bounce_brokers, group_protocol=consumer_group.classic_group_protocol):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
