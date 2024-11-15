@@ -121,7 +121,7 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
                                            version=DEV_BRANCH, offline_nodes=[inactive_controller])
         consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
-                                        self.topic, new_consumer=True, consumer_timeout_ms=30000,
+                                        self.topic, consumer_timeout_ms=30000,
                                         message_validator=is_int, version=DEV_BRANCH,
                                         consumer_properties=consumer_properties)
         # Perform reconfigurations
@@ -164,7 +164,7 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
                                            version=DEV_BRANCH)
         consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
-                                        self.topic, new_consumer=True, consumer_timeout_ms=30000,
+                                        self.topic, consumer_timeout_ms=30000,
                                         message_validator=is_int, version=DEV_BRANCH,
                                         consumer_properties=consumer_properties)
         # Perform reconfigurations

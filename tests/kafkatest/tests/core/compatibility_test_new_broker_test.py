@@ -66,9 +66,7 @@ class ClientCompatibilityTestNewBroker(ProduceConsumeValidateTest):
     @matrix(producer_version=[str(LATEST_3_8)], consumer_version=[str(LATEST_3_8)], compression_types=[["none"]], timestamp_type=[str("CreateTime")], metadata_quorum=quorum.all_non_upgrade)
     @matrix(producer_version=[str(LATEST_3_9)], consumer_version=[str(LATEST_3_9)], compression_types=[["none"]], timestamp_type=[str("CreateTime")], metadata_quorum=quorum.all_non_upgrade)
     @matrix(producer_version=[str(LATEST_2_1)], consumer_version=[str(LATEST_2_1)], compression_types=[["zstd"]], timestamp_type=[str("CreateTime")], metadata_quorum=quorum.all_non_upgrade)
-    def test_compatibility(self, producer_version, consumer_version, compression_types, new_consumer=True, timestamp_type=None, metadata_quorum=quorum.zk, group_protocol=consumer_group.classic_group_protocol):
-        if not new_consumer and metadata_quorum != quorum.zk:
-            raise Exception("ZooKeeper-based consumers are not supported when using a KRaft metadata quorum")
+    def test_compatibility(self, producer_version, consumer_version, compression_types, timestamp_type=None, metadata_quorum=quorum.zk, group_protocol=consumer_group.classic_group_protocol):
         self.kafka = KafkaService(self.test_context, num_nodes=3, zk=self.zk, version=DEV_BRANCH, topics={self.topic: {
                                                                     "partitions": 3,
                                                                     "replication-factor": 3,
@@ -87,7 +85,7 @@ class ClientCompatibilityTestNewBroker(ProduceConsumeValidateTest):
 
         consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
-                                        self.topic, consumer_timeout_ms=30000, new_consumer=new_consumer,
+                                        self.topic, consumer_timeout_ms=30000,
                                         message_validator=is_int, version=KafkaVersion(consumer_version),
                                         consumer_properties=consumer_properties)
 

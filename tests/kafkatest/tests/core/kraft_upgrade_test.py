@@ -101,7 +101,7 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
                                            version=KafkaVersion(from_kafka_version))
         consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
-                                        self.topic, new_consumer=True, consumer_timeout_ms=30000,
+                                        self.topic, consumer_timeout_ms=30000,
                                         message_validator=is_int, version=KafkaVersion(from_kafka_version),
                                         consumer_properties=consumer_properties)
         self.run_produce_consume_validate(core_test_action=lambda: self.perform_version_change(from_kafka_version))
