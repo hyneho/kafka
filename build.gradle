@@ -116,6 +116,13 @@ ext {
   configureJavaCompiler = { name, options ->
     // -parameters generates arguments with parameter names in TestInfo#getDisplayName.
     // ref: https://github.com/junit-team/junit5/blob/4c0dddad1b96d4a20e92a2cd583954643ac56ac0/junit-jupiter-params/src/main/java/org/junit/jupiter/params/ParameterizedTest.java#L161-L164
+
+    def modulesNeedingJava17 = [
+      ":core", ":coordinator-common", ":generator", ":group-coordinator",
+      ":metadata", ":raft", ":server", ":server-common", ":share", ":storage",
+      ":share-coordinator", ":test-common", ":tools", ":transaction-coordinator"
+    ]
+
     if (name == "compileTestJava" || name == "compileTestScala") {
       options.compilerArgs << "-parameters"
       options.compilerArgs += ["--release", String.valueOf(minJavaVersion)]
@@ -128,7 +135,11 @@ ext {
       options.compilerArgs << "-Xlint:-serial"
       options.compilerArgs << "-Xlint:-try"
       options.compilerArgs << "-Werror"
-      options.compilerArgs += ["--release", String.valueOf(minJavaVersion)]
+      if (modulesNeedingJava17.any { project.path.startsWith(it) }) {
+        options.compilerArgs += ["--release", String.valueOf(17)]
+      } else {
+        options.compilerArgs += ["--release", String.valueOf(minJavaVersion)]
+      }
     }
   }
 
@@ -316,20 +327,6 @@ subprojects {
     consistentResolution {
       // resolve the compileClasspath and then "inject" the result of resolution as strict constraints into the runtimeClasspath
       useCompileClasspathVersions()
-    }
-  }
-
-  def modulesNeedingJava17 = [
-      ":core", ":coordinator-common", ":generator", ":group-coordinator",
-      ":metadata", ":raft", ":server", ":server-common", ":share", ":storage",
-      ":share-coordinator", ":test-common", ":tools", ":transaction-coordinator"
-  ]
-
-  if (modulesNeedingJava17.any { project.path.startsWith(it) }) {
-    java {
-      toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-      }
     }
   }
 
