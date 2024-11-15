@@ -594,31 +594,4 @@ public class TopicBasedRemoteLogMetadataManager implements RemoteLogMetadataMana
             log.info("Closed topic-based RLMM resources");
         }
     }
-
-    @Override
-    public boolean isReady(TopicIdPartition topicIdPartition) {
-        Objects.requireNonNull(topicIdPartition, "topicIdPartition can not be null");
-
-        if (initializationFailed) {
-            log.debug("RLMM initialization failed, not ready to serve partition: {}", topicIdPartition);
-            return false;
-        }
-
-        if (closing.get()) {
-            log.debug("RLMM is closing, not ready to serve partition: {}", topicIdPartition);
-            return false;
-        }
-
-        if (pendingAssignPartitions.contains(topicIdPartition)) {
-            log.debug("Partition {} is pending assignment, not ready to serve", topicIdPartition);
-            return false;
-        }
-
-        if (remotePartitionMetadataStore == null) {
-            log.debug("RemotePartitionMetadataStore is not initialized yet for partition: {}", topicIdPartition);
-            return false;
-        }
-
-        return true;
-    }
 }
