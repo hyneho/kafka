@@ -34,6 +34,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+// Creating mocks of classes using generics creates unsafe assignment.
+@SuppressWarnings("unchecked")
 public class CoordinatorExecutorImplTest {
     @Test
     public void testTaskSuccessfulLifecycle() {
