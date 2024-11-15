@@ -1191,10 +1191,6 @@ public class TransactionManager {
         } else {
             transitionTo(State.READY);
         }
-        clearAllStates();
-    }
-
-    private void clearAllStates() {
         lastError = null;
         epochBumpRequired = false;
         transactionStarted = false;
@@ -1344,8 +1340,7 @@ public class TransactionManager {
                         initProducerIdResponse.data().producerEpoch());
                 setProducerIdAndEpoch(producerIdAndEpoch);
                 transitionTo(State.READY);
-                // Clear all the states especially epochBumpRequired to make sure it does not confuse the following transactions.
-                clearAllStates();
+                lastError = null;
                 if (this.isEpochBump) {
                     resetSequenceNumbers();
                 }
