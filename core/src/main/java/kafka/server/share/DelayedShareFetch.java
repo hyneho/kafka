@@ -90,7 +90,7 @@ public class DelayedShareFetch extends DelayedOperation {
      */
     @Override
     public void onComplete() {
-        // We are utilizing lock so that onComplete doesn't do a dirty read for global variables -
+        // We are utilizing lock so that onComplete doesn't do a dirty read for instance variables -
         // partitionsAcquired and partitionsAlreadyFetched, since these variables can get updated in a different tryComplete thread.
         lock.lock();
         log.trace("Completing the delayed share fetch request for group {}, member {}, "

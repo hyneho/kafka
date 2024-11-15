@@ -2426,6 +2426,7 @@ public class SharePartition {
      * FetchOffsetMetadata class is used to cache offset and its log metadata.
      */
     static final class OffsetMetadata {
+        // This offset could be different from offsetMetadata.messageOffset if it's in the middle of a batch.
         private long offset;
         private LogOffsetMetadata offsetMetadata;
 
