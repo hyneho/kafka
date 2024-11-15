@@ -2176,6 +2176,10 @@ public class RemoteLogManager implements Closeable {
             scheduledThreadPool = createPool();
         }
 
+        public void resize(int newSize) {
+            scheduledThreadPool.setCorePoolSize(newSize);
+        }
+
         private ScheduledThreadPoolExecutor createPool() {
             ScheduledThreadPoolExecutor threadPool = new ScheduledThreadPoolExecutor(poolSize);
             threadPool.setRemoveOnCancelPolicy(true);
