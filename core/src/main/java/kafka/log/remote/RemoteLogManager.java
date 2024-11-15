@@ -289,17 +289,17 @@ public class RemoteLogManager implements Closeable {
         rlmFetchQuotaManager.updateQuota(new Quota(quota, true));
     }
 
-    public void updateCopyThreadPoolSize(int size) {
+    public void updateCopyThreadPoolSize(long size) {
         LOGGER.info("Updating remote copy thread pool size to {}", size);
         rlmCopyThreadPool.resize(size);
     }
 
-    public void updateExpirationThreadPoolSize(int size) {
+    public void updateExpirationThreadPoolSize(long size) {
         LOGGER.info("Updating remote expiration thread pool size to {}", size);
         rlmExpirationThreadPool.resize(size);
     }
 
-    public void updateReaderThreadPoolSize(int size) {
+    public void updateReaderThreadPoolSize(long size) {
         LOGGER.info("Updating remote reader thread pool size to {}", size);
         remoteStorageReaderThreadPool.resize(size);
     }
@@ -812,11 +812,6 @@ public class RemoteLogManager implements Closeable {
                 Optional<UnifiedLog> unifiedLogOptional = fetchLog.apply(topicIdPartition.topicPartition());
 
                 if (unifiedLogOptional.isEmpty()) {
-                    return;
-                }
-
-                if (!remoteLogMetadataManager.isReady(topicIdPartition)) {
-                    logger.debug("RLMM not ready for partition {}, will retry later", topicIdPartition);
                     return;
                 }
 
@@ -2176,8 +2171,8 @@ public class RemoteLogManager implements Closeable {
             scheduledThreadPool = createPool();
         }
 
-        public void resize(int newSize) {
-            scheduledThreadPool.setCorePoolSize(newSize);
+        public void resize(long newSize) {
+            scheduledThreadPool.setCorePoolSize((int) newSize);
         }
 
         private ScheduledThreadPoolExecutor createPool() {
