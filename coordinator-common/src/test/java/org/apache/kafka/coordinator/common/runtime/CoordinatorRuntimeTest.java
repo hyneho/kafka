@@ -2158,6 +2158,7 @@ public class CoordinatorRuntimeTest {
     public void testClose() throws Exception {
         MockCoordinatorLoader loader = spy(new MockCoordinatorLoader());
         MockTimer timer = new MockTimer();
+        ExecutorService executorService = mock(ExecutorService.class);
         CoordinatorRuntime<MockCoordinatorShard, String> runtime =
             new CoordinatorRuntime.Builder<MockCoordinatorShard, String>()
                 .withTime(timer.time())
@@ -2170,7 +2171,7 @@ public class CoordinatorRuntimeTest {
                 .withCoordinatorRuntimeMetrics(mock(CoordinatorRuntimeMetrics.class))
                 .withCoordinatorMetrics(mock(CoordinatorMetrics.class))
                 .withSerializer(new StringSerializer())
-                .withExecutorService(mock(ExecutorService.class))
+                .withExecutorService(executorService)
                 .build();
 
         // Loads the coordinator.
@@ -2215,6 +2216,9 @@ public class CoordinatorRuntimeTest {
 
         // The coordinator timer should be empty.
         assertEquals(0, ctx.timer.size());
+
+        // Verify that the executor service was shutdown.
+        verify(executorService).shutdown();
     }
 
     @Test
