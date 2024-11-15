@@ -188,6 +188,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             return this;
         }
 
+        @SuppressWarnings("NPathComplexity")
         @Override
         public GroupCoordinatorShard build() {
             if (logContext == null) logContext = new LogContext();
