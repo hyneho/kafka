@@ -30,7 +30,7 @@ import org.apache.kafka.common.errors.{InvalidPidMappingException, Transactional
 import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue}
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{CsvSource, MethodSource}
@@ -170,7 +170,9 @@ class TransactionsExpirationTest extends KafkaServerTestHarness {
     // soon after the first will re-use the same producerId, while bumping the epoch to indicate that they are distinct.
     assertEquals(oldProducerId, newProducerId)
     if (isTV2Enabled) {
-      assertEquals(oldProducerEpoch + 3, newProducerEpoch)
+      // TV2 bumps epoch on EndTxn, and the final commit may or may not have bumped the epoch in the producer state.
+      // The epoch should be at least oldProducerEpoch + 2 for the first commit and the restarted producer.
+      assertTrue(oldProducerEpoch + 2 <= newProducerEpoch)
     } else {
       assertEquals(oldProducerEpoch + 1, newProducerEpoch)
     }
