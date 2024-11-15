@@ -407,6 +407,7 @@ public class KafkaAdminClient extends AdminClient {
     private final long retryBackoffMs;
     private final long retryBackoffMaxMs;
     private final ExponentialBackoff retryBackoff;
+    private final long rebootstrapTriggerMs;
     private final MetadataRecoveryStrategy metadataRecoveryStrategy;
     private final Map<TopicPartition, Integer> partitionLeaderCache;
     private final AdminFetchMetricsManager adminFetchMetricsManager;
@@ -634,6 +635,7 @@ public class KafkaAdminClient extends AdminClient {
         List<MetricsReporter> reporters = CommonClientConfigs.metricsReporters(this.clientId, config);
         this.clientTelemetryReporter = clientTelemetryReporter;
         this.clientTelemetryReporter.ifPresent(reporters::add);
+        this.rebootstrapTriggerMs = config.getLong(AdminClientConfig.METADATA_RECOVERY_REBOOTSTRAP_TRIGGER_MS_CONFIG);
         this.metadataRecoveryStrategy = MetadataRecoveryStrategy.forName(config.getString(AdminClientConfig.METADATA_RECOVERY_STRATEGY_CONFIG));
         this.partitionLeaderCache = new HashMap<>();
         this.adminFetchMetricsManager = new AdminFetchMetricsManager(metrics);
@@ -725,10 +727,15 @@ public class KafkaAdminClient extends AdminClient {
     private class MetadataUpdateNodeIdProvider implements NodeProvider {
         @Override
         public Node provide() {
-            LeastLoadedNode leastLoadedNode = client.leastLoadedNode(time.milliseconds());
+            long now = time.milliseconds();
+            if (metadataRecoveryStrategy == MetadataRecoveryStrategy.REBOOTSTRAP &&
+                    metadataManager.needsRebootstrap(now, rebootstrapTriggerMs)) {
+                rebootstrap(now);
+            }
+            LeastLoadedNode leastLoadedNode = client.leastLoadedNode(now);
             if (metadataRecoveryStrategy == MetadataRecoveryStrategy.REBOOTSTRAP
                     && !leastLoadedNode.hasNodeAvailableOrConnectionReady()) {
-                metadataManager.rebootstrap(time.milliseconds());
+                rebootstrap(now);
             }
 
             return leastLoadedNode.node();
@@ -737,6 +744,11 @@ public class KafkaAdminClient extends AdminClient {
         @Override
         public boolean supportsUseControllers() {
             return true;
+        }
+
+        private void rebootstrap(long now) {
+            client.closeAll();
+            metadataManager.rebootstrap(now);
         }
     }
 
@@ -1704,7 +1716,11 @@ public class KafkaAdminClient extends AdminClient {
                 public void handleResponse(AbstractResponse abstractResponse) {
                     MetadataResponse response = (MetadataResponse) abstractResponse;
                     long now = time.milliseconds();
-                    metadataManager.update(response.buildCluster(), now);
+
+                    if (response.topLevelError() == Errors.REBOOTSTRAP_REQUIRED)
+                        metadataManager.initiateRebootstrap();
+                    else
+                        metadataManager.update(response.buildCluster(), now);
 
                     // Unassign all unsent requests after a metadata refresh to allow for a new
                     // destination to be selected from the new metadata
@@ -3375,7 +3391,7 @@ public class KafkaAdminClient extends AdminClient {
             CreateDelegationTokenRequest.Builder createRequest(int timeoutMs) {
                 CreateDelegationTokenRequestData data = new CreateDelegationTokenRequestData()
                     .setRenewers(renewers)
-                    .setMaxLifetimeMs(options.maxlifeTimeMs());
+                    .setMaxLifetimeMs(options.maxLifetimeMs());
                 if (options.owner().isPresent()) {
                     data.setOwnerPrincipalName(options.owner().get().getName());
                     data.setOwnerPrincipalType(options.owner().get().getPrincipalType());
