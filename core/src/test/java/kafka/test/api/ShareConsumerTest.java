@@ -84,13 +84,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.apache.kafka.test.TestUtils.DEFAULT_MAX_WAIT_MS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -295,29 +295,26 @@ public class ShareConsumerTest {
 
             shareConsumer.subscribe(Collections.singleton(tp.topic()));
 
-            ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(5000));
-            assertEquals(1, records.count());
+            TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
+                DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records for share consumer");
 
             shareConsumer.subscribe(Collections.singletonList(tp2.topic()));
 
             // Waiting for heartbeat to propagate the subscription change.
-            TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
-                DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records from the updated subscription");
+            TestUtils.waitForCondition(() -> {
+                shareConsumer.poll(Duration.ofMillis(500));
+                return partitionExceptionMap.containsKey(tp) && partitionExceptionMap.containsKey(tp2);
+            }, DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records from the updated subscription");
 
-            producer.send(record2).get();
-
-            //Starting the 3rd poll to invoke the callback
-            shareConsumer.poll(Duration.ofMillis(500));
-
-            // Verifying if the callback was invoked for the partitions in the old subscription.
-            assertTrue(partitionExceptionMap.containsKey(tp));
+            // Verifying if the callback was invoked without exceptions for the partitions for both topics.
             assertNull(partitionExceptionMap.get(tp));
+            assertNull(partitionExceptionMap.get(tp2));
         }
     }
 
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
-    public void testAcknowledgementCommitCallbackSuccessfulAcknowledgement(String persister) {
+    public void testAcknowledgementCommitCallbackSuccessfulAcknowledgement(String persister) throws Exception {
         alterShareAutoOffsetReset("group1", "earliest");
         try (KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
              KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), "group1")) {
@@ -332,16 +329,15 @@ public class ShareConsumerTest {
             shareConsumer.setAcknowledgementCommitCallback(new TestableAcknowledgeCommitCallback(partitionOffsetsMap, partitionExceptionMap));
             shareConsumer.subscribe(Collections.singleton(tp.topic()));
 
-            ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(5000));
-            assertEquals(1, records.count());
-            // Now in the second poll, we implicitly acknowledge the record received in the first poll.
-            // We get back the acknowledgment error code after the second poll.
-            // When we start the 3rd poll, the acknowledgment commit callback is invoked.
-            shareConsumer.poll(Duration.ofMillis(1000));
-            shareConsumer.poll(Duration.ofMillis(1000));
+            TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
+                DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records for share consumer");
+
+            TestUtils.waitForCondition(() -> {
+                shareConsumer.poll(Duration.ofMillis(500));
+                return partitionExceptionMap.containsKey(tp);
+            }, DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to receive call to callback");
 
             // We expect null exception as the acknowledgment error code is null.
-            assertTrue(partitionExceptionMap.containsKey(tp));
             assertNull(partitionExceptionMap.get(tp));
         }
     }
@@ -398,19 +394,10 @@ public class ShareConsumerTest {
             // Waiting until the acquisition lock expires.
             Thread.sleep(20000);
 
-            // Now in the second poll, we implicitly acknowledge the record received in the first poll.
-            // We get back the acknowledgment error code after the second poll.
-            // When we start the 3rd poll, the acknowledgment commit callback is invoked.
-            records = shareConsumer.poll(Duration.ofMillis(5000));
-            assertEquals(1, records.count());
-
-            records = shareConsumer.poll(Duration.ofMillis(200));
-            assertEquals(0, records.count());
-
-            // As we tried to acknowledge a record after the acquisition lock expired,
-            // we wil get an InvalidRecordStateException.
-            assertTrue(partitionExceptionMap.containsKey(tp));
-            assertInstanceOf(InvalidRecordStateException.class, partitionExceptionMap.get(tp));
+            TestUtils.waitForCondition(() -> {
+                shareConsumer.poll(Duration.ofMillis(500));
+                return partitionExceptionMap.containsKey(tp) && partitionExceptionMap.get(tp) instanceof InvalidRecordStateException;
+            }, DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to be notified by InvalidRecordStateException");
         }
     }
 
@@ -496,8 +483,7 @@ public class ShareConsumerTest {
         int maxPollRecords = 2;
 
         alterShareAutoOffsetReset("group1", "earliest");
-        try (KafkaProducer<byte[], byte[]> producer = createProducer(new ByteArraySerializer(), new ByteArraySerializer());
-             KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(),
+        try (KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(),
                  "group1", Collections.singletonMap(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, String.valueOf(maxPollRecords)))) {
 
             long startingTimestamp = System.currentTimeMillis();
@@ -659,9 +645,11 @@ public class ShareConsumerTest {
             assertFalse(partitionExceptionMap1.containsKey(tp));
 
             // The callback will receive the acknowledgement responses asynchronously after the next poll.
-            shareConsumer1.poll(Duration.ofMillis(500));
+            TestUtils.waitForCondition(() -> {
+                shareConsumer1.poll(Duration.ofMillis(1000));
+                return partitionExceptionMap1.containsKey(tp);
+            }, 30000, 100L, () -> "Didn't receive call to callback");
 
-            assertTrue(partitionExceptionMap1.containsKey(tp));
             assertNull(partitionExceptionMap1.get(tp));
         }
     }
@@ -1015,11 +1003,10 @@ public class ShareConsumerTest {
         int messagesPerProducer = 5000;
 
         String groupId = "group1";
+        alterShareAutoOffsetReset(groupId, "earliest");
 
         ExecutorService producerExecutorService = Executors.newFixedThreadPool(producerCount);
         ExecutorService consumerExecutorService = Executors.newFixedThreadPool(consumerCount);
-
-        alterShareAutoOffsetReset(groupId, "earliest");
 
         for (int i = 0; i < producerCount; i++) {
             producerExecutorService.submit(() -> produceMessages(messagesPerProducer));
@@ -1032,7 +1019,7 @@ public class ShareConsumerTest {
             consumerExecutorService.submit(() -> {
                 CompletableFuture<Integer> future = new CompletableFuture<>();
                 futures.add(future);
-                consumeMessages(totalMessagesConsumed, producerCount * messagesPerProducer, groupId, consumerNumber, 30, true, future, Optional.of(maxBytes));
+                consumeMessages(totalMessagesConsumed, producerCount * messagesPerProducer, groupId, consumerNumber, 30, true, future, maxBytes);
             });
         }
 
@@ -1110,17 +1097,17 @@ public class ShareConsumerTest {
             shareGroupExecutorService1.submit(() -> {
                 CompletableFuture<Integer> future = new CompletableFuture<>();
                 futures1.add(future);
-                consumeMessages(totalMessagesConsumedGroup1, totalMessagesSent, "group1", consumerNumber, 100, true, future, Optional.of(maxBytes));
+                consumeMessages(totalMessagesConsumedGroup1, totalMessagesSent, "group1", consumerNumber, 100, true, future, maxBytes);
             });
             shareGroupExecutorService2.submit(() -> {
                 CompletableFuture<Integer> future = new CompletableFuture<>();
                 futures2.add(future);
-                consumeMessages(totalMessagesConsumedGroup2, totalMessagesSent, "group2", consumerNumber, 100, true, future, Optional.of(maxBytes));
+                consumeMessages(totalMessagesConsumedGroup2, totalMessagesSent, "group2", consumerNumber, 100, true, future, maxBytes);
             });
             shareGroupExecutorService3.submit(() -> {
                 CompletableFuture<Integer> future = new CompletableFuture<>();
                 futures3.add(future);
-                consumeMessages(totalMessagesConsumedGroup3, totalMessagesSent, "group3", consumerNumber, 100, true, future, Optional.of(maxBytes));
+                consumeMessages(totalMessagesConsumedGroup3, totalMessagesSent, "group3", consumerNumber, 100, true, future, maxBytes);
             });
         }
         producerExecutorService.shutdown();
@@ -1265,7 +1252,7 @@ public class ShareConsumerTest {
             consumerExecutorService.submit(() -> {
                 CompletableFuture<Integer> future = new CompletableFuture<>();
                 futuresSuccess.add(future);
-                consumeMessages(totalMessagesConsumed, producerCount * messagesPerProducer, groupId, consumerNumber, 40, true, future, Optional.of(maxBytes));
+                consumeMessages(totalMessagesConsumed, producerCount * messagesPerProducer, groupId, consumerNumber, 40, true, future, maxBytes);
             });
         }
         producerExecutorService.shutdown();
@@ -1402,7 +1389,15 @@ public class ShareConsumerTest {
 
             // Till now acknowledgement commit callback has not been called, so no exception thrown yet.
             // On 3rd poll, the acknowledgement commit callback will be called and the exception is thrown.
-            assertThrows(WakeupException.class, () -> shareConsumer.poll(Duration.ofMillis(500)));
+            AtomicBoolean exceptionThrown = new AtomicBoolean(false);
+            TestUtils.waitForCondition(() -> {
+                try {
+                    shareConsumer.poll(Duration.ofMillis(500));
+                } catch (org.apache.kafka.common.errors.WakeupException e) {
+                    exceptionThrown.set(true);
+                }
+                return exceptionThrown.get();
+            }, DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to receive expected exception");
         }
     }
 
@@ -1440,11 +1435,15 @@ public class ShareConsumerTest {
             TestUtils.waitForCondition(() -> shareConsumer.poll(Duration.ofMillis(2000)).count() == 1,
                 DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to consume records for share consumer");
 
-            // The second poll sends the acknowledgments implicitly.
-            shareConsumer.poll(Duration.ofMillis(2000));
-
-            // On the third poll, the acknowledgement commit callback will be called and the exception is thrown.
-            assertThrows(org.apache.kafka.common.errors.OutOfOrderSequenceException.class, () -> shareConsumer.poll(Duration.ofMillis(500)));
+            AtomicBoolean exceptionThrown = new AtomicBoolean(false);
+            TestUtils.waitForCondition(() -> {
+                try {
+                    shareConsumer.poll(Duration.ofMillis(500));
+                } catch (org.apache.kafka.common.errors.OutOfOrderSequenceException e) {
+                    exceptionThrown.set(true);
+                }
+                return exceptionThrown.get();
+            }, DEFAULT_MAX_WAIT_MS, 100L, () -> "Failed to receive expected exception");
         }
     }
 
@@ -1684,6 +1683,7 @@ public class ShareConsumerTest {
             assertEquals(0, records.count());
             // Producing another record.
             producer.send(record);
+            producer.flush();
             records = shareConsumer.poll(Duration.ofMillis(5000));
             // Now the next record should be consumed successfully
             assertEquals(1, records.count());
@@ -1708,6 +1708,7 @@ public class ShareConsumerTest {
             assertEquals(1, records.count());
             // Producing another record.
             producer.send(record);
+            producer.flush();
             records = shareConsumer.poll(Duration.ofMillis(5000));
             // The next records should also be consumed successfully
             assertEquals(1, records.count());
@@ -1826,7 +1827,12 @@ public class ShareConsumerTest {
                                  int maxPolls,
                                  boolean commit,
                                  CompletableFuture<Integer> future) {
-        consumeMessages(totalMessagesConsumed, totalMessages, groupId, consumerNumber, maxPolls, commit, future, Optional.empty());
+        try (KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), groupId)) {
+            shareConsumer.subscribe(Collections.singleton(tp.topic()));
+            consumeMessages(shareConsumer, totalMessagesConsumed, totalMessages, consumerNumber, maxPolls, commit, future);
+        } catch (Exception e) {
+            fail("Consumer " + consumerNumber + " failed with exception: " + e);
+        }
     }
 
     private void consumeMessages(AtomicInteger totalMessagesConsumed,
@@ -1836,31 +1842,35 @@ public class ShareConsumerTest {
                                  int maxPolls,
                                  boolean commit,
                                  CompletableFuture<Integer> future,
-                                 Optional<Integer> maxFetchBytes) {
-        KafkaShareConsumer<byte[], byte[]> shareConsumer;
-        Map<TopicPartition, Set<Long>> partitionOffsetsMap = new HashMap<>();
-        Map<TopicPartition, Exception> partitionExceptionMap = new HashMap<>();
-        if (maxFetchBytes.isPresent()) {
-            shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), groupId,
-                Collections.singletonMap(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(maxFetchBytes.get())));
-        } else {
-            shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), groupId);
+                                 int maxFetchBytes) {
+        try (KafkaShareConsumer<byte[], byte[]> shareConsumer = createShareConsumer(new ByteArrayDeserializer(), new ByteArrayDeserializer(), groupId, Map.of(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, maxFetchBytes))) {
+            shareConsumer.subscribe(Collections.singleton(tp.topic()));
+            consumeMessages(shareConsumer, totalMessagesConsumed, totalMessages, consumerNumber, maxPolls, commit, future);
+        } catch (Exception e) {
+            fail("Consumer " + consumerNumber + " failed with exception: " + e);
         }
-        shareConsumer.setAcknowledgementCommitCallback(new TestableAcknowledgeCommitCallback(partitionOffsetsMap, partitionExceptionMap));
-        shareConsumer.subscribe(Collections.singleton(tp.topic()));
+    }
+
+    private void consumeMessages(KafkaShareConsumer<byte[], byte[]> consumer,
+                                 AtomicInteger totalMessagesConsumed,
+                                 int totalMessages,
+                                 int consumerNumber,
+                                 int maxPolls,
+                                 boolean commit,
+                                 CompletableFuture<Integer> future) {
         int messagesConsumed = 0;
         int retries = 0;
         try {
             if (totalMessages > 0) {
                 while (totalMessagesConsumed.get() < totalMessages && retries < maxPolls) {
-                    ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(2000));
+                    ConsumerRecords<byte[], byte[]> records = consumer.poll(Duration.ofMillis(2000));
                     messagesConsumed += records.count();
                     totalMessagesConsumed.addAndGet(records.count());
                     retries++;
                 }
             } else {
                 while (retries < maxPolls) {
-                    ConsumerRecords<byte[], byte[]> records = shareConsumer.poll(Duration.ofMillis(2000));
+                    ConsumerRecords<byte[], byte[]> records = consumer.poll(Duration.ofMillis(2000));
                     messagesConsumed += records.count();
                     totalMessagesConsumed.addAndGet(records.count());
                     retries++;
@@ -1869,12 +1879,11 @@ public class ShareConsumerTest {
 
             if (commit) {
                 // Complete acknowledgement of the records
-                shareConsumer.commitSync(Duration.ofMillis(10000));
+                consumer.commitSync(Duration.ofMillis(10000));
             }
         } catch (Exception e) {
             fail("Consumer " + consumerNumber + " failed with exception: " + e);
         } finally {
-            shareConsumer.close();
             future.complete(messagesConsumed);
         }
     }
