@@ -120,10 +120,10 @@ public class GroupCoordinatorConfig {
 
     public static final String CONSUMER_GROUP_ASSIGNORS_CONFIG = "group.consumer.assignors";
     public static final String CONSUMER_GROUP_ASSIGNORS_DOC = "The server side assignors as a list of full class names. The first one in the list is considered as the default assignor to be used in the case where the consumer does not specify an assignor.";
-    public static final List<String> CONSUMER_GROUP_ASSIGNORS_DEFAULT = Collections.unmodifiableList(Arrays.asList(
+    public static final List<String> CONSUMER_GROUP_ASSIGNORS_DEFAULT = List.of(
             UniformAssignor.class.getName(),
             RangeAssignor.class.getName()
-    ));
+    );
 
     public static final String CONSUMER_GROUP_MIGRATION_POLICY_CONFIG = "group.consumer.migration.policy";
     public static final String CONSUMER_GROUP_MIGRATION_POLICY_DEFAULT = ConsumerGroupMigrationPolicy.BIDIRECTIONAL.toString();
@@ -380,10 +380,9 @@ public class GroupCoordinatorConfig {
      * Copy the subset of properties that are relevant to consumer group.
      */
     public Map<String, Integer> extractConsumerGroupConfigMap() {
-        Map<String, Integer> groupProps = new HashMap<>();
-        groupProps.put(GroupConfig.CONSUMER_SESSION_TIMEOUT_MS_CONFIG, consumerGroupSessionTimeoutMs());
-        groupProps.put(GroupConfig.CONSUMER_HEARTBEAT_INTERVAL_MS_CONFIG, consumerGroupHeartbeatIntervalMs());
-        return Collections.unmodifiableMap(groupProps);
+        return Map.of(
+                GroupConfig.CONSUMER_SESSION_TIMEOUT_MS_CONFIG, consumerGroupSessionTimeoutMs(),
+                GroupConfig.CONSUMER_HEARTBEAT_INTERVAL_MS_CONFIG, consumerGroupHeartbeatIntervalMs());
     }
 
     /**
