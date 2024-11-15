@@ -1596,7 +1596,7 @@ public class SharePartition {
     protected void updateFetchOffsetMetadata(long nextFetchOffset, LogOffsetMetadata logOffsetMetadata) {
         lock.writeLock().lock();
         try {
-            fetchOffsetMetadata.updateFetchOffsetMetadata(nextFetchOffset, logOffsetMetadata);
+            fetchOffsetMetadata.updateOffsetMetadata(nextFetchOffset, logOffsetMetadata);
         } finally {
             lock.writeLock().unlock();
         }
@@ -2440,7 +2440,7 @@ public class SharePartition {
             return offsetMetadata;
         }
 
-        void updateFetchOffsetMetadata(long offset, LogOffsetMetadata offsetMetadata) {
+        void updateOffsetMetadata(long offset, LogOffsetMetadata offsetMetadata) {
             this.offset = offset;
             this.offsetMetadata = offsetMetadata;
         }
