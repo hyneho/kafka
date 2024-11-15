@@ -45,18 +45,18 @@ produce any number of test configurations using a fluent builder style API.
 import java.util.Arrays;
 
 @ClusterTemplate("generateConfigs")
-void testSomething() { ...}
+void testSomething() { ... }
 
 static List<ClusterConfig> generateConfigs() {
   ClusterConfig config1 = ClusterConfig.defaultClusterBuilder()
           .name("Generated Test 1")
           .serverProperties(props1)
-          .ibp("2.7-IV1")
+          .setMetadataVersion(MetadataVersion.IBP_2_7_IV1)
           .build();
   ClusterConfig config2 = ClusterConfig.defaultClusterBuilder()
           .name("Generated Test 2")
           .serverProperties(props2)
-          .ibp("2.7-IV2")
+          .setMetadataVersion(MetadataVersion.IBP_2_7_IV2)
           .build();
   ClusterConfig config3 = ClusterConfig.defaultClusterBuilder()
           .name("Generated Test 3")
