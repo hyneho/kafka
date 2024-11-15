@@ -809,7 +809,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             );
         }
 
-        if (!preVote && replicaEpoch > quorum.epoch()) {
+        if (replicaEpoch > quorum.epoch()) {
             transitionToUnattached(replicaEpoch);
         }
 

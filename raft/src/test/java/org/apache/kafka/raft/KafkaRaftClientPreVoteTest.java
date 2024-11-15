@@ -27,6 +27,7 @@ import java.util.Set;
 import static org.apache.kafka.raft.KafkaRaftClientTest.randomReplicaId;
 import static org.apache.kafka.raft.KafkaRaftClientTest.replicaKey;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class KafkaRaftClientPreVoteTest {
 
@@ -69,6 +70,14 @@ public class KafkaRaftClientPreVoteTest {
         context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(electedLeaderId), false);
 
         context.assertElectedLeader(epoch, electedLeaderId);
+
+        // if the prospective epoch is higher than the current epoch, the local replica will transition to unattached
+        context.deliverRequest(context.preVoteRequest(epoch + 1, otherNodeKey, epoch + 1, 1));
+        context.pollUntilResponse();
+
+        context.assertSentPreVoteResponse(Errors.NONE, epoch + 1, OptionalInt.of(-1), true);
+        assertEquals(context.currentEpoch(), epoch + 1);
+        assertTrue(context.client.quorum().isUnattachedNotVoted());
     }
 
     @Test
@@ -211,7 +220,7 @@ public class KafkaRaftClientPreVoteTest {
             )
         );
         context.pollUntilResponse();
-        context.assertSentPreVoteResponse(Errors.INVALID_VOTER_KEY, epoch, OptionalInt.empty(), false);
+        context.assertSentPreVoteResponse(Errors.INVALID_VOTER_KEY, epoch, OptionalInt.of(localId), false);
 
         // invalid voter directory id is rejected
         context.deliverRequest(
@@ -226,7 +235,7 @@ public class KafkaRaftClientPreVoteTest {
             )
         );
         context.pollUntilResponse();
-        context.assertSentPreVoteResponse(Errors.INVALID_VOTER_KEY, epoch, OptionalInt.empty(), false);
+        context.assertSentPreVoteResponse(Errors.INVALID_VOTER_KEY, epoch, OptionalInt.of(localId), false);
     }
 
     @Test

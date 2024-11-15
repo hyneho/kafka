@@ -787,11 +787,11 @@ public final class RaftClientTestContext {
 
         VoteResponseData.PartitionData partitionResponse = response.topics().get(0).partitions().get(0);
 
-        String voterIdDebugLog = "Leader Id: " + leaderId +
+        String leaderIdDebugLog = "Leader Id: " + leaderId +
             " Partition response leader Id: " + partitionResponse.leaderId();
-        assertEquals(voteGranted, partitionResponse.voteGranted(), voterIdDebugLog);
-        assertEquals(error, Errors.forCode(partitionResponse.errorCode()), voterIdDebugLog);
-        assertEquals(leaderId.orElse(-1), partitionResponse.leaderId());
+        assertEquals(voteGranted, partitionResponse.voteGranted());
+        assertEquals(error, Errors.forCode(partitionResponse.errorCode()));
+        assertEquals(leaderId.orElse(-1), partitionResponse.leaderId(), leaderIdDebugLog);
         assertEquals(epoch, partitionResponse.leaderEpoch());
         assertEquals(preVote, partitionResponse.preVote());
 
