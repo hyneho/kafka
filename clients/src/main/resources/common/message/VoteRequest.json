@@ -19,7 +19,7 @@
   "listeners": ["controller"],
   "name": "VoteRequest",
   // Version 1 adds voter key and directory id (KIP-853)
-  // Version 2 adds PreVote field
+  // Version 2 adds PreVote field and renames candidate to replica
   "validVersions": "0-2",
   "flexibleVersions": "0+",
   "fields": [
