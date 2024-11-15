@@ -649,6 +649,7 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
                             .withSnapshotRegistry(snapshotRegistry)
                             .withTime(time)
                             .withTimer(timer)
+                            .withExecutor(executor)
                             .withCoordinatorMetrics(coordinatorMetrics)
                             .withTopicPartition(tp)
                             .build(),
