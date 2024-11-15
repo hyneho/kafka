@@ -35,7 +35,7 @@ import org.junit.platform.launcher.PostDiscoveryFilter;
  * includes a META-INF/services/org.junit.platform.launcher.PostDiscoveryFilter
  * service file which registers this class.
  */
-public class QuarantinedTestFilter implements PostDiscoveryFilter {
+public class QuarantinedPostDiscoveryFilter implements PostDiscoveryFilter {
 
     private static final TestTag FLAKY_TEST_TAG = TestTag.create("flaky");
 
@@ -46,12 +46,19 @@ public class QuarantinedTestFilter implements PostDiscoveryFilter {
     private final Filter<TestDescriptor> autoQuarantinedFilter;
     private final boolean runQuarantined;
 
-    public QuarantinedTestFilter() {
+    // No-arg constructor for SPI
+    public QuarantinedPostDiscoveryFilter() {
         runQuarantined = System.getProperty(RUN_QUARANTINED_PROP, "false")
             .equalsIgnoreCase("true");
 
         String testCatalogFileName = System.getProperty(CATALOG_FILE_PROP);
-        autoQuarantinedFilter = AutoQuarantinedTestPredicate.create(testCatalogFileName, runQuarantined);
+        autoQuarantinedFilter = AutoQuarantinedTestFilter.create(testCatalogFileName, runQuarantined);
+    }
+
+    // Visible for tests
+    QuarantinedPostDiscoveryFilter(Filter<TestDescriptor> autoQuarantinedFilter, boolean runQuarantined) {
+        this.autoQuarantinedFilter = autoQuarantinedFilter;
+        this.runQuarantined = runQuarantined;
     }
 
     @Override

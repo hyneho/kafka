@@ -37,20 +37,19 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-
 /**
  * A test filter that automatically quarantines a test that is not present in the test catalog.
  * This filter can be negated by setting the "includeQuarantined" constructor argument to false.
  */
-public class AutoQuarantinedTestPredicate implements Filter<TestDescriptor> {
+public class AutoQuarantinedTestFilter implements Filter<TestDescriptor> {
 
     private static final Filter<TestDescriptor> NO_QUARANTINED_TESTS = testDescriptor -> FilterResult.included(null);
-    private static final Logger log = LoggerFactory.getLogger(AutoQuarantinedTestPredicate.class);
+    private static final Logger log = LoggerFactory.getLogger(AutoQuarantinedTestFilter.class);
 
     private final Set<TestAndMethod> testCatalog;
     private final boolean includeQuarantined;
 
-    AutoQuarantinedTestPredicate(Set<TestAndMethod> testCatalog, boolean includeQuarantined) {
+    AutoQuarantinedTestFilter(Set<TestAndMethod> testCatalog, boolean includeQuarantined) {
         this.testCatalog = Collections.unmodifiableSet(testCatalog);
         this.includeQuarantined = includeQuarantined;
     }
@@ -86,9 +85,9 @@ public class AutoQuarantinedTestPredicate implements Filter<TestDescriptor> {
     }
 
     /**
-     * @param include true if this filter should include the auto-quarantined tests, false if it should exclude them
+     * @param includeQuarantined true if this filter should include only the auto-quarantined tests, false to invert this logic
      */
-    public static Filter<TestDescriptor> create(String testCatalogFileName, boolean include) {
+    public static Filter<TestDescriptor> create(String testCatalogFileName, boolean includeQuarantined) {
         if (testCatalogFileName == null || testCatalogFileName.isEmpty()) {
             log.debug("No test catalog specified, will not quarantine any recently added tests.");
             return NO_QUARANTINED_TESTS;
@@ -119,7 +118,7 @@ public class AutoQuarantinedTestPredicate implements Filter<TestDescriptor> {
             return NO_QUARANTINED_TESTS;
         } else {
             log.debug("Loaded {} test methods from test catalog file {}.", allTests.size(), path);
-            return new AutoQuarantinedTestPredicate(allTests, include);
+            return new AutoQuarantinedTestFilter(allTests, includeQuarantined);
         }
     }
 
