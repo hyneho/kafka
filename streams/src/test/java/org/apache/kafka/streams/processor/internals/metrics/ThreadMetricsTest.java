@@ -27,7 +27,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.LATENCY_SUFFIX;
@@ -419,30 +418,30 @@ public class ThreadMetricsTest {
     public void shouldAddThreadStateTelemetryMetric() {
         final Gauge<Integer> threadStateProvider = (streamsMetrics, startTime) -> StreamThread.State.RUNNING.ordinal();
         ThreadMetrics.addThreadStateTelemetryMetric(
-                "threadId",
+                THREAD_ID,
                 streamsMetrics,
                 threadStateProvider
         );
         verify(streamsMetrics).addThreadLevelMutableMetric(
                 "thread-state",
                 "The current state of the thread",
-                "threadId",
+                THREAD_ID,
                 threadStateProvider
         );
     }
 
     @Test
-    public void shouldAddThreadStateJMXMetric() {
-        final Gauge<String> threadStateProvider = (streamsMetrics, startTime) -> StreamThread.State.RUNNING.name().toLowerCase(Locale.getDefault());
+    public void shouldAddThreadStateJmxMetric() {
+        final Gauge<StreamThread.State> threadStateProvider = (streamsMetrics, startTime) -> StreamThread.State.RUNNING;
         ThreadMetrics.addThreadStateMetric(
-                "threadId",
+                THREAD_ID,
                 streamsMetrics,
                 threadStateProvider
         );
         verify(streamsMetrics).addThreadLevelMutableMetric(
                 "state",
                 "The current state of the thread",
-                "threadId",
+                THREAD_ID,
                 threadStateProvider
         );
     }

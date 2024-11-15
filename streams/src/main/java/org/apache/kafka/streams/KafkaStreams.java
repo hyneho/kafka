@@ -1070,7 +1070,7 @@ public class KafkaStreams implements AutoCloseable {
     private static Metrics createMetrics(final StreamsConfig config, final Time time, final String clientId) {
         final MetricConfig metricConfig = new MetricConfig()
             .samples(config.getInt(StreamsConfig.METRICS_NUM_SAMPLES_CONFIG))
-            .recordLevel(Sensor.RecordingLevel.forName(config.getString(METRICS_RECORDING_LEVEL_CONFIG)))
+            .recordLevel(Sensor.RecordingLevel.forName(config.getString(StreamsConfig.METRICS_RECORDING_LEVEL_CONFIG)))
             .timeWindow(config.getLong(StreamsConfig.METRICS_SAMPLE_WINDOW_MS_CONFIG), TimeUnit.MILLISECONDS);
         final List<MetricsReporter> reporters = CommonClientConfigs.metricsReporters(clientId, config);
 
@@ -1256,13 +1256,18 @@ public class KafkaStreams implements AutoCloseable {
     private int calculateMetricsRecordingLevel() {
         final int recordingLevel;
         final String recordingLevelString = applicationConfigs.getString(METRICS_RECORDING_LEVEL_CONFIG);
-        if (recordingLevelString.equals("INFO")) {
-            recordingLevel = 0;
-        } else if (recordingLevelString.equals("DEBUG")) {
-            recordingLevel = 1;
-        } else {
-            // Must be TRACE level
-            recordingLevel = 2;
+        switch (recordingLevelString) {
+            case "INFO":
+                recordingLevel = 0;
+                break;
+            case "DEBUG":
+                recordingLevel = 1;
+                break;
+            case "TRACE":
+                recordingLevel = 2;
+                break;
+            default:
+                throw new IllegalArgumentException("Unexpected recording level: " + recordingLevelString);
         }
         return recordingLevel;
     }

@@ -189,7 +189,12 @@ public class KafkaStreamsTelemetryIntegrationTest {
                     30_000,
                     "Never received subscribed metrics");
             final List<String> actualInstanceMetrics = TelemetryPlugin.SUBSCRIBED_METRICS.get(adminInstanceId);
-            final List<String> expectedInstanceMetrics = Arrays.asList("org.apache.kafka.stream.alive.stream.threads", "org.apache.kafka.stream.client.state", "org.apache.kafka.stream.failed.stream.threads", "org.apache.kafka.stream.recording.level");
+            final List<String> expectedInstanceMetrics = Arrays.asList(
+                "org.apache.kafka.stream.alive.stream.threads",
+                "org.apache.kafka.stream.client.state",
+                "org.apache.kafka.stream.failed.stream.threads",
+                "org.apache.kafka.stream.recording.level");
+            
             assertEquals(expectedInstanceMetrics, actualInstanceMetrics);
 
             TestUtils.waitForCondition(() -> TelemetryPlugin.processId != null,

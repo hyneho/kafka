@@ -68,7 +68,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -615,12 +614,14 @@ public class StreamThread extends Thread implements ProcessingThread {
             streamsMetrics,
             time.milliseconds()
         );
-        ThreadMetrics.addThreadStateTelemetryMetric(threadId,
-                streamsMetrics,
-                (metricConfig, now) -> this.state().ordinal());
-        ThreadMetrics.addThreadStateMetric(threadId,
-                streamsMetrics,
-                (metricConfig, now) -> this.state().name().toLowerCase(Locale.getDefault()));
+        ThreadMetrics.addThreadStateTelemetryMetric(
+            threadId,
+            streamsMetrics,
+            (metricConfig, now) -> this.state().ordinal());
+        ThreadMetrics.addThreadStateMetric(
+            threadId,
+            streamsMetrics,
+            (metricConfig, now) -> this.state());
         ThreadMetrics.addThreadBlockedTimeMetric(
             threadId,
             new StreamThreadTotalBlockedTime(
