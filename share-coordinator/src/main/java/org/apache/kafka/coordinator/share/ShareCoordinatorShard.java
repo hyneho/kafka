@@ -168,7 +168,6 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
 
     @Override
     public void onLoaded(MetadataImage newImage) {
-        this.metadataImage = newImage;
         coordinatorMetrics.activateMetricsShard(metricsShard);
     }
 
@@ -402,7 +401,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             return ReadShareGroupStateResponse.toResponseData(
                 topicId,
                 partition,
-                PartitionFactory.DEFAULT_START_OFFSET,
+                PartitionFactory.UNINITIALIZED_START_OFFSET,
                 PartitionFactory.DEFAULT_STATE_EPOCH,
                 Collections.emptyList()
             );
