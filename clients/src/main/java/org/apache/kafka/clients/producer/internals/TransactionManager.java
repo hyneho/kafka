@@ -680,7 +680,8 @@ public class TransactionManager {
         if (exception instanceof ClusterAuthorizationException
                 || exception instanceof TransactionalIdAuthorizationException
                 || exception instanceof ProducerFencedException
-                || exception instanceof UnsupportedVersionException) {
+                || exception instanceof UnsupportedVersionException
+                || exception instanceof InvalidPidMappingException) {
             transitionToFatalError(exception);
         } else if (isTransactional()) {
             if (canBumpEpoch() && !isCompleting()) {

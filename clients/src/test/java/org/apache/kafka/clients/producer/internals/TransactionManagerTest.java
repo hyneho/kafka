@@ -1398,6 +1398,21 @@ public class TransactionManagerTest {
     }
 
     @Test
+    public void testFatalErrorWhenProduceResponseWithInvalidPidMapping() throws InterruptedException {
+        initializeTransactionManager(Optional.of(transactionalId), true);
+        doInitTransactions();
+
+        transactionManager.beginTransaction();
+        Future<RecordMetadata> responseFuture = appendToAccumulator(tp0);
+        assertFalse(responseFuture.isDone());
+
+        prepareProduceResponse(Errors.INVALID_PRODUCER_ID_MAPPING, producerId, epoch);
+        assertFalse(responseFuture.isDone());
+        runUntil(responseFuture::isDone);
+        assertTrue(transactionManager.hasFatalError());
+    }
+
+    @Test
     public void testTransactionalIdAuthorizationFailureInAddOffsetsToTxn() {
         final TopicPartition tp = new TopicPartition("foo", 0);
 
