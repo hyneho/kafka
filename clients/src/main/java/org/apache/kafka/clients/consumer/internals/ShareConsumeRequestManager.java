@@ -577,7 +577,6 @@ public class ShareConsumeRequestManager implements RequestManager, MemberStateLi
 
                     if (acksFromShareFetch != null) {
                         acknowledgements.merge(acksFromShareFetch);
-                        fetchAcknowledgementsInFlight.put(tip, acksFromShareFetch);
                     }
 
                     if (acknowledgements != null && !acknowledgements.isEmpty()) {
