@@ -459,6 +459,13 @@ public class CoordinatorRuntimeTest {
         }
 
         @Override
+        public CoordinatorShardBuilder<MockCoordinatorShard, String> withExecutor(
+            CoordinatorExecutor<String> executor
+        ) {
+            return this;
+        }
+
+        @Override
         public CoordinatorShardBuilder<MockCoordinatorShard, String> withTimer(
             CoordinatorTimer<Void, String> timer
         ) {

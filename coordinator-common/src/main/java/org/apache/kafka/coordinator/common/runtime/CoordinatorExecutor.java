@@ -26,7 +26,7 @@ import org.apache.kafka.common.KafkaException;
  *
  * @param <T> The record type.
  */
-interface CoordinatorExecutor<T> {
+public interface CoordinatorExecutor<T> {
     /**
      * The task's runnable.
      *
