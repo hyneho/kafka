@@ -317,7 +317,14 @@ public class DefaultStatePersister implements Persister {
         return combinedFuture.thenApply(v -> readSummaryResponsesToResult(futureMap));
     }
 
-    private ReadShareGroupStateSummaryResult readSummaryResponsesToResult(
+    /**
+     * Takes in a list of COMPLETED futures and combines the results,
+     * taking care of errors if any, into a single ReadShareGroupStateSummaryResult
+     * @param futureMap - HashMap of {topic -> {part -> future}}
+     * @return Object representing combined result of type ReadShareGroupStateSummaryResult
+     */
+    // visible for testing
+    ReadShareGroupStateSummaryResult readSummaryResponsesToResult(
             Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateSummaryResponse>>> futureMap
     ) {
         List<TopicData<PartitionStateErrorData>> topicsData = futureMap.keySet().stream()
@@ -327,7 +334,8 @@ public class DefaultStatePersister implements Persister {
                                 int partition = partitionFuture.getKey();
                                 CompletableFuture<ReadShareGroupStateSummaryResponse> future = partitionFuture.getValue();
                                 try {
-                                    ReadShareGroupStateSummaryResponse partitionResponse = future.get();
+                                    // already completed because of allOf call in the caller
+                                    ReadShareGroupStateSummaryResponse partitionResponse = future.join();
                                     return partitionResponse.data().results().get(0).partitions().stream()
                                             .map(partitionResult -> PartitionFactory.newPartitionStateErrorData(
                                                     partitionResult.partition(),
@@ -337,7 +345,7 @@ public class DefaultStatePersister implements Persister {
                                                     partitionResult.errorMessage()
                                             ))
                                             .collect(Collectors.toList());
-                                } catch (InterruptedException | ExecutionException e) {
+                                } catch (Exception e) {
                                     log.error("Unexpected exception while getting data from share coordinator", e);
                                     return Collections.singletonList(PartitionFactory.newPartitionStateErrorData(
                                             partition,
