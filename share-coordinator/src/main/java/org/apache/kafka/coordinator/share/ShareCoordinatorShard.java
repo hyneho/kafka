@@ -115,7 +115,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         @Override
         public CoordinatorShardBuilder<ShareCoordinatorShard, CoordinatorRecord> withExecutor(CoordinatorExecutor<CoordinatorRecord> executor) {
             // method is required due to interface
-            return null;
+            return this;
         }
 
         @Override
