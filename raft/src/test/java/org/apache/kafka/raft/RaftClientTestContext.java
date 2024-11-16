@@ -1535,7 +1535,7 @@ public final class RaftClientTestContext {
             epoch,
             leaderId.orElse(-1),
             voteGranted,
-            false, // revisit
+            false,
             leaderId.isPresent() ? startingVoters.listeners(leaderId.getAsInt()) : Endpoints.empty()
         );
     }
