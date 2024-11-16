@@ -384,6 +384,11 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
         finalOffsetCommit(false);
     }
 
+    @Override
+    public String taskVersion() {
+        return task.version();
+    }
+
     /**
      * Try to send a batch of records. If a send fails and is retriable, this saves the remainder of the batch so it can
      * be retried after backing off. If a send fails and is not retriable, this will throw a ConnectException.

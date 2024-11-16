@@ -556,6 +556,20 @@ public class Worker {
         return workerConnector != null && workerConnector.isRunning();
     }
 
+    public String connectorVersion(String connName) {
+        if (connectors.get(connName) == null) {
+            return null;
+        }
+        return connectors.get(connName).connectorVersion();
+    }
+
+    public String taskVersion(ConnectorTaskId taskId) {
+        if (tasks.get(taskId) == null) {
+            return null;
+        }
+        return tasks.get(taskId).taskVersion();
+    }
+
     /**
      * Start a sink task managed by this worker.
      *

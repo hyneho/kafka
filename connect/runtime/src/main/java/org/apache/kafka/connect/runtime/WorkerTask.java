@@ -183,6 +183,8 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
 
     protected abstract void close();
 
+    protected abstract String taskVersion();
+
     protected boolean isFailed() {
         return failed;
     }

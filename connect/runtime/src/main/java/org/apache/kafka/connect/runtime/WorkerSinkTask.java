@@ -222,6 +222,11 @@ class WorkerSinkTask extends WorkerTask<ConsumerRecord<byte[], byte[]>, SinkReco
         }
     }
 
+    @Override
+    public String taskVersion() {
+        return task.version();
+    }
+
     protected void iteration() {
         final long offsetCommitIntervalMs = workerConfig.getLong(WorkerConfig.OFFSET_COMMIT_INTERVAL_MS_CONFIG);
 
