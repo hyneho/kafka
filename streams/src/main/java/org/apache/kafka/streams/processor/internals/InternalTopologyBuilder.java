@@ -528,6 +528,9 @@ public class InternalTopologyBuilder {
         Objects.requireNonNull(supplier, "supplier must not be null");
         Objects.requireNonNull(predecessorNames, "predecessor names must not be null");
         ApiUtils.checkSupplier(supplier);
+
+        // wrap processor supplier here
+
         if (nodeFactories.containsKey(name)) {
             throw new TopologyException("Processor " + name + " is already added.");
         }

@@ -22,6 +22,7 @@ import org.apache.kafka.streams.processor.StateStore;
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.kafka.streams.state.StoreBuilder;
 
 /**
  * What! Another mechanism for obtaining a {@link StateStore}? This isn't just
@@ -75,4 +76,53 @@ public interface StoreFactory {
 
     boolean isCompatibleWith(StoreFactory storeFactory);
 
+    class ReadOnlyStoreBuilder<T extends StateStore> implements StoreBuilder<T> {
+
+        private final StoreFactory factory;
+
+        public ReadOnlyStoreBuilder(final StoreFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public StoreBuilder<T> withCachingEnabled() {
+            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+        }
+
+        @Override
+        public StoreBuilder<T> withCachingDisabled() {
+            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+        }
+
+        @Override
+        public StoreBuilder<T> withLoggingEnabled(final Map<String, String> config) {
+            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+        }
+
+        @Override
+        public StoreBuilder<T> withLoggingDisabled() {
+            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public T build() {
+            return (T) factory.build();
+        }
+
+        @Override
+        public Map<String, String> logConfig() {
+            return factory.logConfig();
+        }
+
+        @Override
+        public boolean loggingEnabled() {
+            return factory.loggingEnabled();
+        }
+
+        @Override
+        public String name() {
+            return factory.name();
+        }
+    }
 }
