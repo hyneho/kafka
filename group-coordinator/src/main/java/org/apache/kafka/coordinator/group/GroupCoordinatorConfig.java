@@ -76,7 +76,9 @@ public class GroupCoordinatorConfig {
 
     public static final String GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG = "group.coordinator.rebalance.protocols";
     public static final String GROUP_COORDINATOR_REBALANCE_PROTOCOLS_DOC = "The list of enabled rebalance protocols. Supported protocols: " +
-            Arrays.stream(Group.GroupType.values()).map(Group.GroupType::toString).collect(Collectors.joining(",")) + ". " +
+            Arrays.stream(Group.GroupType.values())
+                    .filter(protocol -> !protocol.equals(Group.GroupType.UNKNOWN))
+                    .map(Group.GroupType::toString).collect(Collectors.joining(", ")) + ". " +
             "The " + Group.GroupType.SHARE + " rebalance protocol is in early access and therefore must not be used in production.";
     public static final List<String> GROUP_COORDINATOR_REBALANCE_PROTOCOLS_DEFAULT =
         Collections.unmodifiableList(Arrays.asList(Group.GroupType.CLASSIC.toString(), Group.GroupType.CONSUMER.toString()));
@@ -213,7 +215,8 @@ public class GroupCoordinatorConfig {
 
     public static final ConfigDef NEW_GROUP_CONFIG_DEF =  new ConfigDef()
             .define(GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, LIST, GROUP_COORDINATOR_REBALANCE_PROTOCOLS_DEFAULT,
-                    ConfigDef.ValidList.in(Utils.enumOptions(Group.GroupType.class)), MEDIUM, GROUP_COORDINATOR_REBALANCE_PROTOCOLS_DOC)
+                    ConfigDef.ValidList.in(Arrays.stream(Utils.enumOptions(Group.GroupType.class))
+                            .filter(groupType -> !groupType.equals(Group.GroupType.UNKNOWN.toString())).toArray(String[]::new)), MEDIUM, GROUP_COORDINATOR_REBALANCE_PROTOCOLS_DOC)
             .define(GROUP_COORDINATOR_NUM_THREADS_CONFIG, INT, GROUP_COORDINATOR_NUM_THREADS_DEFAULT, atLeast(1), MEDIUM, GROUP_COORDINATOR_NUM_THREADS_DOC)
             .define(GROUP_COORDINATOR_APPEND_LINGER_MS_CONFIG, INT, GROUP_COORDINATOR_APPEND_LINGER_MS_DEFAULT, atLeast(0), MEDIUM, GROUP_COORDINATOR_APPEND_LINGER_MS_DOC)
             // Internal configuration used by integration and system tests.
