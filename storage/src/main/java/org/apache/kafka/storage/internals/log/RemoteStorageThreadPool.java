@@ -61,6 +61,10 @@ public final class RemoteStorageThreadPool extends ThreadPoolExecutor {
         }
     }
 
+    public void resize(int newSize) {
+        setCorePoolSize(newSize);
+    }
+
     private static class RemoteStorageThreadFactory implements ThreadFactory {
         private final String namePrefix;
         private final AtomicInteger threadNumber = new AtomicInteger(0);
