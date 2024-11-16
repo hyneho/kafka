@@ -235,7 +235,7 @@ public class NetworkClientDelegate implements AutoCloseable {
         );
     }
     
-    public CompletableFuture<RuntimeException> metaDataError() {
+    public CompletableFuture<RuntimeException> metadataError() {
         return metadataException;
     }
 
