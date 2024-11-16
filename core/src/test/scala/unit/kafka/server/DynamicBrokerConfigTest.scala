@@ -139,6 +139,9 @@ class DynamicBrokerConfigTest {
     origProps.put(ReplicationConfigs.NUM_REPLICA_FETCHERS_CONFIG, "1")
     origProps.put(ServerLogConfigs.NUM_RECOVERY_THREADS_PER_DATA_DIR_CONFIG, "1")
     origProps.put(ServerConfigs.BACKGROUND_THREADS_CONFIG, "3")
+    origProps.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "1")
+    origProps.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "1")
+    origProps.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "1")
 
     val config = KafkaConfig(origProps)
     val serverMock = Mockito.mock(classOf[KafkaBroker])
@@ -148,6 +151,7 @@ class DynamicBrokerConfigTest {
     val replicaManagerMock = Mockito.mock(classOf[ReplicaManager])
     val logManagerMock = Mockito.mock(classOf[LogManager])
     val schedulerMock = Mockito.mock(classOf[KafkaScheduler])
+    val remoteLogManagerMock = Mockito.mock(classOf[RemoteLogManager])
 
     Mockito.when(serverMock.config).thenReturn(config)
     Mockito.when(serverMock.dataPlaneRequestHandlerPool).thenReturn(handlerPoolMock)
@@ -158,9 +162,11 @@ class DynamicBrokerConfigTest {
     Mockito.when(serverMock.replicaManager).thenReturn(replicaManagerMock)
     Mockito.when(serverMock.logManager).thenReturn(logManagerMock)
     Mockito.when(serverMock.kafkaScheduler).thenReturn(schedulerMock)
+    Mockito.when(serverMock.remoteLogManagerOpt).thenReturn(Some(remoteLogManagerMock))
 
     config.dynamicConfig.initialize(None, None)
     config.dynamicConfig.addBrokerReconfigurable(new BrokerDynamicThreadPool(serverMock))
+    config.dynamicConfig.addBrokerReconfigurable(new RemoteLogDynamicThreadPool(serverMock))
     config.dynamicConfig.addReconfigurable(acceptorMock)
 
     val props = new Properties()
@@ -193,12 +199,28 @@ class DynamicBrokerConfigTest {
     assertEquals(6, config.backgroundThreads)
     Mockito.verify(schedulerMock).resizeThreadPool(6)
 
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "2")
+    config.dynamicConfig.updateDefaultConfig(props)
+    assertEquals(2, config.remoteLogCopierThreads)
+    Mockito.verify(remoteLogManagerMock).resizeCopierThreadPool(2)
+
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "2")
+    config.dynamicConfig.updateDefaultConfig(props)
+    assertEquals(2, config.remoteLogExpirationThreads)
+    Mockito.verify(remoteLogManagerMock).resizeExpirationThreadPool(2)
+
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "2")
+    config.dynamicConfig.updateDefaultConfig(props)
+    assertEquals(2, config.remoteLogReaderThreads)
+    Mockito.verify(remoteLogManagerMock).resizeReaderThreadPool(2)
+
     Mockito.verifyNoMoreInteractions(
       handlerPoolMock,
       socketServerMock,
       replicaManagerMock,
       logManagerMock,
-      schedulerMock
+      schedulerMock,
+      remoteLogManagerMock
     )
   }
 
