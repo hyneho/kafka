@@ -188,7 +188,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
     public CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> fetchOffsets(
             Map<TopicPartition, Long> timestampsToSearch,
             boolean requireTimestamps,
-            CompletableFuture<RuntimeException> metadataError
+            List<CompletableFuture<RuntimeException>> metadataErrors
     ) {
         AtomicReference<CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>>> 
                 topicToOffsetsResult = new AtomicReference<>();
@@ -220,10 +220,11 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                 result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
                         timestampsToSearch,
                         result.fetchedOffsets)));
-        
-        metadataError.whenComplete((__, error) -> {
+
+        new ArrayList<>(metadataErrors).forEach(metadataError -> metadataError.whenComplete((__, error) -> {
             topicToOffsetsResult.get().completeExceptionally(error);
-        });
+            metadataErrors.remove(metadataError);
+        }));
         
         return topicToOffsetsResult.get();
     }
@@ -246,7 +247,10 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      * on {@link SubscriptionState#hasAllFetchPositions()}). It will complete immediately, with true, if all positions
      * are already available. If some positions are missing, the future will complete once the offsets are retrieved and positions are updated.
      */
-    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs, CompletableFuture<RuntimeException> metadataError) {
+    public CompletableFuture<Boolean> updateFetchPositions(
+            long deadlineMs, 
+            List<CompletableFuture<RuntimeException>> metadataErrors
+    ) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -270,8 +274,8 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                     result.complete(subscriptionState.hasAllFetchPositions());
                 }
             });
-
-            metadataError.whenComplete((__, error) -> {
+            
+            new ArrayList<>(metadataErrors).forEach(metadataError -> metadataError.whenComplete((__, error) -> {
                 if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {
                     pendingOffsetFetchEvent.result.completeExceptionally(error);
                     result.completeExceptionally(error);
@@ -279,7 +283,8 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                 if (error == null) {
                     result.complete(true);
                 }
-            });
+                metadataErrors.remove(metadataError);
+            }));
 
         } catch (Exception e) {
             result.completeExceptionally(maybeWrapAsKafkaException(e));

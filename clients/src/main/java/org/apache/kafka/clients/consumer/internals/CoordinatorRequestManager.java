@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 import static org.apache.kafka.clients.consumer.internals.NetworkClientDelegate.PollResult.EMPTY;
 
@@ -60,6 +61,7 @@ public class CoordinatorRequestManager implements RequestManager {
     private long timeMarkedUnknownMs = -1L; // starting logging a warning only after unable to connect for a while
     private long totalDisconnectedMin = 0;
     private Node coordinator;
+    private CompletableFuture<RuntimeException> metadataError = new CompletableFuture<>();
 
     public CoordinatorRequestManager(
         final LogContext logContext,
@@ -188,6 +190,8 @@ public class CoordinatorRequestManager implements RequestManager {
         if (exception == Errors.GROUP_AUTHORIZATION_FAILED.exception()) {
             log.debug("FindCoordinator request failed due to authorization error {}", exception.getMessage());
             KafkaException groupAuthorizationException = GroupAuthorizationException.forGroupId(this.groupId);
+            metadataError.completeExceptionally(groupAuthorizationException);
+            metadataError = metadataError.newIncompleteFuture();
             backgroundEventHandler.add(new ErrorEvent(groupAuthorizationException));
             return;
         }
@@ -231,5 +235,9 @@ public class CoordinatorRequestManager implements RequestManager {
      */
     public Optional<Node> coordinator() {
         return Optional.ofNullable(this.coordinator);
+    }
+    
+    public CompletableFuture<RuntimeException> metadataError() {
+        return metadataError;
     }
 }

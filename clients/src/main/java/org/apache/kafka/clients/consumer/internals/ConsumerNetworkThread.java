@@ -162,7 +162,10 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
     private void processApplicationEvents() {
         LinkedList<ApplicationEvent> events = new LinkedList<>();
         applicationEventQueue.drainTo(events);
-        applicationEventProcessor.setMetadataError(networkClientDelegate.metadataError());
+        applicationEventProcessor.addMetadataError(networkClientDelegate.metadataError());
+        requestManagers.coordinatorRequestManager.ifPresent(manager ->
+                applicationEventProcessor.addMetadataError(manager.metadataError())
+        );
 
         for (ApplicationEvent event : events) {
             try {
