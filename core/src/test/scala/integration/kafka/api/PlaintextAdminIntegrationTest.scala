@@ -1579,8 +1579,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
       .filter(entry => entry.getValue.replicaInfos.containsKey(topicPartition)).findAny().get().getKey
     // retrieve the path of the first segment
     val logFilePath = LogFileUtils.logFile(Paths.get(logDir).resolve(topicPartition.toString).toFile, 0).toPath
-    val records = FileRecords.open(logFilePath.toFile)
-    assertEquals(10, records.records().asScala.iterator.size)
+    val firstSegmentRecordsSize = FileRecords.open(logFilePath.toFile).records().asScala.iterator.size
 
     // manually load the inactive segment file to corrupt the data
     val originalContent = Files.readAllBytes(logFilePath)
@@ -1602,12 +1601,12 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     // add follower to topic partition
     client.alterPartitionReassignments(newAssignment).all().get()
     // delete records in corrupt segment (the first segment)
-    client.deleteRecords(Map(topicPartition -> RecordsToDelete.beforeOffset(10L)).asJava).all.get
+    client.deleteRecords(Map(topicPartition -> RecordsToDelete.beforeOffset(firstSegmentRecordsSize)).asJava).all.get
     // verify reassignment is finished after delete records
     TestUtils.waitForBrokersInIsr(client, topicPartition, Set(partitionLeaderId, partitionFollowerId))
     // seek to beginning and make sure we can consume all records
     consumer.seekToBeginning(Collections.singletonList(topicPartition))
-    assertEquals(19, TestUtils.consumeRecords(consumer, 10).last.offset())
+    assertEquals(19, TestUtils.consumeRecords(consumer, 20 - firstSegmentRecordsSize).last.offset())
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
