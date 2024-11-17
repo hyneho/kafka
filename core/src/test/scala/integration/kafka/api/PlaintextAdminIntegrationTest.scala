@@ -1544,6 +1544,28 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
+  def testFlush(quorum: String, groupProtocol: String): Unit = {
+    val config = new Properties()
+    config.put(TopicConfig.SEGMENT_BYTES_CONFIG, "200")
+    createTopic(topic, numPartitions = 1, replicationFactor = 1, config)
+    val producer = createProducer()
+    try {
+      for (i <- 0 until 20) {
+        producer.send(new ProducerRecord(topic, partition, s"$i".getBytes, s"$i".getBytes))
+      }
+      producer.flush()
+    } finally {
+      producer.close()
+    }
+
+    val consumer = createConsumer()
+    subscribeAndWaitForAssignment(topic, consumer)
+    consumer.seekToBeginning(Collections.singletonList(topicPartition))
+    TestUtils.consumeRecords(consumer, 20)
+  }
+
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testConsumeAfterDeleteRecords(quorum: String, groupProtocol: String): Unit = {
     val consumer = createConsumer()
