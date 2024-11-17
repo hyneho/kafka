@@ -105,8 +105,8 @@ public class DelayedOperationPurgatory<T extends DelayedOperation> {
      * <br/>
      * Note that a delayed operation can be watched on multiple keys. It is possible that
      * an operation is completed after it has been added to the watch list for some, but
-     * not all the keys. In this case, the operation is considered completed and won't
-     * be added to the watch list of the remaining keys. The expiration reaper thread will
+     * not all the keys. In this case, although the operation will be added for the remaining keys, it is considered
+     * completed and won't be watched for the remaining keys. The expiration reaper thread will
      * remove this operation from any watcher list in which the operation exists.
      *
      * @param operation the delayed operation to be checked
