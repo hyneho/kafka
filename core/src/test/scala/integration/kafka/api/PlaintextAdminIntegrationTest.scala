@@ -1551,7 +1551,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly"))
   def testDeleteRecordsAfterCorruptRecords(quorum: String, groupProtocol: String): Unit = {
     val config = new Properties()
-    config.put("segment.ms", "1000")
+    config.put(TopicConfig.SEGMENT_BYTES_CONFIG, "200")
     createTopic(topic, numPartitions = 1, replicationFactor = 1, config)
 
     client = createAdminClient
@@ -1562,18 +1562,15 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     val producer = createProducer()
     def sendRecords(begin: Int, end: Int) = {
       val futures = (begin until end).map( i => {
-        val record = new ProducerRecord(topicPartition.topic, topicPartition.partition, s"$i".getBytes, s"$i".getBytes)
+        val record = new ProducerRecord(topic, partition, s"$i".getBytes, s"$i".getBytes)
         producer.send(record)
       })
       futures.foreach(_.get)
     }
-    // create two segments, each have 10 records
     sendRecords(0, 10)
-    Thread.sleep(1001)
     sendRecords(10, 20)
 
-    val topicDesc = client.describeTopics(Collections.singletonList(topicPartition.topic()))
-      .allTopicNames().get().get(topicPartition.topic())
+    val topicDesc = client.describeTopics(Collections.singletonList(topic)).allTopicNames().get().get(topic)
     assertEquals(1, topicDesc.partitions().size())
     val partitionLeaderId = topicDesc.partitions().get(0).leader().id()
     val logDirMap = client.describeLogDirs(Collections.singletonList(partitionLeaderId))
@@ -1607,11 +1604,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     // delete records in corrupt segment (the first segment)
     client.deleteRecords(Map(topicPartition -> RecordsToDelete.beforeOffset(10L)).asJava).all.get
     // verify reassignment is finished after delete records
-    TestUtils.waitUntilTrue(() => {
-      val isr = client.describeTopics(TopicCollection.ofTopicNames(List(topicPartition.topic()).asJava))
-        .allTopicNames().get().get(topic).partitions().get(0).isr().asScala.map(node => node.id())
-      isr.equals(List(partitionLeaderId, partitionFollowerId))
-    }, "The isr is incorrect")
+    TestUtils.waitForBrokersInIsr(client, topicPartition, Set(partitionLeaderId, partitionFollowerId))
     // seek to beginning and make sure we can consume all records
     consumer.seekToBeginning(Collections.singletonList(topicPartition))
     assertEquals(19, TestUtils.consumeRecords(consumer, 10).last.offset())
