@@ -107,7 +107,8 @@ public class ProduceRequestTest {
                         new ProduceRequestData.PartitionProduceData().setIndex(9).setRecords(builder.build()))))
                     .iterator()))
                 .setAcks((short) 1)
-                .setTimeoutMs(5000));
+                .setTimeoutMs(5000),
+            true);
         assertEquals(2, requestBuilder.oldestAllowedVersion());
         assertEquals(2, requestBuilder.latestAllowedVersion());
     }
@@ -125,7 +126,8 @@ public class ProduceRequestTest {
                                         new ProduceRequestData.PartitionProduceData().setIndex(9).setRecords(builder.build()))))
                                 .iterator()))
                         .setAcks((short) 1)
-                        .setTimeoutMs(5000));
+                        .setTimeoutMs(5000),
+                true);
         assertEquals(3, requestBuilder.oldestAllowedVersion());
         assertEquals(ApiKeys.PRODUCE.latestVersion(), requestBuilder.latestAllowedVersion());
     }
@@ -260,7 +262,8 @@ public class ProduceRequestTest {
                                         new ProduceRequestData.PartitionProduceData().setIndex(1).setRecords(nonTxnRecords))))
                                 .iterator()))
                         .setAcks((short) -1)
-                        .setTimeoutMs(5000));
+                        .setTimeoutMs(5000),
+                true);
         final ProduceRequest request = builder.build();
         assertTrue(RequestUtils.hasTransactionalRecords(request));
         assertTrue(RequestTestUtils.hasIdempotentRecords(request));
@@ -286,7 +289,8 @@ public class ProduceRequestTest {
                                         new ProduceRequestData.PartitionProduceData().setIndex(1).setRecords(nonIdempotentRecords))))
                                 .iterator()))
                         .setAcks((short) -1)
-                        .setTimeoutMs(5000));
+                        .setTimeoutMs(5000),
+                true);
 
         final ProduceRequest request = builder.build();
         assertFalse(RequestUtils.hasTransactionalRecords(request));

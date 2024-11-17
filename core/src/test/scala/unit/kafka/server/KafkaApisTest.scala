@@ -1871,6 +1871,7 @@ class KafkaApisTest extends Logging {
         15L,
         0.toShort,
         Map(invalidTopicPartition -> partitionOffsetCommitData).asJava,
+        false
       ).build()
       val request = buildRequest(offsetCommitRequest)
       when(clientRequestQuotaManager.maybeRecordAndGetThrottleTimeMs(any[RequestChannel.Request](),
@@ -2152,6 +2153,7 @@ class KafkaApisTest extends Logging {
       producerId,
       epoch,
       Map(topicPartition -> partitionOffsetCommitData).asJava,
+      false
     ).build(version)
     val request = buildRequest(offsetCommitRequest)
 

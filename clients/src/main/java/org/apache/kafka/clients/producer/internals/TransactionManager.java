@@ -338,11 +338,13 @@ public class TransactionManager {
     private TransactionalRequestResult beginCompletingTransaction(TransactionResult transactionResult) {
         if (!newPartitionsInTransaction.isEmpty())
             enqueueRequest(addPartitionsToTransactionHandler());
+        log.error("----calvin: beginCompletingTransaction, last error=" + lastError);
 
         // If the error is an INVALID_PRODUCER_ID_MAPPING error, the server will not accept an EndTxnRequest, so skip
         // directly to InitProducerId. Otherwise, we must first abort the transaction, because the producer will be
         // fenced if we directly call InitProducerId.
         if (!(lastError instanceof InvalidPidMappingException)) {
+            log.error("----calvin: beginCompletingTransaction skipping endTxn");
             EndTxnRequest.Builder builder = new EndTxnRequest.Builder(
                     new EndTxnRequestData()
                             .setTransactionalId(transactionalId)
@@ -373,15 +375,22 @@ public class TransactionManager {
                 "(currentState= " + currentState + ")");
         }
 
-        log.debug("Begin adding offsets {} for consumer group {} to transaction", offsets, groupMetadata);
-        AddOffsetsToTxnRequest.Builder builder = new AddOffsetsToTxnRequest.Builder(
-            new AddOffsetsToTxnRequestData()
-                .setTransactionalId(transactionalId)
-                .setProducerId(producerIdAndEpoch.producerId)
-                .setProducerEpoch(producerIdAndEpoch.epoch)
-                .setGroupId(groupMetadata.groupId())
-        );
-        AddOffsetsToTxnHandler handler = new AddOffsetsToTxnHandler(builder, offsets, groupMetadata);
+        // In transaction V2, the client will skip sending AddOffsetsToTxn before sending txnOffsetCommit.
+        TxnRequestHandler handler;
+        if (isTransactionV2Enabled()) {
+            log.debug("Begin adding offsets {} for consumer group {} to transaction with transaction protocol V2", offsets, groupMetadata);
+            handler = txnOffsetCommitHandler(null, offsets, groupMetadata);
+        } else {
+            log.debug("Begin adding offsets {} for consumer group {} to transaction", offsets, groupMetadata);
+            AddOffsetsToTxnRequest.Builder builder = new AddOffsetsToTxnRequest.Builder(
+                    new AddOffsetsToTxnRequestData()
+                            .setTransactionalId(transactionalId)
+                            .setProducerId(producerIdAndEpoch.producerId)
+                            .setProducerEpoch(producerIdAndEpoch.epoch)
+                            .setGroupId(groupMetadata.groupId())
+            );
+            handler = new AddOffsetsToTxnHandler(builder, offsets, groupMetadata);
+        }
 
         enqueueRequest(handler);
         return handler.result;
@@ -398,8 +407,10 @@ public class TransactionManager {
             } else if (currentState != State.IN_TRANSACTION) {
                 throw new IllegalStateException("Cannot add partition " + topicPartition +
                     " to transaction while in state  " + currentState);
-            } else if (isPartitionAdded(topicPartition) || isPartitionPendingAdd(topicPartition)) {
+            } else if (transactionContainsPartition(topicPartition) || isPartitionPendingAdd(topicPartition)) {
                 return;
+            } else if (isTransactionV2Enabled()) {
+                txnPartitionMap.getOrCreate(topicPartition);
             } else {
                 log.debug("Begin adding new partition {} to transaction", topicPartition);
                 txnPartitionMap.getOrCreate(topicPartition);
@@ -415,7 +426,7 @@ public class TransactionManager {
     synchronized boolean isSendToPartitionAllowed(TopicPartition tp) {
         if (hasFatalError())
             return false;
-        return !isTransactional() || partitionsInTransaction.contains(tp);
+        return !isTransactional() || partitionsInTransaction.contains(tp) || isTransactionV2Enabled();
     }
 
     public String transactionalId() {
@@ -482,11 +493,6 @@ public class TransactionManager {
     }
 
     // visible for testing
-    synchronized boolean isPartitionAdded(TopicPartition partition) {
-        return partitionsInTransaction.contains(partition);
-    }
-
-    // visible for testing
     synchronized boolean isPartitionPendingAdd(TopicPartition partition) {
         return newPartitionsInTransaction.contains(partition) || pendingPartitionsInTransaction.contains(partition);
     }
@@ -549,6 +555,7 @@ public class TransactionManager {
     }
 
     synchronized void requestEpochBumpForPartition(TopicPartition tp) {
+        log.error("----calvin: epochBumpRequired set place 1");
         epochBumpRequired = true;
         this.partitionsToRewriteSequences.add(tp);
     }
@@ -669,6 +676,7 @@ public class TransactionManager {
         if (pendingTransition != null) {
             pendingTransition.result.fail(exception);
         }
+        log.error("--- lastError clear place 1");
         lastError = null;
     }
 
@@ -680,6 +688,7 @@ public class TransactionManager {
             transitionToFatalError(exception);
         } else if (isTransactional()) {
             if (canBumpEpoch() && !isCompleting()) {
+                log.error("----calvin: epochBumpRequired set place 2");
                 epochBumpRequired = true;
             }
             transitionToAbortableError(exception);
@@ -765,6 +774,7 @@ public class TransactionManager {
                         String unackedMessagesErr = "The client hasn't received acknowledgment for some previously " +
                                 "sent messages and can no longer retry them. ";
                         if (canBumpEpoch()) {
+                            log.error("----calvin: epochBumpRequired set place 3");
                             epochBumpRequired = true;
                             KafkaException exception = new KafkaException(unackedMessagesErr + "It is safe to abort " +
                                     "the transaction and continue.");
@@ -815,7 +825,7 @@ public class TransactionManager {
             return null;
         }
 
-        if (nextRequestHandler.isEndTxn() && !transactionStarted) {
+        if (nextRequestHandler.isEndTxn() && (!isTransactionV2Enabled() && !transactionStarted)) {
             nextRequestHandler.result.done();
             if (currentState != State.FATAL_ERROR) {
                 log.debug("Not sending EndTxn for completed transaction since no partitions " +
@@ -893,8 +903,8 @@ public class TransactionManager {
     }
 
     // visible for testing
-    synchronized boolean transactionContainsPartition(TopicPartition topicPartition) {
-        return partitionsInTransaction.contains(topicPartition);
+    public synchronized boolean transactionContainsPartition(TopicPartition topicPartition) {
+        return partitionsInTransaction.contains(topicPartition) || isTransactionV2Enabled();
     }
 
     // visible for testing
@@ -1022,8 +1032,10 @@ public class TransactionManager {
         } else if (target == State.FATAL_ERROR || target == State.ABORTABLE_ERROR) {
             if (error == null)
                 throw new IllegalArgumentException("Cannot transition to " + target + " with a null exception");
+            log.error("---calvin: transaction to " + target + ", error=" + error);
             lastError = error;
         } else {
+            log.error("--- lastError clear place 2, target=" + target);
             lastError = null;
         }
 
@@ -1127,8 +1139,12 @@ public class TransactionManager {
                 pendingTxnOffsetCommits,
                 groupMetadata.memberId(),
                 groupMetadata.generationId(),
-                groupMetadata.groupInstanceId()
+                groupMetadata.groupInstanceId(),
+                isTransactionV2Enabled()
             );
+        if (result == null) {
+            return new TxnOffsetCommitHandler(builder);
+        }
         return new TxnOffsetCommitHandler(result, builder);
     }
 
@@ -1183,6 +1199,11 @@ public class TransactionManager {
         } else {
             transitionTo(State.READY);
         }
+        clearAllStates();
+    }
+
+    private void clearAllStates() {
+        log.error("--- lastError clear place 3");
         lastError = null;
         epochBumpRequired = false;
         transactionStarted = false;
@@ -1215,6 +1236,7 @@ public class TransactionManager {
 
         void abortableErrorIfPossible(RuntimeException e) {
             if (canBumpEpoch()) {
+                log.error("----calvin: epochBumpRequired set place 4");
                 epochBumpRequired = true;
                 abortableError(e);
             } else {
@@ -1326,13 +1348,13 @@ public class TransactionManager {
         public void handleResponse(AbstractResponse response) {
             InitProducerIdResponse initProducerIdResponse = (InitProducerIdResponse) response;
             Errors error = initProducerIdResponse.error();
+            log.error("----calvin: client receive init producer ID:" + response + " epochBumpRequired=" + epochBumpRequired);
 
             if (error == Errors.NONE) {
                 ProducerIdAndEpoch producerIdAndEpoch = new ProducerIdAndEpoch(initProducerIdResponse.data().producerId(),
                         initProducerIdResponse.data().producerEpoch());
                 setProducerIdAndEpoch(producerIdAndEpoch);
                 transitionTo(State.READY);
-                lastError = null;
                 if (this.isEpochBump) {
                     resetSequenceNumbers();
                 }
@@ -1568,6 +1590,7 @@ public class TransactionManager {
         public void handleResponse(AbstractResponse response) {
             EndTxnResponse endTxnResponse = (EndTxnResponse) response;
             Errors error = endTxnResponse.error();
+            log.error("---calvin: client received end txn=" + endTxnResponse);
 
             if (error == Errors.NONE) {
                 // For End Txn version 5+, the broker includes the producerId and producerEpoch in the EndTxnResponse.
@@ -1673,6 +1696,11 @@ public class TransactionManager {
         private TxnOffsetCommitHandler(TransactionalRequestResult result,
                                        TxnOffsetCommitRequest.Builder builder) {
             super(result);
+            this.builder = builder;
+        }
+
+        private TxnOffsetCommitHandler(TxnOffsetCommitRequest.Builder builder) {
+            super("TxnOffsetCommitHandler");
             this.builder = builder;
         }
 

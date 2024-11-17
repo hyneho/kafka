@@ -16,8 +16,6 @@
  */
 package kafka.coordinator.transaction
 
-import java.util.Properties
-import java.util.concurrent.atomic.AtomicBoolean
 import kafka.server.{KafkaConfig, MetadataCache, ReplicaManager}
 import kafka.utils.Logging
 import org.apache.kafka.common.TopicPartition
@@ -33,6 +31,8 @@ import org.apache.kafka.coordinator.transaction.ProducerIdManager
 import org.apache.kafka.server.common.{RequestLocal, TransactionVersion}
 import org.apache.kafka.server.util.Scheduler
 
+import java.util.Properties
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.jdk.CollectionConverters._
 
 object TransactionCoordinator {
@@ -476,7 +476,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
   private def logInvalidStateTransitionAndReturnError(transactionalId: String,
                                                       transactionState: TransactionState,
                                                       transactionResult: TransactionResult) = {
-    debug(s"TransactionalId: $transactionalId's state is $transactionState, but received transaction " +
+    error(s"TransactionalId: $transactionalId's state is $transactionState, but received transaction " +
       s"marker result to send: $transactionResult")
     Left(Errors.INVALID_TXN_STATE)
   }
@@ -610,7 +610,17 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                 else
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
               case Empty =>
-                logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
+                if (clientTransactionVersion.supportsEpochBump() && !txnMetadata.pendingState.contains(PrepareEpochFence)) {
+                  // If the client and server both use transaction V2, the client is allowed to commit/abort
+                  // transactions when the transaction state is Empty because the client can't be sure about the
+                  // current transaction state.
+                  // Note that, we should not use txnMetadata info to check if the client is using V2 because the
+                  // only request received by server so far is InitProducerId request which does not tell whether
+                  // the client uses V2.
+                  Left(Errors.NONE)
+                } else {
+                  logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
+                }
               case Dead | PrepareEpochFence =>
                 val errorMsg = s"Found transactionalId $transactionalId with state ${txnMetadata.state}. " +
                   s"This is illegal as we should never have transitioned to this state."
