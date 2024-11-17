@@ -151,9 +151,9 @@ public class NetworkClientDelegate implements AutoCloseable {
     private void maybePropagateMetadataError() {
         try {
             metadata.maybeThrowAnyException();
-            metadataException = metadataException.newIncompleteFuture();
         } catch (Exception e) {
             metadataException.completeExceptionally(e);
+            metadataException = metadataException.newIncompleteFuture();
             backgroundEventHandler.add(new ErrorEvent(e));
         }
     }

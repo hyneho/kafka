@@ -102,7 +102,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
                 return;
 
             case LIST_OFFSETS:
-                process((ListOffsetsEvent) event);
+                process((ListOffsetsEvent) event, metadataError);
                 return;
 
             case RESET_OFFSET:
@@ -270,9 +270,9 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     /**
      * Handles ListOffsetsEvent by fetching the offsets for the given partitions and timestamps.
      */
-    private void process(final ListOffsetsEvent event) {
+    private void process(final ListOffsetsEvent event, CompletableFuture<RuntimeException> metadataError) {
         final CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> future =
-            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps());
+            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps(), metadataError);
         future.whenComplete(complete(event.future()));
     }
 

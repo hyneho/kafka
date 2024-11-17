@@ -187,9 +187,15 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      */
     public CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> fetchOffsets(
             Map<TopicPartition, Long> timestampsToSearch,
-            boolean requireTimestamps) {
+            boolean requireTimestamps,
+            CompletableFuture<RuntimeException> metadataError
+    ) {
+        AtomicReference<CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>>> 
+                topicToOffsetsResult = new AtomicReference<>();
+        
         if (timestampsToSearch.isEmpty()) {
-            return CompletableFuture.completedFuture(Collections.emptyMap());
+            topicToOffsetsResult.get().complete(Collections.emptyMap());
+            return topicToOffsetsResult.get();
         }
         metadata.addTransientTopics(OffsetFetcherUtils.topicsForPartitions(timestampsToSearch.keySet()));
         ListOffsetsRequestState listOffsetsRequestState = new ListOffsetsRequestState(
@@ -207,12 +213,19 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                         " Result {}", timestampsToSearch, result);
             }
         });
-
+        
         prepareFetchOffsetsRequests(timestampsToSearch, requireTimestamps, listOffsetsRequestState);
-        return listOffsetsRequestState.globalResult.thenApply(
+
+        topicToOffsetsResult.set(listOffsetsRequestState.globalResult.thenApply(
                 result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
                         timestampsToSearch,
-                        result.fetchedOffsets));
+                        result.fetchedOffsets)));
+        
+        metadataError.whenComplete((__, error) -> {
+            topicToOffsetsResult.get().completeExceptionally(error);
+        });
+        
+        return topicToOffsetsResult.get();
     }
 
     /**
@@ -223,6 +236,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      *     <li>fetch committed offsets if enabled, and use the response to update the positions</li>
      *     <li>fetch partition offsets for partitions that may still require a position, and use the response to
      *     update the positions</li>
+     *     <li>if the metadata exception is completed, will return the metadata exception to the application</li>
      * </ul>
      *
      * @param deadlineMs Time in milliseconds when the triggering application event expires. Any error received after
@@ -257,25 +271,20 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                 }
             });
 
-            onMetadataError(metadataError, result);
+            metadataError.whenComplete((__, error) -> {
+                if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {
+                    pendingOffsetFetchEvent.result.completeExceptionally(error);
+                    result.completeExceptionally(error);
+                }
+                if (error == null) {
+                    result.complete(true);
+                }
+            });
 
         } catch (Exception e) {
             result.completeExceptionally(maybeWrapAsKafkaException(e));
         }
         return result;
-    }
-
-    private void onMetadataError(CompletableFuture<RuntimeException> metadataError, 
-                                 CompletableFuture<Boolean> result) {
-        metadataError.whenComplete((__, error) -> {
-            if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {
-                pendingOffsetFetchEvent.result.completeExceptionally(error);
-                result.completeExceptionally(error);
-            } 
-            if (error == null) {
-                result.complete(true);
-            }
-        });
     }
 
     private boolean maybeCompleteWithPreviousException(CompletableFuture<Boolean> result) {
