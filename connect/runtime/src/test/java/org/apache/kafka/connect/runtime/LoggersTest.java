@@ -181,11 +181,12 @@ public class LoggersTest {
         // that this test case is not affected by existing Log4j configurations.
         LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
         Configuration config = loggerContext.getConfiguration();
-        LoggerConfig rootConfig = new LoggerConfig("", Level.ERROR, false);
-        config.addLogger("", rootConfig);
+        String rootLoggerName = "root";
+        LoggerConfig rootConfig = new LoggerConfig(rootLoggerName, Level.ERROR, false);
+        config.addLogger(rootLoggerName, rootConfig);
         loggerContext.updateLoggers();
 
-        Logger root = LogManager.getLogger("");
+        Logger root = LogManager.getLogger(rootLoggerName);
         Configurator.setLevel(root, Level.ERROR);
 
         Logger p = loggerContext.getLogger("a.b.c.p");
@@ -193,7 +194,7 @@ public class LoggersTest {
         Logger y = loggerContext.getLogger("a.b.c.p.Y");
         Logger z = loggerContext.getLogger("a.b.c.p.Z");
         Logger w = loggerContext.getLogger("a.b.c.s.W");
-        Configurator.setLevel(p, null);
+        Configurator.setLevel(p, Level.INFO);
         Configurator.setLevel(x, Level.INFO);
         Configurator.setLevel(y, Level.INFO);
         Configurator.setLevel(z, Level.INFO);
@@ -201,10 +202,10 @@ public class LoggersTest {
 
         Loggers loggers = new TestLoggers(root, x, y, z, w);
 
-        List<String> modified = loggers.setLevel("", Level.DEBUG);
-        assertEquals(Arrays.asList("", "a.b.c.p.X", "a.b.c.p.Y", "a.b.c.p.Z", "a.b.c.s.W"), modified);
+        List<String> modified = loggers.setLevel(rootLoggerName, Level.DEBUG);
+        assertEquals(Arrays.asList("a.b.c.p.X", "a.b.c.p.Y", "a.b.c.p.Z", "a.b.c.s.W", rootLoggerName), modified);
 
-        assertEquals(p.getLevel(), Level.DEBUG);
+        assertEquals(p.getLevel(), Level.INFO);
 
         assertEquals(root.getLevel(), Level.DEBUG);
 
@@ -214,7 +215,7 @@ public class LoggersTest {
         assertEquals(z.getLevel(), Level.DEBUG);
 
         Map<String, LoggerLevel> expectedLevels = new HashMap<>();
-        expectedLevels.put("", new LoggerLevel(Level.DEBUG.toString(), INITIAL_TIME));
+        expectedLevels.put(rootLoggerName, new LoggerLevel(Level.DEBUG.toString(), INITIAL_TIME));
         expectedLevels.put("a.b.c.p.X", new LoggerLevel(Level.DEBUG.toString(), INITIAL_TIME));
         expectedLevels.put("a.b.c.p.Y", new LoggerLevel(Level.DEBUG.toString(), INITIAL_TIME));
         expectedLevels.put("a.b.c.p.Z", new LoggerLevel(Level.DEBUG.toString(), INITIAL_TIME));

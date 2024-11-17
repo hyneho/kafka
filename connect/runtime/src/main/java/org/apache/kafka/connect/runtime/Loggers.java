@@ -50,9 +50,13 @@ public class Loggers {
     private static final Logger log = LoggerFactory.getLogger(Loggers.class);
 
     /**
-     * Log4j2 uses "" (empty string) as name of the root logger.
+     * Log4j uses "root" (case-insensitive) as name of the root logger.
+     * Note: In log4j, the root logger's name was "root" and Kafka also followed that name for dynamic logging control feature.
+     *
+     * The root logger's name is changed in log4j2 to empty string (see: [[LogManager.ROOT_LOGGER_NAME]]) but for backward-
+     * compatibility. Kafka keeps its original root logger name. It is why here is a dedicated definition for the root logger name.
      */
-    private static final String ROOT_LOGGER_NAME = "";
+    private static final String ROOT_LOGGER_NAME = "root";
 
     private final Time time;
     private final Map<String, Long> lastModifiedTimes;
