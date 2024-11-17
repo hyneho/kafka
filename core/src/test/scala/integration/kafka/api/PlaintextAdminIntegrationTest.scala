@@ -1580,6 +1580,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     // retrieve the path of the first segment
     val logFilePath = LogFileUtils.logFile(Paths.get(logDir).resolve(topicPartition.toString).toFile, 0).toPath
     val firstSegmentRecordsSize = FileRecords.open(logFilePath.toFile).records().asScala.iterator.size
+    assertTrue(firstSegmentRecordsSize > 0)
 
     // manually load the inactive segment file to corrupt the data
     val originalContent = Files.readAllBytes(logFilePath)
