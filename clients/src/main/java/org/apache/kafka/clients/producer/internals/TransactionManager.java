@@ -339,27 +339,24 @@ public class TransactionManager {
         if (!newPartitionsInTransaction.isEmpty())
             enqueueRequest(addPartitionsToTransactionHandler());
 
-        // If the error is an INVALID_PRODUCER_ID_MAPPING error, the server will not accept an EndTxnRequest, so skip
-        // directly to InitProducerId. Otherwise, we must first abort the transaction, because the producer will be
-        // fenced if we directly call InitProducerId.
-        if (!(lastError instanceof InvalidPidMappingException)) {
-            EndTxnRequest.Builder builder = new EndTxnRequest.Builder(
-                    new EndTxnRequestData()
-                            .setTransactionalId(transactionalId)
-                            .setProducerId(producerIdAndEpoch.producerId)
-                            .setProducerEpoch(producerIdAndEpoch.epoch)
-                            .setCommitted(transactionResult.id),
-                    isTransactionV2Enabled
-            );
+        EndTxnRequest.Builder builder = new EndTxnRequest.Builder(
+            new EndTxnRequestData()
+                .setTransactionalId(transactionalId)
+                .setProducerId(producerIdAndEpoch.producerId)
+                .setProducerEpoch(producerIdAndEpoch.epoch)
+                .setCommitted(transactionResult.id),
+            isTransactionV2Enabled
+        );
 
-            EndTxnHandler handler = new EndTxnHandler(builder);
-            enqueueRequest(handler);
-            if (!epochBumpRequired) {
-                return handler.result;
-            }
+        EndTxnHandler handler = new EndTxnHandler(builder);
+        enqueueRequest(handler);
+
+        // If an epoch bump is required for recovery, initialize the transaction after completing the EndTxn request.
+        if (epochBumpRequired) {
+            return initializeTransactions(this.producerIdAndEpoch);
         }
 
-        return initializeTransactions(this.producerIdAndEpoch);
+        return handler.result;
     }
 
     public synchronized TransactionalRequestResult sendOffsetsToTransaction(final Map<TopicPartition, OffsetAndMetadata> offsets,
@@ -1419,7 +1416,7 @@ public class TransactionManager {
                     fatalError(Errors.PRODUCER_FENCED.exception());
                     return;
                 } else if (error == Errors.TRANSACTIONAL_ID_AUTHORIZATION_FAILED ||
-                        error == Errors.INVALID_TXN_STATE) {
+                        error == Errors.INVALID_TXN_STATE || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
                     fatalError(error.exception());
                     return;
                 } else if (error == Errors.TOPIC_AUTHORIZATION_FAILED) {
@@ -1428,7 +1425,7 @@ public class TransactionManager {
                     log.debug("Did not attempt to add partition {} to transaction because other partitions in the " +
                             "batch had errors.", topicPartition);
                     hasPartitionErrors = true;
-                } else if (error == Errors.UNKNOWN_PRODUCER_ID || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
+                } else if (error == Errors.UNKNOWN_PRODUCER_ID) {
                     abortableErrorIfPossible(error.exception());
                     return;
                 } else if (error == Errors.TRANSACTION_ABORTABLE) {
@@ -1604,9 +1601,9 @@ public class TransactionManager {
                 // just treat it the same as PRODUCE_FENCED.
                 fatalError(Errors.PRODUCER_FENCED.exception());
             } else if (error == Errors.TRANSACTIONAL_ID_AUTHORIZATION_FAILED ||
-                    error == Errors.INVALID_TXN_STATE) {
+                    error == Errors.INVALID_TXN_STATE || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
                 fatalError(error.exception());
-            } else if (error == Errors.UNKNOWN_PRODUCER_ID || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
+            } else if (error == Errors.UNKNOWN_PRODUCER_ID) {
                 abortableErrorIfPossible(error.exception());
             } else if (error == Errors.TRANSACTION_ABORTABLE) {
                 abortableError(error.exception());
@@ -1657,14 +1654,14 @@ public class TransactionManager {
                 reenqueue();
             } else if (error.exception() instanceof RetriableException) {
                 reenqueue();
-            } else if (error == Errors.UNKNOWN_PRODUCER_ID || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
+            } else if (error == Errors.UNKNOWN_PRODUCER_ID) {
                 abortableErrorIfPossible(error.exception());
             } else if (error == Errors.INVALID_PRODUCER_EPOCH || error == Errors.PRODUCER_FENCED) {
                 // We could still receive INVALID_PRODUCER_EPOCH from old versioned transaction coordinator,
                 // just treat it the same as PRODUCE_FENCED.
                 fatalError(Errors.PRODUCER_FENCED.exception());
             } else if (error == Errors.TRANSACTIONAL_ID_AUTHORIZATION_FAILED ||
-                    error == Errors.INVALID_TXN_STATE) {
+                    error == Errors.INVALID_TXN_STATE || error == Errors.INVALID_PRODUCER_ID_MAPPING) {
                 fatalError(error.exception());
             } else if (error == Errors.GROUP_AUTHORIZATION_FAILED) {
                 abortableError(GroupAuthorizationException.forGroupId(builder.data.groupId()));
