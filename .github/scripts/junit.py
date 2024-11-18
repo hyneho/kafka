@@ -335,11 +335,11 @@ if __name__ == "__main__":
         report_md = f"Download [HTML report]({report_url})."
     else:
         report_md = "No report available. JUNIT_REPORT_URL was missing."
-    summary = (f"{total_run} tests cases run in {duration}. "
+    summary = (f"{total_run} tests cases run in {duration}.\n\n"
                f"{total_success} {PASSED}, {total_failures} {FAILED}, "
-               f"{total_flaky} {FLAKY}, {total_skipped} {SKIPPED}, {len(quarantined_table)} {QUARANTINED}, and {total_errors} errors.")
+               f"{total_flaky} {FLAKY}, {total_skipped} {SKIPPED}, {len(quarantined_table)} {QUARANTINED}, and {total_errors} errors.<br/>")
     print("## Test Summary\n")
-    print(f"{summary} {report_md}\n")
+    print(f"{summary}\n\n{report_md}\n")
 
     # Failed
     if len(failed_table) > 0:
@@ -397,6 +397,9 @@ if __name__ == "__main__":
             logger.debug(f"{row[0]} > {row[1]}")
         print("\n</details>")
         logger.debug("::endgroup::")
+
+    # Create a horizontal rule
+    print("-"*80)
 
     # Print special message if there was a timeout
     exit_code = get_env("GRADLE_EXIT_CODE", int)
