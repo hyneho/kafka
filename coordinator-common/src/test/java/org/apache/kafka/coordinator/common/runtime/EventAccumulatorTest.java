@@ -83,15 +83,15 @@ public class EventAccumulatorTest {
         assertNull(accumulator.poll());
 
         List<MockEvent> events = Arrays.asList(
-                new MockEvent(1, 0),
-                new MockEvent(1, 1),
-                new MockEvent(1, 2),
-                new MockEvent(2, 0),
-                new MockEvent(2, 1),
-                new MockEvent(2, 3),
-                new MockEvent(3, 0),
-                new MockEvent(3, 1),
-                new MockEvent(3, 2)
+            new MockEvent(1, 0),
+            new MockEvent(1, 1),
+            new MockEvent(1, 2),
+            new MockEvent(2, 0),
+            new MockEvent(2, 1),
+            new MockEvent(2, 3),
+            new MockEvent(3, 0),
+            new MockEvent(3, 1),
+            new MockEvent(3, 2)
         );
 
         events.forEach(accumulator::addLast);
@@ -118,9 +118,9 @@ public class EventAccumulatorTest {
         EventAccumulator<Integer, MockEvent> accumulator = new EventAccumulator<>();
 
         List<MockEvent> events = Arrays.asList(
-                new MockEvent(1, 0),
-                new MockEvent(1, 1),
-                new MockEvent(1, 2)
+            new MockEvent(1, 0),
+            new MockEvent(1, 1),
+            new MockEvent(1, 2)
         );
 
         events.forEach(accumulator::addFirst);
