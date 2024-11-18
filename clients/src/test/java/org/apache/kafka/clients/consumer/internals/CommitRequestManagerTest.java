@@ -28,6 +28,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.errors.TopicAuthorizationException;
 import org.apache.kafka.common.message.OffsetCommitRequestData;
 import org.apache.kafka.common.message.OffsetCommitResponseData;
 import org.apache.kafka.common.message.OffsetFetchRequestData;
@@ -81,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -1533,6 +1535,26 @@ public class CommitRequestManagerTest {
             assertTrue(commitResult.isDone());
             assertTrue(commitResult.isCompletedExceptionally());
         }
+    }
+
+    @Test
+    public void testCommitSyncWithMetadataError() {
+        CommitRequestManager commitRequestManager = create(true, 100);
+        when(coordinatorRequestManager.coordinator()).thenReturn(Optional.of(mockedNode));
+
+        Map<TopicPartition, OffsetAndMetadata> offsets = Collections.singletonMap(new TopicPartition("topic", 1),
+                new OffsetAndMetadata(0));
+
+        long deadlineMs = time.milliseconds() + defaultApiTimeoutMs;
+        CompletableFuture<RuntimeException> metadataError = new CompletableFuture<>();
+        Thread thread = new Thread(() -> metadataError.completeExceptionally(new TopicAuthorizationException("metadata error")));
+        CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> result = 
+                commitRequestManager.commitSync(Optional.of(offsets), deadlineMs, List.of(metadataError));
+        thread.start();
+
+        ExecutionException exception = assertThrows(ExecutionException.class, result::get);
+        assertEquals(TopicAuthorizationException.class, exception.getCause().getClass());
+        assertEquals("metadata error", exception.getCause().getMessage());
     }
 
     private List<NetworkClientDelegate.FutureCompletionHandler> assertPoll(
