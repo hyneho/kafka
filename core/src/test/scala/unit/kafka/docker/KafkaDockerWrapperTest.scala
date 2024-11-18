@@ -118,6 +118,8 @@ class KafkaDockerWrapperTest {
 
     val source = scala.io.Source.fromFile(finalConfigsPath.toString + "/server.properties")
     val actual = try source.mkString finally source.close()
+    // this is a configuration error that will make the image fail, 
+    // so that the user can spot the error and fix it
     val expected = " \n \n "
 
     assertEquals(expected, actual)
