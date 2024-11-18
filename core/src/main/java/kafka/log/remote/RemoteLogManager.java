@@ -289,19 +289,19 @@ public class RemoteLogManager implements Closeable {
         rlmFetchQuotaManager.updateQuota(new Quota(quota, true));
     }
 
-    public void resizeCopierThreadPool(int size) {
-        LOGGER.info("Updating remote copy thread pool size to {}", size);
-        rlmCopyThreadPool.resize(size);
+    public void resizeCopierThreadPool(int oldSize, int newSize) {
+        LOGGER.info("Updating remote copy thread pool size from {} to {}", oldSize, newSize);
+        rlmCopyThreadPool.setCorePoolSize(newSize);
     }
 
-    public void resizeExpirationThreadPool(int size) {
-        LOGGER.info("Updating remote expiration thread pool size to {}", size);
-        rlmExpirationThreadPool.resize(size);
+    public void resizeExpirationThreadPool(int oldSize, int newSize) {
+        LOGGER.info("Updating remote expiration thread pool size from {} to {}", oldSize, newSize);
+        rlmExpirationThreadPool.setCorePoolSize(newSize);
     }
 
-    public void resizeReaderThreadPool(int size) {
-        LOGGER.info("Updating remote reader thread pool size to {}", size);
-        remoteStorageReaderThreadPool.resize(size);
+    public void resizeReaderThreadPool(int oldSize, int newSize) {
+        LOGGER.info("Updating remote reader thread pool size from {} to {}", oldSize, newSize);
+        remoteStorageReaderThreadPool.setCorePoolSize(newSize);
     }
 
     private void removeMetrics() {
@@ -2178,8 +2178,12 @@ public class RemoteLogManager implements Closeable {
             scheduledThreadPool = createPool();
         }
 
-        public void resize(int newSize) {
+        public void setCorePoolSize(int newSize) {
             scheduledThreadPool.setCorePoolSize(newSize);
+        }
+
+        public int getCorePoolSize() {
+            return scheduledThreadPool.getCorePoolSize();
         }
 
         private ScheduledThreadPoolExecutor createPool() {

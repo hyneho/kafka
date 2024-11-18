@@ -202,17 +202,17 @@ class DynamicBrokerConfigTest {
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "2")
     config.dynamicConfig.updateDefaultConfig(props)
     assertEquals(2, config.remoteLogCopierThreads)
-    Mockito.verify(remoteLogManagerMock).resizeCopierThreadPool(2)
+    Mockito.verify(remoteLogManagerMock).resizeCopierThreadPool(1, 2)
 
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "2")
     config.dynamicConfig.updateDefaultConfig(props)
     assertEquals(2, config.remoteLogExpirationThreads)
-    Mockito.verify(remoteLogManagerMock).resizeExpirationThreadPool(2)
+    Mockito.verify(remoteLogManagerMock).resizeExpirationThreadPool(1, 2)
 
     props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "2")
     config.dynamicConfig.updateDefaultConfig(props)
     assertEquals(2, config.remoteLogReaderThreads)
-    Mockito.verify(remoteLogManagerMock).resizeReaderThreadPool(2)
+    Mockito.verify(remoteLogManagerMock).resizeReaderThreadPool(1, 2)
 
     Mockito.verifyNoMoreInteractions(
       handlerPoolMock,
@@ -967,6 +967,106 @@ class DynamicBrokerConfigTest {
 
     verifyNoMoreInteractions(remoteLogManager)
   }
+
+  // @Test
+  // def testRemoteLogManagerCopierThreadPoolSizeUpdates(): Unit = {
+  //   val props = TestUtils.createBrokerConfig(0, null, port = 9092)
+  //   val config = KafkaConfig.fromProps(props)
+  //   val serverMock: KafkaBroker = mock(classOf[KafkaBroker])
+  //   val remoteLogManager = mock(classOf[RemoteLogManager])
+
+  //   Mockito.when(serverMock.config).thenReturn(config)
+  //   Mockito.when(serverMock.remoteLogManagerOpt).thenReturn(Some(remoteLogManager))
+
+  //   config.dynamicConfig.initialize(None, None)
+  //   config.dynamicConfig.addBrokerReconfigurable(new RemoteLogDynamicThreadPool(serverMock))
+
+  //   // Update default config
+  //   props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "20")
+  //   config.dynamicConfig.updateDefaultConfig(props)
+  //   assertEquals(20, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
+  //   verify(remoteLogManager).resizeCopierThreadPool(20)
+
+  //   // props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "40")
+  //   // config.dynamicConfig.updateBrokerConfig(0, props)
+  //   // assertEquals(40, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
+  //   // verify(remoteLogManager).resizeCopierThreadPool(40)
+
+  //   // props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "20")
+  //   // config.dynamicConfig.updateBrokerConfig(0, props)
+  //   // assertEquals(20, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
+  //   // verify(remoteLogManager).resizeCopierThreadPool(20)
+
+  //   verifyNoMoreInteractions(remoteLogManager)
+  // }
+
+  // @Test
+  // def testRemoteLogManagerReaderThreadPoolSizeUpdates(): Unit = {
+  //   val props = TestUtils.createBrokerConfig(0, null, port = 9092)
+  //   val config = KafkaConfig.fromProps(props)
+  //   val serverMock: KafkaBroker = mock(classOf[KafkaBroker])
+  //   val remoteLogManager = mock(classOf[RemoteLogManager])
+
+  //   Mockito.when(serverMock.config).thenReturn(config)
+  //   Mockito.when(serverMock.remoteLogManagerOpt).thenReturn(Some(remoteLogManager))
+
+  //   config.dynamicConfig.initialize(None, None)
+  //   config.dynamicConfig.addBrokerReconfigurable(new RemoteLogDynamicThreadPool(serverMock))
+
+  //   // Update default config
+  //   props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "20")
+  //   config.dynamicConfig.updateDefaultConfig(props)
+  //   assertEquals(20, config.remoteLogManagerConfig.remoteLogReaderThreads())
+  //   verify(remoteLogManager, times(1)).resizeReaderThreadPool(20)
+
+  //   verifyNoMoreInteractions(remoteLogManager)
+
+  //   props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "40")
+  //   config.dynamicConfig.updateBrokerConfig(0, props)
+  //   assertEquals(40, config.remoteLogManagerConfig.remoteLogReaderThreads())
+  //   verify(remoteLogManager).resizeReaderThreadPool(40)
+
+  //   verifyNoMoreInteractions(remoteLogManager)
+
+  //   props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "20")
+  //   config.dynamicConfig.updateBrokerConfig(0, props)
+  //   assertEquals(20, config.remoteLogManagerConfig.remoteLogReaderThreads())
+  //   verify(remoteLogManager).resizeReaderThreadPool(20)
+
+  //   verifyNoMoreInteractions(remoteLogManager)
+  // }
+
+  // @Test
+  // def testRemoteLogManagerExpirationThreadPoolSizeUpdates(): Unit = {
+  //   val props = TestUtils.createBrokerConfig(0, null, port = 9092)
+  //   val config = KafkaConfig.fromProps(props)
+  //   val serverMock: KafkaBroker = mock(classOf[KafkaBroker])
+  //   val remoteLogManager = mock(classOf[RemoteLogManager])
+
+  //   Mockito.when(serverMock.config).thenReturn(config)
+  //   Mockito.when(serverMock.remoteLogManagerOpt).thenReturn(Some(remoteLogManager))
+
+  //   config.dynamicConfig.initialize(None, None)
+  //   config.dynamicConfig.addBrokerReconfigurable(new RemoteLogDynamicThreadPool(serverMock))
+
+  //   // Update default config
+  //   props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "20")
+  //   config.dynamicConfig.updateDefaultConfig(props)
+  //   assertEquals(20, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
+  //   verify(remoteLogManager).resizeExpirationThreadPool(20)
+
+  //   props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "40")
+  //   config.dynamicConfig.updateBrokerConfig(0, props)
+  //   assertEquals(40, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
+  //   verify(remoteLogManager).resizeExpirationThreadPool(40)
+
+  //   props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "20")
+  //   config.dynamicConfig.updateBrokerConfig(0, props)
+  //   assertEquals(20, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
+  //   verify(remoteLogManager).resizeExpirationThreadPool(20)
+
+  //   verifyNoMoreInteractions(remoteLogManager)
+  // }
 
   @Test
   def testRemoteLogManagerMultipleConfigUpdates(): Unit = {
