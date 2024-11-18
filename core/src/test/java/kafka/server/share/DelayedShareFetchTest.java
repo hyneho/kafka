@@ -65,6 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -127,6 +128,8 @@ public class DelayedShareFetchTest {
         assertFalse(delayedShareFetch.tryComplete());
         assertFalse(delayedShareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(0)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -163,7 +166,7 @@ public class DelayedShareFetchTest {
         // We are testing the case when the share partition is getting fetched for the first time, so for the first time
         // the fetchOffsetMetadata will return empty. Post the readFromLog call, the fetchOffsetMetadata will be
         // populated for the share partition, which has 1 as the positional difference, so it doesn't satisfy the minBytes(2).
-        when(sp0.fetchOffsetMetadata())
+        when(sp0.fetchOffsetMetadata(anyLong()))
             .thenReturn(Optional.empty())
             .thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
         LogOffsetMetadata hwmOffsetMetadata = new LogOffsetMetadata(1, 1, 1);
@@ -182,6 +185,8 @@ public class DelayedShareFetchTest {
         assertFalse(delayedShareFetch.tryComplete());
         assertFalse(delayedShareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -219,7 +224,7 @@ public class DelayedShareFetchTest {
         // functionality to give the file position difference as 1 byte, so it doesn't satisfy the minBytes(2).
         LogOffsetMetadata hwmOffsetMetadata = mock(LogOffsetMetadata.class);
         when(hwmOffsetMetadata.positionDiff(any())).thenReturn(1);
-        when(sp0.fetchOffsetMetadata()).thenReturn(Optional.of(mock(LogOffsetMetadata.class)));
+        when(sp0.fetchOffsetMetadata(anyLong())).thenReturn(Optional.of(mock(LogOffsetMetadata.class)));
         mockTopicIdPartitionFetchBytes(replicaManager, tp0, hwmOffsetMetadata);
 
         DelayedShareFetch delayedShareFetch = spy(DelayedShareFetchBuilder.builder()
@@ -233,6 +238,8 @@ public class DelayedShareFetchTest {
         assertFalse(delayedShareFetch.tryComplete());
         assertFalse(delayedShareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -265,7 +272,7 @@ public class DelayedShareFetchTest {
             ShareAcquiredRecords.fromAcquiredRecords(new ShareFetchResponseData.AcquiredRecords().setFirstOffset(0).setLastOffset(3).setDeliveryCount((short) 1)));
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp0))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
 
-        when(sp0.fetchOffsetMetadata()).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
+        when(sp0.fetchOffsetMetadata(anyLong())).thenReturn(Optional.of(new LogOffsetMetadata(0, 1, 0)));
         mockTopicIdPartitionToReturnDataEqualToMinBytes(replicaManager, tp0, 1);
         DelayedShareFetch delayedShareFetch = spy(DelayedShareFetchBuilder.builder()
             .withShareFetchData(shareFetch)
@@ -278,6 +285,8 @@ public class DelayedShareFetchTest {
         assertTrue(delayedShareFetch.tryComplete());
         assertTrue(delayedShareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -321,6 +330,8 @@ public class DelayedShareFetchTest {
                 any(), any(), any(ReplicaQuota.class), anyBoolean());
         assertTrue(delayedShareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(0)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -368,6 +379,8 @@ public class DelayedShareFetchTest {
         assertTrue(delayedShareFetch.isCompleted());
         assertTrue(shareFetch.isCompleted());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -404,6 +417,8 @@ public class DelayedShareFetchTest {
         // Verifying that the first forceComplete calls acquirablePartitions method in DelayedShareFetch.
         Mockito.verify(delayedShareFetch, times(1)).acquirablePartitions();
         assertEquals(0, future.join().size());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
 
         // Force completing the share fetch request for the second time should hit the future completion check and not
         // proceed ahead in the function.
@@ -412,6 +427,8 @@ public class DelayedShareFetchTest {
         // Verifying that the second forceComplete does not call acquirablePartitions method in DelayedShareFetch.
         Mockito.verify(delayedShareFetch, times(1)).acquirablePartitions();
         Mockito.verify(delayedShareFetch, times(0)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -462,6 +479,8 @@ public class DelayedShareFetchTest {
 
         assertEquals(2, delayedShareFetchPurgatory.watched());
         assertFalse(shareFetch1.isCompleted());
+        assertTrue(delayedShareFetch1.lock().tryLock());
+        delayedShareFetch1.lock().unlock();
 
         Map<TopicIdPartition, Integer> partitionMaxBytes2 = new HashMap<>();
         partitionMaxBytes2.put(tp1, PARTITION_MAX_BYTES);
@@ -499,6 +518,8 @@ public class DelayedShareFetchTest {
         Mockito.verify(replicaManager, times(1)).addToActionQueue(any());
         Mockito.verify(replicaManager, times(0)).tryCompleteActions();
         Mockito.verify(delayedShareFetch2, times(1)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch2.lock().tryLock());
+        delayedShareFetch2.lock().unlock();
     }
 
     @Test
@@ -530,21 +551,21 @@ public class DelayedShareFetchTest {
             .withSharePartitions(sharePartitions)
             .build();
 
-        Map<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = new HashMap<>();
+        LinkedHashMap<TopicIdPartition, FetchRequest.PartitionData> topicPartitionData = new LinkedHashMap<>();
         topicPartitionData.put(tp0, mock(FetchRequest.PartitionData.class));
         topicPartitionData.put(tp1, mock(FetchRequest.PartitionData.class));
 
         // Case 1 - logReadResponse contains tp0.
-        Map<TopicIdPartition, LogReadResult> logReadResponse = Collections.singletonMap(
-            tp0, mock(LogReadResult.class));
+        LinkedHashMap<TopicIdPartition, LogReadResult> logReadResponse = new LinkedHashMap<>();
+        logReadResponse.put(tp0, mock(LogReadResult.class));
 
         doAnswer(invocation -> buildLogReadResult(Collections.singleton(tp1))).when(replicaManager).readFromLog(any(), any(), any(ReplicaQuota.class), anyBoolean());
-        Map<TopicIdPartition, LogReadResult> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
+        LinkedHashMap<TopicIdPartition, LogReadResult> combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
         assertEquals(topicPartitionData.keySet(), combinedLogReadResponse.keySet());
         assertEquals(combinedLogReadResponse.get(tp0), logReadResponse.get(tp0));
 
         // Case 2 - logReadResponse contains tp0 and tp1.
-        logReadResponse = new HashMap<>();
+        logReadResponse = new LinkedHashMap<>();
         logReadResponse.put(tp0, mock(LogReadResult.class));
         logReadResponse.put(tp1, mock(LogReadResult.class));
         combinedLogReadResponse = delayedShareFetch.combineLogReadResponse(topicPartitionData, logReadResponse);
@@ -613,6 +634,8 @@ public class DelayedShareFetchTest {
         Mockito.verify(replicaManager, times(1)).readFromLog(
             any(), any(), any(ReplicaQuota.class), anyBoolean());
         Mockito.verify(delayedShareFetch, times(1)).releasePartitionLocks(any());
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -645,6 +668,8 @@ public class DelayedShareFetchTest {
 
         assertFalse(spy.tryComplete());
         Mockito.verify(sp0, times(1)).releaseFetchLock();
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     @Test
@@ -669,6 +694,8 @@ public class DelayedShareFetchTest {
 
         assertFalse(delayedShareFetch.tryComplete());
         Mockito.verify(sp0, times(1)).releaseFetchLock();
+        assertTrue(delayedShareFetch.lock().tryLock());
+        delayedShareFetch.lock().unlock();
     }
 
     static void mockTopicIdPartitionToReturnDataEqualToMinBytes(ReplicaManager replicaManager, TopicIdPartition topicIdPartition, int minBytes) {
