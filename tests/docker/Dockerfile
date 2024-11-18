@@ -153,4 +153,4 @@ RUN useradd -u $UID -ms /bin/bash ducker \
 
 USER ducker
 
-CMD ["sh", "-c", "sudo service ssh start && tail -f /dev/null"]
+CMD ["sudo", "service", "ssh", "start", "-D"]
