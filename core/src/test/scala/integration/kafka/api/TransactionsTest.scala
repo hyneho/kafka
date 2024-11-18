@@ -699,7 +699,7 @@ class TransactionsTest extends IntegrationTestHarness {
     assertThrows(classOf[IllegalStateException], () => producer.initTransactions())
   }
 
-  @Flaky("KAFKA-18035", "KAFKA-18036")
+  @Flaky("KAFKA-18035,KAFKA-18036")
   @ParameterizedTest
   @CsvSource(Array(
     "kraft,classic,false",
