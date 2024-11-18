@@ -162,4 +162,14 @@ public class QuarantinedPostDiscoveryFilterTest {
         assertTrue(filter.apply(new MockTestDescriptor("o.a.k.Spam", "testEggz", "flaky")).excluded());
     }
 
+    @Test
+    public void testNoCatalogQuarantinedTest() {
+        QuarantinedPostDiscoveryFilter filter = new QuarantinedPostDiscoveryFilter(
+            AutoQuarantinedTestFilter.create(null, true),
+            true
+        );
+        assertTrue(filter.apply(new MockTestDescriptor("o.a.k.Foo", "testBar1", "flaky")).included());
+        assertTrue(filter.apply(new MockTestDescriptor("o.a.k.Foo", "testBar2", "flaky")).included());
+        assertTrue(filter.apply(new MockTestDescriptor("o.a.k.Spam", "testEggs")).excluded());
+    }
 }

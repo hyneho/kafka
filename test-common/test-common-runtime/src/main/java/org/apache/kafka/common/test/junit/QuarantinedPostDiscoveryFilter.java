@@ -28,7 +28,7 @@ import org.junit.platform.launcher.PostDiscoveryFilter;
  * they are sent off to the test engine for execution. The behavior of this
  * filter is controlled by the system property "kafka.test.run.quarantined".
  * If the property is set to "true", then only auto-quarantined and explicitly
- * "@Flaky" tests will be included. If the property is set to "false", then
+ * {@code @Flaky} tests will be included. If the property is set to "false", then
  * only non-quarantined tests will be run.
  * <p>
  * This filter is registered with JUnit using SPI. The test-common-runtime module
@@ -46,7 +46,8 @@ public class QuarantinedPostDiscoveryFilter implements PostDiscoveryFilter {
     private final Filter<TestDescriptor> autoQuarantinedFilter;
     private final boolean runQuarantined;
 
-    // No-arg constructor for SPI
+    // No-arg public constructor for SPI
+    @SuppressWarnings("unused")
     public QuarantinedPostDiscoveryFilter() {
         runQuarantined = System.getProperty(RUN_QUARANTINED_PROP, "false")
             .equalsIgnoreCase("true");
@@ -66,8 +67,10 @@ public class QuarantinedPostDiscoveryFilter implements PostDiscoveryFilter {
         boolean hasTag = testDescriptor.getTags().contains(FLAKY_TEST_TAG);
         FilterResult result = autoQuarantinedFilter.apply(testDescriptor);
         if (runQuarantined) {
-            // If selecting quarantined tests, we include auto-quarantined tests and flaky tests
-            if (result.excluded() && hasTag) {
+            // If selecting quarantined tests, we first check for explicitly flaky tests. If no
+            // flaky tag is set, check the auto-quarantined filter. In the case of a missing test
+            // catalog, the auto-quarantined filter will exclude all tests.
+            if (hasTag) {
                 return FilterResult.included("flaky");
             } else {
                 return result;

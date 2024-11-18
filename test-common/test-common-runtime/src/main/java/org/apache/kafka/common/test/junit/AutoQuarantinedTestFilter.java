@@ -37,13 +37,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * A test filter that automatically quarantines a test that is not present in the test catalog.
- * This filter can be negated by setting the "includeQuarantined" constructor argument to false.
- */
 public class AutoQuarantinedTestFilter implements Filter<TestDescriptor> {
 
-    private static final Filter<TestDescriptor> NO_QUARANTINED_TESTS = testDescriptor -> FilterResult.included(null);
+    private static final Filter<TestDescriptor> INCLUDE_ALL_TESTS = testDescriptor -> FilterResult.included(null);
+    private static final Filter<TestDescriptor> EXCLUDE_ALL_TESTS = testDescriptor -> FilterResult.excluded(null);
+
     private static final Logger log = LoggerFactory.getLogger(AutoQuarantinedTestFilter.class);
 
     private final Set<TestAndMethod> testCatalog;
@@ -84,20 +82,39 @@ public class AutoQuarantinedTestFilter implements Filter<TestDescriptor> {
         }
     }
 
+    private static Filter<TestDescriptor> defaultFilter(boolean includeQuarantined) {
+        if (includeQuarantined) {
+            return EXCLUDE_ALL_TESTS;
+        } else {
+            return INCLUDE_ALL_TESTS;
+        }
+    }
+
     /**
-     * @param includeQuarantined true if this filter should include only the auto-quarantined tests, false to invert this logic
+     * Create a filter that excludes tests that are missing from a given test catalog file.
+     * If no test catalog is given, the default behavior depends on {@code includeQuarantined}.
+     * If true, this filter will exclude all tests. If false, this filter will include all tests.
+     * <p>
+     * The format of the test catalog is a text file where each line has the format of:
+     *
+     * <pre>
+     *     FullyQualifiedClassName "#" MethodName "\n"
+     * </pre>
+     *
+     * @param testCatalogFileName path to a test catalog file
+     * @param includeQuarantined true if this filter should include only the auto-quarantined tests
      */
     public static Filter<TestDescriptor> create(String testCatalogFileName, boolean includeQuarantined) {
         if (testCatalogFileName == null || testCatalogFileName.isEmpty()) {
             log.debug("No test catalog specified, will not quarantine any recently added tests.");
-            return NO_QUARANTINED_TESTS;
+            return defaultFilter(includeQuarantined);
         }
         Path path = Paths.get(testCatalogFileName);
         log.debug("Loading test catalog file {}.", path);
 
         if (!Files.exists(path)) {
             log.error("Test catalog file {} does not exist, will not quarantine any recently added tests.", path);
-            return NO_QUARANTINED_TESTS;
+            return defaultFilter(includeQuarantined);
         }
 
         Set<TestAndMethod> allTests = new HashSet<>();
@@ -110,12 +127,12 @@ public class AutoQuarantinedTestFilter implements Filter<TestDescriptor> {
             }
         } catch (IOException e) {
             log.error("Error while reading test catalog file, will not quarantine any recently added tests.", e);
-            return NO_QUARANTINED_TESTS;
+            return defaultFilter(includeQuarantined);
         }
 
         if (allTests.isEmpty()) {
             log.error("Loaded an empty test catalog, will not quarantine any recently added tests.");
-            return NO_QUARANTINED_TESTS;
+            return defaultFilter(includeQuarantined);
         } else {
             log.debug("Loaded {} test methods from test catalog file {}.", allTests.size(), path);
             return new AutoQuarantinedTestFilter(allTests, includeQuarantined);

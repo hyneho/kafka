@@ -1553,8 +1553,6 @@ project(':test-common') {
     implementation project(':storage')
     implementation project(':server-common')
     implementation libs.slf4jApi
-    implementation libs.junitJupiter
-    implementation libs.junitPlatformLanucher
     testImplementation libs.mockitoCore
     
     testRuntimeOnly runtimeTestLibs
