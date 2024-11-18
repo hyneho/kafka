@@ -112,16 +112,30 @@ public class KafkaRaftClientPreVoteTest {
     public void testHandlePreVoteRequestAsUnattachedObserver() throws Exception {
         int localId = randomReplicaId();
         int epoch = 2;
-        ReplicaKey leader = replicaKey(localId + 1, true);
-        ReplicaKey follower = replicaKey(localId + 2, true);
-        Set<Integer> voters = Utils.mkSet(leader.id(), follower.id());
+        ReplicaKey replica1 = replicaKey(localId + 1, true);
+        ReplicaKey replica2 = replicaKey(localId + 2, true);
+        Set<Integer> voters = Utils.mkSet(replica1.id(), replica2.id());
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withUnknownLeader(epoch)
             .withKip853Rpc(true)
             .build();
 
-        context.deliverRequest(context.preVoteRequest(epoch, follower, epoch, 1));
+        context.deliverRequest(context.preVoteRequest(epoch, replica1, epoch, 1));
+        context.pollUntilResponse();
+
+        assertTrue(context.client.quorum().isUnattached());
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
+
+        // if same replica sends another pre-vote request for the same epoch, it should be granted
+        context.deliverRequest(context.preVoteRequest(epoch, replica1, epoch, 1));
+        context.pollUntilResponse();
+
+        assertTrue(context.client.quorum().isUnattached());
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
+
+        // if different replica sends a pre-vote request for the same epoch, it should be granted
+        context.deliverRequest(context.preVoteRequest(epoch, replica2, epoch, 1));
         context.pollUntilResponse();
 
         assertTrue(context.client.quorum().isUnattached());

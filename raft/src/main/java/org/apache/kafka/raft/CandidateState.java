@@ -276,14 +276,14 @@ public class CandidateState implements EpochState {
 
     @Override
     public boolean canGrantVote(
-        ReplicaKey candidateKey,
+        ReplicaKey replicaKey,
         boolean isLogUpToDate
     ) {
-        // Still reject vote request even candidateId = localId, Although the candidate votes for
+        // Still reject vote request even replicaId = localId, Although the replica votes for
         // itself, this vote is implicit and not "granted".
         log.debug(
-            "Rejecting vote request from candidate ({}) since we are already candidate in epoch {}",
-            candidateKey,
+            "Rejecting vote request from replica ({}) since we are already replica in epoch {}",
+            replicaKey,
             epoch
         );
         return false;
