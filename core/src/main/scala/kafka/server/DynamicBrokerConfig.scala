@@ -801,9 +801,9 @@ object DynamicThreadPool {
       case ReplicationConfigs.NUM_REPLICA_FETCHERS_CONFIG => config.numReplicaFetchers
       case ServerLogConfigs.NUM_RECOVERY_THREADS_PER_DATA_DIR_CONFIG => config.numRecoveryThreadsPerDataDir
       case ServerConfigs.BACKGROUND_THREADS_CONFIG => config.backgroundThreads
-      case RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP => config.remoteLogCopierThreads
-      case RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP => config.remoteLogExpirationThreads
-      case RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP => config.remoteLogReaderThreads
+      case RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP => config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize()
+      case RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP => config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize()
+      case RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP => config.remoteLogManagerConfig.remoteLogReaderThreads()
       case n => throw new IllegalStateException(s"Unexpected config $n")
     }
   }
@@ -827,9 +827,11 @@ class ControllerDynamicThreadPool(controller: ControllerServer) extends BrokerRe
 
 class BrokerDynamicThreadPool(server: KafkaBroker) extends BrokerReconfigurable {
 
-  override def reconfigurableConfigs: Set[String] = {
-    DynamicThreadPool.ReconfigurableConfigs
-  }
+  override def reconfigurableConfigs: Set[String] = Set(
+    ServerConfigs.NUM_IO_THREADS_CONFIG,
+    ReplicationConfigs.NUM_REPLICA_FETCHERS_CONFIG,
+    ServerLogConfigs.NUM_RECOVERY_THREADS_PER_DATA_DIR_CONFIG,
+    ServerConfigs.BACKGROUND_THREADS_CONFIG)
 
   override def validateReconfiguration(newConfig: KafkaConfig): Unit = {
     DynamicThreadPool.validateReconfiguration(server.config, newConfig)
@@ -849,6 +851,7 @@ class BrokerDynamicThreadPool(server: KafkaBroker) extends BrokerReconfigurable 
 
 
 class RemoteLogDynamicThreadPool(server: KafkaBroker) extends BrokerReconfigurable {
+
   override def reconfigurableConfigs: Set[String] = Set(
     RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP,
     RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP,
@@ -859,6 +862,10 @@ class RemoteLogDynamicThreadPool(server: KafkaBroker) extends BrokerReconfigurab
   }
 
   override def reconfigure(oldConfig: KafkaConfig, newConfig: KafkaConfig): Unit = {
+    if (server.remoteLogManagerOpt.isEmpty) {
+      return
+    }
+
     val remoteLogManager = server.remoteLogManagerOpt
     if (newConfig.remoteLogCopierThreads != oldConfig.remoteLogCopierThreads) {
       val oldValue = oldConfig.remoteLogCopierThreads
