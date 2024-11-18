@@ -34,7 +34,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -186,15 +185,11 @@ public class Loggers {
     List<org.apache.logging.log4j.Logger> currentLoggers() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Collection<LoggerConfig> loggerConfigs = context.getConfiguration().getLoggers().values();
-        Set<String> loggerNames = loggerConfigs.stream()
+        return loggerConfigs.stream()
             .map(LoggerConfig::getName)
-            .collect(Collectors.toSet());
-
-        List<org.apache.logging.log4j.Logger> loggers = new ArrayList<>();
-        for (String name : loggerNames) {
-            loggers.add(LogManager.getLogger(name));
-        }
-        return loggers;
+            .distinct()
+            .map(LogManager::getLogger)
+            .collect(Collectors.toUnmodifiableList());
     }
 
     // visible for testing

@@ -17,6 +17,7 @@
 
 package kafka.utils
 
+import org.apache.kafka.common.utils.Utils
 import org.apache.logging.log4j.core.LoggerContext
 import org.apache.logging.log4j.core.config.Configurator
 import org.apache.logging.log4j.{Level, LogManager}
@@ -28,7 +29,13 @@ import scala.jdk.CollectionConverters._
 
 object Log4jController {
 
-  val ROOT_LOGGER = ""
+  /**
+   * Note: In log4j, the root logger's name was "root" and Kafka also followed that name for dynamic logging control feature.
+   *
+   * The root logger's name is changed in log4j2 to empty string (see: [[LogManager.ROOT_LOGGER_NAME]]) but for backward-
+   * compatibility. Kafka keeps its original root logger name. It is why here is a dedicated definition for the root logger name.
+   */
+  val ROOT_LOGGER = "root"
 
   /**
    * Returns a map of the log4j loggers and their assigned log level.
@@ -63,6 +70,9 @@ object Log4jController {
    * @see [[Level.toLevel]]
    */
   def logLevel(loggerName: String, logLevel: String): Boolean = {
+    if (Utils.isBlank(loggerName) || Utils.isBlank(logLevel))
+      return false
+
     val level = Level.toLevel(logLevel.toUpperCase(Locale.ROOT))
 
     if (loggerName == ROOT_LOGGER) {
