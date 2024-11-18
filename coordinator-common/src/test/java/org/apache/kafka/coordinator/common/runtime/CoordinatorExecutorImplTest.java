@@ -19,6 +19,7 @@ package org.apache.kafka.coordinator.common.runtime;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.utils.LogContext;
 
+import org.apache.kafka.server.util.FutureUtils;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -262,5 +263,54 @@ public class CoordinatorExecutorImplTest {
 
         assertTrue(taskCalled.get());
         assertFalse(operationCalled.get());
+    }
+
+    @Test
+    public void testTaskSchedulingWriteOperationFailed() {
+        TopicPartition shard = new TopicPartition("__consumer_offsets", 0);
+
+        CoordinatorRuntime<CoordinatorShard<String>, String> runtime = mock(CoordinatorRuntime.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        CoordinatorExecutorImpl<CoordinatorShard<String>, String> executor = new CoordinatorExecutorImpl<>(
+            new LogContext(),
+            shard,
+            runtime,
+            executorService
+        );
+
+        when(runtime.scheduleWriteOperation(
+            any(),
+            any(),
+            any(),
+            any()
+        )).thenReturn(FutureUtils.failedFuture(new Throwable("Oh no!")));
+
+        when(executorService.submit(any(Runnable.class))).thenAnswer(args -> {
+            Runnable op = args.getArgument(0);
+            op.run();
+            return CompletableFuture.completedFuture(null);
+        });
+
+        AtomicBoolean taskCalled = new AtomicBoolean(false);
+        CoordinatorExecutor.TaskRunnable<String> taskRunnable = () -> {
+            taskCalled.set(true);
+            return "Hello!";
+        };
+
+        AtomicBoolean operationCalled = new AtomicBoolean(false);
+        CoordinatorExecutor.TaskOperation<String, String> taskOperation = (result, exception) -> {
+            operationCalled.set(true);
+            return new CoordinatorResult<>(Collections.emptyList(), null);
+        };
+
+        executor.schedule(
+            "my-task",
+            taskRunnable,
+            taskOperation
+        );
+
+        assertTrue(taskCalled.get());
+        assertFalse(operationCalled.get());
+        assertFalse(executor.isScheduled("my-task"));
     }
 }

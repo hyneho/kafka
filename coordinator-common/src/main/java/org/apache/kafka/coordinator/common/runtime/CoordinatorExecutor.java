@@ -51,7 +51,7 @@ public interface CoordinatorExecutor<T> {
     }
 
     /**
-     * Schedule an asynchronous tasks. Note that only one task for a given key can
+     * Schedule an asynchronous task. Note that only one task for a given key can
      * be executed at the time.
      *
      * @param key       The key to identify the task.

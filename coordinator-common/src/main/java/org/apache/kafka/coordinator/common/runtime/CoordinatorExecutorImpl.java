@@ -76,11 +76,8 @@ public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implement
         TaskRunnable<R> task,
         TaskOperation<U, R> operation
     ) {
-        // If there is already a task in-flight, we reject adding a new one.
-        if (tasks.containsKey(key)) return false;
-
-        // We use the task as a lock for the key.
-        tasks.put(key, task);
+        // Put the task if the key is free. Otherwise, reject it.
+        if (tasks.putIfAbsent(key, task) != null) return false;
 
         // Submit the task.
         executor.submit(() -> {
@@ -88,7 +85,7 @@ public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implement
             // that the task was either replaced or cancelled. We stop.
             if (tasks.get(key) != task) return;
 
-            // Executor the task.
+            // Execute the task.
             final TaskResult<R> result = executeTask(task);
 
             // Schedule the operation.
@@ -107,6 +104,9 @@ public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implement
                     return operation.onComplete(result.result, result.exception);
                 }
             ).exceptionally(exception -> {
+                // Remove the task after a failure.
+                tasks.remove(key, task);
+
                 if (exception instanceof NotCoordinatorException || exception instanceof CoordinatorLoadInProgressException) {
                     log.debug("The write event for the task {} failed due to {}. Ignoring it because " +
                         "the coordinator is not active.", key, exception.getMessage());
