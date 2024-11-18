@@ -10285,7 +10285,6 @@ public class GroupMetadataManagerTest {
         context.sleep(3000 + 1);
         String memberId1 = joinResult.joinFuture.get().memberId();
         ClassicGroup group = context.groupMetadataManager.getOrMaybeCreateClassicGroup(groupId, false);
-
         assertTrue(group.isInState(COMPLETING_REBALANCE));
 
         // A new member 2 with new protocol joins the classic group, triggering the upgrade.
@@ -10300,7 +10299,7 @@ public class GroupMetadataManagerTest {
 
         ConsumerGroupMember expectedMember1 = new ConsumerGroupMember.Builder(memberId1)
             .setMemberEpoch(1)
-            .setPreviousMemberEpoch(0)
+            .setPreviousMemberEpoch(1)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
@@ -10315,7 +10314,7 @@ public class GroupMetadataManagerTest {
 
         ConsumerGroupMember expectedMember2 = new ConsumerGroupMember.Builder(memberId2)
             .setMemberEpoch(2)
-            .setPreviousMemberEpoch(1)
+            .setPreviousMemberEpoch(0)
             .setState(MemberState.STABLE)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
