@@ -47,7 +47,8 @@ plugins {
 
 ext {
   gradleVersion = versions.gradle
-  minJavaVersion = 11
+  minClientJavaVersion = 11
+  minServerJavaVersion = 17
   buildVersionFileName = "kafka-version.properties"
 
   defaultMaxHeapSize = "2g"
@@ -118,28 +119,29 @@ ext {
     // ref: https://github.com/junit-team/junit5/blob/4c0dddad1b96d4a20e92a2cd583954643ac56ac0/junit-jupiter-params/src/main/java/org/junit/jupiter/params/ParameterizedTest.java#L161-L164
 
     def modulesNeedingJava17 = [
-      ":core", ":coordinator-common", ":generator", ":group-coordinator",
-      ":metadata", ":raft", ":server", ":server-common", ":share", ":storage",
-      ":share-coordinator", ":test-common", ":tools", ":transaction-coordinator"
+        ":core", ":coordinator-common", ":generator", ":group-coordinator",
+        ":metadata", ":raft", ":server", ":server-common", ":share", ":storage",
+        ":share-coordinator", ":test-common", ":tools", ":transaction-coordinator"
     ]
 
-    if (name == "compileTestJava" || name == "compileTestScala") {
+    def releaseVersion = modulesNeedingJava17.any { project.path.startsWith(it) } ?
+        minServerJavaVersion : minClientJavaVersion
+
+    options.compilerArgs << "-encoding" << "UTF-8"
+    options.compilerArgs += ["--release", String.valueOf(releaseVersion)]
+
+    if (name in ["compileTestJava", "compileTestScala"]) {
       options.compilerArgs << "-parameters"
-      options.compilerArgs += ["--release", String.valueOf(minJavaVersion)]
-    } else if (name == "compileJava" || name == "compileScala") {
+    } else if (name in ["compileJava", "compileScala"]) {
       options.compilerArgs << "-Xlint:all"
-      if (!project.path.startsWith(":connect") && !project.path.startsWith(":storage"))
+
+      if (!project.path.startsWith(":connect") && !project.path.startsWith(":storage")) {
         options.compilerArgs << "-Xlint:-rawtypes"
-      options.compilerArgs << "-encoding" << "UTF-8"
-      options.compilerArgs << "-Xlint:-rawtypes"
+      }
+
       options.compilerArgs << "-Xlint:-serial"
       options.compilerArgs << "-Xlint:-try"
       options.compilerArgs << "-Werror"
-      if (modulesNeedingJava17.any { project.path.startsWith(it) }) {
-        options.compilerArgs += ["--release", String.valueOf(17)]
-      } else {
-        options.compilerArgs += ["--release", String.valueOf(minJavaVersion)]
-      }
     }
   }
 
@@ -738,6 +740,15 @@ subprojects {
 
   tasks.withType(ScalaCompile) {
 
+    def modulesNeedingJava17 = [
+        ":core", ":coordinator-common", "connect:runtime", "connect:mirror", "connect:test-plugins", "connect:file",
+        ":generator", ":group-coordinator", ":metadata", ":raft", ":server", ":server-common", ":share", ":storage",
+        ":share-coordinator", ":test-common", ":tools", ":transaction-coordinator"
+    ]
+
+    def releaseVersion = modulesNeedingJava17.any { project.path.startsWith(it) } ?
+        minServerJavaVersion : minClientJavaVersion
+
     scalaCompileOptions.keepAliveMode = userKeepAliveMode
 
     scalaCompileOptions.additionalParameters = [
@@ -781,8 +792,7 @@ subprojects {
     scalaCompileOptions.additionalParameters += ["-opt-warnings", "-Xlint:strict-unsealed-patmat"]
     // Scala 2.13.2 introduces compiler warnings suppression, which is a pre-requisite for -Xfatal-warnings
     scalaCompileOptions.additionalParameters += ["-Xfatal-warnings"]
-
-    scalaCompileOptions.additionalParameters += ["-release", String.valueOf(minJavaVersion)]
+    scalaCompileOptions.additionalParameters += ["--release", String.valueOf(releaseVersion)]
 
     configureJavaCompiler(name, options)
 
