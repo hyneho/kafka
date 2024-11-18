@@ -31,7 +31,7 @@ public @interface Flaky {
     /**
      * Required reference to a KAFKA Jira ticket.
      */
-    String value();
+    String[] value();
 
     /**
      * Optional comment describing the reason for quarantined.
