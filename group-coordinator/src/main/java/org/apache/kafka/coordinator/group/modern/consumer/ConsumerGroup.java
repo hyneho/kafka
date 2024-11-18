@@ -32,7 +32,6 @@ import org.apache.kafka.coordinator.group.OffsetExpirationCondition;
 import org.apache.kafka.coordinator.group.OffsetExpirationConditionImpl;
 import org.apache.kafka.coordinator.group.Utils;
 import org.apache.kafka.coordinator.group.classic.ClassicGroup;
-import org.apache.kafka.coordinator.group.classic.ClassicGroupMember;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupMemberMetadataValue;
 import org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetricsShard;
 import org.apache.kafka.coordinator.group.modern.Assignment;
@@ -58,6 +57,7 @@ import java.util.Set;
 
 import static org.apache.kafka.coordinator.group.Utils.toOptional;
 import static org.apache.kafka.coordinator.group.Utils.toTopicPartitionMap;
+import static org.apache.kafka.coordinator.group.classic.ClassicGroupMember.EMPTY_ASSIGNMENT;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.ASSIGNING;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.EMPTY;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.RECONCILING;
@@ -944,7 +944,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
             // The assigned partition can be empty if the member just joined and has never synced.
             // We should accept the empty assignment.
             Map<Uuid, Set<Integer>> assignedPartitions;
-            if (Arrays.equals(classicGroupMember.assignment(), ClassicGroupMember.EMPTY_ASSIGNMENT)) {
+            if (Arrays.equals(classicGroupMember.assignment(), EMPTY_ASSIGNMENT)) {
                 assignedPartitions = Collections.emptyMap();
             } else {
                 assignedPartitions = toTopicPartitionMap(
