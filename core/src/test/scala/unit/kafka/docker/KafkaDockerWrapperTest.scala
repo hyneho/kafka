@@ -36,11 +36,10 @@ class KafkaDockerWrapperTest {
   }
 
   @Test
-  def testPrepareServerConfigs(): Unit = {
+  def testPrepareServerConfigsWithEnvVarsAndMountedFile(): Unit = {
     val (defaultConfigsPath, mountedConfigsPath, finalConfigsPath) = createDirs()
 
     val envVars = Map("KAFKA_ENV_CONFIG" -> "env value")
-
     Files.write(defaultConfigsPath.resolve("server.properties"), "default.config=default value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
     Files.write(mountedConfigsPath.resolve("server.properties"), "mounted.config=mounted value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
     Files.write(finalConfigsPath.resolve("server.properties"), "existing.config=existing value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
@@ -55,11 +54,10 @@ class KafkaDockerWrapperTest {
   }
 
   @Test
-  def testPrepareServerConfigsWithoutMountedFile(): Unit = {
+  def testPrepareServerConfigsWithEnvVarsAndWithoutMountedFile(): Unit = {
     val (defaultConfigsPath, mountedConfigsPath, finalConfigsPath) = createDirs()
 
     val envVars = Map("KAFKA_ENV_CONFIG" -> "env value")
-
     Files.write(defaultConfigsPath.resolve("server.properties"), "default.config=default value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
     Files.write(finalConfigsPath.resolve("server.properties"), "existing.config=existing value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
 
@@ -73,11 +71,10 @@ class KafkaDockerWrapperTest {
   }
 
   @Test
-  def testPrepareServerConfigsWithoutEnvVariables(): Unit = {
+  def testPrepareServerConfigsWithoutEnvVarsAndWithMountedFile(): Unit = {
     val (defaultConfigsPath, mountedConfigsPath, finalConfigsPath) = createDirs()
 
     val envVars = Map.empty[String, String]
-
     Files.write(defaultConfigsPath.resolve("server.properties"), "default.config=default value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
     Files.write(mountedConfigsPath.resolve("server.properties"), "mounted.config=mounted value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
     Files.write(finalConfigsPath.resolve("server.properties"), "existing.config=existing value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
@@ -92,11 +89,10 @@ class KafkaDockerWrapperTest {
   }
 
   @Test
-  def testPrepareServerConfigsWithoutUserInput(): Unit = {
+  def testPrepareServerConfigsWithoutEnvVarsAndWithoutMountedFile(): Unit = {
     val (defaultConfigsPath, mountedConfigsPath, finalConfigsPath) = createDirs()
 
     val envVars = Map.empty[String, String]
-
     Files.write(defaultConfigsPath.resolve("server.properties"), "default.config=default value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
     Files.write(finalConfigsPath.resolve("server.properties"), "existing.config=existing value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
 
@@ -105,6 +101,24 @@ class KafkaDockerWrapperTest {
     val source = scala.io.Source.fromFile(finalConfigsPath.toString + "/server.properties")
     val actual = try source.mkString finally source.close()
     val expected = "default.config=default value"
+
+    assertEquals(expected, actual)
+  }
+
+  @Test
+  def testPrepareServerConfigsWithEmptyMountedFile(): Unit = {
+    val (defaultConfigsPath, mountedConfigsPath, finalConfigsPath) = createDirs()
+
+    val envVars = Map.empty[String, String]
+    Files.write(defaultConfigsPath.resolve("server.properties"), "default.config=default value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
+    Files.write(mountedConfigsPath.resolve("server.properties"), " \n \n ".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
+    Files.write(finalConfigsPath.resolve("server.properties"), "existing.config=existing value".getBytes(StandardCharsets.UTF_8)).toFile.deleteOnExit()
+
+    KafkaDockerWrapper.prepareServerConfigs(defaultConfigsPath, mountedConfigsPath, finalConfigsPath, envVars)
+
+    val source = scala.io.Source.fromFile(finalConfigsPath.toString + "/server.properties")
+    val actual = try source.mkString finally source.close()
+    val expected = " \n \n "
 
     assertEquals(expected, actual)
   }
