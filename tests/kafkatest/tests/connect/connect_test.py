@@ -135,9 +135,12 @@ class ConnectStandaloneFileTest(Test):
             return False
 
     @cluster(num_nodes=5)
-    @parametrize(error_tolerance=ErrorTolerance.NONE, metadata_quorum=quorum.isolated_kraft)
-    @parametrize(error_tolerance=ErrorTolerance.ALL, metadata_quorum=quorum.isolated_kraft)
-    def test_skip_and_log_to_dlq(self, error_tolerance, metadata_quorum, group_protocol):
+    @matrix(
+        error_tolerance=[ErrorTolerance.NONE, ErrorTolerance.ALL],
+        metadata_quorum=[quorum.isolated_kraft],
+        group_protocol=consumer_group.all_group_protocols
+    )
+    def test_skip_and_log_to_dlq(self, error_tolerance, metadata_quorum, group_protocol=consumer_group.classic_group_protocol):
         self.kafka = KafkaService(self.test_context, self.num_brokers, None, topics=self.topics)
 
         # set config props
