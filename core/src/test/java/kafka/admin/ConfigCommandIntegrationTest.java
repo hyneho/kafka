@@ -145,6 +145,7 @@ public class ConfigCommandIntegrationTest {
         try (Admin client = cluster.admin()) {
             NewTopic newTopic = new NewTopic("test-topic", 1, (short) 1);
             client.createTopics(Collections.singleton(newTopic)).all().get();
+            cluster.waitForTopic("test-topic", 1);
         }
 
         Stream<String> command = Stream.concat(quorumArgs(), Stream.of(
