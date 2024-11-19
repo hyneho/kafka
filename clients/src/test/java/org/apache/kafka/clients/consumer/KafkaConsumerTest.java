@@ -21,6 +21,8 @@ import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.KafkaClient;
 import org.apache.kafka.clients.MockClient;
 import org.apache.kafka.clients.NodeApiVersions;
+import org.apache.kafka.clients.consumer.internals.AsyncKafkaConsumer;
+import org.apache.kafka.clients.consumer.internals.ClassicKafkaConsumer;
 import org.apache.kafka.clients.consumer.internals.ConsumerMetadata;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
 import org.apache.kafka.clients.consumer.internals.MockRebalanceListener;
@@ -91,6 +93,7 @@ import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetrySender;
+import org.apache.kafka.common.utils.LogCaptureAppender;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.Time;
@@ -99,6 +102,7 @@ import org.apache.kafka.test.MockConsumerInterceptor;
 import org.apache.kafka.test.MockMetricsReporter;
 import org.apache.kafka.test.TestUtils;
 
+import org.apache.log4j.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -157,7 +161,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -253,20 +256,15 @@ public class KafkaConsumerTest {
         Properties props = new Properties();
         props.setProperty(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name());
         props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
-        consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
-
-        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(consumer.metrics());
-        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-        
-        Object lock = new Object();
-        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
-        KafkaMetric metricCopy = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
-        consumer.registerMetricForSubscription(metricCopy);
-
-        sortedMetrics = new LinkedHashMap<>(consumer.metrics());
-        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-        assertSame(firstMetric, secondMetric);
-        assertNotSame(firstMetric, metricCopy);
+        Class<?> consumerClass = groupProtocol == GroupProtocol.CLASSIC ? ClassicKafkaConsumer.class : AsyncKafkaConsumer.class;
+        try (final LogCaptureAppender appender = LogCaptureAppender.createAndRegister()) {
+            appender.setClassLogger(consumerClass, Level.DEBUG);
+            consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
+            KafkaMetric existingMetricToAdd = (KafkaMetric) consumer.metrics().entrySet().iterator().next().getValue();
+            consumer.registerMetricForSubscription(existingMetricToAdd);
+            final String expectedMessage = String.format("Metric %s already registered consumer metric", existingMetricToAdd.metricName());
+            assertTrue(appender.getMessages().stream().anyMatch(m -> m.contains(expectedMessage)));
+        }
     }
 
     @ParameterizedTest
@@ -275,20 +273,15 @@ public class KafkaConsumerTest {
         Properties props = new Properties();
         props.setProperty(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name());
         props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
-        consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
-
-        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(consumer.metrics());
-        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-
-        Object lock = new Object();
-        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
-        KafkaMetric metricToRemove = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
-        consumer.unregisterMetricFromSubscription(metricToRemove);
-
-        sortedMetrics = new LinkedHashMap<>(consumer.metrics());
-        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-        assertSame(firstMetric, secondMetric);
-        assertNotSame(firstMetric, metricToRemove);
+        Class<?> consumerClass = groupProtocol == GroupProtocol.CLASSIC ? ClassicKafkaConsumer.class : AsyncKafkaConsumer.class;
+        try (final LogCaptureAppender appender = LogCaptureAppender.createAndRegister()) {
+            appender.setClassLogger(consumerClass, Level.DEBUG);
+            consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
+            KafkaMetric existingMetricToRemove = (KafkaMetric) consumer.metrics().entrySet().iterator().next().getValue();
+            consumer.unregisterMetricFromSubscription(existingMetricToRemove);
+            final String expectedMessage = String.format("Metric %s is a standard consumer metric, won't unregister", existingMetricToRemove.metricName());
+            assertTrue(appender.getMessages().stream().anyMatch(m -> m.contains(expectedMessage)));
+        }
     }
 
     @ParameterizedTest
