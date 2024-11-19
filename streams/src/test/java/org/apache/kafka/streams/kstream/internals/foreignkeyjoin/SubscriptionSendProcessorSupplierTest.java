@@ -45,7 +45,7 @@ public class SubscriptionSendProcessorSupplierTest {
 
     private final Processor<String, Change<LeftValue>, String, SubscriptionWrapper<String>> leftJoinProcessor =
         new SubscriptionSendProcessorSupplier<String, String, LeftValue>(
-            LeftValue::getForeignKey,
+            ForeignKeyExtractor.fromFunction(LeftValue::getForeignKey),
             () -> "subscription-topic-fk",
             () -> "value-serde-topic",
             Serdes.String(),
@@ -55,7 +55,7 @@ public class SubscriptionSendProcessorSupplierTest {
 
     private final Processor<String, Change<LeftValue>, String, SubscriptionWrapper<String>> innerJoinProcessor =
         new SubscriptionSendProcessorSupplier<String, String, LeftValue>(
-            LeftValue::getForeignKey,
+            ForeignKeyExtractor.fromFunction(LeftValue::getForeignKey),
             () -> "subscription-topic-fk",
             () -> "value-serde-topic",
             Serdes.String(),
