@@ -71,7 +71,7 @@ public interface Group {
         static String[] documentValidValues() {
             return Arrays.stream(GroupType.values())
                 .filter(type -> type != UNKNOWN)
-                .map(GroupType::name)
+                .map(GroupType::toString)
                 .toArray(String[]::new);
         }
     }
