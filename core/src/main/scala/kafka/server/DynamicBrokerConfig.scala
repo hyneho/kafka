@@ -866,18 +866,20 @@ class RemoteLogDynamicThreadPool(server: KafkaBroker) extends BrokerReconfigurab
       return
     }
 
-    val remoteLogManager = server.remoteLogManagerOpt
-    if (newConfig.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize() != oldConfig.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize()) {
-      val newValue = newConfig.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize()
-      remoteLogManager.get.resizeCopierThreadPool(newValue)
+    val remoteLogManager = server.remoteLogManagerOpt.get
+    val oldRLMConfig = oldConfig.remoteLogManagerConfig
+    val newRLMConfig = newConfig.remoteLogManagerConfig
+    if (newRLMConfig.remoteLogManagerCopierThreadPoolSize() != oldRLMConfig.remoteLogManagerCopierThreadPoolSize()) {
+      val newValue = newRLMConfig.remoteLogManagerCopierThreadPoolSize()
+      remoteLogManager.resizeCopierThreadPool(newValue)
     }
-    if (newConfig.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize() != oldConfig.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize()) {
-      val newValue = newConfig.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize()
-      remoteLogManager.get.resizeExpirationThreadPool(newValue)
+    if (newRLMConfig.remoteLogManagerExpirationThreadPoolSize() != oldRLMConfig.remoteLogManagerExpirationThreadPoolSize()) {
+      val newValue = newRLMConfig.remoteLogManagerExpirationThreadPoolSize()
+      remoteLogManager.resizeExpirationThreadPool(newValue)
     }
-    if (newConfig.remoteLogManagerConfig.remoteLogReaderThreads() != oldConfig.remoteLogManagerConfig.remoteLogReaderThreads()) {
-      val newValue = newConfig.remoteLogManagerConfig.remoteLogReaderThreads()
-      remoteLogManager.get.resizeReaderThreadPool(newValue)
+    if (newRLMConfig.remoteLogReaderThreads() != oldRLMConfig.remoteLogReaderThreads()) {
+      val newValue = newRLMConfig.remoteLogReaderThreads()
+      remoteLogManager.resizeReaderThreadPool(newValue)
     }
   }
 }
@@ -1261,6 +1263,6 @@ object DynamicRemoteLogConfig {
     RemoteLogManagerConfig.REMOTE_FETCH_MAX_WAIT_MS_PROP,
     RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPY_MAX_BYTES_PER_SECOND_PROP,
     RemoteLogManagerConfig.REMOTE_LOG_MANAGER_FETCH_MAX_BYTES_PER_SECOND_PROP,
-    RemoteLogManagerConfig.REMOTE_LIST_OFFSETS_REQUEST_TIMEOUT_MS_PROP,
+    RemoteLogManagerConfig.REMOTE_LIST_OFFSETS_REQUEST_TIMEOUT_MS_PROP
   )
 }
