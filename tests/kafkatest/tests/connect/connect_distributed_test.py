@@ -189,6 +189,7 @@ class ConnectDistributedTest(Test):
     def test_restart_failed_connector(self, exactly_once_source, connect_protocol, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         self.EXACTLY_ONCE_SOURCE_SUPPORT = 'enabled' if exactly_once_source else 'disabled'
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -225,6 +226,7 @@ class ConnectDistributedTest(Test):
     def test_restart_failed_task(self, connector_type, connect_protocol, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         self.EXACTLY_ONCE_SOURCE_SUPPORT = 'enabled' if connector_type == 'exactly-once source' else 'disabled'
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -261,6 +263,7 @@ class ConnectDistributedTest(Test):
     )
     def test_restart_connector_and_tasks_failed_connector(self, connect_protocol, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -293,6 +296,7 @@ class ConnectDistributedTest(Test):
     )
     def test_restart_connector_and_tasks_failed_task(self, connector_type, connect_protocol, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -319,9 +323,17 @@ class ConnectDistributedTest(Test):
         exactly_once_source=[True, False],
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[True, False]
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
-    def test_pause_and_resume_source(self, exactly_once_source, connect_protocol, metadata_quorum, use_new_coordinator=False):
+    @matrix(
+        exactly_once_source=[True, False],
+        connect_protocol=['sessioned', 'compatible', 'eager'],
+        metadata_quorum=[quorum.isolated_kraft],
+        use_new_coordinator=[True],
+        group_protocol=consumer_group.all_group_protocols
+    )
+    def test_pause_and_resume_source(self, exactly_once_source, connect_protocol, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """
         Verify that source connectors stop producing records when paused and begin again after
         being resumed.
@@ -329,6 +341,7 @@ class ConnectDistributedTest(Test):
 
         self.EXACTLY_ONCE_SOURCE_SUPPORT = 'enabled' if exactly_once_source else 'disabled'
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -381,6 +394,7 @@ class ConnectDistributedTest(Test):
         """
 
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -425,15 +439,24 @@ class ConnectDistributedTest(Test):
         exactly_once_source=[True, False],
         connect_protocol=['sessioned', 'compatible', 'eager'],
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[True, False]
+        use_new_coordinator=[False],
+        group_protocol=[consumer_group.classic_group_protocol]
     )
-    def test_pause_state_persistent(self, exactly_once_source, connect_protocol, metadata_quorum, use_new_coordinator=False):
+    @matrix(
+        exactly_once_source=[True, False],
+        connect_protocol=['sessioned', 'compatible', 'eager'],
+        metadata_quorum=[quorum.isolated_kraft],
+        use_new_coordinator=[True],
+        group_protocol=consumer_group.all_group_protocols
+    )
+    def test_pause_state_persistent(self, exactly_once_source, connect_protocol, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         """
         Verify that paused state is preserved after a cluster restart.
         """
 
         self.EXACTLY_ONCE_SOURCE_SUPPORT = 'enabled' if exactly_once_source else 'disabled'
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -657,6 +680,7 @@ class ConnectDistributedTest(Test):
 
         self.EXACTLY_ONCE_SOURCE_SUPPORT = 'enabled' if exactly_once_source else 'disabled'
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services(security_protocol=security_protocol, include_filestream_connectors=True)
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
 
@@ -708,6 +732,7 @@ class ConnectDistributedTest(Test):
         num_tasks = 3
 
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -842,6 +867,7 @@ class ConnectDistributedTest(Test):
 
         self.EXACTLY_ONCE_SOURCE_SUPPORT = 'enabled'
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services()
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
@@ -946,6 +972,7 @@ class ConnectDistributedTest(Test):
     )
     def test_transformations(self, connect_protocol, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
         self.CONNECT_PROTOCOL = connect_protocol
+        self.GROUP_PROTOCOL = group_protocol
         self.setup_services(timestamp_type='CreateTime', include_filestream_connectors=True)
         self.cc.set_configs(lambda node: self.render("connect-distributed.properties", node=node))
         self.cc.start()
