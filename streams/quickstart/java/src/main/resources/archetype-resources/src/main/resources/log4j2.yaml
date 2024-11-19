@@ -1,9 +1,9 @@
 # Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
+# contributor license agreements. See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
 # The ASF licenses this file to You under the Apache License, Version 2.0
 # (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
+# the License. You may obtain a copy of the License at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -12,25 +12,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# Root logger configuration
-name=TestConfig
 
-# Appender configuration
-appender=console
-appender.console.type=Console
-appender.console.name=STDOUT
-appender.console.layout.type=PatternLayout
-appender.console.layout.pattern=[%d] %p %m (%c:%L)%n
+Configuration:
+  Properties:
+    Property:
+      - name: "logPattern"
+        value: "%d{HH:mm:ss,SSS} %-5p %-60c %x - %m%n"
 
-rootLogger.level=OFF
-rootLogger.appenderRefs=console
-rootLogger.appenderRef.console.ref=STDOUT
+  Appenders:
+    Console:
+      name: STDOUT
+      PatternLayout:
+        pattern: "${logPattern}"
 
-loggers=kafka,apacheKafka
-
-# Logger configurations
-logger.kafka.name=kafka
-logger.kafka.level=WARN
-
-logger.apacheKafka.name=org.apache.kafka
-logger.apacheKafka.level=WARN
+  Loggers:
+    Root:
+      level: INFO
+      AppenderRef:
+        - ref: STDOUT

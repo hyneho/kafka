@@ -173,6 +173,7 @@ allprojects {
           libs.scalaLibrary,
           libs.scalaReflect,
           libs.jacksonAnnotations,
+          libs.jacksonDatabindYaml,
           // be explicit about the Netty dependency version instead of relying on the version set by
           // ZooKeeper (potentially older and containing CVEs)
           libs.nettyHandler,
@@ -1090,6 +1091,7 @@ project(':core') {
     implementation libs.log4j2Core
     implementation libs.log4j2Api
     implementation libs.log4j1Bridge2Api
+    implementation libs.jacksonDatabindYaml
 
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':group-coordinator').sourceSets.test.output
@@ -1366,6 +1368,7 @@ project(':metadata') {
     compileOnly libs.log4j2Api
     compileOnly libs.log4j2Core
     compileOnly libs.log4j1Bridge2Api
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.jqwik
     testImplementation libs.mockitoCore
@@ -1494,6 +1497,7 @@ project(':group-coordinator') {
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':server-common').sourceSets.test.output
     testImplementation project(':coordinator-common').sourceSets.test.output
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
 
@@ -1556,6 +1560,7 @@ project(':test-common') {
     implementation project(':storage')
     implementation project(':server-common')
     implementation libs.slf4jApi
+    implementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
 
@@ -1857,6 +1862,7 @@ project(':clients') {
 
     testImplementation libs.bcpkix
     testImplementation libs.jacksonJaxrsJsonProvider
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.jose4j
     testImplementation libs.junitJupiter
     testImplementation libs.log4j2Api
@@ -2025,11 +2031,13 @@ project(':raft') {
     implementation project(':clients')
     implementation libs.slf4jApi
     implementation libs.jacksonDatabind
+    implementation libs.jacksonDatabindYaml
 
     testImplementation project(':server-common')
     testImplementation project(':server-common').sourceSets.test.output
     testImplementation project(':clients')
     testImplementation project(':clients').sourceSets.test.output
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
     testImplementation libs.jqwik
@@ -2125,6 +2133,7 @@ project(':server-common') {
 
     testImplementation project(':clients')
     testImplementation project(':clients').sourceSets.test.output
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
 
@@ -2258,6 +2267,7 @@ project(':storage') {
     testImplementation project(':server-common')
     testImplementation project(':server-common').sourceSets.test.output
     testImplementation libs.hamcrest
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
     testImplementation libs.bcpkix
@@ -2566,6 +2576,7 @@ project(':shell') {
     testImplementation project(':core')
     testImplementation project(':server-common')
     testImplementation project(':server-common').sourceSets.test.output
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
 
     testRuntimeOnly runtimeTestLibs
@@ -2617,6 +2628,7 @@ project(':streams') {
     testImplementation libs.log4j2Api
     testImplementation libs.log4j2Core
     testImplementation libs.log4j1Bridge2Api
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.bcpkix
     testImplementation libs.hamcrest
@@ -2763,6 +2775,7 @@ project(':streams:streams-scala') {
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':streams:test-utils')
 
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoJunitJupiter // supports MockitoExtension
     testRuntimeOnly runtimeTestLibs
@@ -2819,6 +2832,7 @@ project(':streams:integration-tests') {
     testImplementation project(':transaction-coordinator')
     testImplementation libs.bcpkix
     testImplementation libs.hamcrest
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.junitPlatformSuiteEngine // supports suite test
     testImplementation libs.mockitoCore
@@ -2864,6 +2878,7 @@ project(':streams:test-utils') {
     implementation libs.slf4jApi
 
     testImplementation project(':clients').sourceSets.test.output
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
     testImplementation libs.hamcrest
@@ -3554,6 +3569,7 @@ project(':connect:runtime') {
     testImplementation project(':server-common').sourceSets.test.output
     testImplementation project(':test-common:test-common-api')
 
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
     testImplementation libs.mockitoJunitJupiter
@@ -3659,6 +3675,7 @@ project(':connect:file') {
     runtimeOnly libs.log4j2Core
     runtimeOnly libs.log4j1Bridge2Api
 
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoCore
 
@@ -3765,6 +3782,7 @@ project(':connect:mirror') {
     testImplementation libs.log4j2Core
     testImplementation libs.log4j1Bridge2Api
     testImplementation libs.bndlib
+    testImplementation libs.jacksonDatabindYaml
     testImplementation libs.mockitoCore
     testImplementation project(':clients').sourceSets.test.output
     testImplementation project(':connect:runtime').sourceSets.test.output

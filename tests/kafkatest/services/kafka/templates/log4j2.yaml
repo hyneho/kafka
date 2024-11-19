@@ -1,0 +1,289 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+Configuration:
+  Properties:
+    Property:
+      - name: "log_dir"
+        value: "/var/log/kafka"
+      - name: "log_level"
+        value: "DEBUG"
+      - name: "logPattern"
+        value: "[%d] %p %m (%c)%n"
+
+  Appenders:
+    Console:
+      name: STDOUT
+      PatternLayout:
+        pattern: "${logPattern}"
+
+    RollingFile:
+      - name: KafkaInfoAppender
+        fileName: "${sys:log_dir}/info/server.log"
+        filePattern: "${sys:log_dir}/info/server.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+
+      - name: KafkaDebugAppender
+        fileName: "${sys:log_dir}/debug/server.log"
+        filePattern: "${sys:log_dir}/debug/server.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: DEBUG
+
+      - name: StateChangeInfoAppender
+        fileName: "${sys:log_dir}/info/state-change.log"
+        filePattern: "${sys:log_dir}/info/state-change.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+
+      - name: StateChangeDebugAppender
+        fileName: "${sys:log_dir}/debug/state-change.log"
+        filePattern: "${sys:log_dir}/debug/state-change.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: DEBUG
+
+      - name: RequestInfoAppender
+        fileName: "${sys:log_dir}/info/kafka-request.log"
+        filePattern: "${sys:log_dir}/info/kafka-request.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+
+      - name: RequestDebugAppender
+        fileName: "${sys:log_dir}/debug/kafka-request.log"
+        filePattern: "${sys:log_dir}/debug/kafka-request.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: DEBUG
+
+      - name: CleanerInfoAppender
+        fileName: "${sys:log_dir}/info/log-cleaner.log"
+        filePattern: "${sys:log_dir}/info/log-cleaner.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+
+      - name: CleanerDebugAppender
+        fileName: "${sys:log_dir}/debug/log-cleaner.log"
+        filePattern: "${sys:log_dir}/debug/log-cleaner.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: DEBUG
+
+      - name: ControllerInfoAppender
+        fileName: "${sys:log_dir}/info/controller.log"
+        filePattern: "${sys:log_dir}/info/controller.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+
+      - name: ControllerDebugAppender
+        fileName: "${sys:log_dir}/debug/controller.log"
+        filePattern: "${sys:log_dir}/debug/controller.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: DEBUG
+
+      - name: AuthorizerInfoAppender
+        fileName: "${sys:log_dir}/info/kafka-authorizer.log"
+        filePattern: "${sys:log_dir}/info/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+
+      - name: AuthorizerDebugAppender
+        fileName: "${sys:log_dir}/debug/kafka-authorizer.log"
+        filePattern: "${sys:log_dir}/debug/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        Policies:
+          TimeBasedTriggeringPolicy:
+            interval: 1
+        Filters:
+          ThresholdFilter:
+            level: DEBUG
+
+  Loggers:
+    Root:
+      level: "${sys:log_level}"
+      AppenderRef:
+        - ref: STDOUT
+
+    Logger:
+      - name: kafka.producer.async.DefaultEventHandler
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: KafkaInfoAppender
+          - ref: KafkaDebugAppender
+
+      - name: kafka.client.ClientUtils
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: KafkaInfoAppender
+          - ref: KafkaDebugAppender
+
+      - name: kafka.perf
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: KafkaInfoAppender
+          - ref: KafkaDebugAppender
+
+      - name: kafka.perf.ProducerPerformance$ProducerThread
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: KafkaInfoAppender
+          - ref: KafkaDebugAppender
+
+      - name: kafka
+        level: "${sys:log_level}"
+        AppenderRef:
+          - ref: KafkaInfoAppender
+          - ref: KafkaDebugAppender
+
+      - name: kafka.network.RequestChannel$
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: RequestInfoAppender
+          - ref: RequestDebugAppender
+
+      - name: kafka.network.Processor
+        level: "${sys:log_level}"
+        AppenderRef:
+          - ref: RequestInfoAppender
+          - ref: RequestDebugAppender
+
+      - name: kafka.server.KafkaApis
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: RequestInfoAppender
+          - ref: RequestDebugAppender
+
+      - name: kafka.request.logger
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: RequestInfoAppender
+          - ref: RequestDebugAppender
+
+      - name: org.apache.kafka.raft
+        level: "${sys:log_level}"
+        AppenderRef:
+          - ref: ControllerInfoAppender
+          - ref: ControllerDebugAppender
+
+      - name: org.apache.kafka.controller
+        level: "${sys:log_level}"
+        AppenderRef:
+          - ref: ControllerInfoAppender
+          - ref: ControllerDebugAppender
+
+      - name: kafka.controller
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: ControllerInfoAppender
+          - ref: ControllerDebugAppender
+
+      - name: kafka.log.LogCleaner
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: CleanerInfoAppender
+          - ref: CleanerDebugAppender
+
+      - name: state.change.logger
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: StateChangeInfoAppender
+          - ref: StateChangeDebugAppender
+
+      - name: kafka.authorizer.logger
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: AuthorizerInfoAppender
+          - ref: AuthorizerDebugAppender
+
+      - name: org.apache.kafka.coordinator.group
+        level: "${sys:log_level}"
+        additivity: false
+        AppenderRef:
+          - ref: KafkaInfoAppender
+          - ref: KafkaDebugAppender

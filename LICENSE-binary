@@ -220,6 +220,7 @@ jackson-annotations-2.16.2
 jackson-core-2.16.2
 jackson-databind-2.16.2
 jackson-dataformat-csv-2.16.2
+jackson-dataformat-yaml-2.16.2
 jackson-datatype-jdk8-2.16.2
 jackson-jaxrs-base-2.16.2
 jackson-jaxrs-json-provider-2.16.2
