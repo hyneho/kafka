@@ -274,7 +274,7 @@ public class ReplicationControlManagerTest {
                 setClusterControl(clusterControl).
                 setCreateTopicPolicy(createTopicPolicy).
                 setFeatureControl(featureControl).
-                setOffsetControl(offsetControlManager).
+                setLastStableOffsetProvider(() -> offsetControlManager.lastStableOffset()).
                 build();
             clusterControl.activate();
         }
@@ -512,7 +512,7 @@ public class ReplicationControlManagerTest {
                 replay(fenceResult.records());
             } while (fenceResult.response().booleanValue());
 
-            assertEquals(brokerIds, clusterControl.fencedBrokerIds());
+            assertEquals(brokerIds, fencedBrokerIds());
         }
 
         long currentBrokerEpoch(int brokerId) {
@@ -536,6 +536,15 @@ public class ReplicationControlManagerTest {
             replay(result.records());
             return result;
         }
+
+        Set<Integer> fencedBrokerIds() {
+            return clusterControl.brokerRegistrations().values()
+                    .stream()
+                    .filter(BrokerRegistration::fenced)
+                    .map(BrokerRegistration::id)
+                    .collect(Collectors.toSet());
+        }
+
     }
 
     static CreateTopicsResponseData withoutConfigs(CreateTopicsResponseData data) {
@@ -2454,7 +2463,7 @@ public class ReplicationControlManagerTest {
         Uuid fooId = ctx.createTestTopic("foo", new int[][]{
             new int[]{1, 2, 3}, new int[]{2, 3, 4}, new int[]{0, 2, 1}}).topicId();
 
-        assertTrue(ctx.clusterControl.fencedBrokerIds().isEmpty());
+        assertTrue(ctx.fencedBrokerIds().isEmpty());
         ctx.fenceBrokers(Set.of(2, 3));
 
         PartitionRegistration partition0 = replication.getPartition(fooId, 0);

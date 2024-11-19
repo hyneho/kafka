@@ -1425,30 +1425,6 @@ public final class QuorumController implements Controller {
     private volatile int curClaimEpoch;
 
     /**
-     * How long to delay partition leader balancing operations.
-     */
-    private final OptionalLong leaderImbalanceCheckIntervalNs;
-
-    private enum ImbalanceSchedule {
-        // The leader balancing operation has been scheduled
-        SCHEDULED,
-        // If the leader balancing operation should be scheduled, schedule it with a delay
-        DEFERRED,
-        // If the leader balancing operation should be scheduled, schedule it immediately
-        IMMEDIATELY
-    }
-
-    /**
-     * Tracks the scheduling state for partition leader balancing operations.
-     */
-    private final ImbalanceSchedule imbalancedScheduled = ImbalanceSchedule.DEFERRED;
-
-    /**
-     * Tracks the scheduling state for unclean leader election operations.
-     */
-    private final ImbalanceSchedule uncleanScheduled = ImbalanceSchedule.DEFERRED;
-
-    /**
      * The bootstrap metadata to use for initialization if needed.
      */
     private final BootstrapMetadata bootstrapMetadata;
@@ -1505,12 +1481,6 @@ public final class QuorumController implements Controller {
         this.controllerMetrics = controllerMetrics;
         this.snapshotRegistry = new SnapshotRegistry(logContext);
         this.deferredEventQueue = new DeferredEventQueue(logContext);
-        this.offsetControl = new OffsetControlManager.Builder().
-            setLogContext(logContext).
-            setSnapshotRegistry(snapshotRegistry).
-            setMetrics(controllerMetrics).
-            setTime(time).
-            build();
         this.resourceExists = new ConfigResourceExistenceChecker();
         this.configurationControl = new ConfigurationControlManager.Builder().
             setLogContext(logContext).
@@ -1561,7 +1531,6 @@ public final class QuorumController implements Controller {
             setSnapshotRegistry(snapshotRegistry).
             setClusterControlManager(clusterControl).
             build();
-        this.leaderImbalanceCheckIntervalNs = leaderImbalanceCheckIntervalNs;
         this.replicationControl = new ReplicationControlManager.Builder().
             setSnapshotRegistry(snapshotRegistry).
             setLogContext(logContext).
@@ -1572,7 +1541,7 @@ public final class QuorumController implements Controller {
             setClusterControl(clusterControl).
             setCreateTopicPolicy(createTopicPolicy).
             setFeatureControl(featureControl).
-            setOffsetControl(offsetControl).
+            setLastStableOffsetProvider(this::getLastStableOffset).
             build();
         this.scramControlManager = new ScramControlManager.Builder().
             setLogContext(logContext).
@@ -1608,6 +1577,14 @@ public final class QuorumController implements Controller {
         registerElectUnclean(TimeUnit.MILLISECONDS.toNanos(uncleanLeaderElectionCheckIntervalMs));
         registerExpireDelegationTokens(MILLISECONDS.toNanos(delegationTokenExpiryCheckIntervalMs));
 
+        // OffsetControlManager must be initialized last, because its constructor will take the
+        // initial in-memory snapshot of all extant timeline data structures.
+        this.offsetControl = new OffsetControlManager.Builder().
+            setLogContext(logContext).
+            setSnapshotRegistry(snapshotRegistry).
+            setMetrics(controllerMetrics).
+            setTime(time).
+            build();
         log.info("Creating new QuorumController with clusterId {}", clusterId);
 
         this.raftClient.register(metaLogListener);
@@ -2163,5 +2140,9 @@ public final class QuorumController implements Controller {
 
     void handleUncleanBrokerShutdown(int brokerId, List<ApiMessageAndVersion> records) {
         replicationControl.handleBrokerUncleanShutdown(brokerId, records);
+    }
+
+    long getLastStableOffset() {
+        return offsetControl.lastStableOffset();
     }
 }
