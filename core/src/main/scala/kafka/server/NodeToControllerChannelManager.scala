@@ -187,6 +187,7 @@ class NodeToControllerChannelManagerImpl(
         Math.min(Int.MaxValue, Math.min(config.controllerSocketTimeoutMs, retryTimeoutMs)).toInt, // request timeout should not exceed the provided retry timeout
         config.connectionSetupTimeoutMs,
         config.connectionSetupTimeoutMaxMs,
+        Optional.empty(),
         time,
         true,
         apiVersions,
