@@ -95,6 +95,7 @@ import org.apache.kafka.metadata.placement.PlacementSpec;
 import org.apache.kafka.metadata.placement.TopicAssignment;
 import org.apache.kafka.metadata.placement.UsableBroker;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
+import org.apache.kafka.server.common.EligibleLeaderReplicasVersion;
 import org.apache.kafka.server.common.TopicIdPartition;
 import org.apache.kafka.server.mutable.BoundedList;
 import org.apache.kafka.server.policy.CreateTopicPolicy;
@@ -165,7 +166,7 @@ public class ReplicationControlManager {
         private ClusterControlManager clusterControl = null;
         private Optional<CreateTopicPolicy> createTopicPolicy = Optional.empty();
         private FeatureControlManager featureControl = null;
-        private boolean eligibleLeaderReplicasEnabled = false;
+        private OffsetControlManager offsetControl = null;
 
         Builder setSnapshotRegistry(SnapshotRegistry snapshotRegistry) {
             this.snapshotRegistry = snapshotRegistry;
@@ -184,11 +185,6 @@ public class ReplicationControlManager {
 
         Builder setDefaultNumPartitions(int defaultNumPartitions) {
             this.defaultNumPartitions = defaultNumPartitions;
-            return this;
-        }
-
-        Builder setEligibleLeaderReplicasEnabled(boolean eligibleLeaderReplicasEnabled) {
-            this.eligibleLeaderReplicasEnabled = eligibleLeaderReplicasEnabled;
             return this;
         }
 
@@ -217,6 +213,11 @@ public class ReplicationControlManager {
             return this;
         }
 
+        public Builder setOffsetControl(OffsetControlManager offsetControl) {
+            this.offsetControl = offsetControl;
+            return this;
+        }
+
         ReplicationControlManager build() {
             if (configurationControl == null) {
                 throw new IllegalStateException("Configuration control must be set before building");
@@ -233,11 +234,11 @@ public class ReplicationControlManager {
                 defaultReplicationFactor,
                 defaultNumPartitions,
                 maxElectionsPerImbalance,
-                eligibleLeaderReplicasEnabled,
                 configurationControl,
                 clusterControl,
                 createTopicPolicy,
-                featureControl);
+                featureControl,
+                offsetControl);
         }
     }
 
@@ -306,11 +307,6 @@ public class ReplicationControlManager {
     private final int defaultNumPartitions;
 
     /**
-     * True if eligible leader replicas is enabled.
-     */
-    private final boolean eligibleLeaderReplicasEnabled;
-
-    /**
      * Maximum number of leader elections to perform during one partition leader balancing operation.
      */
     private final int maxElectionsPerImbalance;
@@ -334,6 +330,11 @@ public class ReplicationControlManager {
      * The feature control manager.
      */
     private final FeatureControlManager featureControl;
+
+    /**
+     * The offset control manager.
+     */
+    private final OffsetControlManager offsetControl;
 
     /**
      * Maps topic names to topic UUIDs.
@@ -399,21 +400,21 @@ public class ReplicationControlManager {
         short defaultReplicationFactor,
         int defaultNumPartitions,
         int maxElectionsPerImbalance,
-        boolean eligibleLeaderReplicasEnabled,
         ConfigurationControlManager configurationControl,
         ClusterControlManager clusterControl,
         Optional<CreateTopicPolicy> createTopicPolicy,
-        FeatureControlManager featureControl
+        FeatureControlManager featureControl,
+        OffsetControlManager offsetControl
     ) {
         this.snapshotRegistry = snapshotRegistry;
         this.log = logContext.logger(ReplicationControlManager.class);
         this.defaultReplicationFactor = defaultReplicationFactor;
         this.defaultNumPartitions = defaultNumPartitions;
         this.maxElectionsPerImbalance = maxElectionsPerImbalance;
-        this.eligibleLeaderReplicasEnabled = eligibleLeaderReplicasEnabled;
         this.configurationControl = configurationControl;
         this.createTopicPolicy = createTopicPolicy;
         this.featureControl = featureControl;
+        this.offsetControl = offsetControl;
         this.clusterControl = clusterControl;
         this.topicsByName = new TimelineHashMap<>(snapshotRegistry, 0);
         this.topicsWithCollisionChars = new TimelineHashMap<>(snapshotRegistry, 0);
@@ -1029,7 +1030,8 @@ public class ReplicationControlManager {
     }
 
     boolean isElrEnabled() {
-        return eligibleLeaderReplicasEnabled && featureControl.metadataVersion().isElrSupported();
+        return featureControl.metadataVersion().isElrSupported() && featureControl.finalizedFeatures(offsetControl.lastStableOffset()).
+            versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0) >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
     }
 
     ControllerResult<AlterPartitionResponseData> alterPartition(
