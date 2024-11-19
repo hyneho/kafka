@@ -958,6 +958,7 @@ public class TransactionManagerTest {
         assertFalse(responseFuture.isDone());
 
         prepareProduceResponse(Errors.NONE, producerId, epoch);
+        transactionManager.maybeAddPartition(tp0);
         assertTrue(transactionManager.transactionContainsPartition(tp0));
         assertTrue(transactionManager.isSendToPartitionAllowed(tp0));
         assertFalse(responseFuture.isDone());
@@ -1404,6 +1405,7 @@ public class TransactionManagerTest {
 
         transactionManager.beginTransaction();
         Future<RecordMetadata> responseFuture = appendToAccumulator(tp0);
+        transactionManager.maybeAddPartition(tp0);
         assertFalse(responseFuture.isDone());
 
         prepareProduceResponse(Errors.INVALID_PRODUCER_ID_MAPPING, producerId, epoch);
@@ -3131,6 +3133,7 @@ public class TransactionManagerTest {
 
         // Append record with initial producer ID and epoch.
         Future<RecordMetadata> responseFuture = appendToAccumulator(tp0);
+        transactionManager.maybeAddPartition(tp0);
         prepareProduceResponse(Errors.NONE, producerId, epoch);
         runUntil(responseFuture::isDone);
 
@@ -3156,6 +3159,7 @@ public class TransactionManagerTest {
         transactionManager.beginTransaction();
         // Append record with initial producer ID and epoch
         Future<RecordMetadata> responseFuture = appendToAccumulator(tp0);
+        transactionManager.maybeAddPartition(tp0);
         prepareProduceResponse(Errors.NONE, producerId, epoch);
         runUntil(responseFuture::isDone);
 

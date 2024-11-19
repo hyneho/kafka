@@ -64,7 +64,6 @@ import org.junit.jupiter.api.function.Executable
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
-
 class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   val groupReadAcl = Map(groupResource -> Set(new AccessControlEntry(clientPrincipalString, WILDCARD_HOST, READ, ALLOW)))
   val groupDescribeAcl = Map(groupResource -> Set(new AccessControlEntry(clientPrincipalString, WILDCARD_HOST, DESCRIBE, ALLOW)))

@@ -402,10 +402,11 @@ public class TransactionManager {
             } else if (currentState != State.IN_TRANSACTION) {
                 throw new IllegalStateException("Cannot add partition " + topicPartition +
                     " to transaction while in state  " + currentState);
-            } else if (transactionContainsPartition(topicPartition) || isPartitionPendingAdd(topicPartition)) {
-                return;
             } else if (isTransactionV2Enabled()) {
                 txnPartitionMap.getOrCreate(topicPartition);
+                partitionsInTransaction.add(topicPartition);
+            } else if (transactionContainsPartition(topicPartition) || isPartitionPendingAdd(topicPartition)) {
+                return;
             } else {
                 log.debug("Begin adding new partition {} to transaction", topicPartition);
                 txnPartitionMap.getOrCreate(topicPartition);
@@ -421,7 +422,7 @@ public class TransactionManager {
     synchronized boolean isSendToPartitionAllowed(TopicPartition tp) {
         if (hasFatalError())
             return false;
-        return !isTransactional() || partitionsInTransaction.contains(tp) || isTransactionV2Enabled();
+        return !isTransactional() || partitionsInTransaction.contains(tp);
     }
 
     public String transactionalId() {
@@ -896,7 +897,7 @@ public class TransactionManager {
 
     // visible for testing
     public synchronized boolean transactionContainsPartition(TopicPartition topicPartition) {
-        return partitionsInTransaction.contains(topicPartition) || isTransactionV2Enabled();
+        return partitionsInTransaction.contains(topicPartition);
     }
 
     // visible for testing
@@ -1133,6 +1134,7 @@ public class TransactionManager {
                 isTransactionV2Enabled()
             );
         if (result == null) {
+            // In this case, transaction V2 is in use.
             return new TxnOffsetCommitHandler(builder);
         }
         return new TxnOffsetCommitHandler(result, builder);

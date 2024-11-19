@@ -615,13 +615,12 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                 else
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
               case Empty =>
-                if (txnMarkerResult == TransactionResult.ABORT && clientTransactionVersion.supportsEpochBump() &&
-                  !txnMetadata.pendingState.contains(PrepareEpochFence)) {
+                if (txnMarkerResult == TransactionResult.ABORT && clientTransactionVersion.supportsEpochBump()) {
                   // If the client and server both use transaction V2, the client is allowed to abort
                   // transactions when the transaction state is Empty because the client can't be sure about the
                   // current transaction state.
                   // Note that, we should not use txnMetadata info to check if the client is using V2 because the
-                  // only request received by server so far is InitProducerId request which does not tell whether
+                  // only request received by server so far can be just InitProducerId request which does not tell whether
                   // the client uses V2.
                   generateTxnTransitMetadataForTxnCompletion(PrepareAbort)
                 } else {

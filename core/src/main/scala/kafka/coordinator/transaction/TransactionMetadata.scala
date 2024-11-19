@@ -494,10 +494,11 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
           }
 
         case CompleteAbort | CompleteCommit => // from write markers
+          val isTransitionFromEmptyInTransactionV2 = state == Empty && clientTransactionVersion.supportsEpochBump()
           // With transaction V2, we allow Empty transaction to be aborted, so the txnStartTimestamp can be -1.
           if (!validProducerEpoch(transitMetadata) ||
             txnTimeoutMs != transitMetadata.txnTimeoutMs ||
-            transitMetadata.txnStartTimestamp == -1 && !clientTransactionVersion.supportsEpochBump()) {
+            transitMetadata.txnStartTimestamp == -1 && !isTransitionFromEmptyInTransactionV2) {
 
             throwStateTransitionFailure(transitMetadata)
           } else {

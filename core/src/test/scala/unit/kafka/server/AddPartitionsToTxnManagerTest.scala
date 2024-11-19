@@ -72,7 +72,7 @@ class AddPartitionsToTxnManagerTest {
   private val authenticationErrorResponse = clientResponse(null, authException = new SaslAuthenticationException(""))
   private val versionMismatchResponse = clientResponse(null, mismatchException = new UnsupportedVersionException(""))
   private val disconnectedResponse = clientResponse(null, disconnected = true)
-  private val transactionSupportedOperation = addPartition
+  private val transactionSupportedOperation = genericErrorSupported
 
   private val config = KafkaConfig.fromProps(TestUtils.createBrokerConfig(1, "localhost:2181"))
 
@@ -96,8 +96,10 @@ class AddPartitionsToTxnManagerTest {
     callbackErrors.foreachEntry(errors.put)
   }
 
-  @Test
-  def testAddTxnData(): Unit = {
+  @ParameterizedTest
+  @ValueSource(booleans = Array(true, false))
+  def testAddTxnData(isAddPartition: Boolean): Unit = {
+    val transactionSupportedOperation = if (isAddPartition) addPartition else genericErrorSupported
     when(partitionFor.apply(transactionalId1)).thenReturn(0)
     when(partitionFor.apply(transactionalId2)).thenReturn(1)
     when(partitionFor.apply(transactionalId3)).thenReturn(0)
@@ -138,28 +140,28 @@ class AddPartitionsToTxnManagerTest {
         assertEquals(
           AddPartitionsToTxnRequest.Builder.forBroker(
             new AddPartitionsToTxnTransactionCollection(Seq(
-              transactionData(transactionalId3, producerId3, verifyOnly = false),
-              transactionData(transactionalId1, producerId1, producerEpoch = 1, verifyOnly = false)
+              transactionData(transactionalId3, producerId3, verifyOnly = !isAddPartition),
+              transactionData(transactionalId1, producerId1, producerEpoch = 1, verifyOnly = !isAddPartition)
             ).iterator.asJava)
           ).data,
           requestAndHandler.request.asInstanceOf[AddPartitionsToTxnRequest.Builder].data // insertion order
         )
       } else {
-        verifyRequest(node1, transactionalId2, producerId2, false, requestAndHandler)
+        verifyRequest(node1, transactionalId2, producerId2, !isAddPartition, requestAndHandler)
       }
     }
   }
 
   @ParameterizedTest
   @ValueSource(booleans = Array(true, false))
-  def testGenerateRequests(shouldAddPartition: Boolean): Unit = {
+  def testGenerateRequests(isAddPartition: Boolean): Unit = {
     when(partitionFor.apply(transactionalId1)).thenReturn(0)
     when(partitionFor.apply(transactionalId2)).thenReturn(1)
     when(partitionFor.apply(transactionalId3)).thenReturn(2)
     mockTransactionStateMetadata(0, 0, Some(node0))
     mockTransactionStateMetadata(1, 1, Some(node1))
     mockTransactionStateMetadata(2, 2, Some(node2))
-    val transactionSupportedOperation = if (shouldAddPartition) addPartition else genericErrorSupported
+    val transactionSupportedOperation = if (isAddPartition) addPartition else genericErrorSupported
 
     val transactionErrors = mutable.Map[TopicPartition, Errors]()
 
@@ -170,8 +172,8 @@ class AddPartitionsToTxnManagerTest {
     assertEquals(2, requestsAndHandlers.size)
     // Note: handlers are tested in testAddPartitionsToTxnHandlerErrorHandling
     requestsAndHandlers.foreach { requestAndHandler =>
-      if (requestAndHandler.destination == node0) verifyRequest(node0, transactionalId1, producerId1, !shouldAddPartition, requestAndHandler)
-      else verifyRequest(node1, transactionalId2, producerId2, !shouldAddPartition, requestAndHandler)
+      if (requestAndHandler.destination == node0) verifyRequest(node0, transactionalId1, producerId1, !isAddPartition, requestAndHandler)
+      else verifyRequest(node1, transactionalId2, producerId2, !isAddPartition, requestAndHandler)
     }
 
     addPartitionsToTxnManager.addOrVerifyTransaction(transactionalId2, producerId2, producerEpoch = 0, topicPartitions, setErrors(transactionErrors), transactionSupportedOperation)
@@ -184,7 +186,7 @@ class AddPartitionsToTxnManagerTest {
     // The request for node1 should not be added because one request is already inflight.
     assertEquals(1, requestsAndHandlers2.size)
     requestsAndHandlers2.foreach { requestAndHandler =>
-      verifyRequest(node2, transactionalId3, producerId3, !shouldAddPartition, requestAndHandler)
+      verifyRequest(node2, transactionalId3, producerId3, !isAddPartition, requestAndHandler)
     }
 
     // Complete the request for node1 so the new one can go through.
@@ -192,7 +194,7 @@ class AddPartitionsToTxnManagerTest {
     val requestsAndHandlers3 = addPartitionsToTxnManager.generateRequests().asScala
     assertEquals(1, requestsAndHandlers3.size)
     requestsAndHandlers3.foreach { requestAndHandler =>
-      verifyRequest(node1, transactionalId2, producerId2, !shouldAddPartition, requestAndHandler)
+      verifyRequest(node1, transactionalId2, producerId2, !isAddPartition, requestAndHandler)
     }
   }
 

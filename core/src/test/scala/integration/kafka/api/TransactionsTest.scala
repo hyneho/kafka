@@ -17,8 +17,8 @@
 
 package kafka.api
 
-import kafka.utils.{TestInfoUtils, TestUtils}
 import kafka.utils.TestUtils.{consumeRecords, waitUntilTrue}
+import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
@@ -29,8 +29,7 @@ import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, Server
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.MethodSource
-import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.{CsvSource, MethodSource}
 
 import java.lang.{Long => JLong}
 import java.nio.charset.StandardCharsets
@@ -600,6 +599,7 @@ class TransactionsTest extends IntegrationTestHarness {
         if (quorum == "zk") {
           assertTrue(e.getCause.isInstanceOf[ProducerFencedException])
         } else {
+          // In kraft mode, transactionV2 is used.
           assertTrue(e.getCause.isInstanceOf[InvalidProducerEpochException])
         }
       }
@@ -631,6 +631,7 @@ class TransactionsTest extends IntegrationTestHarness {
     Thread.sleep(600)
 
     if (quorum == "zk") {
+      // In zk mode, transaction v1 is used.
       try {
         // Now that the transaction has expired, the second send should fail with a ProducerFencedException.
         producer.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "2", "2", willBeCommitted = false)).get()
