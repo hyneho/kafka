@@ -686,7 +686,7 @@ public class ReassignPartitionsCommandTest {
                     verifyAssignmentResultAtomicReference.set(verifyAssignmentResult);
                     return expectedResult.equals(verifyAssignmentResult);
                 },
-                () -> "Timed out waiting for verifyAssignment result, final result" + verifyAssignmentResultAtomicReference.get()
+                () -> "Timed out waiting for verifyAssignment result, final result " + verifyAssignmentResultAtomicReference.get()
         );
     }
 
