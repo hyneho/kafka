@@ -289,18 +289,21 @@ public class RemoteLogManager implements Closeable {
         rlmFetchQuotaManager.updateQuota(new Quota(quota, true));
     }
 
-    public void resizeCopierThreadPool(int oldSize, int newSize) {
-        LOGGER.info("Updating remote copy thread pool size from {} to {}", oldSize, newSize);
+    public void resizeCopierThreadPool(int newSize) {
+        int currentSize = rlmCopyThreadPool.getCorePoolSize();
+        LOGGER.info("Updating remote copy thread pool size from {} to {}", currentSize, newSize);
         rlmCopyThreadPool.setCorePoolSize(newSize);
     }
 
-    public void resizeExpirationThreadPool(int oldSize, int newSize) {
-        LOGGER.info("Updating remote expiration thread pool size from {} to {}", oldSize, newSize);
+    public void resizeExpirationThreadPool(int newSize) {
+        int currentSize = rlmExpirationThreadPool.getCorePoolSize();
+        LOGGER.info("Updating remote expiration thread pool size from {} to {}", currentSize, newSize);
         rlmExpirationThreadPool.setCorePoolSize(newSize);
     }
 
-    public void resizeReaderThreadPool(int oldSize, int newSize) {
-        LOGGER.info("Updating remote reader thread pool size from {} to {}", oldSize, newSize);
+    public void resizeReaderThreadPool(int newSize) {
+        int currentSize = remoteStorageReaderThreadPool.getCorePoolSize();
+        LOGGER.info("Updating remote reader thread pool size from {} to {}", currentSize, newSize);
         remoteStorageReaderThreadPool.setCorePoolSize(newSize);
     }
 
