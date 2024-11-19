@@ -1207,35 +1207,6 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
             builder);
     }
 
-    private <VR> KStream<K, VR> doTransformValues(final ValueTransformerWithKeySupplier<? super K, ? super V, ? extends VR> valueTransformerWithKeySupplier,
-                                                  final NamedInternal named,
-                                                  final String... stateStoreNames) {
-        Objects.requireNonNull(stateStoreNames, "stateStoreNames can't be a null array");
-        for (final String stateStoreName : stateStoreNames) {
-            Objects.requireNonNull(stateStoreName, "stateStoreNames can't contain `null` as store name");
-        }
-        ApiUtils.checkSupplier(valueTransformerWithKeySupplier);
-
-        final String name = named.orElseGenerateWithPrefix(builder, TRANSFORMVALUES_NAME);
-        final StatefulProcessorNode<? super K, ? super V> transformNode = new StatefulProcessorNode<>(
-            name,
-            new ProcessorParameters<>(new KStreamTransformValues<>(valueTransformerWithKeySupplier), name),
-            stateStoreNames);
-        transformNode.setValueChangingOperation(true);
-
-        builder.addGraphNode(graphNode, transformNode);
-
-        // cannot inherit value serde
-        return new KStreamImpl<>(
-            name,
-            keySerde,
-            null,
-            subTopologySourceNodes,
-            repartitionRequired,
-            transformNode,
-            builder);
-    }
-
     @Override
     @Deprecated
     public <VR> KStream<K, VR> flatTransformValues(final org.apache.kafka.streams.kstream.ValueTransformerSupplier<? super V, Iterable<VR>> valueTransformerSupplier,
