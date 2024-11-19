@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.services.verifiable_producer import VerifiableProducer
@@ -61,14 +60,9 @@ class GroupModeTransactionsTest(Test):
         self.progress_timeout_sec = 60
         self.consumer_group = "grouped-transactions-test-consumer-group"
 
-        self.zk = ZookeeperService(test_context, num_nodes=1) if quorum.for_test(test_context) == quorum.zk else None
         self.kafka = KafkaService(test_context,
                                   num_nodes=self.num_brokers,
-                                  zk=self.zk, controller_num_nodes_override=1)
-
-    def setUp(self):
-        if self.zk:
-            self.zk.start()
+                                  zk=None, controller_num_nodes_override=1)
 
     def seed_messages(self, topic, num_seed_messages):
         seed_timeout_sec = 10000
@@ -271,8 +265,9 @@ class GroupModeTransactionsTest(Test):
 
     @cluster(num_nodes=10)
     @matrix(failure_mode=["hard_bounce", "clean_bounce"],
-            bounce_target=["brokers", "clients"])
-    def test_transactions(self, failure_mode, bounce_target, metadata_quorum=quorum.zk):
+            bounce_target=["brokers", "clients"],
+            metadata_quorum=quorum.all_non_upgrade)
+    def test_transactions(self, failure_mode, bounce_target, metadata_quorum):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol
