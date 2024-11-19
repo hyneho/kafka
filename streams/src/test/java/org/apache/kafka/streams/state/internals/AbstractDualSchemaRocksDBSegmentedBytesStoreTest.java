@@ -25,6 +25,7 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.common.utils.LogContext;
@@ -37,11 +38,9 @@ import org.apache.kafka.streams.kstream.Window;
 import org.apache.kafka.streams.kstream.Windowed;
 import org.apache.kafka.streams.kstream.internals.SessionWindow;
 import org.apache.kafka.streams.kstream.internals.TimeWindow;
-import org.apache.kafka.streams.processor.StateStoreContext;
 import org.apache.kafka.streams.processor.internals.ChangelogRecordDeserializationHelper;
 import org.apache.kafka.streams.processor.internals.MockStreamsMetrics;
 import org.apache.kafka.streams.processor.internals.ProcessorRecordContext;
-import org.apache.kafka.streams.processor.internals.Task.TaskType;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 import org.apache.kafka.streams.query.Position;
 import org.apache.kafka.streams.state.KeyValueIterator;
@@ -96,8 +95,8 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
 
     private static final String METRICS_SCOPE = "metrics-scope";
     
-    private final long windowSizeForTimeWindow = 500;
-    private InternalMockProcessorContext context;
+    private long windowSizeForTimeWindow = 500;
+    private InternalMockProcessorContext<?, ?> context;
     private AbstractDualSchemaRocksDBSegmentedBytesStore<KeyValueSegment> bytesStore;
     private File stateDir;
     private final Window[] windows = new Window[4];
@@ -159,7 +158,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             new MockRecordCollector(),
             new ThreadCache(new LogContext("testCache "), 0, new MockStreamsMetrics(new Metrics()))
         );
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
     }
 
     @AfterEach
@@ -204,7 +203,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             default:
                 throw new IllegalStateException("Unknown SchemaType: " + schemaType());
         }
-    };
+    }
 
     AbstractSegments<KeyValueSegment> newSegments() {
         return new KeyValueSegments(storeName, METRICS_SCOPE, retention, segmentInterval);
@@ -251,7 +250,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             // all records expired as actual from is 59001 and to is 1000
             final List<KeyValue<Windowed<String>, Long>> expected = Collections.emptyList();
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -260,7 +259,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             // all records expired as actual from is 59001 and to is 1000
             final List<KeyValue<Windowed<String>, Long>> expected = Collections.emptyList();
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -268,7 +267,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
 
             // all records expired as actual from is 59001 and to is 1000
             final List<KeyValue<Windowed<String>, Long>> expected = Collections.emptyList();
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -279,7 +278,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyC, windows[3]), 200L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -290,7 +289,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyC, windows[3]), 200L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -313,7 +312,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             // all records expired as actual from is 59001 and to = 1000
             final List<KeyValue<Windowed<String>, Long>> expected = Collections.emptyList();
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -322,7 +321,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             // all records expired as actual from is 59001 and to = 1000
             final List<KeyValue<Windowed<String>, Long>> expected = Collections.emptyList();
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -330,7 +329,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
 
             // all records expired as actual from is 59001 and to = 1000
             final List<KeyValue<Windowed<String>, Long>> expected = Collections.emptyList();
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -341,7 +340,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                     KeyValue.pair(new Windowed<>(keyC, windows[3]), 200L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -352,7 +351,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                     KeyValue.pair(new Windowed<>(keyC, windows[3]), 200L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -384,7 +383,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, endEdgeWindow), 50L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch start/end edge for single key
@@ -396,7 +395,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch from 0 to max for single key
@@ -408,7 +407,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, endEdgeWindow), 50L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch from 0 to max for single key
@@ -420,7 +419,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -457,7 +456,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, startEdgeWindow), 100L),
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch from 0 to max for key range
@@ -475,7 +474,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, startEdgeWindow), 100L),
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // KeyB should be ignored and KeyA should be included even in storage
@@ -486,7 +485,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -496,7 +495,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -513,7 +512,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, startEdgeWindow), 100L),
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -531,7 +530,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -563,7 +562,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch start/end edge for single key
@@ -575,7 +574,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, startEdgeWindow), 100L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch from 0 to max for single key
@@ -587,7 +586,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch from 0 to max for single key
@@ -599,7 +598,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, startEdgeWindow), 100L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -637,7 +636,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, endEdgeWindow), 50L),
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Can fetch from 0 to max for key range
@@ -655,7 +654,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, endEdgeWindow), 50L),
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // KeyB should be ignored and KeyA should be included even in storage
@@ -666,7 +665,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -676,7 +675,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, endEdgeWindow), 150L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -693,7 +692,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, endEdgeWindow), 50L),
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -710,7 +709,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, endEdgeWindow), 50L),
                 KeyValue.pair(new Windowed<>(keyA, startEdgeWindow), 10L)
             );
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -724,6 +723,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         final String keyB = "aa";
         final String keyC = "aaa";
 
+        windowSizeForTimeWindow = 1L;
         final Window maxWindow = new TimeWindow(Long.MAX_VALUE - 1, Long.MAX_VALUE);
         final Bytes serializedKeyA = serializeKey(new Windowed<>(keyA, maxWindow), false, Integer.MAX_VALUE);
         final Bytes serializedKeyB = serializeKey(new Windowed<>(keyB, maxWindow), false, Integer.MAX_VALUE);
@@ -744,7 +744,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, maxWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -755,7 +755,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, maxWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // KeyC should be ignored and KeyA should be included even in storage, KeyC is before KeyB
@@ -768,7 +768,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, maxWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // KeyC should be included even in storage KeyC is before KeyB
@@ -780,7 +780,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, maxWindow), 50L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.fetch(
@@ -792,7 +792,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, maxWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -807,6 +807,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         final String keyB = "aa";
         final String keyC = "aaa";
 
+        windowSizeForTimeWindow = 1L;
         final Window maxWindow = new TimeWindow(Long.MAX_VALUE - 1, Long.MAX_VALUE);
         final Bytes serializedKeyA = serializeKey(new Windowed<>(keyA, maxWindow), false, Integer.MAX_VALUE);
         final Bytes serializedKeyB = serializeKey(new Windowed<>(keyB, maxWindow), false, Integer.MAX_VALUE);
@@ -827,7 +828,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, maxWindow), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -838,7 +839,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, maxWindow), 50L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -849,7 +850,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, maxWindow), 50L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -860,7 +861,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyC, maxWindow), 100L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         try (final KeyValueIterator<Bytes, byte[]> values = bytesStore.backwardFetch(
@@ -872,10 +873,11 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyC, maxWindow), 100L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
+    @SuppressWarnings("resource")
     @Test
     public void shouldFetchSessionForSingleKey() {
         // Only for TimeFirstSessionKeySchema schema
@@ -955,7 +957,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyA, sessionWindows[0]), 10L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Fetch partial boundary
@@ -966,7 +968,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, sessionWindows[1]), 100L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Fetch partial
@@ -976,12 +978,12 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, sessionWindows[1]), 100L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Fetch partial
         try (final KeyValueIterator<Bytes, byte[]> values = ((RocksDBTimeOrderedSessionSegmentedBytesStore) bytesStore).fetchSessions(101L, 199L)) {
-            assertTrue(toList(values).isEmpty());
+            assertTrue(toListAndCloseIterator(values).isEmpty());
         }
 
         // Fetch all boundary
@@ -993,7 +995,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyC, sessionWindows[2]), 200L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Fetch all
@@ -1005,7 +1007,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyC, sessionWindows[2]), 200L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
 
         // Fetch all
@@ -1015,7 +1017,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 KeyValue.pair(new Windowed<>(keyB, sessionWindows[1]), 100L)
             );
 
-            assertEquals(expected, toList(values));
+            assertEquals(expected, toListAndCloseIterator(values));
         }
     }
 
@@ -1065,7 +1067,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                     expected = Collections.singletonList(KeyValue.pair(new Windowed<>(keyB, windows[2]), 20L));
                 }
 
-                assertEquals(expected, toList(results));
+                assertEquals(expected, toListAndCloseIterator(results));
             }
 
             // Dangling index should be deleted.
@@ -1102,7 +1104,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 expected = Collections.singletonList(KeyValue.pair(new Windowed<>(key, windows[1]), 50L));
             }
 
-            assertEquals(expected, toList(results));
+            assertEquals(expected, toListAndCloseIterator(results));
         }
     }
 
@@ -1138,7 +1140,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         bytesStore.put(serializeKey(new Windowed<>(key, windows[3])), serializeValue(1000));
         assertEquals(Set.of(segments.segmentName(0), segments.segmentName(1)), segmentDirs());
 
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.fetch(Bytes.wrap(key.getBytes()), 0, 1500));
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.fetch(Bytes.wrap(key.getBytes()), 0, 1500));
 
         // For all tests, actualFrom is computed using observedStreamTime - retention + 1.
         // so actualFrom = 60000(observedStreamTime) - 1000(retention) + 1 = 59001
@@ -1148,7 +1150,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             results
         );
 
-        final List<KeyValue<Windowed<String>, Long>> results1 = toList(bytesStore.fetch(Bytes.wrap(key.getBytes()), 59000, 60000));
+        final List<KeyValue<Windowed<String>, Long>> results1 = toListAndCloseIterator(bytesStore.fetch(Bytes.wrap(key.getBytes()), 59000, 60000));
 
         // only non expired record as actual from is 59001
         assertEquals(
@@ -1180,7 +1182,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             segmentDirs()
         );
 
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.all());
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.all());
         // actualFrom is computed using observedStreamTime - retention + 1.
         // so actualFrom = 60000(observedStreamTime) - 1000(retention) + 1 = 59001
         // only one record returned as actual from is 59001
@@ -1215,7 +1217,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         // For all tests, actualFrom is computed using observedStreamTime - retention + 1.
         // so actualFrom = 60000(observedStreamTime) - 1000(retention) + 1 = 59001
         // key A expired as actual from is 59,001
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.backwardAll());
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.backwardAll());
         assertEquals(
             Collections.singletonList(
                 KeyValue.pair(new Windowed<>(keyB, windows[3]), 100L)
@@ -1244,7 +1246,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             segmentDirs()
         );
 
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.fetchAll(0L, 60_000L));
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.fetchAll(0L, 60_000L));
         // For all tests, actualFrom is computed using observedStreamTime - retention + 1.
         // so actualFrom = 60000(observedStreamTime) - 1000(retention) + 1 = 59001
         // only 1 record fetched as actual from is 59001
@@ -1279,8 +1281,8 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
 
         bytesStore = getBytesStore();
 
-        bytesStore.init((StateStoreContext) context, bytesStore);
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.fetch(Bytes.wrap(key.getBytes()), 0L, 60_000L));
+        bytesStore.init(context, bytesStore);
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.fetch(Bytes.wrap(key.getBytes()), 0L, 60_000L));
         assertThat(
             results,
             equalTo(
@@ -1311,8 +1313,8 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
 
         bytesStore = getBytesStore();
 
-        bytesStore.init((StateStoreContext) context, bytesStore);
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.fetch(Bytes.wrap(key.getBytes()), 0L, 60_000L));
+        bytesStore.init(context, bytesStore);
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.fetch(Bytes.wrap(key.getBytes()), 0L, 60_000L));
         assertThat(
             results,
             equalTo(
@@ -1332,7 +1334,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         // need to create a segment so we can attempt to write to it again.
         bytesStore.put(serializeKey(new Windowed<>(key, windows[0])), serializeValue(50));
         bytesStore.close();
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
         bytesStore.put(serializeKey(new Windowed<>(key, windows[1])), serializeValue(100));
     }
 
@@ -1354,17 +1356,17 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
 
     @Test
     public void shouldRestoreToByteStoreForActiveTask() {
-        shouldRestoreToByteStore(TaskType.ACTIVE);
+        shouldRestoreToByteStore();
     }
 
     @Test
     public void shouldRestoreToByteStoreForStandbyTask() {
         context.transitionToStandby(null);
-        shouldRestoreToByteStore(TaskType.STANDBY);
+        shouldRestoreToByteStore();
     }
 
-    private void shouldRestoreToByteStore(final TaskType taskType) {
-        bytesStore.init((StateStoreContext) context, bytesStore);
+    private void shouldRestoreToByteStore() {
+        bytesStore.init(context, bytesStore);
         // 0 segments initially.
         assertEquals(0, bytesStore.getSegments().size());
         final String key = "a";
@@ -1380,13 +1382,13 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         expected.add(new KeyValue<>(new Windowed<>(key, windows[3]), 100L));
 
         // after restoration, only 1 record should be returned as actual from is 59001 and the prior record is expired.
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.all());
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.all());
         assertEquals(expected, results);
     }
 
     @Test
     public void shouldMatchPositionAfterPut() {
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
 
         final String keyA = "a";
         final String keyB = "b";
@@ -1422,7 +1424,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 Time.SYSTEM
         );
         bytesStore = getBytesStore();
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
         // 0 segments initially.
         assertEquals(0, bytesStore.getSegments().size());
 
@@ -1435,7 +1437,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         expected.add(new KeyValue<>(new Windowed<>(key, windows[3]), 200L));
 
         // after restoration, only non expired segments should be returned which is one as actual from is 59001
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.all());
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.all());
         assertEquals(expected, results);
         assertThat(bytesStore.getPosition(), Matchers.notNullValue());
         assertThat(bytesStore.getPosition().getPartitionPositions(""), Matchers.notNullValue());
@@ -1458,7 +1460,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 Time.SYSTEM
         );
         bytesStore = getBytesStore();
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
         // 0 segments initially.
         assertEquals(0, bytesStore.getSegments().size());
 
@@ -1472,7 +1474,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         final List<KeyValue<Windowed<String>, Long>> expected = new ArrayList<>();
         expected.add(new KeyValue<>(new Windowed<>(key, windows[3]), 200L));
 
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.all());
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.all());
         assertEquals(expected, results);
         assertThat(bytesStore.getPosition(), Matchers.notNullValue());
         assertThat(bytesStore.getPosition().getPartitionPositions("A"), Matchers.notNullValue());
@@ -1497,7 +1499,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 Time.SYSTEM
         );
         bytesStore = getBytesStore();
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
         // 0 segments initially.
         assertEquals(0, bytesStore.getSegments().size());
 
@@ -1516,7 +1518,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
             expected.add(new KeyValue<>(new Windowed<>(key, windows[0]), 50L));
         }
 
-        final List<KeyValue<Windowed<String>, Long>> results = toList(bytesStore.all());
+        final List<KeyValue<Windowed<String>, Long>> results = toListAndCloseIterator(bytesStore.all());
         assertEquals(expected, results);
         assertThat(bytesStore.getPosition(), Matchers.notNullValue());
         assertThat(bytesStore.getPosition().getPartitionPositions("A"), hasEntry(0, 2L));
@@ -1538,7 +1540,7 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
                 Time.SYSTEM
         );
         bytesStore = getBytesStore();
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
         bytesStore.restoreAllInternal(getChangelogRecordsWithoutHeaders());
         assertThat(bytesStore.getPosition(), is(Position.emptyPosition()));
     }
@@ -1649,13 +1651,13 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
     public void shouldMeasureExpiredRecords() {
         final Properties streamsConfig = StreamsTestUtils.getStreamsConfig();
         final AbstractDualSchemaRocksDBSegmentedBytesStore<KeyValueSegment> bytesStore = getBytesStore();
-        final InternalMockProcessorContext context = new InternalMockProcessorContext(
+        final InternalMockProcessorContext<?, ?> context = new InternalMockProcessorContext<>(
             TestUtils.tempDirectory(),
             new StreamsConfig(streamsConfig)
         );
         final Time time = Time.SYSTEM;
         context.setSystemTimeMs(time.milliseconds());
-        bytesStore.init((StateStoreContext) context, bytesStore);
+        bytesStore.init(context, bytesStore);
 
         // write a record to advance stream time, with a high enough timestamp
         // that the subsequent record in windows[0] will already be expired.
@@ -1736,36 +1738,40 @@ public abstract class AbstractDualSchemaRocksDBSegmentedBytesStoreTest {
         }
     }
 
+    @SuppressWarnings("resource")
     private byte[] serializeValue(final long value) {
-        return Serdes.Long().serializer().serialize("", value);
+        return new LongSerializer().serialize("", value);
     }
 
-    private List<KeyValue<Windowed<String>, Long>> toList(final KeyValueIterator<Bytes, byte[]> iterator) {
-        final List<KeyValue<Windowed<String>, Long>> results = new ArrayList<>();
-        final StateSerdes<String, Long> stateSerdes = StateSerdes.withBuiltinTypes("dummy", String.class, Long.class);
-        while (iterator.hasNext()) {
-            final KeyValue<Bytes, byte[]> next = iterator.next();
-            if (getBaseSchema() instanceof TimeFirstWindowKeySchema) {
-                final KeyValue<Windowed<String>, Long> deserialized = KeyValue.pair(
-                    TimeFirstWindowKeySchema.fromStoreKey(
-                        next.key.get(),
-                        windowSizeForTimeWindow,
-                        stateSerdes.keyDeserializer(),
-                        stateSerdes.topic()
-                    ),
-                    stateSerdes.valueDeserializer().deserialize("dummy", next.value)
-                );
-                results.add(deserialized);
-            } else if (getBaseSchema() instanceof TimeFirstSessionKeySchema) {
-                final KeyValue<Windowed<String>, Long> deserialized = KeyValue.pair(
-                    TimeFirstSessionKeySchema.from(next.key.get(), stateSerdes.keyDeserializer(), "dummy"),
-                    stateSerdes.valueDeserializer().deserialize("dummy", next.value)
-                );
-                results.add(deserialized);
-            } else {
-                throw new IllegalStateException("Unrecognized serde schema");
+    @SuppressWarnings("resource")
+    private List<KeyValue<Windowed<String>, Long>> toListAndCloseIterator(final KeyValueIterator<Bytes, byte[]> iterator) {
+        try (iterator) {
+            final List<KeyValue<Windowed<String>, Long>> results = new ArrayList<>();
+            final StateSerdes<String, Long> stateSerdes = StateSerdes.withBuiltinTypes("dummy", String.class, Long.class);
+            while (iterator.hasNext()) {
+                final KeyValue<Bytes, byte[]> next = iterator.next();
+                if (getBaseSchema() instanceof TimeFirstWindowKeySchema) {
+                    final KeyValue<Windowed<String>, Long> deserialized = KeyValue.pair(
+                        TimeFirstWindowKeySchema.fromStoreKey(
+                            next.key.get(),
+                            windowSizeForTimeWindow,
+                            stateSerdes.keyDeserializer(),
+                            stateSerdes.topic()
+                        ),
+                        stateSerdes.valueDeserializer().deserialize("dummy", next.value)
+                    );
+                    results.add(deserialized);
+                } else if (getBaseSchema() instanceof TimeFirstSessionKeySchema) {
+                    final KeyValue<Windowed<String>, Long> deserialized = KeyValue.pair(
+                        TimeFirstSessionKeySchema.from(next.key.get(), stateSerdes.keyDeserializer(), "dummy"),
+                        stateSerdes.valueDeserializer().deserialize("dummy", next.value)
+                    );
+                    results.add(deserialized);
+                } else {
+                    throw new IllegalStateException("Unrecognized serde schema");
+                }
             }
+            return results;
         }
-        return results;
     }
 }
