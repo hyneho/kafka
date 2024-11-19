@@ -10300,6 +10300,7 @@ public class GroupMetadataManagerTest {
         ConsumerGroupMember expectedMember1 = new ConsumerGroupMember.Builder(memberId1)
             .setMemberEpoch(1)
             .setPreviousMemberEpoch(1)
+            .setState(MemberState.STABLE)
             .setClientId(DEFAULT_CLIENT_ID)
             .setClientHost(DEFAULT_CLIENT_ADDRESS.toString())
             .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
@@ -10349,7 +10350,8 @@ public class GroupMetadataManagerTest {
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentRecord(groupId, memberId2, Collections.emptyMap()),
             GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochRecord(groupId, 2),
 
-            // Member 2 has no pending revoking partition. Bump its member epoch and transition to UNRELEASED_PARTITIONS.
+            // Member 2 has no pending revoking partition or pending release partition.
+            // Bump its member epoch and transition to STABLE.
             GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentRecord(groupId, expectedMember2)
         );
 

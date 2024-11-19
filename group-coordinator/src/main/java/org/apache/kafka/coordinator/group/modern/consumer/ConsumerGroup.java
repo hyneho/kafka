@@ -955,6 +955,8 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
                 );
             }
 
+            // Every member is guaranteed to have metadata set when it joins,
+            // so we don't check for empty subscription here.
             ConsumerProtocolSubscription subscription = ConsumerProtocol.deserializeConsumerProtocolSubscription(
                 ByteBuffer.wrap(classicGroupMember.metadata(classicGroup.protocolName().get()))
             );
