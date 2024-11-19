@@ -135,7 +135,7 @@ class ReplicationTest(EndToEndTest):
     @parametrize(failure_mode="hard_bounce",
             broker_type="leader",
             security_protocol="SASL_SSL", client_sasl_mechanism="SCRAM-SHA-256", interbroker_sasl_mechanism="SCRAM-SHA-512",
-            metadata_quorum=quorum.all_non_upgrade)
+            metadata_quorum=quorum.isolated_kraft)
     @matrix(failure_mode=["clean_shutdown", "hard_shutdown", "clean_bounce", "hard_bounce"],
             security_protocol=["PLAINTEXT"], broker_type=["leader"], compression_type=["gzip"], tls_version=["TLSv1.2", "TLSv1.3"],
             metadata_quorum=quorum.all_non_upgrade)
