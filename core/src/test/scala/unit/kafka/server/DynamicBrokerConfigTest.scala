@@ -201,17 +201,17 @@ class DynamicBrokerConfigTest {
 
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "2")
     config.dynamicConfig.updateDefaultConfig(props)
-    assertEquals(2, config.remoteLogCopierThreads)
+    assertEquals(2, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
     Mockito.verify(remoteLogManagerMock).resizeCopierThreadPool(1, 2)
 
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "2")
     config.dynamicConfig.updateDefaultConfig(props)
-    assertEquals(2, config.remoteLogExpirationThreads)
+    assertEquals(2, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
     Mockito.verify(remoteLogManagerMock).resizeExpirationThreadPool(1, 2)
 
     props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "2")
     config.dynamicConfig.updateDefaultConfig(props)
-    assertEquals(2, config.remoteLogReaderThreads)
+    assertEquals(2, config.remoteLogManagerConfig.remoteLogReaderThreads())
     Mockito.verify(remoteLogManagerMock).resizeReaderThreadPool(1, 2)
 
     Mockito.verifyNoMoreInteractions(

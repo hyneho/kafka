@@ -867,19 +867,19 @@ class RemoteLogDynamicThreadPool(server: KafkaBroker) extends BrokerReconfigurab
     }
 
     val remoteLogManager = server.remoteLogManagerOpt
-    if (newConfig.remoteLogCopierThreads != oldConfig.remoteLogCopierThreads) {
-      val oldValue = oldConfig.remoteLogCopierThreads
-      val newValue = newConfig.remoteLogCopierThreads
+    if (newConfig.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize() != oldConfig.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize()) {
+      val oldValue = oldConfig.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize()
+      val newValue = newConfig.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize()
       remoteLogManager.get.resizeCopierThreadPool(oldValue, newValue)
     }
-    if (newConfig.remoteLogExpirationThreads != oldConfig.remoteLogExpirationThreads) {
-      val oldValue = oldConfig.remoteLogExpirationThreads
-      val newValue = newConfig.remoteLogExpirationThreads
+    if (newConfig.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize() != oldConfig.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize()) {
+      val oldValue = oldConfig.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize()
+      val newValue = newConfig.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize()
       remoteLogManager.get.resizeExpirationThreadPool(oldValue, newValue)
     }
-    if (newConfig.remoteLogReaderThreads != oldConfig.remoteLogReaderThreads) {
-      val oldValue = oldConfig.remoteLogReaderThreads
-      val newValue = newConfig.remoteLogReaderThreads
+    if (newConfig.remoteLogManagerConfig.remoteLogReaderThreads() != oldConfig.remoteLogManagerConfig.remoteLogReaderThreads()) {
+      val oldValue = oldConfig.remoteLogManagerConfig.remoteLogReaderThreads()
+      val newValue = newConfig.remoteLogManagerConfig.remoteLogReaderThreads()
       remoteLogManager.get.resizeReaderThreadPool(oldValue, newValue)
     }
   }
