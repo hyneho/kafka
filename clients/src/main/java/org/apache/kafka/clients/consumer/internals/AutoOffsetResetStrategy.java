@@ -77,6 +77,13 @@ public class AutoOffsetResetStrategy {
         return Objects.hashCode(name);
     }
 
+    @Override
+    public String toString() {
+        return "AutoOffsetResetStrategy{" +
+                "name='" + name + '\'' +
+                '}';
+    }
+
     public static class Validator implements ConfigDef.Validator {
         @Override
         public void ensureValid(String name, Object value) {
