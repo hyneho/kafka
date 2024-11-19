@@ -88,7 +88,7 @@ public class ConfigCommandIntegrationTest {
     @ClusterTest
     public void testExitWithNonZeroStatusOnUpdatingUnallowedConfig() {
         assertNonZeroStatusExit(Stream.concat(quorumArgs(), Stream.of(
-            "--entity-name", cluster.isKRaftTest() ? "0" : "1",
+            "--entity-name", "0",
             "--entity-type", "brokers",
             "--alter",
             "--add-config", "security.inter.broker.protocol=PLAINTEXT")),
@@ -173,7 +173,7 @@ public class ConfigCommandIntegrationTest {
     public void testDynamicBrokerConfigUpdateUsingKraft() throws Exception {
         List<String> alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
 
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             // Add config
             alterAndVerifyConfig(client, Optional.of(defaultBrokerId), singletonMap(MESSAGE_MAX_BYTES_CONFIG, "110000"), alterOpts);
             alterAndVerifyConfig(client, Optional.empty(), singletonMap(MESSAGE_MAX_BYTES_CONFIG, "120000"), alterOpts);
@@ -222,7 +222,7 @@ public class ConfigCommandIntegrationTest {
     }
 
     private void verifyGroupConfigUpdate(List<String> alterOpts) throws Exception {
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             // Add config
             Map<String, String> configs = new HashMap<>();
             configs.put(CONSUMER_SESSION_TIMEOUT_MS_CONFIG, "50000");
@@ -252,7 +252,7 @@ public class ConfigCommandIntegrationTest {
     }
 
     private void verifyClientMetricsConfigUpdate(List<String> alterOpts) throws Exception {
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             // Add config
             Map<String, String> configs = new HashMap<>();
             configs.put("metrics", "");
@@ -271,7 +271,7 @@ public class ConfigCommandIntegrationTest {
     public void testAlterReadOnlyConfigInKRaftThenShouldFail() {
         List<String> alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
 
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             assertThrows(ExecutionException.class,
                     () -> alterConfigWithKraft(client, Optional.of(defaultBrokerId),
                             singletonMap(AUTO_CREATE_TOPICS_ENABLE_CONFIG, "false"), alterOpts));
@@ -288,7 +288,7 @@ public class ConfigCommandIntegrationTest {
     public void testUpdateClusterWideConfigInKRaftThenShouldSuccessful() throws Exception {
         List<String> alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
 
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             alterAndVerifyConfig(client, Optional.of(defaultBrokerId),
                     singletonMap("log.flush.interval.messages", "100"), alterOpts);
             alterAndVerifyConfig(client, Optional.of(defaultBrokerId),
@@ -303,7 +303,7 @@ public class ConfigCommandIntegrationTest {
         List<String> alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
         String listenerName = "listener.name.internal.";
 
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             alterAndVerifyConfig(client, Optional.of(defaultBrokerId),
                     singletonMap(listenerName + "ssl.truststore.type", "PKCS12"), alterOpts);
             alterAndVerifyConfig(client, Optional.of(defaultBrokerId),
@@ -319,7 +319,7 @@ public class ConfigCommandIntegrationTest {
     public void testUpdatePerBrokerConfigInKRaftThenShouldFail() {
         List<String> alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
 
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             assertThrows(ExecutionException.class,
                     () -> alterConfigWithKraft(client, Optional.of(defaultBrokerId),
                             singletonMap(SSL_TRUSTSTORE_TYPE_CONFIG, "PKCS12"), alterOpts));

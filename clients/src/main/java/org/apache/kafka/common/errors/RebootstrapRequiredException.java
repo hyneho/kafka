@@ -14,23 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.util;
 
-/**
- * An UncaughtExceptionHandler that can be registered with one or more threads which tracks the
- * first exception so the main thread can check for uncaught exceptions.
- */
-public class TestBackgroundThreadExceptionHandler implements Thread.UncaughtExceptionHandler {
-    private Throwable firstException = null;
+package org.apache.kafka.common.errors;
 
-    @Override
-    public void uncaughtException(Thread t, Throwable e) {
-        if (this.firstException == null)
-            this.firstException = e;
+public class RebootstrapRequiredException extends ApiException {
+    private static final long serialVersionUID = 1L;
+
+    public RebootstrapRequiredException(String message) {
+        super(message);
     }
 
-    public void verifyNoExceptions() {
-        if (this.firstException != null)
-            throw new AssertionError(this.firstException);
+    public RebootstrapRequiredException(String message, Throwable cause) {
+        super(message, cause);
     }
 }
