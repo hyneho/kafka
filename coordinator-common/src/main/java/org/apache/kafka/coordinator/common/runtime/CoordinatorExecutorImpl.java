@@ -24,11 +24,11 @@ import org.apache.kafka.common.utils.LogContext;
 import org.slf4j.Logger;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implements CoordinatorExecutor<U> {
     private static class TaskResult<R> {
@@ -81,7 +81,7 @@ public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implement
 
         // Submit the task.
         executor.submit(() -> {
-            // If the task associated with the task is not us, it means
+            // If the task associated with the key is not us, it means
             // that the task was either replaced or cancelled. We stop.
             if (tasks.get(key) != task) return;
 
@@ -94,10 +94,10 @@ public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implement
                 shard,
                 Duration.ofMillis(Long.MAX_VALUE),
                 coordinator -> {
-                    // If the task associated with the task is not us, it means
+                    // If the task associated with the key is not us, it means
                     // that the task was either replaced or cancelled. We stop.
                     if (!tasks.remove(key, task)) {
-                        return new CoordinatorResult<>(Collections.emptyList(), null);
+                        throw new RejectedExecutionException(String.format("Task %s was overridden or cancelled", key));
                     }
 
                     // Call the underlying write operation with the result of the task.
@@ -107,13 +107,17 @@ public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implement
                 // Remove the task after a failure.
                 tasks.remove(key, task);
 
-                if (exception instanceof NotCoordinatorException || exception instanceof CoordinatorLoadInProgressException) {
+                if (exception instanceof RejectedExecutionException) {
+                    log.debug("The write event for the task {} was not executed because it was " +
+                        "cancelled or overridden.", key);
+                } else if (exception instanceof NotCoordinatorException || exception instanceof CoordinatorLoadInProgressException) {
                     log.debug("The write event for the task {} failed due to {}. Ignoring it because " +
                         "the coordinator is not active.", key, exception.getMessage());
                 } else {
                     log.error("The write event for the task {} failed due to {}. Ignoring it. ",
                         key, exception.getMessage());
                 }
+
                 return null;
             });
         });

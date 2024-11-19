@@ -25,12 +25,14 @@ import org.junit.jupiter.api.Test;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -230,11 +232,8 @@ public class CoordinatorExecutorImplTest {
 
             CoordinatorRuntime.CoordinatorWriteOperation<CoordinatorShard<String>, Void, String> op =
                 args.getArgument(3);
-            assertEquals(
-                new CoordinatorResult<>(Collections.emptyList(), null),
-                op.generateRecordsAndResult(coordinatorShard)
-            );
-            return CompletableFuture.completedFuture(null);
+            Throwable ex = assertThrows(RejectedExecutionException.class, () -> op.generateRecordsAndResult(coordinatorShard));
+            return FutureUtils.failedFuture(ex);
         });
 
         when(executorService.submit(any(Runnable.class))).thenAnswer(args -> {
