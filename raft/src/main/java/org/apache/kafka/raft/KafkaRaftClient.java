@@ -788,6 +788,14 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         int lastEpoch = partitionRequest.lastOffsetEpoch();
         long lastEpochEndOffset = partitionRequest.lastOffset();
         boolean isIllegalEpoch = preVote ? lastEpoch > replicaEpoch : lastEpoch >= replicaEpoch;
+        if (isIllegalEpoch) {
+            logger.info(
+                "Received a vote request from replica {} with illegal epoch {} and last epoch {}",
+                replicaId,
+                replicaEpoch,
+                lastEpoch
+            );
+        }
         if (lastEpochEndOffset < 0 || lastEpoch < 0 || isIllegalEpoch) {
             return buildVoteResponse(
                 requestMetadata.listenerName(),
@@ -877,10 +885,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
 
         VoteResponseData.PartitionData partitionResponse =
             response.topics().get(0).partitions().get(0);
-
-        if (partitionResponse.preVote()) {
-            throw new UnsupportedOperationException("PreVote=true responses are not supported yet");
-        }
 
         Errors error = Errors.forCode(partitionResponse.errorCode());
         OptionalInt responseLeaderId = optionalLeaderId(partitionResponse.leaderId());

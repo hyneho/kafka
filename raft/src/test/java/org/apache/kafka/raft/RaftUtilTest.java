@@ -75,6 +75,8 @@ public class RaftUtilTest {
     private final ListenerName listenerName = ListenerName.forSecurityProtocol(SecurityProtocol.PLAINTEXT);
     private final InetSocketAddress address = InetSocketAddress.createUnresolved("localhost", 9990);
     private final String clusterId = "I4ZmrWqfT2e-upky_4fdPA";
+    private static final Uuid TEST_DIRECTORY_ID1 = Uuid.randomUuid();
+    private static final Uuid TEST_DIRECTORY_ID2 = Uuid.randomUuid();
 
     @Test
     public void testErrorResponse() {
@@ -192,14 +194,21 @@ public class RaftUtilTest {
                 Arguments.of((short) 1,
                         "{\"clusterId\":\"I4ZmrWqfT2e-upky_4fdPA\",\"voterId\":2,\"topics\":[{" +
                             "\"topicName\":\"topic\",\"partitions\":[{\"partitionIndex\":1,\"replicaEpoch\":1," +
-                            "\"replicaId\":1,\"replicaDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\"," +
-                            "\"voterDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\",\"lastOffsetEpoch\":1000,\"lastOffset\":1000}]}]}"),
+                            "\"replicaId\":1,\"replicaDirectoryId\":\"" + TEST_DIRECTORY_ID1 + "\"," +
+                            "\"voterDirectoryId\":\"" + TEST_DIRECTORY_ID2 + "\",\"lastOffsetEpoch\":1000," +
+                            "\"lastOffset\":1000}]}]}"),
                 Arguments.of((short) 2,
                         "{\"clusterId\":\"I4ZmrWqfT2e-upky_4fdPA\",\"voterId\":2,\"topics\":[{" +
                             "\"topicName\":\"topic\",\"partitions\":[{\"partitionIndex\":1,\"replicaEpoch\":1," +
-                            "\"replicaId\":1,\"replicaDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\"," +
-                            "\"voterDirectoryId\":\"AAAAAAAAAAAAAAAAAAAAAQ\",\"lastOffsetEpoch\":1000,\"lastOffset\":1000," +
-                            "\"preVote\":false}]}]}")
+                            "\"replicaId\":1,\"replicaDirectoryId\":\"" + TEST_DIRECTORY_ID1 + "\"," +
+                            "\"voterDirectoryId\":\"" + TEST_DIRECTORY_ID2 + "\",\"lastOffsetEpoch\":1000," +
+                            "\"lastOffset\":1000,\"preVote\":true}]}]}"),
+                Arguments.of((short) 2,
+                        "{\"clusterId\":\"I4ZmrWqfT2e-upky_4fdPA\",\"voterId\":2,\"topics\":[{" +
+                            "\"topicName\":\"topic\",\"partitions\":[{\"partitionIndex\":1,\"replicaEpoch\":1," +
+                            "\"replicaId\":1,\"replicaDirectoryId\":\"" + TEST_DIRECTORY_ID1 + "\"," +
+                            "\"voterDirectoryId\":\"" + TEST_DIRECTORY_ID2 + "\",\"lastOffsetEpoch\":1000," +
+                            "\"lastOffset\":1000,\"preVote\":true}]}]}")
         );
     }
 
@@ -211,7 +220,11 @@ public class RaftUtilTest {
                 Arguments.of((short) 1,
                         "{\"errorCode\":0,\"topics\":[{\"topicName\":\"topic\",\"partitions\":[{" +
                             "\"partitionIndex\":0,\"errorCode\":0,\"leaderId\":1,\"leaderEpoch\":1,\"voteGranted\":true}]}]," +
-                            "\"nodeEndpoints\":[{\"nodeId\":1,\"host\":\"localhost\",\"port\":9990}]}")
+                            "\"nodeEndpoints\":[{\"nodeId\":1,\"host\":\"localhost\",\"port\":9990}]}"),
+                Arguments.of((short) 2,
+                        "{\"errorCode\":0,\"topics\":[{\"topicName\":\"topic\",\"partitions\":[{" +
+                            "\"partitionIndex\":0,\"errorCode\":0,\"leaderId\":1,\"leaderEpoch\":1,\"voteGranted\":true," +
+                            "\"preVote\":true}]}],\"nodeEndpoints\":[{\"nodeId\":1,\"host\":\"localhost\",\"port\":9990}]}")
         );
     }
 
@@ -391,11 +404,11 @@ public class RaftUtilTest {
                 topicPartition,
                 clusterId,
                 replicaEpoch,
-                ReplicaKey.of(1, Uuid.ONE_UUID),
-                ReplicaKey.of(2, Uuid.ONE_UUID),
+                ReplicaKey.of(1, TEST_DIRECTORY_ID1),
+                ReplicaKey.of(2, TEST_DIRECTORY_ID2),
                 lastEpoch,
                 lastEpochOffset,
-                false
+                version < 2 ? false : true
         );
         JsonNode json = VoteRequestDataJsonConverter.write(voteRequestData, version);
         assertEquals(expectedJson, json.toString());

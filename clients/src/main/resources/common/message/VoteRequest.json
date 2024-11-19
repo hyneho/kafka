@@ -36,7 +36,7 @@
             { "name": "PartitionIndex", "type": "int32", "versions": "0+",
               "about": "The partition index." },
             { "name": "ReplicaEpoch", "type": "int32", "versions": "0+",
-              "about": "The epoch of the replica sending the request"},
+              "about": "The epoch of the voter sending the request"},
             { "name": "ReplicaId", "type": "int32", "versions": "0+", "entityType": "brokerId",
               "about": "The replica id of the voter sending the request"},
             { "name": "ReplicaDirectoryId", "type": "uuid", "versions": "1+", "ignorable": true,
@@ -48,7 +48,7 @@
             { "name": "LastOffset", "type": "int64", "versions": "0+",
               "about": "The offset of the last record written to the metadata log"},
             { "name": "PreVote", "type": "bool", "versions": "2+",
-              "about": "Whether the request is a PreVote request (no epoch increase) or not."}
+              "about": "Whether the request is a PreVote request (not persisted) or not."}
           ]
         }
       ]
