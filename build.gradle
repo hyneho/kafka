@@ -3518,7 +3518,6 @@ project(':connect:runtime') {
     implementation libs.log4j2Api
     implementation libs.log4j2Core
     implementation libs.log4j1Bridge2Api
-    implementation libs.spotbugs
     implementation libs.jose4j                    // for SASL/OAUTHBEARER JWT validation
     implementation libs.jacksonAnnotations
     implementation libs.jacksonJaxrsJsonProvider
@@ -3535,6 +3534,7 @@ project(':connect:runtime') {
     implementation libs.swaggerAnnotations
 
     compileOnly libs.bndlib
+    compileOnly libs.spotbugs
 
     // We use this library to generate OpenAPI docs for the REST API, but we don't want or need it at compile
     // or run time. So, we add it to a separate configuration, which we use later on during docs generation

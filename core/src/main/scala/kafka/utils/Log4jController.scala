@@ -48,14 +48,14 @@ object Log4jController {
     // Loggers defined in the configuration
     val configured = logContext.getConfiguration.getLoggers.asScala
       .values
-      .filter(_.getName != LogManager.ROOT_LOGGER_NAME)
+      .filterNot(_.getName.equals(LogManager.ROOT_LOGGER_NAME))
       .map { logger =>
         logger.getName -> logger.getLevel.toString
       }.toMap
 
     // Loggers actually running
     val actual = logContext.getLoggers.asScala
-      .filter(_.getName != LogManager.ROOT_LOGGER_NAME)
+      .filterNot(_.getName.equals(LogManager.ROOT_LOGGER_NAME))
       .map { logger =>
         logger.getName -> logger.getLevel.toString
       }.toMap

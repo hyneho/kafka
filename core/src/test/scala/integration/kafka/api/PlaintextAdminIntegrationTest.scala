@@ -56,7 +56,6 @@ import org.apache.kafka.security.authorizer.AclEntry
 import org.apache.kafka.server.config.{QuotaConfig, ServerConfigs, ServerLogConfigs}
 import org.apache.kafka.storage.internals.log.{CleanerConfig, LogConfig, LogFileUtils}
 import org.apache.kafka.test.TestUtils.DEFAULT_MAX_WAIT_MS
-import org.apache.log4j.PropertyConfigurator
 import org.apache.logging.log4j.core.config.Configurator
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{BeforeEach, TestInfo, Timeout}
@@ -3778,18 +3777,5 @@ object PlaintextAdminIntegrationTest {
     assertEquals("snappy", configs.get(topicResource2).get(TopicConfig.COMPRESSION_TYPE_CONFIG).value)
 
     assertEquals(LogConfig.DEFAULT_COMPRESSION_TYPE, configs.get(brokerResource).get(ServerConfigs.COMPRESSION_TYPE_CONFIG).value)
-  }
-
-  /**
-   * Resets the logging configuration after the test.
-   */
-  def resetLogging(): Unit = {
-    org.apache.log4j.LogManager.resetConfiguration()
-    val stream = this.getClass.getResourceAsStream("/log4j.properties")
-    try {
-      PropertyConfigurator.configure(stream)
-    } finally {
-      stream.close()
-    }
   }
 }
