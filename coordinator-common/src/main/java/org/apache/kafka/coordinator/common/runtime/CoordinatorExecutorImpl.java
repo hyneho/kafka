@@ -48,18 +48,21 @@ public class CoordinatorExecutorImpl<S extends CoordinatorShard<U>, U> implement
     private final TopicPartition shard;
     private final CoordinatorRuntime<S, U> runtime;
     private final ExecutorService executor;
+    private final Duration writeTimeout;
     private final Map<String, TaskRunnable<?>> tasks = new ConcurrentHashMap<>();
 
     public CoordinatorExecutorImpl(
         LogContext logContext,
         TopicPartition shard,
         CoordinatorRuntime<S, U> runtime,
-        ExecutorService executor
+        ExecutorService executor,
+        Duration writeTimeout
     ) {
         this.log = logContext.logger(CoordinatorExecutorImpl.class);
         this.shard = shard;
         this.runtime = runtime;
         this.executor = executor;
+        this.writeTimeout = writeTimeout;
     }
 
     private <R> TaskResult<R> executeTask(TaskRunnable<R> task) {

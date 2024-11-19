@@ -618,7 +618,13 @@ public class CoordinatorRuntime<S extends CoordinatorShard<U>, U> implements Aut
             this.epoch = -1;
             this.deferredEventQueue = new DeferredEventQueue(logContext);
             this.timer = new EventBasedCoordinatorTimer(tp, logContext);
-            this.executor = new CoordinatorExecutorImpl<>(logContext, tp, CoordinatorRuntime.this, executorService);
+            this.executor = new CoordinatorExecutorImpl<>(
+                logContext,
+                tp,
+                CoordinatorRuntime.this,
+                executorService,
+                defaultWriteTimeout
+            );
             this.bufferSupplier = new BufferSupplier.GrowableBufferSupplier();
         }
 

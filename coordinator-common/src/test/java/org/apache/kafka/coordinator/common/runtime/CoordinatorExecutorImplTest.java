@@ -22,6 +22,7 @@ import org.apache.kafka.server.util.FutureUtils;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -52,7 +53,8 @@ public class CoordinatorExecutorImplTest {
             new LogContext(),
             shard,
             runtime,
-            executorService
+            executorService,
+            Duration.ofMillis(1000)
         );
 
         when(runtime.scheduleWriteOperation(
@@ -113,7 +115,8 @@ public class CoordinatorExecutorImplTest {
             new LogContext(),
             shard,
             runtime,
-            executorService
+            executorService,
+            Duration.ofMillis(1000)
         );
 
         when(runtime.scheduleWriteOperation(
@@ -172,7 +175,8 @@ public class CoordinatorExecutorImplTest {
             new LogContext(),
             shard,
             runtime,
-            executorService
+            executorService,
+            Duration.ofMillis(1000)
         );
 
         when(executorService.submit(any(Runnable.class))).thenAnswer(args -> {
@@ -218,7 +222,8 @@ public class CoordinatorExecutorImplTest {
             new LogContext(),
             shard,
             runtime,
-            executorService
+            executorService,
+            Duration.ofMillis(1000)
         );
 
         when(runtime.scheduleWriteOperation(
@@ -274,7 +279,8 @@ public class CoordinatorExecutorImplTest {
             new LogContext(),
             shard,
             runtime,
-            executorService
+            executorService,
+            Duration.ofMillis(1000)
         );
 
         when(runtime.scheduleWriteOperation(
