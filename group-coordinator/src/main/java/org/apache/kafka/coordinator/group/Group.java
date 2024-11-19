@@ -68,7 +68,7 @@ public interface Group {
             return type == null ? UNKNOWN : type;
         }
         
-        static String[] documentValues() {
+        static String[] documentValidValues() {
             return Arrays.stream(GroupType.values())
                 .filter(type -> type != UNKNOWN)
                 .map(GroupType::name)
