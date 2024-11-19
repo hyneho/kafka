@@ -14,16 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.util.clusters;
+package org.apache.kafka.test;
 
-/**
- * @deprecated Use {@link ConnectAssertions} instead.
- */
-@Deprecated
-public class EmbeddedConnectClusterAssertions extends ConnectAssertions {
+import org.apache.kafka.streams.state.internals.CacheFlushListener;
+import org.apache.kafka.streams.state.internals.CachedStateStore;
 
-    EmbeddedConnectClusterAssertions(EmbeddedConnect connect) {
-        super(connect);
+public class MockCachedKeyValueStore extends MockKeyValueStore implements CachedStateStore<Object, Object> {
+
+    public MockCachedKeyValueStore(String name, boolean persistent) {
+        super(name, persistent);
     }
 
+    @Override
+    public boolean setFlushListener(CacheFlushListener<Object, Object> listener, boolean sendOldValues) {
+        return false;
+    }
+
+    @Override
+    public void flushCache() {
+
+    }
+
+    @Override
+    public void clearCache() {
+
+    }
 }
