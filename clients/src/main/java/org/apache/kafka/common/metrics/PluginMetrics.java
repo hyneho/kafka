@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * This allows plugins to register metrics and sensors.
- * Any metrics registered by the plugin is automatically removed when the plugin is closed.
+ * Any metrics registered by the plugin are automatically removed when the plugin  closed.
  */
 public interface PluginMetrics {
 

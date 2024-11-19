@@ -37,6 +37,7 @@ public class PluginMetricsImpl implements PluginMetrics, Closeable {
     private final Map<String, String> tags;
     private final Set<MetricName> metricNames = new HashSet<>();
     private final Set<String> sensors = new HashSet<>();
+    private boolean closing = false;
 
     public PluginMetricsImpl(Metrics metrics, Map<String, String> tags) {
         this.metrics = metrics;
@@ -45,6 +46,7 @@ public class PluginMetricsImpl implements PluginMetrics, Closeable {
 
     @Override
     public MetricName metricName(String name, String description, Map<String, String> tags) {
+        if (closing) throw new IllegalStateException("This PluginMetrics instance is closed");
         for (String tagName : tags.keySet()) {
             if (this.tags.containsKey(tagName)) {
                 throw new IllegalArgumentException("Cannot use " + tagName + " as a tag name");
@@ -57,6 +59,7 @@ public class PluginMetricsImpl implements PluginMetrics, Closeable {
 
     @Override
     public void addMetric(MetricName metricName, MetricValueProvider<?> metricValueProvider) {
+        if (closing) throw new IllegalStateException("This PluginMetrics instance is closed");
         if (metricNames.contains(metricName)) {
             throw new IllegalArgumentException("Metric " + metricName + " already exists");
         }
@@ -66,6 +69,7 @@ public class PluginMetricsImpl implements PluginMetrics, Closeable {
 
     @Override
     public void removeMetric(MetricName metricName) {
+        if (closing) throw new IllegalStateException("This PluginMetrics instance is closed");
         if (metricNames.contains(metricName)) {
             metrics.removeMetric(metricName);
             metricNames.remove(metricName);
@@ -76,6 +80,7 @@ public class PluginMetricsImpl implements PluginMetrics, Closeable {
 
     @Override
     public Sensor addSensor(String name) {
+        if (closing) throw new IllegalStateException("This PluginMetrics instance is closed");
         if (sensors.contains(name)) {
             throw new IllegalArgumentException("Sensor " + name + " already exists");
         }
@@ -86,6 +91,7 @@ public class PluginMetricsImpl implements PluginMetrics, Closeable {
 
     @Override
     public void removeSensor(String name) {
+        if (closing) throw new IllegalStateException("This PluginMetrics instance is closed");
         if (sensors.contains(name)) {
             metrics.removeSensor(name);
             sensors.remove(name);
@@ -96,6 +102,7 @@ public class PluginMetricsImpl implements PluginMetrics, Closeable {
 
     @Override
     public void close() throws IOException {
+        closing = true;
         for (String sensor : sensors) {
             metrics.removeSensor(sensor);
         }

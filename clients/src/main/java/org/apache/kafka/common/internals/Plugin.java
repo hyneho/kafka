@@ -16,15 +16,18 @@
  */
 package org.apache.kafka.common.internals;
 
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Monitorable;
 import org.apache.kafka.common.metrics.internals.PluginMetricsImpl;
+import org.apache.kafka.common.utils.Utils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public class Plugin<T> implements Supplier<T>, AutoCloseable {
@@ -72,7 +75,12 @@ public class Plugin<T> implements Supplier<T>, AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        if (pluginMetrics.isPresent()) pluginMetrics.get().close();
-        if (instance instanceof AutoCloseable) ((AutoCloseable) instance).close();
+        AtomicReference<Throwable> firstException = new AtomicReference<>();
+        if (instance instanceof AutoCloseable) {
+            Utils.closeQuietly((AutoCloseable) instance, instance.getClass().getSimpleName(), firstException);
+        }
+        pluginMetrics.ifPresent(metrics -> Utils.closeQuietly(metrics, "pluginMetrics", firstException));
+        Throwable throwable = firstException.get();
+        if (throwable != null) throw new KafkaException("failed closing plugin", throwable);
     }
 }

@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.common.internals;
 
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.metrics.Monitorable;
 import org.apache.kafka.common.metrics.PluginMetrics;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PluginTest {
@@ -43,9 +46,11 @@ public class PluginTest {
 
         PluginMetrics pluginMetrics;
         boolean closed;
+        boolean throwOnClose = false;
 
         @Override
         public void close() throws IOException {
+            if (throwOnClose) throw new RuntimeException("throw on close");
             closed = true;
         }
     }
@@ -109,6 +114,26 @@ public class PluginTest {
             plugin.close();
             assertTrue(somePlugin.closed);
         }
+    }
+
+    @Test
+    public void testCloseThrows() {
+        SomePlugin somePlugin = new SomePlugin();
+        somePlugin.throwOnClose = true;
+        Plugin<SomePlugin> plugin = Plugin.wrapInstance(somePlugin, METRICS, CONFIG);
+        assertThrows(KafkaException.class, plugin::close);
+    }
+
+    @Test
+    public void testUsePluginMetricsAfterClose() throws Exception {
+        Plugin<SomeMonitorablePlugin> plugin = Plugin.wrapInstance(new SomeMonitorablePlugin(), METRICS, CONFIG);
+        PluginMetrics pluginMetrics = plugin.get().pluginMetrics;
+        plugin.close();
+        assertThrows(IllegalStateException.class, () -> pluginMetrics.metricName("", "", Collections.emptyMap()));
+        assertThrows(IllegalStateException.class, () -> pluginMetrics.addMetric(null, null));
+        assertThrows(IllegalStateException.class, () -> pluginMetrics.removeMetric(null));
+        assertThrows(IllegalStateException.class, () -> pluginMetrics.addSensor(""));
+        assertThrows(IllegalStateException.class, () -> pluginMetrics.removeSensor(""));
     }
 
     private void checkPlugin(Plugin<SomeMonitorablePlugin> plugin, SomeMonitorablePlugin instance, boolean metricsSet) throws Exception {
