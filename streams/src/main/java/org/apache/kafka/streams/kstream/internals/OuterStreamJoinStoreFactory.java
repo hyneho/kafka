@@ -181,8 +181,19 @@ public class OuterStreamJoinStoreFactory<K, V1, V2> extends AbstractConfigurable
     }
 
     @Override
+    public StoreFactory withCachingEnabled() {
+        throw new IllegalStateException("Caching should never be enabled for stream-stream join stores");
+    }
+
+    @Override
     public StoreFactory withLoggingDisabled() {
         loggingEnabled = false;
+        return this;
+    }
+
+    @Override
+    public StoreFactory withLoggingEnabled(final Map<String, String> config) {
+        loggingEnabled = true;
         return this;
     }
 

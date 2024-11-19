@@ -20,6 +20,8 @@ import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
+import org.apache.kafka.common.utils.Utils;
+import org.apache.kafka.streams.ProcessorWrapper;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.TopologyConfig;
@@ -66,11 +68,18 @@ public class InternalTopologyBuilder {
 
     public InternalTopologyBuilder() {
         this.topologyName = null;
+        this.processorWrapper = new NoOpProcessorWrapper();
     }
 
     public InternalTopologyBuilder(final TopologyConfig topologyConfigs) {
         this.topologyConfigs = topologyConfigs;
         this.topologyName = topologyConfigs.topologyName;
+
+        processorWrapper = topologyConfigs.getConfiguredInstance(
+            StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG,
+            ProcessorWrapper.class,
+            topologyConfigs.originals()
+        );
     }
 
     private static final Logger log = LoggerFactory.getLogger(InternalTopologyBuilder.class);
@@ -142,6 +151,8 @@ public class InternalTopologyBuilder {
 
     // Used to capture subscribed topics via Patterns discovered during the partition assignment process.
     private final Set<String> subscriptionUpdates = new HashSet<>();
+
+    private final ProcessorWrapper processorWrapper;
 
     private String applicationId = null;
 
@@ -367,7 +378,7 @@ public class InternalTopologyBuilder {
 
     public final synchronized void setStreamsConfig(final StreamsConfig applicationConfig) {
         Objects.requireNonNull(applicationConfig, "config can't be null");
-        topologyConfigs = new TopologyConfig(applicationConfig);
+        topologyConfigs = new TopologyConfig(topologyName, applicationConfig, topologyConfigs.topologyOverrides);
     }
 
     @SuppressWarnings("deprecation")
@@ -529,8 +540,6 @@ public class InternalTopologyBuilder {
         Objects.requireNonNull(predecessorNames, "predecessor names must not be null");
         ApiUtils.checkSupplier(supplier);
 
-        // wrap processor supplier here
-
         if (nodeFactories.containsKey(name)) {
             throw new TopologyException("Processor " + name + " is already added.");
         }
@@ -561,6 +570,7 @@ public class InternalTopologyBuilder {
         Objects.requireNonNull(supplier, "supplier must not be null");
         Objects.requireNonNull(predecessorNames, "predecessor names must not be null");
         ApiUtils.checkSupplier(supplier);
+
         if (nodeFactories.containsKey(name)) {
             throw new TopologyException("Processor " + name + " is already added.");
         }
@@ -2247,5 +2257,9 @@ public class InternalTopologyBuilder {
 
     public synchronized Map<String, StoreFactory> stateStores() {
         return stateFactories;
+    }
+
+    public ProcessorWrapper processorWrapper() {
+        return processorWrapper;
     }
 }

@@ -37,9 +37,7 @@ import org.slf4j.LoggerFactory;
 public class KeyValueStoreMaterializer<K, V> extends MaterializedStoreFactory<K, V, KeyValueStore<Bytes, byte[]>> {
     private static final Logger LOG = LoggerFactory.getLogger(KeyValueStoreMaterializer.class);
 
-    public KeyValueStoreMaterializer(
-            final MaterializedInternal<K, V, KeyValueStore<Bytes, byte[]>> materialized
-    ) {
+    public KeyValueStoreMaterializer(final MaterializedInternal<K, V, KeyValueStore<Bytes, byte[]>> materialized) {
         super(materialized);
     }
 

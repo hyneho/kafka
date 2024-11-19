@@ -72,36 +72,44 @@ public interface StoreFactory {
 
     StoreFactory withCachingDisabled();
 
+    StoreFactory withCachingEnabled();
+
     StoreFactory withLoggingDisabled();
+
+    StoreFactory withLoggingEnabled(final Map<String, String> config);
 
     boolean isCompatibleWith(StoreFactory storeFactory);
 
-    class ReadOnlyStoreBuilder<T extends StateStore> implements StoreBuilder<T> {
+    class FactoryWrappingStoreBuilder<T extends StateStore> implements StoreBuilder<T> {
 
         private final StoreFactory factory;
 
-        public ReadOnlyStoreBuilder(final StoreFactory factory) {
+        public FactoryWrappingStoreBuilder(final StoreFactory factory) {
             this.factory = factory;
         }
 
         @Override
         public StoreBuilder<T> withCachingEnabled() {
-            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+            factory.withCachingEnabled();
+            return this;
         }
 
         @Override
         public StoreBuilder<T> withCachingDisabled() {
-            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+            factory.withCachingDisabled();
+            return this;
         }
 
         @Override
         public StoreBuilder<T> withLoggingEnabled(final Map<String, String> config) {
-            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+            factory.withLoggingEnabled(config);
+            return this;
         }
 
         @Override
         public StoreBuilder<T> withLoggingDisabled() {
-            throw new UnsupportedOperationException("Should not attempt to modify StoreBuilder");
+            factory.withLoggingDisabled();
+            return this;
         }
 
         @SuppressWarnings("unchecked")

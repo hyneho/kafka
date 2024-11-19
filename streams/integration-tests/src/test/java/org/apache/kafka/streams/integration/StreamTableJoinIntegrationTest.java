@@ -16,11 +16,22 @@
  */
 package org.apache.kafka.streams.integration;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import org.apache.kafka.streams.ProcessorWrapper;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.TopologyConfig;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
+import org.apache.kafka.streams.processor.api.Processor;
+import org.apache.kafka.streams.processor.api.ProcessorContext;
+import org.apache.kafka.streams.processor.api.ProcessorSupplier;
+import org.apache.kafka.streams.processor.api.Record;
+import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.Stores;
 import org.apache.kafka.streams.test.TestRecord;
 
@@ -44,10 +55,86 @@ public class StreamTableJoinIntegrationTest extends AbstractJoinIntegrationTest 
     private static final String STORE_NAME = "table-store";
     private static final String APP_ID = "stream-table-join-integration-test";
 
+    public static class LoggingTestWrapper implements ProcessorWrapper {
+
+        @Override
+        public <KIn, VIn, KOut, VOut> ProcessorSupplier<KIn, VIn, KOut, VOut> wrapProcessorSupplier(final String processorName, final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier) {
+            return new LoggingTestProcessorSupplier<>(processorName, processorSupplier);
+        }
+
+        @Override
+        public <KIn, VIn, VOut> FixedKeyProcessorSupplier<KIn, VIn, VOut> wrapFixedKeyProcessorSupplier(final String processorName, final FixedKeyProcessorSupplier<KIn, VIn, VOut> processorSupplier) {
+            throw new IllegalStateException("Did not expect fixed key");
+        }
+    }
+
+    private static class LoggingTestProcessorSupplier<KIn, VIn, KOut, VOut> implements ProcessorSupplier<KIn, VIn, KOut, VOut> {
+
+        private final String processorName;
+        private final ProcessorSupplier<KIn, VIn, KOut, VOut> inner;
+
+        public LoggingTestProcessorSupplier(final String processorName,
+                                            final ProcessorSupplier<KIn, VIn, KOut, VOut> inner) {
+            this.processorName = processorName;
+            this.inner = inner;
+        }
+
+        @Override
+        public Set<StoreBuilder<?>> stores() {
+            final Set<StoreBuilder<?>> innerStores = inner.stores();
+
+            if (innerStores == null || innerStores.isEmpty()) {
+                System.out.println("SOPHIE: processor " + processorName + " has no stores");
+            } else {
+                System.out.println("SOPHIE: processor " + processorName + " has a store!");
+            }
+            return innerStores;
+        }
+
+        @Override
+        public Processor<KIn, VIn, KOut, VOut> get() {
+            final Processor<KIn, VIn, KOut, VOut> innerProcessor = inner.get();
+            return new LoggingTestProcessor<>(processorName, innerProcessor);
+        }
+    }
+
+    private static class LoggingTestProcessor<KIn, VIn, KOut, VOut> implements Processor<KIn, VIn, KOut, VOut> {
+
+        private final String processorName;
+        private final Processor<KIn, VIn, KOut, VOut> inner;
+
+
+        public LoggingTestProcessor(final String processorName,
+                                    final Processor<KIn, VIn, KOut, VOut> inner) {
+            this.processorName = processorName;
+            this.inner = inner;
+        }
+
+        @Override
+        public void init(final ProcessorContext<KOut, VOut> context) {
+            inner.init(context);
+        }
+
+        @Override
+        public void process(final Record<KIn, VIn> record) {
+            System.out.println("SOPHIE: processing record in " + processorName);
+            inner.process(record);
+        }
+
+        @Override
+        public void close() {
+            inner.close();
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     public void testInner(final boolean cacheEnabled) {
-        final StreamsBuilder builder = new StreamsBuilder();
+        final Map<String, Object> props = new HashMap<>();
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "app");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "1088");
+        props.put(StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG, LoggingTestWrapper.class);
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
         final KStream<Long, String> leftStream = builder.stream(INPUT_TOPIC_LEFT);
         final KTable<Long, String> rightTable = builder.table(INPUT_TOPIC_RIGHT);
         final Properties streamsConfig = setupConfigsAndUtils(cacheEnabled);

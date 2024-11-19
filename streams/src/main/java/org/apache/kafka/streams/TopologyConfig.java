@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.streams;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
@@ -27,6 +29,7 @@ import org.apache.kafka.streams.internals.StreamsConfigUtils;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.internals.MaterializedInternal;
 import org.apache.kafka.streams.processor.TimestampExtractor;
+import org.apache.kafka.streams.processor.internals.NoOpProcessorWrapper;
 import org.apache.kafka.streams.processor.internals.namedtopology.KafkaStreamsNamedTopologyWrapper;
 import org.apache.kafka.streams.state.DslStoreSuppliers;
 
@@ -57,6 +60,8 @@ import static org.apache.kafka.streams.StreamsConfig.IN_MEMORY;
 import static org.apache.kafka.streams.StreamsConfig.MAX_TASK_IDLE_MS_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.MAX_TASK_IDLE_MS_DOC;
 import static org.apache.kafka.streams.StreamsConfig.PROCESSING_EXCEPTION_HANDLER_CLASS_CONFIG;
+import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
+import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_DOC;
 import static org.apache.kafka.streams.StreamsConfig.ROCKS_DB;
 import static org.apache.kafka.streams.StreamsConfig.STATESTORE_CACHE_MAX_BYTES_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.STATESTORE_CACHE_MAX_BYTES_DOC;
@@ -68,13 +73,24 @@ import static org.apache.kafka.streams.internals.StreamsConfigUtils.totalCacheSi
  * Streams configs that apply at the topology level. The values in the {@link StreamsConfig} parameter of the
  * {@link org.apache.kafka.streams.KafkaStreams} constructor or the {@link KafkaStreamsNamedTopologyWrapper} constructor (deprecated)
  * will determine the defaults, which can then be overridden for specific topologies by passing them in when creating the
- * topology builders via the {@link org.apache.kafka.streams.StreamsBuilder#StreamsBuilder(TopologyConfig) StreamsBuilder(TopologyConfig)} method.
+ * topology builders via the {@link org.apache.kafka.streams.StreamsBuilder#StreamsBuilder(TopologyConfig) StreamsBuilder(TopologyConfig)} method
+ * for DSL applications, or when creating a PAPI topology via the {@link Topology#Topology(TopologyConfig)} constructor.
+ * <p>
+ * Note that some configs that are only defined in the TopologyConfig and not in the StreamsConfig, such as the {@code processor.wrapper.class},
+ * can only be applied by setting them in the TopologyConfig and passing this into the appropriate constructor for your application
+ * (that is, the {@link StreamsBuilder} or {@link Topology} constructor that accepts a TopologyConfig parameter
  */
 @SuppressWarnings("deprecation")
 public final class TopologyConfig extends AbstractConfig {
     private static final ConfigDef CONFIG;
+
     static {
         CONFIG = new ConfigDef()
+            .define(PROCESSOR_WRAPPER_CLASS_CONFIG,
+                Type.CLASS,
+                    NoOpProcessorWrapper.class,
+                Importance.LOW,
+                PROCESSOR_WRAPPER_CLASS_DOC)
             .define(BUFFERED_RECORDS_PER_PARTITION_CONFIG,
                 Type.INT,
                 null,
@@ -151,8 +167,15 @@ public final class TopologyConfig extends AbstractConfig {
         this(null, globalAppConfigs, new Properties());
     }
 
+    private static Map<Object, Object> combinedConfigs(final StreamsConfig globalAppConfigs, final Properties topologyOverrides) {
+        final Map<Object, Object> allConfigs = new HashMap<>();
+        allConfigs.putAll(globalAppConfigs.originals());
+        allConfigs.putAll(topologyOverrides);
+        return allConfigs;
+    }
+
     public TopologyConfig(final String topologyName, final StreamsConfig globalAppConfigs, final Properties topologyOverrides) {
-        super(CONFIG, topologyOverrides, false);
+        super(CONFIG, combinedConfigs(globalAppConfigs, topologyOverrides), false);
 
         this.globalAppConfigs = globalAppConfigs;
         this.topologyName = topologyName;

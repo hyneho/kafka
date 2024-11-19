@@ -140,8 +140,12 @@ public class InternalStreamsBuilder implements InternalNameProvider {
         final String tableSourceName = named
             .orElseGenerateWithPrefix(this, KTableImpl.SOURCE_NAME);
 
-        final KTableSource<K, V> tableSource = new KTableSource<>(materialized.storeName(), materialized.queryableStoreName());
-        final ProcessorParameters<K, V, ?, ?> processorParameters = new ProcessorParameters<>(tableSource, tableSourceName);
+        final KTableSource<K, V> tableSource = new KTableSource<>(materialized, materialized.queryableStoreName());
+        final ProcessorParameters<K, V, ?, ?> processorParameters = new ProcessorParameters<>(
+            tableSource,
+            tableSourceName,
+            internalTopologyBuilder.processorWrapper()
+        );
 
         final TableSourceNode<K, V> tableSourceNode = TableSourceNode.<K, V>tableSourceNodeBuilder()
             .withTopic(topic)
@@ -187,10 +191,14 @@ public class InternalStreamsBuilder implements InternalNameProvider {
                 .orElseGenerateWithPrefix(this, KTableImpl.SOURCE_NAME);
 
         // enforce store name as queryable name to always materialize global table stores
-        final String storeName = materialized.storeName();
-        final KTableSource<K, V> tableSource = new KTableSource<>(storeName, storeName);
+        final String queryableStoreName = materialized.storeName();
+        final KTableSource<K, V> tableSource = new KTableSource<>(materialized, queryableStoreName);
 
-        final ProcessorParameters<K, V, ?, ?> processorParameters = new ProcessorParameters<>(tableSource, processorName);
+        final ProcessorParameters<K, V, ?, ?> processorParameters = new ProcessorParameters<>(
+            tableSource,
+            processorName,
+            internalTopologyBuilder.processorWrapper()
+        );
 
         final TableSourceNode<K, V> tableSourceNode = TableSourceNode.<K, V>tableSourceNodeBuilder()
             .withTopic(topic)
@@ -203,7 +211,7 @@ public class InternalStreamsBuilder implements InternalNameProvider {
 
         addGraphNode(root, tableSourceNode);
 
-        return new GlobalKTableImpl<>(new KTableSourceValueGetterSupplier<>(storeName), materialized.queryableStoreName());
+        return new GlobalKTableImpl<>(new KTableSourceValueGetterSupplier<>(queryableStoreName), materialized.queryableStoreName());
     }
 
     @Override

@@ -26,7 +26,7 @@ import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.internals.StoreFactory;
-import org.apache.kafka.streams.processor.internals.StoreFactory.ReadOnlyStoreBuilder;
+import org.apache.kafka.streams.processor.internals.StoreFactory.FactoryWrappingStoreBuilder;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.ValueAndTimestamp;
@@ -68,7 +68,7 @@ public class KTableAggregate<KIn, VIn, VAgg> implements
 
     @Override
     public Set<StoreBuilder<?>> stores() {
-        return Collections.singleton(new ReadOnlyStoreBuilder<>(storeFactory));
+        return Collections.singleton(new FactoryWrappingStoreBuilder<>(storeFactory));
     }
 
     @Override

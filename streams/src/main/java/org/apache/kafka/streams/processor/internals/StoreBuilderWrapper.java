@@ -110,8 +110,20 @@ public class StoreBuilderWrapper implements StoreFactory {
     }
 
     @Override
+    public StoreFactory withCachingEnabled() {
+        builder.withCachingEnabled();
+        return this;
+    }
+
+    @Override
     public StoreFactory withLoggingDisabled() {
         builder.withLoggingDisabled();
+        return this;
+    }
+
+    @Override
+    public StoreFactory withLoggingEnabled(final Map<String, String> config) {
+        builder.withLoggingEnabled(config);
         return this;
     }
 

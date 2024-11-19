@@ -661,7 +661,7 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
         }
 
         final KTableSource<K, V> tableSource = new KTableSource<>(
-            materializedInternal.storeName(),
+            materializedInternal,
             materializedInternal.queryableStoreName()
         );
         final ProcessorParameters<K, V, ?, ?> processorParameters = new ProcessorParameters<>(tableSource, name);
