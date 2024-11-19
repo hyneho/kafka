@@ -52,7 +52,11 @@ public interface StoreFactory {
         // do nothing
     }
 
-    StateStore build();
+    StoreBuilder<?> getBuilder();
+
+    default StateStore build() {
+        return getBuilder().build();
+    }
 
     long retentionPeriod();
 
@@ -86,6 +90,10 @@ public interface StoreFactory {
 
         public FactoryWrappingStoreBuilder(final StoreFactory factory) {
             this.factory = factory;
+        }
+
+        public StoreBuilder<?> resolveStoreBuilder() {
+            return factory.getBuilder();
         }
 
         @Override

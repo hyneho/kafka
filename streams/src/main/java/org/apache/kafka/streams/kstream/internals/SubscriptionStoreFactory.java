@@ -45,7 +45,7 @@ public class SubscriptionStoreFactory<K> extends AbstractConfigurableStoreFactor
     }
 
     @Override
-    public StateStore build() {
+    public StoreBuilder<?> getBuilder() {
         StoreBuilder<?> builder;
         builder = Stores.timestampedKeyValueStoreBuilder(
             dslStoreSuppliers().keyValueStore(new DslKeyValueParams(name, true)),
@@ -58,7 +58,7 @@ public class SubscriptionStoreFactory<K> extends AbstractConfigurableStoreFactor
             builder = builder.withLoggingDisabled();
         }
         builder = builder.withCachingDisabled();
-        return builder.build();
+        return builder;
     }
 
     @Override

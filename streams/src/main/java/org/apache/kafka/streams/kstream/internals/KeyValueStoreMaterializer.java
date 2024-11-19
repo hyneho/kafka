@@ -42,22 +42,22 @@ public class KeyValueStoreMaterializer<K, V> extends MaterializedStoreFactory<K,
     }
 
     @Override
-    public StateStore build() {
+    public StoreBuilder<?> getBuilder() {
         final KeyValueBytesStoreSupplier supplier = materialized.storeSupplier() == null
-                ? dslStoreSuppliers().keyValueStore(new DslKeyValueParams(materialized.storeName(), true))
-                : (KeyValueBytesStoreSupplier) materialized.storeSupplier();
+            ? dslStoreSuppliers().keyValueStore(new DslKeyValueParams(materialized.storeName(), true))
+            : (KeyValueBytesStoreSupplier) materialized.storeSupplier();
 
         final StoreBuilder<?> builder;
         if (supplier instanceof VersionedBytesStoreSupplier) {
             builder = Stores.versionedKeyValueStoreBuilder(
-                    (VersionedBytesStoreSupplier) supplier,
-                    materialized.keySerde(),
-                    materialized.valueSerde());
+                (VersionedBytesStoreSupplier) supplier,
+                materialized.keySerde(),
+                materialized.valueSerde());
         } else {
             builder = Stores.timestampedKeyValueStoreBuilder(
-                    supplier,
-                    materialized.keySerde(),
-                    materialized.valueSerde());
+                supplier,
+                materialized.keySerde(),
+                materialized.valueSerde());
         }
 
         if (materialized.loggingEnabled()) {
@@ -73,9 +73,7 @@ public class KeyValueStoreMaterializer<K, V> extends MaterializedStoreFactory<K,
                 LOG.info("Not enabling caching for store '{}' as versioned stores do not support caching.", supplier.name());
             }
         }
-
-
-        return builder.build();
+        return builder;
     }
 
     @Override

@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
+import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.internals.SessionStoreBuilder;
@@ -43,8 +44,8 @@ public class StoreBuilderWrapper implements StoreFactory {
     }
 
     @Override
-    public StateStore build() {
-        return builder.build();
+    public StoreBuilder<?> getBuilder() {
+        return builder;
     }
 
     @Override

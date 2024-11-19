@@ -59,6 +59,14 @@ public class StreamTableJoinIntegrationTest extends AbstractJoinIntegrationTest 
 
         @Override
         public <KIn, VIn, KOut, VOut> ProcessorSupplier<KIn, VIn, KOut, VOut> wrapProcessorSupplier(final String processorName, final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier) {
+
+            final Set<StoreBuilder<?>> innerStores = processorSupplier.stores();
+
+            if (innerStores == null || innerStores.isEmpty()) {
+                System.out.println("SOPHIE: processor " + processorName + " has no stores when wrapping");
+            } else {
+                System.out.println("SOPHIE: processor " + processorName + " has a store when wrapping");
+            }
             return new LoggingTestProcessorSupplier<>(processorName, processorSupplier);
         }
 
@@ -93,6 +101,14 @@ public class StreamTableJoinIntegrationTest extends AbstractJoinIntegrationTest 
 
         @Override
         public Processor<KIn, VIn, KOut, VOut> get() {
+            final Set<StoreBuilder<?>> innerStores = inner.stores();
+
+            if (innerStores == null || innerStores.isEmpty()) {
+                System.out.println("SOPHIE: processor " + processorName + " has no stores in get");
+            } else {
+                System.out.println("SOPHIE: processor " + processorName + " has a store in get");
+            }
+
             final Processor<KIn, VIn, KOut, VOut> innerProcessor = inner.get();
             return new LoggingTestProcessor<>(processorName, innerProcessor);
         }
