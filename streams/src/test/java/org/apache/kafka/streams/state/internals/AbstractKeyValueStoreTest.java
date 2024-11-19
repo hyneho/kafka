@@ -74,15 +74,14 @@ public abstract class AbstractKeyValueStoreTest {
     }
 
     private static Map<Integer, String> getContentsAndCloseIterator(final KeyValueIterator<Integer, String> iter) {
-        final HashMap<Integer, String> result = new HashMap<>();
-        while (iter.hasNext()) {
-            final KeyValue<Integer, String> entry = iter.next();
-            result.put(entry.key, entry.value);
+        try (iter) {
+            final HashMap<Integer, String> result = new HashMap<>();
+            while (iter.hasNext()) {
+                final KeyValue<Integer, String> entry = iter.next();
+                result.put(entry.key, entry.value);
+            }
+            return result;
         }
-
-        iter.close();
-
-        return result;
     }
 
     @Test
