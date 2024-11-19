@@ -14,7 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.admin;
+package org.apache.kafka.tools;
+
+import kafka.admin.ConfigCommand;
 
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
@@ -25,8 +27,6 @@ import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.apache.kafka.tools.ToolsTestUtils.captureStandardOut;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -67,16 +68,14 @@ public class UserScramCredentialsCommandTest {
     private ConfigCommandResult runConfigCommandViaBroker(String...args) {
         AtomicReference<OptionalInt> exitStatus = new AtomicReference<>(OptionalInt.empty());
         Exit.setExitProcedure((status, __) -> {
-            exitStatus.set(OptionalInt.of((Integer) status));
+            exitStatus.set(OptionalInt.of(status));
             throw new RuntimeException();
         });
 
         List<String> commandArgs = new ArrayList<>(Arrays.asList("--bootstrap-server", cluster.bootstrapServers()));
         commandArgs.addAll(Arrays.asList(args));
         try {
-            String output = captureStandardStream(false, () -> {
-                ConfigCommand.main(commandArgs.toArray(new String[0]));
-            });
+            String output = captureStandardOut(() -> ConfigCommand.main(commandArgs.toArray(new String[0])));
             return new ConfigCommandResult(output);
         } catch (Exception e) {
             return new ConfigCommandResult("", exitStatus.get());
@@ -185,26 +184,5 @@ public class UserScramCredentialsCommandTest {
 
     private static String quotaMessage(String user) {
         return "Quota configs for user-principal '" + user + "' are consumer_byte_rate=20000.0";
-    }
-
-    private String captureStandardStream(boolean isErr, Runnable runnable) {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        PrintStream currentStream = isErr ? System.err : System.out;
-        PrintStream tempStream = new PrintStream(outputStream);
-        if (isErr)
-            System.setErr(tempStream);
-        else
-            System.setOut(tempStream);
-        try {
-            runnable.run();
-            return outputStream.toString().trim();
-        } finally {
-            if (isErr)
-                System.setErr(currentStream);
-            else
-                System.setOut(currentStream);
-
-            tempStream.close();
-        }
     }
 }
