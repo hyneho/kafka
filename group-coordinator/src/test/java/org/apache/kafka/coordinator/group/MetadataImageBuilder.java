@@ -61,6 +61,10 @@ public class MetadataImageBuilder {
     }
 
     public MetadataImage build() {
-        return delta.apply(MetadataProvenance.EMPTY);
+        return build(0);
+    }
+
+    public MetadataImage build(long version) {
+        return delta.apply(new MetadataProvenance(version, 0, 0L, true));
     }
 }

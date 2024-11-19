@@ -51,6 +51,7 @@ import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorResult;
+import org.apache.kafka.coordinator.common.runtime.MockCoordinatorExecutor;
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer;
 import org.apache.kafka.coordinator.group.api.assignor.ConsumerGroupPartitionAssignor;
 import org.apache.kafka.coordinator.group.api.assignor.ShareGroupPartitionAssignor;
@@ -400,6 +401,7 @@ public class GroupMetadataManagerTestContext {
     public static class Builder {
         private final MockTime time = new MockTime();
         private final MockCoordinatorTimer<Void, CoordinatorRecord> timer = new MockCoordinatorTimer<>(time);
+        private final MockCoordinatorExecutor<CoordinatorRecord> executor = new MockCoordinatorExecutor<>();
         private final LogContext logContext = new LogContext();
         private final SnapshotRegistry snapshotRegistry = new SnapshotRegistry(logContext);
         private MetadataImage metadataImage;
@@ -408,6 +410,7 @@ public class GroupMetadataManagerTestContext {
         private final List<ConsumerGroupBuilder> consumerGroupBuilders = new ArrayList<>();
         private int consumerGroupMaxSize = Integer.MAX_VALUE;
         private int consumerGroupMetadataRefreshIntervalMs = Integer.MAX_VALUE;
+        private int consumerGroupRegularExpressionRefreshInternalMs = 5000;
         private int classicGroupMaxSize = Integer.MAX_VALUE;
         private int classicGroupInitialRebalanceDelayMs = 3000;
         private final int classicGroupNewMemberJoinTimeoutMs = 5 * 60 * 1000;
@@ -442,6 +445,11 @@ public class GroupMetadataManagerTestContext {
 
         public Builder withConsumerGroupMetadataRefreshIntervalMs(int consumerGroupMetadataRefreshIntervalMs) {
             this.consumerGroupMetadataRefreshIntervalMs = consumerGroupMetadataRefreshIntervalMs;
+            return this;
+        }
+
+        public Builder withConsumerGroupRegularExpressionRefreshInternalMs(int consumerGroupRegularExpressionRefreshInternalMs) {
+            this.consumerGroupRegularExpressionRefreshInternalMs = consumerGroupRegularExpressionRefreshInternalMs;
             return this;
         }
 
@@ -493,6 +501,7 @@ public class GroupMetadataManagerTestContext {
             GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext(
                 time,
                 timer,
+                executor,
                 snapshotRegistry,
                 metrics,
                 new GroupMetadataManager.Builder()
@@ -500,12 +509,14 @@ public class GroupMetadataManagerTestContext {
                     .withLogContext(logContext)
                     .withTime(time)
                     .withTimer(timer)
+                    .withExecutor(executor)
                     .withMetadataImage(metadataImage)
                     .withConsumerGroupHeartbeatInterval(5000)
                     .withConsumerGroupSessionTimeout(45000)
                     .withConsumerGroupMaxSize(consumerGroupMaxSize)
                     .withConsumerGroupAssignors(consumerGroupAssignors)
                     .withConsumerGroupMetadataRefreshIntervalMs(consumerGroupMetadataRefreshIntervalMs)
+                    .withConsumerGroupRegularExpressionRefreshInternalMs(consumerGroupRegularExpressionRefreshInternalMs)
                     .withClassicGroupMaxSize(classicGroupMaxSize)
                     .withClassicGroupMinSessionTimeoutMs(classicGroupMinSessionTimeoutMs)
                     .withClassicGroupMaxSessionTimeoutMs(classicGroupMaxSessionTimeoutMs)
@@ -533,6 +544,7 @@ public class GroupMetadataManagerTestContext {
 
     final MockTime time;
     final MockCoordinatorTimer<Void, CoordinatorRecord> timer;
+    final MockCoordinatorExecutor<CoordinatorRecord> executor;
     final SnapshotRegistry snapshotRegistry;
     final GroupCoordinatorMetricsShard metrics;
     final GroupMetadataManager groupMetadataManager;
@@ -546,6 +558,7 @@ public class GroupMetadataManagerTestContext {
     public GroupMetadataManagerTestContext(
         MockTime time,
         MockCoordinatorTimer<Void, CoordinatorRecord> timer,
+        MockCoordinatorExecutor<CoordinatorRecord> executor,
         SnapshotRegistry snapshotRegistry,
         GroupCoordinatorMetricsShard metrics,
         GroupMetadataManager groupMetadataManager,
@@ -555,6 +568,7 @@ public class GroupMetadataManagerTestContext {
     ) {
         this.time = time;
         this.timer = timer;
+        this.executor = executor;
         this.snapshotRegistry = snapshotRegistry;
         this.metrics = metrics;
         this.groupMetadataManager = groupMetadataManager;
@@ -675,6 +689,16 @@ public class GroupMetadataManagerTestContext {
             }
         });
         return timeouts;
+    }
+
+    public List<MockCoordinatorExecutor.ExecutorResult<CoordinatorRecord>> processTasks() {
+        List<MockCoordinatorExecutor.ExecutorResult<CoordinatorRecord>> results = executor.poll();
+        results.forEach(taskResult -> {
+            if (taskResult.result.replayRecords()) {
+                taskResult.result.records().forEach(this::replay);
+            }
+        });
+        return results;
     }
 
     public void assertSessionTimeout(
