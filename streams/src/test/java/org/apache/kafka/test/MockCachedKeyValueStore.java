@@ -14,23 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.util;
+package org.apache.kafka.test;
 
-/**
- * An UncaughtExceptionHandler that can be registered with one or more threads which tracks the
- * first exception so the main thread can check for uncaught exceptions.
- */
-public class TestBackgroundThreadExceptionHandler implements Thread.UncaughtExceptionHandler {
-    private Throwable firstException = null;
+import org.apache.kafka.streams.state.internals.CacheFlushListener;
+import org.apache.kafka.streams.state.internals.CachedStateStore;
 
-    @Override
-    public void uncaughtException(Thread t, Throwable e) {
-        if (this.firstException == null)
-            this.firstException = e;
+public class MockCachedKeyValueStore extends MockKeyValueStore implements CachedStateStore<Object, Object> {
+
+    public MockCachedKeyValueStore(String name, boolean persistent) {
+        super(name, persistent);
     }
 
-    public void verifyNoExceptions() {
-        if (this.firstException != null)
-            throw new AssertionError(this.firstException);
+    @Override
+    public boolean setFlushListener(CacheFlushListener<Object, Object> listener, boolean sendOldValues) {
+        return false;
+    }
+
+    @Override
+    public void flushCache() {
+
+    }
+
+    @Override
+    public void clearCache() {
+
     }
 }
