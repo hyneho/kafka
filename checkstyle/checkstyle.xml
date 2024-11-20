@@ -39,7 +39,9 @@
     <module name="EqualsHashCode"/>
     <module name="SimplifyBooleanExpression"/>
     <module name="OneStatementPerLine"/>
-    <module name="UnnecessaryParentheses" />
+    <module name="UnnecessaryParentheses">
+      <property name="tokens" value="BOR, BAND, BXOR" />
+    </module>
     <module name="SimplifyBooleanReturn"/>
 
     <!-- style -->
