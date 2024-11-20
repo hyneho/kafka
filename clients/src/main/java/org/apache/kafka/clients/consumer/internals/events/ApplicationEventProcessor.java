@@ -227,7 +227,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
 
         try {
             CommitRequestManager manager = requestManagers.commitRequestManager.get();
-            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = manager.commitSync(event.offsets(), event.deadlineMs(), metadataError);
+            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = manager.commitSync(event.offsets(), event.deadlineMs());
             future.whenComplete(complete(event.future()));
         } catch (Exception e) {
             event.future().completeExceptionally(e);
@@ -272,7 +272,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      */
     private void process(final ListOffsetsEvent event) {
         final CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> future =
-            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps());
+            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps(), metadataError);
         future.whenComplete(complete(event.future()));
     }
 

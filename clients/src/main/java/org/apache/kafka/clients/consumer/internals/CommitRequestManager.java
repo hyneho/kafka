@@ -415,10 +415,7 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
      *                   an expected retriable error.
      * @return Future that will complete when a successful response
      */
-    public CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> commitSync(
-            final Optional<Map<TopicPartition, OffsetAndMetadata>> offsets,
-            final long deadlineMs,
-            final CompletableFuture<RuntimeException> metadataError) {
+    public CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> commitSync(final Optional<Map<TopicPartition, OffsetAndMetadata>> offsets, final long deadlineMs) {
         Map<TopicPartition, OffsetAndMetadata> commitOffsets = offsets.orElseGet(subscriptions::allConsumed);
         if (commitOffsets.isEmpty()) {
             return CompletableFuture.completedFuture(Map.of());
@@ -427,12 +424,6 @@ public class CommitRequestManager implements RequestManager, MemberStateListener
         CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> result = new CompletableFuture<>();
         OffsetCommitRequestState requestState = createOffsetCommitRequest(commitOffsets, deadlineMs);
         commitSyncWithRetries(requestState, result);
-        metadataError.whenComplete((__, error) -> {
-            if (error != null) {
-                result.completeExceptionally(error);
-            }
-        });
-        
         return result;
     }
 

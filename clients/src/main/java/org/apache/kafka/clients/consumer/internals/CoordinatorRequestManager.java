@@ -232,5 +232,4 @@ public class CoordinatorRequestManager implements RequestManager {
     public Optional<Node> coordinator() {
         return Optional.ofNullable(this.coordinator);
     }
-    
 }
