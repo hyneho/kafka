@@ -140,7 +140,7 @@ public class ConfigCommandIntegrationTest {
         assertEquals("Completed updating config for client-metric cm.", message);
     }
 
-    @ClusterTest(serverProperties = {@ClusterConfigProperty(key = "log.segment.delete.delay.ms", value = "1000")})
+    @ClusterTest
     public void testAddConfigKeyValuesUsingCommand() throws Exception {
 
         try (Admin client = cluster.admin()) {
