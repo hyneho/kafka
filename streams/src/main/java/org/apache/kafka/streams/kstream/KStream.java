@@ -431,8 +431,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
      * @see #processValues(FixedKeyProcessorSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, Named, String...)
      */
     <KR, VR> KStream<KR, VR> flatMap(final KeyValueMapper<? super K, ? super V, ? extends Iterable<? extends KeyValue<? extends KR, ? extends VR>>> mapper);
 
@@ -481,8 +480,7 @@ public interface KStream<K, V> {
      * @see #flatMapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
      * @see #processValues(FixedKeyProcessorSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, Named, String...)
      */
     <KR, VR> KStream<KR, VR> flatMap(final KeyValueMapper<? super K, ? super V, ? extends Iterable<? extends KeyValue<? extends KR, ? extends VR>>> mapper,
                                      final Named named);
@@ -523,8 +521,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
      * @see #processValues(FixedKeyProcessorSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, Named, String...)
      */
     <VR> KStream<K, VR> flatMapValues(final ValueMapper<? super V, ? extends Iterable<? extends VR>> mapper);
 
@@ -565,8 +562,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
      * @see #processValues(FixedKeyProcessorSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, Named, String...)
      */
     <VR> KStream<K, VR> flatMapValues(final ValueMapper<? super V, ? extends Iterable<? extends VR>> mapper,
                                       final Named named);
@@ -612,8 +608,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
      * @see #processValues(FixedKeyProcessorSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, Named, String...)
      */
     <VR> KStream<K, VR> flatMapValues(final ValueMapperWithKey<? super K, ? super V, ? extends Iterable<? extends VR>> mapper);
 
@@ -660,8 +655,7 @@ public interface KStream<K, V> {
      * @see #mapValues(ValueMapperWithKey)
      * @see #process(ProcessorSupplier, String...)
      * @see #processValues(FixedKeyProcessorSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerSupplier, String...)
-     * @see #flatTransformValues(ValueTransformerWithKeySupplier, String...)
+     * @see #processValues(FixedKeyProcessorSupplier, Named, String...)
      */
     <VR> KStream<K, VR> flatMapValues(final ValueMapperWithKey<? super K, ? super V, ? extends Iterable<? extends VR>> mapper,
                                       final Named named);
