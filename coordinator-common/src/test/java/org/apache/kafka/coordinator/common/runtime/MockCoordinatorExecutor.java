@@ -74,9 +74,9 @@ public class MockCoordinatorExecutor<T> implements CoordinatorExecutor<T> {
 
         @Override
         public int hashCode() {
-            int result1 = key != null ? key.hashCode() : 0;
-            result1 = 31 * result1 + (result != null ? result.hashCode() : 0);
-            return result1;
+            int result = key.hashCode();
+            result = 31 * result + this.result.hashCode();
+            return result;
         }
 
         @Override

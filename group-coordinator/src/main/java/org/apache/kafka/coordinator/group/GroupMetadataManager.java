@@ -1844,9 +1844,9 @@ public class GroupMetadataManager {
             .setClassicMemberMetadata(null)
             .build();
 
-        // If the group is empty, we must bump the epoch to fully
-        // intitialize the group.
-        boolean bumpGroupEpoch = group.isEmpty();
+        // If the group is newly created, we must ensure that it moves away from
+        // epoch 0 and that it is fully initialized.
+        boolean bumpGroupEpoch = group.groupEpoch() == 0;
 
         bumpGroupEpoch |= hasMemberSubscriptionChanged(
             groupId,
@@ -2485,7 +2485,7 @@ public class GroupMetadataManager {
     }
 
     /**
-     * Check whether the member has updated it subscribed topic regular expression and
+     * Check whether the member has updated its subscribed topic regular expression and
      * may trigger the resolution/the refresh of all the regular expressions in the
      * group. We align the refreshment of the regular expression in order to have
      * them trigger only one rebalance per update.
@@ -2603,7 +2603,7 @@ public class GroupMetadataManager {
                 compiledRegexes.add(Pattern.compile(regex));
             } catch (PatternSyntaxException ex) {
                 // This should not happen because the regular expressions are validated
-                // when received from the members. If for some reasons, it would
+                // when received from the members. If for some reason, it would
                 // happen, we log it and ignore it.
                 log.error("[GroupId {}] Couldn't parse regular expression '{}' due to `{}`. Ignoring it.",
                     groupId, regex, ex.getDescription());
