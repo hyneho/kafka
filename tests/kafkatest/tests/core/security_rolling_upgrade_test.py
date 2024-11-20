@@ -68,7 +68,6 @@ class TestSecurityRollingUpgrade(ProduceConsumeValidateTest):
 
     def add_sasl_mechanism(self, new_client_sasl_mechanism):
         self.kafka.client_sasl_mechanism = new_client_sasl_mechanism
-        self.kafka.start_minikdc_if_necessary()
         self.bounce()
 
     def add_separate_broker_listener(self, broker_security_protocol, broker_sasl_mechanism):
