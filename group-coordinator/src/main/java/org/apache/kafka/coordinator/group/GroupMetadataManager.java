@@ -2539,8 +2539,7 @@ public class GroupMetadataManager {
 
         String key = group.groupId() + "-regex";
 
-        // If a refresh is already inflight, we can schedule a new one so
-        // we stop here.
+        // If a refresh is already inflight, we can not schedule a new one so we stop here.
         if (executor.isScheduled(key)) {
             return bumpGroupEpoch;
         }
