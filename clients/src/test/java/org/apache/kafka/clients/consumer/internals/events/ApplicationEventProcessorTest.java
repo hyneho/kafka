@@ -390,10 +390,10 @@ public class ApplicationEventProcessorTest {
         SyncCommitEvent event = new SyncCommitEvent(offsets, 12345);
 
         setupProcessor(true);
-        doReturn(CompletableFuture.completedFuture(offsets.orElse(Map.of()))).when(commitRequestManager).commitSync(offsets, 12345, List.of());
+        doReturn(CompletableFuture.completedFuture(offsets.orElse(Map.of()))).when(commitRequestManager).commitSync(offsets, 12345, new CompletableFuture<>());
 
         processor.process(event);
-        verify(commitRequestManager).commitSync(offsets, 12345, List.of());
+        verify(commitRequestManager).commitSync(offsets, 12345, new CompletableFuture<>());
         Map<TopicPartition, OffsetAndMetadata> committedOffsets = assertDoesNotThrow(() -> event.future().get());
         assertEquals(offsets.orElse(Map.of()), committedOffsets);
     }
@@ -414,10 +414,10 @@ public class ApplicationEventProcessorTest {
         setupProcessor(true);
         CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = new CompletableFuture<>();
         future.completeExceptionally(new IllegalStateException());
-        doReturn(future).when(commitRequestManager).commitSync(any(), anyLong(), List.of());
+        doReturn(future).when(commitRequestManager).commitSync(any(), anyLong(), new CompletableFuture<>());
         processor.process(event);
 
-        verify(commitRequestManager).commitSync(Optional.empty(), 12345, List.of());
+        verify(commitRequestManager).commitSync(Optional.empty(), 12345, new CompletableFuture<>());
         assertFutureThrows(event.future(), IllegalStateException.class);
     }
 

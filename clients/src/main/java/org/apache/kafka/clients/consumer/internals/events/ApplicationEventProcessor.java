@@ -227,7 +227,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
 
         try {
             CommitRequestManager manager = requestManagers.commitRequestManager.get();
-            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = manager.commitSync(event.offsets(), event.deadlineMs());
+            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = manager.commitSync(event.offsets(), event.deadlineMs(), metadataError);
             future.whenComplete(complete(event.future()));
         } catch (Exception e) {
             event.future().completeExceptionally(e);
