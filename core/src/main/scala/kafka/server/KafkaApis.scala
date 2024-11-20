@@ -3613,8 +3613,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         val brokers = new DescribeClusterResponseData.DescribeClusterBrokerCollection()
         val describeClusterRequest = request.body[DescribeClusterRequest]
         metadataCache.getBrokerNodes(request.context.listenerName).foreach { node =>
-          if (node.isFenced && !describeClusterRequest.data().includeFencedBrokers()) {
-          } else {
+          if (!node.isFenced || describeClusterRequest.data().includeFencedBrokers()) {
           brokers.add(new DescribeClusterResponseData.DescribeClusterBroker().
             setBrokerId(node.id).
             setHost(node.host).

@@ -29,8 +29,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -77,18 +80,24 @@ public class ClusterToolTest {
         int id = clusterInstance.brokerIds().iterator().next();
         String format = "%-10s %-9s %-10s %-10s %-10s %-15s%n%-10s %-9s %-10s %-10s %-10s %-6s";
         String expected = String.format(format, "ID", "HOST", "PORT", "RACK", "STATE", "ENDPOINT_TYPE", id, "localhost", port, "null", "unfenced", "broker");
-        assertTrue(output.equals(expected));
+        assertEquals(expected, output);
     }
 
-    @ClusterTest(brokers = 1, types = {Type.KRAFT, Type.CO_KRAFT})
+    @ClusterTest(brokers = 2, types = {Type.KRAFT, Type.CO_KRAFT})
     public void testListEndpointsArgumentWithBootstrapServer(ClusterInstance clusterInstance) {
-        String output = ToolsTestUtils.captureStandardOut(() ->
-                assertDoesNotThrow(() -> ClusterTool.execute("list-endpoints", "--bootstrap-server", clusterInstance.bootstrapServers()), "--include-fenced-brokers"));
-        String port = clusterInstance.bootstrapServers().split(":")[1];
-        int id = clusterInstance.brokerIds().iterator().next();
-        String format = "%-10s %-9s %-10s %-10s %-10s %-15s%n%-10s %-9s %-10s %-10s %-10s %-6s";
-        String expected = String.format(format, "ID", "HOST", "PORT", "RACK", "STATE", "ENDPOINT_TYPE", id, "localhost", port, "null", "unfenced", "broker");
-        assertTrue(output.equals(expected));
+        List<Integer> brokerIds = clusterInstance.brokerIds().stream().collect(Collectors.toList());
+        clusterInstance.shutdownBroker(brokerIds.get(0));
+
+        List<String> ports = Arrays.stream(clusterInstance.bootstrapServers().split(",")).map(b ->  b.split(":")[1]).collect(Collectors.toList());
+        String format = "%-10s %-9s %-10s %-10s %-10s %-15s%n%-10s %-9s %-10s %-10s %-10s %-15s%n%-10s %-9s %-10s %-10s %-10s %-6s";
+        String expected = String.format(format,
+                "ID", "HOST", "PORT", "RACK", "STATE", "ENDPOINT_TYPE",
+                brokerIds.get(0), "localhost", ports.get(0), "null", "fenced", "broker",
+                brokerIds.get(1), "localhost", ports.get(1), "null", "unfenced", "broker");
+
+        String output = ToolsTestUtils.captureStandardOut(() -> assertDoesNotThrow(() -> ClusterTool.execute("list-endpoints", "--bootstrap-server", clusterInstance.bootstrapServers(), "--include-fenced-brokers")));
+
+        assertEquals(expected, output);
     }
 
     @ClusterTest(types = {Type.KRAFT, Type.CO_KRAFT})
