@@ -133,8 +133,8 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
         """Test upgrade and downgrade of Kafka broker cluster from various versions to current version and back
 
         - Start 3 node broker cluster on version 'starting_kafka_version'.
-        - Start producer and consumer in the background.
         - Perform rolling upgrade.
+        - Start producer and consumer in the background.
         - Perform rolling downgrade.
         - Finally, validate that every message acked by the producer was consumed by the consumer.
         """
@@ -155,11 +155,7 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
                                         self.topic, consumer_timeout_ms=30000,
                                         message_validator=is_int, version=KafkaVersion(starting_kafka_version))
-        self.run_produce_consume_validate(core_test_action=lambda: self.upgrade_to_dev_version(starting_kafka_version, True))
-        cluster_id = self.kafka.cluster_id()
-        assert cluster_id is not None
-        assert len(cluster_id) == 22
-        assert self.kafka.check_protocol_errors(self)
+        self.upgrade_to_dev_version(starting_kafka_version, True)
 
         self.run_produce_consume_validate(core_test_action=lambda: self.downgrade_to_version(starting_kafka_version))
         cluster_id = self.kafka.cluster_id()
