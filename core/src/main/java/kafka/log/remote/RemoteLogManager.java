@@ -159,7 +159,7 @@ import static org.apache.kafka.server.log.remote.storage.RemoteStorageMetrics.RE
 public class RemoteLogManager implements Closeable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteLogManager.class);
-    private static final String REMOTE_LOG_READER_THREAD_NAME_PREFIX = "remote-log-reader-%d";
+    private static final String REMOTE_LOG_READER_THREAD_NAME_PATTERN = "remote-log-reader-%d";
     private final RemoteLogManagerConfig rlmConfig;
     private final int brokerId;
     private final String logDir;
@@ -263,7 +263,7 @@ public class RemoteLogManager implements Closeable {
                 TimeUnit.MILLISECONDS, TimeUnit.SECONDS);
 
         remoteStorageReaderThreadPool = new RemoteStorageThreadPool(
-                REMOTE_LOG_READER_THREAD_NAME_PREFIX,
+                REMOTE_LOG_READER_THREAD_NAME_PATTERN,
                 rlmConfig.remoteLogReaderThreads(),
                 rlmConfig.remoteLogReaderMaxPendingTasks()
         );
@@ -2168,12 +2168,12 @@ public class RemoteLogManager implements Closeable {
 
         private static final Logger LOGGER = LoggerFactory.getLogger(RLMScheduledThreadPool.class);
         private final String threadPoolName;
-        private final String threadNamePrefix;
+        private final String threadNamePattern;
         private final ScheduledThreadPoolExecutor scheduledThreadPool;
 
-        public RLMScheduledThreadPool(int poolSize, String threadPoolName, String threadNamePrefix) {
+        public RLMScheduledThreadPool(int poolSize, String threadPoolName, String threadNamePattern) {
             this.threadPoolName = threadPoolName;
-            this.threadNamePrefix = threadNamePrefix;
+            this.threadNamePattern = threadNamePattern;
             scheduledThreadPool = createPool(poolSize);
         }
 
@@ -2190,7 +2190,7 @@ public class RemoteLogManager implements Closeable {
             threadPool.setRemoveOnCancelPolicy(true);
             threadPool.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             threadPool.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            threadPool.setThreadFactory(ThreadUtils.createThreadFactory(threadNamePrefix, true));
+            threadPool.setThreadFactory(ThreadUtils.createThreadFactory(threadNamePattern, true));
             return threadPool;
         }
 
