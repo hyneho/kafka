@@ -1068,12 +1068,12 @@ public class TopicCommandTest {
         }
     }
 
-    @ClusterTemplate("generate")
-    public void testDescribeUnavailablePartitions(ClusterInstance clusterInstance) throws ExecutionException, InterruptedException {
+    @ClusterTest(brokers = 3)
+    public void testDescribeUnavailablePartitions(ClusterInstance clusterInstance) throws InterruptedException {
         String testTopicName = TestUtils.randomString(10);
 
         try (Admin adminClient = clusterInstance.admin()) {
-            int partitions = 6;
+            int partitions = 3;
             short replicationFactor = 1;
 
             adminClient.createTopics(Collections.singletonList(new NewTopic(testTopicName, partitions, replicationFactor)));
@@ -1081,10 +1081,10 @@ public class TopicCommandTest {
 
             // check which partition is on broker 0 which we'll kill
             clusterInstance.shutdownBroker(0);
-            assertEquals(5, clusterInstance.aliveBrokers().size());
+            assertEquals(2, clusterInstance.aliveBrokers().size());
 
             // wait until the topic metadata for the test topic is propagated to each alive broker
-            clusterInstance.waitForTopic(testTopicName, 6);
+            clusterInstance.waitForTopic(testTopicName, 3);
 
             // grab the console output and assert
             String output = captureDescribeTopicStandardOut(clusterInstance, buildTopicCommandOptionsWithBootstrap(clusterInstance, "--describe", "--topic", testTopicName, "--unavailable-partitions"));
@@ -1097,17 +1097,17 @@ public class TopicCommandTest {
         }
     }
 
-    @ClusterTemplate("generate")
+    @ClusterTest(brokers = 3)
     public void testDescribeUnderReplicatedPartitions(ClusterInstance clusterInstance) throws InterruptedException {
         String testTopicName = TestUtils.randomString(10);
         try (Admin adminClient = clusterInstance.admin()) {
             int partitions = 1;
-            short replicationFactor = 6;
+            short replicationFactor = 3;
             adminClient.createTopics(Collections.singletonList(new NewTopic(testTopicName, partitions, replicationFactor)));
             clusterInstance.waitForTopic(testTopicName, partitions);
 
             clusterInstance.shutdownBroker(0);
-            Assertions.assertEquals(clusterInstance.aliveBrokers().size(), 5);
+            Assertions.assertEquals(clusterInstance.aliveBrokers().size(), 2);
 
             TestUtils.waitForCondition(
                     () -> clusterInstance.aliveBrokers().values().stream().allMatch(
@@ -1125,23 +1125,23 @@ public class TopicCommandTest {
     }
 
 
-    @ClusterTemplate("generate")
+    @ClusterTest(brokers = 3)
     public void testDescribeUnderMinIsrPartitions(ClusterInstance clusterInstance) throws InterruptedException {
         String testTopicName = TestUtils.randomString(10);
 
         try (Admin adminClient = clusterInstance.admin()) {
             Map<String, String> topicConfig = new HashMap<>();
-            topicConfig.put(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "6");
+            topicConfig.put(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "3");
             int partitions = 1;
-            short replicationFactor = 6;
+            short replicationFactor = 3;
             adminClient.createTopics(Collections.singletonList(new NewTopic(testTopicName, partitions, replicationFactor).configs(topicConfig)));
             clusterInstance.waitForTopic(testTopicName, partitions);
 
             clusterInstance.shutdownBroker(0);
-            assertEquals(5, clusterInstance.aliveBrokers().size());
+            assertEquals(2, clusterInstance.aliveBrokers().size());
 
             TestUtils.waitForCondition(
-                    () -> clusterInstance.aliveBrokers().values().stream().allMatch(broker -> broker.metadataCache().getPartitionInfo(testTopicName, 0).get().isr().size() == 5),
+                    () -> clusterInstance.aliveBrokers().values().stream().allMatch(broker -> broker.metadataCache().getPartitionInfo(testTopicName, 0).get().isr().size() == 2),
                     CLUSTER_WAIT_MS, String.format("Timeout waiting for partition metadata propagating to brokers for %s topic", testTopicName)
             );
 
@@ -1388,14 +1388,14 @@ public class TopicCommandTest {
         adminClient.close();
     }
 
-    @ClusterTemplate("generate")
+    @ClusterTest(brokers = 3)
     public void testCreateWithTopicNameCollision(ClusterInstance clusterInstance) throws Exception {
         try (Admin adminClient = clusterInstance.admin();
              TopicCommand.TopicService topicService = new TopicCommand.TopicService(adminClient)) {
 
             String topic = "foo_bar";
             int partitions = 1;
-            short replicationFactor = 6;
+            short replicationFactor = 3;
             adminClient.createTopics(Collections.singletonList(new NewTopic(topic, partitions, replicationFactor)));
             clusterInstance.waitForTopic(topic, defaultNumPartitions);
 
