@@ -1055,7 +1055,7 @@ public class CommitRequestManagerTest {
         Map<TopicPartition, OffsetAndMetadata> offsets = Collections.singletonMap(new TopicPartition("topic", 1),
             new OffsetAndMetadata(0));
 
-        long deadlineMs= time.milliseconds() + defaultApiTimeoutMs;
+        long deadlineMs = time.milliseconds() + defaultApiTimeoutMs;
         commitRequestManager.commitSync(Optional.of(offsets), deadlineMs);
         NetworkClientDelegate.PollResult res = commitRequestManager.poll(time.milliseconds());
         assertEquals(1, res.unsentRequests.size());
