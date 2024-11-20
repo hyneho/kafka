@@ -252,7 +252,7 @@ public class ReplicationControlManagerTest {
                 .setName(EligibleLeaderReplicasVersion.FEATURE_NAME)
                     .setFeatureLevel(isElrEnabled ?
                         EligibleLeaderReplicasVersion.ELRV_1.featureLevel() :
-                            EligibleLeaderReplicasVersion.ELRV_0.featureLevel())
+                        EligibleLeaderReplicasVersion.ELRV_0.featureLevel())
             );
             this.clusterControl = new ClusterControlManager.Builder().
                 setLogContext(logContext).
