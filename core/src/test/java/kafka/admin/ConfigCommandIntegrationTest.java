@@ -141,7 +141,6 @@ public class ConfigCommandIntegrationTest {
 
     @ClusterTest
     public void testAddConfigKeyValuesUsingCommand() throws Exception {
-
         try (Admin client = cluster.admin()) {
             NewTopic newTopic = new NewTopic("topic", 1, (short) 1);
             client.createTopics(Collections.singleton(newTopic)).all().get();
@@ -151,7 +150,6 @@ public class ConfigCommandIntegrationTest {
                     "--entity-type", "topics",
                     "--entity-name", "topic",
                     "--alter", "--add-config", "cleanup.policy=[delete,compact]"));
-
             String message = captureStandardStream(false, run(command));
             assertEquals("Completed updating config for topic topic.", message);
 
@@ -159,12 +157,9 @@ public class ConfigCommandIntegrationTest {
                     "--entity-type", "topics",
                     "--entity-name", "topic",
                     "--describe"));
-
             message = captureStandardStream(false, run(command));
             assertTrue(message.contains("cleanup.policy=delete,compact"), "Config entry was not added correctly");
-
         }
-
     }
 
     @ClusterTest
