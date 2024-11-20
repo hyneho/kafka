@@ -32,7 +32,8 @@ public enum TestFeatureVersion implements FeatureVersion {
 
     public static final String FEATURE_NAME = "test.feature.version";
 
-    public static final TestFeatureVersion LATEST_PRODUCTION = TEST_1;
+    public static final TestFeatureVersion LATEST_PRODUCTION =
+        MetadataVersion.latestProduction() == MetadataVersion.latestProduction() ? TEST_2 : TEST_1;
 
     TestFeatureVersion(int featureLevel, MetadataVersion metadataVersionMapping, Map<String, Short> dependencies) {
         this.featureLevel = (short) featureLevel;
