@@ -35,7 +35,6 @@ import org.apache.kafka.common.utils.LogContext;
 
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -57,7 +56,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     private final SubscriptionState subscriptions;
     private final RequestManagers requestManagers;
     private int metadataVersionSnapshot;
-    private List<CompletableFuture<RuntimeException>> metadataErrors;
+    private CompletableFuture<RuntimeException> metadataError;
 
     public ApplicationEventProcessor(final LogContext logContext,
                                      final RequestManagers requestManagers,
@@ -68,7 +67,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         this.metadata = metadata;
         this.subscriptions = subscriptions;
         this.metadataVersionSnapshot = metadata.updateVersion();
-        this.metadataErrors = new ArrayList<>();
     }
 
     @SuppressWarnings({"CyclomaticComplexity"})
@@ -229,8 +227,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
 
         try {
             CommitRequestManager manager = requestManagers.commitRequestManager.get();
-            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = 
-                    manager.commitSync(event.offsets(), event.deadlineMs(), metadataErrors);
+            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = manager.commitSync(event.offsets(), event.deadlineMs());
             future.whenComplete(complete(event.future()));
         } catch (Exception e) {
             event.future().completeExceptionally(e);
@@ -275,7 +272,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      */
     private void process(final ListOffsetsEvent event) {
         final CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> future =
-            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps(), metadataErrors);
+            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps());
         future.whenComplete(complete(event.future()));
     }
 
@@ -368,7 +365,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * them to update positions in the subscription state.
      */
     private void process(final CheckAndUpdatePositionsEvent event) {
-        CompletableFuture<Boolean> future = requestManagers.offsetsRequestManager.updateFetchPositions(event.deadlineMs(), metadataErrors);
+        CompletableFuture<Boolean> future = requestManagers.offsetsRequestManager.updateFetchPositions(event.deadlineMs(), metadataError);
         future.whenComplete(complete(event.future()));
     }
 
@@ -593,7 +590,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         return metadataVersionSnapshot;
     }
     
-    public void addMetadataError(CompletableFuture<RuntimeException> metadataError) {
-        metadataErrors.add(metadataError);
+    public void setMetadataError(CompletableFuture<RuntimeException> metadataError) {
+        this.metadataError = metadataError;
     }
 }

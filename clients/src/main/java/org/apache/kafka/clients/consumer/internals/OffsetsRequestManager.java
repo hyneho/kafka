@@ -187,9 +187,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      */
     public CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> fetchOffsets(
             Map<TopicPartition, Long> timestampsToSearch,
-            boolean requireTimestamps,
-            List<CompletableFuture<RuntimeException>> metadataErrors
-    ) {
+            boolean requireTimestamps) {
         if (timestampsToSearch.isEmpty()) {
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
@@ -211,23 +209,10 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
         });
 
         prepareFetchOffsetsRequests(timestampsToSearch, requireTimestamps, listOffsetsRequestState);
-
-        CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> metadataErrorResult = 
-                new CompletableFuture<>();
-
-        new ArrayList<>(metadataErrors).forEach(metadataError -> metadataError.whenComplete((__, error) -> {
-            metadataErrorResult.completeExceptionally(error);
-            metadataErrors.remove(metadataError);
-        }));
-        
-        if (!metadataErrorResult.isCompletedExceptionally()) {
-            return listOffsetsRequestState.globalResult.thenApply(
-                    result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
-                            timestampsToSearch,
-                            result.fetchedOffsets));
-        }
-        
-        return metadataErrorResult;
+        return listOffsetsRequestState.globalResult.thenApply(
+                result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
+                        timestampsToSearch,
+                        result.fetchedOffsets));
     }
 
     /**
@@ -238,7 +223,6 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      *     <li>fetch committed offsets if enabled, and use the response to update the positions</li>
      *     <li>fetch partition offsets for partitions that may still require a position, and use the response to
      *     update the positions</li>
-     *     <li>if the metadata error is completed, will return the metadata error to the application</li>
      * </ul>
      *
      * @param deadlineMs Time in milliseconds when the triggering application event expires. Any error received after
@@ -248,10 +232,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      * on {@link SubscriptionState#hasAllFetchPositions()}). It will complete immediately, with true, if all positions
      * are already available. If some positions are missing, the future will complete once the offsets are retrieved and positions are updated.
      */
-    public CompletableFuture<Boolean> updateFetchPositions(
-            long deadlineMs, 
-            List<CompletableFuture<RuntimeException>> metadataErrors
-    ) {
+    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs, CompletableFuture<RuntimeException> metadataError) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -275,22 +256,26 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                     result.complete(subscriptionState.hasAllFetchPositions());
                 }
             });
-            
-            new ArrayList<>(metadataErrors).forEach(metadataError -> metadataError.whenComplete((__, error) -> {
-                if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {
-                    pendingOffsetFetchEvent.result.completeExceptionally(error);
-                    result.completeExceptionally(error);
-                }
-                if (error == null) {
-                    result.complete(true);
-                }
-                metadataErrors.remove(metadataError);
-            }));
+
+            onMetadataError(metadataError, result);
 
         } catch (Exception e) {
             result.completeExceptionally(maybeWrapAsKafkaException(e));
         }
         return result;
+    }
+
+    private void onMetadataError(CompletableFuture<RuntimeException> metadataError, 
+                                 CompletableFuture<Boolean> result) {
+        metadataError.whenComplete((__, error) -> {
+            if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {
+                pendingOffsetFetchEvent.result.completeExceptionally(error);
+                result.completeExceptionally(error);
+            } 
+            if (error == null) {
+                result.complete(true);
+            }
+        });
     }
 
     private boolean maybeCompleteWithPreviousException(CompletableFuture<Boolean> result) {
@@ -925,7 +910,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
             Long offset = entry.getValue();
             Metadata.LeaderAndEpoch leaderAndEpoch = metadata.currentLeader(tp);
 
-            if (leaderAndEpoch.leader.isEmpty()) {
+            if (!leaderAndEpoch.leader.isPresent()) {
                 log.debug("Leader for partition {} is unknown for fetching offset {}", tp, offset);
                 metadata.requestUpdate(true);
                 listOffsetsRequestState.ifPresent(offsetsRequestState -> offsetsRequestState.remainingToSearch.put(tp, offset));
