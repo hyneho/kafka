@@ -31,7 +31,7 @@ from kafkatest.services.monitor.jmx import JmxMixin
 from kafkatest.services.security.minikdc import MiniKdc
 from kafkatest.services.security.listener_security_config import ListenerSecurityConfig
 from kafkatest.services.security.security_config import SecurityConfig
-from kafkatest.version import DEV_BRANCH
+from kafkatest.version import DEV_BRANCH, LATEST_3_9
 from kafkatest.version import KafkaVersion
 from kafkatest.services.kafka.util import fix_opts_for_new_jvm
 
@@ -874,7 +874,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         self.logger.info("kafka.properties:")
         self.logger.info(prop_file)
         node.account.create_file(KafkaService.CONFIG_FILE, prop_file)
-        node.account.create_file(self.LOG4J_CONFIG, self.render('log4j2.properties', log_dir=KafkaService.OPERATIONAL_LOG_DIR))
+        log4j_path = 'connect_log4j2.yaml' if node.version > LATEST_3_9 else 'connect_log4j.properties'
+        node.account.create_file(self.LOG4J_CONFIG, self.render(log4j_path, log_dir=KafkaService.OPERATIONAL_LOG_DIR))
 
         if self.quorum_info.using_kraft:
             # format log directories if necessary
