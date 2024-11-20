@@ -33,10 +33,9 @@ Configuration:
         filePattern: "${sys:kafka.logs.dir}/connect-%d{yyyy-MM-dd-HH}.log"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            modulate: true
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          modulate: true
+          interval: 1
   Loggers:
     Root:
       level: INFO

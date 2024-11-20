@@ -32,9 +32,8 @@ Configuration:
         filePattern: "storage-%d{yyyy-MM-dd}.log"
         PatternLayout:
           pattern: "${fileLogPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
 
   Loggers:
     Root:

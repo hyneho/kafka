@@ -34,9 +34,8 @@ Configuration:
         filePattern: "${sys:log_dir}/info/server.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: INFO
@@ -46,9 +45,8 @@ Configuration:
         filePattern: "${sys:log_dir}/debug/server.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: DEBUG
@@ -58,9 +56,8 @@ Configuration:
         filePattern: "${sys:log_dir}/info/state-change.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: INFO
@@ -70,9 +67,8 @@ Configuration:
         filePattern: "${sys:log_dir}/debug/state-change.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: DEBUG
@@ -82,9 +78,8 @@ Configuration:
         filePattern: "${sys:log_dir}/info/kafka-request.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: INFO
@@ -94,9 +89,8 @@ Configuration:
         filePattern: "${sys:log_dir}/debug/kafka-request.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: DEBUG
@@ -106,9 +100,8 @@ Configuration:
         filePattern: "${sys:log_dir}/info/log-cleaner.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: INFO
@@ -118,9 +111,8 @@ Configuration:
         filePattern: "${sys:log_dir}/debug/log-cleaner.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: DEBUG
@@ -130,9 +122,8 @@ Configuration:
         filePattern: "${sys:log_dir}/info/controller.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: INFO
@@ -142,9 +133,8 @@ Configuration:
         filePattern: "${sys:log_dir}/debug/controller.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: DEBUG
@@ -154,9 +144,8 @@ Configuration:
         filePattern: "${sys:log_dir}/info/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: INFO
@@ -166,9 +155,8 @@ Configuration:
         filePattern: "${sys:log_dir}/debug/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          TimeBasedTriggeringPolicy:
-            interval: 1
+        TimeBasedTriggeringPolicy:
+          interval: 1
         Filters:
           ThresholdFilter:
             level: DEBUG

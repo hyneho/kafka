@@ -28,9 +28,8 @@ Configuration:
         filePattern: "streams-scala-%d{yyyy-MM-dd}.log"
         PatternLayout:
           pattern: "${logPattern}"
-        Policies:
-          SizeBasedTriggeringPolicy:
-            size: "100KB"
+        SizeBasedTriggeringPolicy:
+          size: "100KB"
         DefaultRolloverStrategy:
           max: 1
 
