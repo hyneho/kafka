@@ -213,7 +213,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                         " Result {}", timestampsToSearch, result);
             }
         });
-        
+
         prepareFetchOffsetsRequests(timestampsToSearch, requireTimestamps, listOffsetsRequestState);
 
         topicToOffsetsResult.set(listOffsetsRequestState.globalResult.thenApply(
@@ -237,7 +237,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      *     <li>fetch committed offsets if enabled, and use the response to update the positions</li>
      *     <li>fetch partition offsets for partitions that may still require a position, and use the response to
      *     update the positions</li>
-     *     <li>if the metadata exception is completed, will return the metadata exception to the application</li>
+     *     <li>if the metadata error is completed, will return the metadata error to the application</li>
      * </ul>
      *
      * @param deadlineMs Time in milliseconds when the triggering application event expires. Any error received after
