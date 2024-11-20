@@ -62,7 +62,7 @@ public class ProduceRequest extends AbstractRequest {
     }
 
     public static Builder forCurrentMagic(ProduceRequestData data) {
-        return forMagic(RecordBatch.CURRENT_MAGIC_VALUE, data, true);
+        return forMagic(RecordBatch.CURRENT_MAGIC_VALUE, data, false);
     }
 
     public static class Builder extends AbstractRequest.Builder<ProduceRequest> {

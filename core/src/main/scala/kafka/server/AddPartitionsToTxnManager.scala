@@ -245,7 +245,8 @@ class AddPartitionsToTxnManager(
                   val code =
                     if (partitionResult.partitionErrorCode == Errors.PRODUCER_FENCED.code)
                       Errors.INVALID_PRODUCER_EPOCH.code
-                    else if (partitionResult.partitionErrorCode() == Errors.TRANSACTION_ABORTABLE.code && transactionDataAndCallbacks.transactionSupportedOperation != genericErrorSupported) // For backward compatibility with clients.
+                    else if (partitionResult.partitionErrorCode() == Errors.TRANSACTION_ABORTABLE.code
+                      && transactionDataAndCallbacks.transactionSupportedOperation == defaultError) // For backward compatibility with clients.
                       Errors.INVALID_TXN_STATE.code
                     else
                       partitionResult.partitionErrorCode

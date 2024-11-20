@@ -114,13 +114,13 @@ private[transaction] case object PrepareCommit extends TransactionState {
  *
  * transition: received acks from all partitions => CompleteAbort
  *
- * Note, In transaction v2, we allow Empty to transition to PrepareCommit. because the client may not know the
- * txn state on the server side, it needs to endTxn when uncertain.
+ * Note, In transaction v2, we allow Empty, CompleteCommit, CompleteAbort to transition to PrepareAbort. because the
+ * client may not know the txn state on the server side, it needs to send endTxn request when uncertain.
  */
 private[transaction] case object PrepareAbort extends TransactionState {
   val id: Byte = 3
   val name: String = "PrepareAbort"
-  val validPreviousStates: Set[TransactionState] = Set(Ongoing, PrepareEpochFence, Empty)
+  val validPreviousStates: Set[TransactionState] = Set(Ongoing, PrepareEpochFence, Empty, CompleteCommit, CompleteAbort)
 }
 
 /**
@@ -494,12 +494,13 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
           }
 
         case CompleteAbort | CompleteCommit => // from write markers
-          val isTransitionFromEmptyInTransactionV2 = state == Empty && clientTransactionVersion.supportsEpochBump()
-          // With transaction V2, we allow Empty transaction to be aborted, so the txnStartTimestamp can be -1.
+          val isTransitionFromEmptyOrCompleteAbortInTransactionV2 = state == PrepareAbort &&
+            clientTransactionVersion.supportsEpochBump()
+          // With transaction V2, we allow Empty/CompleteAbort/CompleteCommit transaction to be aborted, so the txnStartTimestamp can
+          // be -1.
           if (!validProducerEpoch(transitMetadata) ||
             txnTimeoutMs != transitMetadata.txnTimeoutMs ||
-            transitMetadata.txnStartTimestamp == -1 && !isTransitionFromEmptyInTransactionV2) {
-
+            transitMetadata.txnStartTimestamp == -1 && !isTransitionFromEmptyOrCompleteAbortInTransactionV2) {
             throwStateTransitionFailure(transitMetadata)
           } else {
             txnStartTimestamp = transitMetadata.txnStartTimestamp
@@ -599,9 +600,10 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
     "TransactionMetadata(" +
       s"transactionalId=$transactionalId, " +
       s"producerId=$producerId, " +
-      s"previousProducerId=$previousProducerId, "
-      s"nextProducerId=$nextProducerId, "
+      s"previousProducerId=$previousProducerId, " +
+      s"nextProducerId=$nextProducerId, " +
       s"producerEpoch=$producerEpoch, " +
+      s"lastProducerEpoch=$lastProducerEpoch, " +
       s"txnTimeoutMs=$txnTimeoutMs, " +
       s"state=$state, " +
       s"pendingState=$pendingState, " +
