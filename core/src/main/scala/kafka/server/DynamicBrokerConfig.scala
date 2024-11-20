@@ -1168,6 +1168,12 @@ class DynamicRemoteLogConfig(server: KafkaBroker) extends BrokerReconfigurable w
         }
       }
 
+      // The default value of copier and expiration thread pool size is set to -1 (sentinel) to derive the value from
+      // RemoteLogManagerConfig#REMOTE_LOG_MANAGER_THREAD_POOL_SIZE_PROP, this is done for backward compatibility when
+      // splitting the thread-pool usage for copier and expiration tasks.
+      // Once the copier and expiration thread pool values are changed from -1 to valid value (>0), then the below
+      // validation starts to take effect. Note that once the valid thread pool size is set for the copier and
+      // expiration thread pools, then it is not allowed to set the value back to -1 dynamically.
       if (RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP.equals(k) ||
         RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP.equals(k) ||
         RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP.equals(k)) {
