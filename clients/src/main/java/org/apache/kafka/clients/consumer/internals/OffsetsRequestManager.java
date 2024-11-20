@@ -190,12 +190,8 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
             boolean requireTimestamps,
             List<CompletableFuture<RuntimeException>> metadataErrors
     ) {
-        AtomicReference<CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>>> 
-                topicToOffsetsResult = new AtomicReference<>();
-        
         if (timestampsToSearch.isEmpty()) {
-            topicToOffsetsResult.get().complete(Collections.emptyMap());
-            return topicToOffsetsResult.get();
+            return CompletableFuture.completedFuture(Collections.emptyMap());
         }
         metadata.addTransientTopics(OffsetFetcherUtils.topicsForPartitions(timestampsToSearch.keySet()));
         ListOffsetsRequestState listOffsetsRequestState = new ListOffsetsRequestState(
@@ -216,17 +212,22 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
 
         prepareFetchOffsetsRequests(timestampsToSearch, requireTimestamps, listOffsetsRequestState);
 
-        topicToOffsetsResult.set(listOffsetsRequestState.globalResult.thenApply(
-                result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
-                        timestampsToSearch,
-                        result.fetchedOffsets)));
+        CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> metadataErrorResult = 
+                new CompletableFuture<>();
 
         new ArrayList<>(metadataErrors).forEach(metadataError -> metadataError.whenComplete((__, error) -> {
-            topicToOffsetsResult.get().completeExceptionally(error);
+            metadataErrorResult.completeExceptionally(error);
             metadataErrors.remove(metadataError);
         }));
         
-        return topicToOffsetsResult.get();
+        if (!metadataErrorResult.isCompletedExceptionally()) {
+            return listOffsetsRequestState.globalResult.thenApply(
+                    result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
+                            timestampsToSearch,
+                            result.fetchedOffsets));
+        }
+        
+        return metadataErrorResult;
     }
 
     /**
@@ -924,7 +925,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
             Long offset = entry.getValue();
             Metadata.LeaderAndEpoch leaderAndEpoch = metadata.currentLeader(tp);
 
-            if (!leaderAndEpoch.leader.isPresent()) {
+            if (leaderAndEpoch.leader.isEmpty()) {
                 log.debug("Leader for partition {} is unknown for fetching offset {}", tp, offset);
                 metadata.requestUpdate(true);
                 listOffsetsRequestState.ifPresent(offsetsRequestState -> offsetsRequestState.remainingToSearch.put(tp, offset));
