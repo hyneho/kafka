@@ -24,10 +24,10 @@ base_dir=$(dirname $0)
 if [ -f "$base_dir/../config/log4j.properties" ]; then
     echo DEPRECATED: Using Log4j 1.x configuration file \$KAFKA_HOME/config/log4j.properties >&2
     echo To use a Log4j 2.x configuration, please see https://logging.apache.org/log4j/2.x/migrate-from-log4j1.html#Log4j2ConfigurationFormat for details about Log4j configuration file migration. >&2
-    echo You can also use the \$KAFKA_HOME/config/log4j2.properties file as a starting point. Make sure to remove the Log4j 1.x configuration after completing the migration. >&2
+    echo You can also use the \$KAFKA_HOME/config/log4j2.yml file as a starting point. Make sure to remove the Log4j 1.x configuration after completing the migration. >&2
     export KAFKA_LOG4J_OPTS="-Dlog4j.configuration=file:$base_dir/../config/log4j.properties"
-elif [ -f "$base_dir/../config/log4j2.properties" ]; then
-    export KAFKA_LOG4J_OPTS="-Dlog4j2.configurationFile=$base_dir/../config/log4j2.properties"
+elif [ -f "$base_dir/../config/log4j2.yml" ]; then
+    export KAFKA_LOG4J_OPTS="-Dlog4j2.configurationFile=$base_dir/../config/log4j2.yml"
 elif [ -f "$base_dir/../config/log4j2.xml" ]; then
     export KAFKA_LOG4J_OPTS="-Dlog4j2.configurationFile=$base_dir/../config/log4j2.xml"
 fi
