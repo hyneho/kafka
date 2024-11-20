@@ -25,9 +25,9 @@ Configuration:
     RollingFile:
       - name: R
         fileName: logs/kafka-streams-scala.log
-        filePattern: "${logPattern}"
+        filePattern: "streams-scala-%d{yyyy-MM-dd}.log"
         PatternLayout:
-          pattern: "%-4r [%t] %-5p %c %x - %m%n"
+          pattern: "${logPattern}"
         Policies:
           SizeBasedTriggeringPolicy:
             size: "100KB"

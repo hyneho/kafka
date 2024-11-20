@@ -16,7 +16,7 @@ Configuration:
   Properties:
     Property:
       - name: "log_dir"
-        value: "/var/log/kafka"
+        value: {{ log_dir }}
       - name: "log_level"
         value: "DEBUG"
       - name: "logPattern"

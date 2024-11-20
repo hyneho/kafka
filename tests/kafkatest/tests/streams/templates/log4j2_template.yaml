@@ -19,6 +19,7 @@ Configuration:
     File:
       name: FILE
       fileName: {{ log_file }}
+      filePattern: "streams-templates-%d{yyyy-MM-dd}.log"
       append: true
       immediateFlush: true
       PatternLayout:
@@ -31,7 +32,6 @@ Configuration:
         - ref: FILE
 
     Logger:
-      # 動態生成的 Logger 區域
         {% if loggers is defined %}
         {% for logger, log_level in loggers.items() %}
         - name: {{ logger }}
