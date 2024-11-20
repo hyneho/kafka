@@ -20,6 +20,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.test.api.ClusterConfigProperty;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
@@ -139,32 +140,30 @@ public class ConfigCommandIntegrationTest {
         assertEquals("Completed updating config for client-metric cm.", message);
     }
 
-    @ClusterTest
+    @ClusterTest(serverProperties = {@ClusterConfigProperty(key = "log.segment.delete.delay.ms", value = "1000")})
     public void testAddConfigKeyValuesUsingCommand() throws Exception {
 
         try (Admin client = cluster.admin()) {
-            NewTopic newTopic = new NewTopic("test-topic", 1, (short) 1);
+            NewTopic newTopic = new NewTopic("topic", 1, (short) 1);
             client.createTopics(Collections.singleton(newTopic)).all().get();
-            cluster.waitForTopic("test-topic", 1);
+            cluster.waitForTopic("topic", 1);
 
             Stream<String> command = Stream.concat(quorumArgs(), Stream.of(
                     "--entity-type", "topics",
-                    "--entity-name", "test-topic",
+                    "--entity-name", "topic",
                     "--alter", "--add-config", "cleanup.policy=[delete,compact]"));
 
             String message = captureStandardStream(false, run(command));
-            assertEquals("Completed updating config for topic test-topic.", message);
+            assertEquals("Completed updating config for topic topic.", message);
 
             command = Stream.concat(quorumArgs(), Stream.of(
                     "--entity-type", "topics",
-                    "--entity-name", "test-topic",
+                    "--entity-name", "topic",
                     "--describe"));
 
             message = captureStandardStream(false, run(command));
             assertTrue(message.contains("cleanup.policy=delete,compact"), "Config entry was not added correctly");
 
-            //Clean up by deleting topic
-            client.deleteTopics(Collections.singleton("test-topic")).all().get();
         }
 
     }
