@@ -146,25 +146,24 @@ public class ConfigCommandIntegrationTest {
             NewTopic newTopic = new NewTopic("test-topic", 1, (short) 1);
             client.createTopics(Collections.singleton(newTopic)).all().get();
             cluster.waitForTopic("test-topic", 1);
-        }
 
-        Stream<String> command = Stream.concat(quorumArgs(), Stream.of(
-                "--entity-type", "topics",
-                "--entity-name", "test-topic",
-                "--alter", "--add-config", "cleanup.policy=[delete,compact]"));
+            Stream<String> command = Stream.concat(quorumArgs(), Stream.of(
+                    "--entity-type", "topics",
+                    "--entity-name", "test-topic",
+                    "--alter", "--add-config", "cleanup.policy=[delete,compact]"));
 
-        String message = captureStandardStream(false, run(command));
-        assertEquals("Completed updating config for topic test-topic.", message);
+            String message = captureStandardStream(false, run(command));
+            assertEquals("Completed updating config for topic test-topic.", message);
 
-        command = Stream.concat(quorumArgs(), Stream.of(
-                "--entity-type", "topics",
-                "--entity-name", "test-topic",
-                "--describe"));
+            command = Stream.concat(quorumArgs(), Stream.of(
+                    "--entity-type", "topics",
+                    "--entity-name", "test-topic",
+                    "--describe"));
 
-        message = captureStandardStream(false, run(command));
-        assertTrue(message.contains("cleanup.policy=delete,compact"), "Config entry was not added correctly");
+            message = captureStandardStream(false, run(command));
+            assertTrue(message.contains("cleanup.policy=delete,compact"), "Config entry was not added correctly");
 
-        try (Admin client = cluster.admin()) {
+            //Clean up by deleting topic
             client.deleteTopics(Collections.singleton("test-topic")).all().get();
         }
 
