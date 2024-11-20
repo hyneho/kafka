@@ -25,7 +25,6 @@ import net.sourceforge.argparse4j.inf.Subparsers;
 import net.sourceforge.argparse4j.internal.HelpScreenException;
 
 import java.io.PrintStream;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.apache.kafka.message.checker.CheckerUtils.GetDataFromGit;
@@ -98,7 +97,8 @@ public class MetadataSchemaCheckerTool {
                 EvolutionVerifier verifier = new EvolutionVerifier(
                         CheckerUtils.readMessageSpecFromFile(Paths.get("").toAbsolutePath().getParent() + schemaPath + fileName),
                         CheckerUtils.readMessageSpecFromString(gitContent));
-                verifier.verify();writer.println("Successfully verified evolution of file: " + fileName);
+                verifier.verify();
+                writer.println("Successfully verified evolution of file: " + fileName);
                 break;
             }
             default:
