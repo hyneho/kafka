@@ -53,11 +53,11 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class RegexResolutionBenchmark {
-    private static Logger LOG = new LogContext().logger(RegexResolutionBenchmark.class);
-    private static Time TIME = Time.SYSTEM;
-    private static String GROUP_ID = "my-group-id";
+    private static final Logger LOG = new LogContext().logger(RegexResolutionBenchmark.class);
+    private static final Time TIME = Time.SYSTEM;
+    private static final String GROUP_ID = "my-group-id";
 
-    private static List<String> WORDS = List.of(
+    private static final List<String> WORDS = List.of(
         "data",
         "stream",
         "queue",
