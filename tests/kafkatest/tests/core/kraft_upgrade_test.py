@@ -80,7 +80,7 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
         for node in self.kafka.controller_quorum.nodes:
             self.logger.info("Stopping controller node %s" % node.account.hostname)
             self.kafka.controller_quorum.stop_node(node)
-            node.version = to_kafka_version
+            node.version = KafkaVersion(to_kafka_version)
             self.logger.info("Restarting controller node %s" % node.account.hostname)
             self.kafka.controller_quorum.start_node(node)
             self.wait_until_rejoin()
@@ -88,7 +88,7 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
         for node in self.kafka.nodes:
             self.logger.info("Stopping broker node %s" % node.account.hostname)
             self.kafka.stop_node(node)
-            node.version = to_kafka_version
+            node.version = KafkaVersion(to_kafka_version)
             self.logger.info("Restarting broker node %s" % node.account.hostname)
             self.kafka.start_node(node)
             self.wait_until_rejoin()
