@@ -491,16 +491,17 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
             producerEpoch = transitMetadata.producerEpoch
             lastProducerEpoch = transitMetadata.lastProducerEpoch
             nextProducerId = transitMetadata.nextProducerId
+            if (toState == PrepareAbort && (state == Empty || state == CompleteCommit || state == CompleteAbort)) {
+              // In V2, we allow state transits from Empty, CompleteCommit and CompleteAbort to PrepareAbort. Let's
+              // use the last update time as the txn start time.
+              txnStartTimestamp = transitMetadata.txnLastUpdateTimestamp
+            }
           }
 
         case CompleteAbort | CompleteCommit => // from write markers
-          val isTransitionFromEmptyOrCompleteAbortInTransactionV2 = state == PrepareAbort &&
-            clientTransactionVersion.supportsEpochBump()
-          // With transaction V2, we allow Empty/CompleteAbort/CompleteCommit transaction to be aborted, so the txnStartTimestamp can
-          // be -1.
           if (!validProducerEpoch(transitMetadata) ||
             txnTimeoutMs != transitMetadata.txnTimeoutMs ||
-            transitMetadata.txnStartTimestamp == -1 && !isTransitionFromEmptyOrCompleteAbortInTransactionV2) {
+            transitMetadata.txnStartTimestamp == -1) {
             throwStateTransitionFailure(transitMetadata)
           } else {
             txnStartTimestamp = transitMetadata.txnStartTimestamp

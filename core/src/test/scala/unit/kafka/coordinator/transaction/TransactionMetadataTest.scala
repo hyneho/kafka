@@ -106,6 +106,81 @@ class TransactionMetadataTest {
   }
 
   @Test
+  def testTransitFromEmptyToPrepareAbortInV2(): Unit = {
+    val producerEpoch = 735.toShort
+
+    val txnMetadata = new TransactionMetadata(
+      transactionalId = transactionalId,
+      producerId = producerId,
+      previousProducerId = RecordBatch.NO_PRODUCER_ID,
+      nextProducerId = RecordBatch.NO_PRODUCER_ID,
+      producerEpoch = producerEpoch,
+      lastProducerEpoch = RecordBatch.NO_PRODUCER_EPOCH,
+      txnTimeoutMs = 30000,
+      state = Empty,
+      topicPartitions = mutable.Set.empty,
+      txnStartTimestamp = -1,
+      txnLastUpdateTimestamp = time.milliseconds(),
+      clientTransactionVersion = TV_2)
+
+    val transitMetadata = txnMetadata.prepareAbortOrCommit(PrepareAbort, TV_2, RecordBatch.NO_PRODUCER_ID, time.milliseconds() + 1)
+    txnMetadata.completeTransitionTo(transitMetadata)
+    assertEquals(producerId, txnMetadata.producerId)
+    assertEquals(producerEpoch + 1, txnMetadata.producerEpoch)
+    assertEquals(time.milliseconds() + 1, txnMetadata.txnStartTimestamp)
+  }
+
+  @Test
+  def testTransitFromCompleteAbortToPrepareAbortInV2(): Unit = {
+    val producerEpoch = 735.toShort
+
+    val txnMetadata = new TransactionMetadata(
+      transactionalId = transactionalId,
+      producerId = producerId,
+      previousProducerId = RecordBatch.NO_PRODUCER_ID,
+      nextProducerId = RecordBatch.NO_PRODUCER_ID,
+      producerEpoch = producerEpoch,
+      lastProducerEpoch = RecordBatch.NO_PRODUCER_EPOCH,
+      txnTimeoutMs = 30000,
+      state = CompleteAbort,
+      topicPartitions = mutable.Set.empty,
+      txnStartTimestamp = time.milliseconds() - 1,
+      txnLastUpdateTimestamp = time.milliseconds(),
+      clientTransactionVersion = TV_2)
+
+    val transitMetadata = txnMetadata.prepareAbortOrCommit(PrepareAbort, TV_2, RecordBatch.NO_PRODUCER_ID, time.milliseconds() + 1)
+    txnMetadata.completeTransitionTo(transitMetadata)
+    assertEquals(producerId, txnMetadata.producerId)
+    assertEquals(producerEpoch + 1, txnMetadata.producerEpoch)
+    assertEquals(time.milliseconds() + 1, txnMetadata.txnStartTimestamp)
+  }
+
+  @Test
+  def testTransitFromCompleteCommitToPrepareAbortInV2(): Unit = {
+    val producerEpoch = 735.toShort
+
+    val txnMetadata = new TransactionMetadata(
+      transactionalId = transactionalId,
+      producerId = producerId,
+      previousProducerId = RecordBatch.NO_PRODUCER_ID,
+      nextProducerId = RecordBatch.NO_PRODUCER_ID,
+      producerEpoch = producerEpoch,
+      lastProducerEpoch = RecordBatch.NO_PRODUCER_EPOCH,
+      txnTimeoutMs = 30000,
+      state = CompleteCommit,
+      topicPartitions = mutable.Set.empty,
+      txnStartTimestamp = time.milliseconds() - 1,
+      txnLastUpdateTimestamp = time.milliseconds(),
+      clientTransactionVersion = TV_2)
+
+    val transitMetadata = txnMetadata.prepareAbortOrCommit(PrepareAbort, TV_2, RecordBatch.NO_PRODUCER_ID, time.milliseconds() + 1)
+    txnMetadata.completeTransitionTo(transitMetadata)
+    assertEquals(producerId, txnMetadata.producerId)
+    assertEquals(producerEpoch + 1, txnMetadata.producerEpoch)
+    assertEquals(time.milliseconds() + 1, txnMetadata.txnStartTimestamp)
+  }
+
+  @Test
   def testTolerateUpdateTimeShiftDuringEpochBump(): Unit = {
     val producerEpoch: Short = 1
     val txnMetadata = new TransactionMetadata(
