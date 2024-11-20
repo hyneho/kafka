@@ -665,17 +665,30 @@ class TransactionCoordinatorTest {
     verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
   }
 
-  @ParameterizedTest
-  @ValueSource(shorts = Array(0, 2))
-  def TestEndTxnRequestWhenEmptyTransactionStateForAbort(transactionVersion: Short): Unit = {
-    val clientTransactionVersion = TransactionVersion.fromFeatureLevel(transactionVersion)
+  @Test
+  def TestEndTxnRequestWhenEmptyTransactionStateForAbortInV1(): Unit = {
+    val clientTransactionVersion = TransactionVersion.fromFeatureLevel(0)
     when(transactionManager.getTransactionState(ArgumentMatchers.eq(transactionalId)))
       .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, new TransactionMetadata(transactionalId, producerId, producerId,
         RecordBatch.NO_PRODUCER_ID, producerEpoch, RecordBatch.NO_PRODUCER_EPOCH, 1, Empty, collection.mutable.Set.empty[TopicPartition], 0, time.milliseconds(), clientTransactionVersion)))))
 
     coordinator.handleEndTransaction(transactionalId, producerId, producerEpoch, TransactionResult.ABORT, clientTransactionVersion, endTxnCallback)
-    if (transactionVersion < 2) {
-      assertEquals(Errors.INVALID_TXN_STATE, error)
+    assertEquals(Errors.INVALID_TXN_STATE, error)
+    verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = Array(false, true))
+  def TestEndTxnRequestWhenEmptyTransactionStateForAbortInV2(isRetry: Boolean): Unit = {
+    val clientTransactionVersion = TransactionVersion.fromFeatureLevel(2)
+    when(transactionManager.getTransactionState(ArgumentMatchers.eq(transactionalId)))
+      .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, new TransactionMetadata(transactionalId, producerId, producerId,
+        RecordBatch.NO_PRODUCER_ID, producerEpoch, RecordBatch.NO_PRODUCER_EPOCH, 1, Empty, collection.mutable.Set.empty[TopicPartition], 0, time.milliseconds(), clientTransactionVersion)))))
+
+    val epoch = if (isRetry) producerEpoch - 1 else producerEpoch
+    coordinator.handleEndTransaction(transactionalId, producerId, epoch.toShort, TransactionResult.ABORT, clientTransactionVersion, endTxnCallback)
+    if (isRetry) {
+      assertEquals(Errors.PRODUCER_FENCED, error)
     } else {
       assertEquals(Errors.NONE, error)
       val newMetadata = ArgumentCaptor.forClass(classOf[TxnTransitMetadata]);

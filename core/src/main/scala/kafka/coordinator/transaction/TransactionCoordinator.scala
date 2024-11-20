@@ -528,7 +528,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
     +----------------+-------+---------+-------+---------+
     |                | Retry | Current | Retry | Current |
     +----------------+-------+---------+-------+---------+
-    | Empty          | EB    | EB      | ITS   | ITS     |
+    | Empty          | PF    | EB      | ITS   | ITS     |
     +----------------+-------+---------+-------+---------+
     | CompleteAbort  | NONE  | EB      | ITS   | ITS     |
     +----------------+-------+---------+-------+---------+
@@ -577,10 +577,8 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                 // Return producer fenced even in the cases where the epoch is higher and could indicate an invalid state transition.
                 // Use the following criteria to determine if a v2 retry is valid:
                 txnMetadata.state match {
-                  case Ongoing | Dead | PrepareEpochFence =>
+                  case Ongoing | Empty | Dead | PrepareEpochFence =>
                     producerEpoch == txnMetadata.producerEpoch
-                  case Empty =>
-                    producerEpoch == txnMetadata.producerEpoch || retryOnEpochBump
                   case PrepareCommit | PrepareAbort =>
                     retryOnEpochBump
                   case CompleteCommit | CompleteAbort =>
