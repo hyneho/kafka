@@ -274,7 +274,6 @@ public class ReplicationControlManagerTest {
                 setClusterControl(clusterControl).
                 setCreateTopicPolicy(createTopicPolicy).
                 setFeatureControl(featureControl).
-                setLastStableOffsetProvider(() -> offsetControlManager.lastStableOffset()).
                 build();
             clusterControl.activate();
         }

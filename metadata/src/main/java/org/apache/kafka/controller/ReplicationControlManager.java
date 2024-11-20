@@ -166,7 +166,6 @@ public class ReplicationControlManager {
         private ClusterControlManager clusterControl = null;
         private Optional<CreateTopicPolicy> createTopicPolicy = Optional.empty();
         private FeatureControlManager featureControl = null;
-        private LastStableOffsetProvider lastStableOffsetProvider = null;
 
         Builder setSnapshotRegistry(SnapshotRegistry snapshotRegistry) {
             this.snapshotRegistry = snapshotRegistry;
@@ -213,11 +212,6 @@ public class ReplicationControlManager {
             return this;
         }
 
-        public Builder setLastStableOffsetProvider(LastStableOffsetProvider lastStableOffsetProvider) {
-            this.lastStableOffsetProvider = lastStableOffsetProvider;
-            return this;
-        }
-
         ReplicationControlManager build() {
             if (configurationControl == null) {
                 throw new IllegalStateException("Configuration control must be set before building");
@@ -237,8 +231,7 @@ public class ReplicationControlManager {
                 configurationControl,
                 clusterControl,
                 createTopicPolicy,
-                featureControl,
-                lastStableOffsetProvider);
+                featureControl);
         }
     }
 
@@ -332,11 +325,6 @@ public class ReplicationControlManager {
     private final FeatureControlManager featureControl;
 
     /**
-     * The provider for the metadata last stable offset.
-     */
-    private final LastStableOffsetProvider lastStableOffsetProvider;
-
-    /**
      * Maps topic names to topic UUIDs.
      */
     private final TimelineHashMap<String, Uuid> topicsByName;
@@ -403,8 +391,7 @@ public class ReplicationControlManager {
         ConfigurationControlManager configurationControl,
         ClusterControlManager clusterControl,
         Optional<CreateTopicPolicy> createTopicPolicy,
-        FeatureControlManager featureControl,
-        LastStableOffsetProvider lastStableOffsetProvider
+        FeatureControlManager featureControl
     ) {
         this.snapshotRegistry = snapshotRegistry;
         this.log = logContext.logger(ReplicationControlManager.class);
@@ -414,7 +401,6 @@ public class ReplicationControlManager {
         this.configurationControl = configurationControl;
         this.createTopicPolicy = createTopicPolicy;
         this.featureControl = featureControl;
-        this.lastStableOffsetProvider = lastStableOffsetProvider;
         this.clusterControl = clusterControl;
         this.topicsByName = new TimelineHashMap<>(snapshotRegistry, 0);
         this.topicsWithCollisionChars = new TimelineHashMap<>(snapshotRegistry, 0);
@@ -1030,7 +1016,7 @@ public class ReplicationControlManager {
     }
 
     boolean isElrEnabled() {
-        return featureControl.metadataVersion().isElrSupported() && featureControl.finalizedFeatures(lastStableOffsetProvider.getLastStableOffset()).
+        return featureControl.metadataVersion().isElrSupported() && featureControl.latestFinalizedFeatures().
             versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0) >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
     }
 
@@ -2430,10 +2416,5 @@ public class ReplicationControlManager {
             Uuid replicaDirectory = partition.directory(brokerId);
             return clusterControl.hasOnlineDir(brokerId, replicaDirectory);
         }
-    }
-
-    @FunctionalInterface
-    interface LastStableOffsetProvider {
-        long getLastStableOffset();
     }
 }

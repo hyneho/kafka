@@ -1541,7 +1541,6 @@ public final class QuorumController implements Controller {
             setClusterControl(clusterControl).
             setCreateTopicPolicy(createTopicPolicy).
             setFeatureControl(featureControl).
-            setLastStableOffsetProvider(this::getLastStableOffset).
             build();
         this.scramControlManager = new ScramControlManager.Builder().
             setLogContext(logContext).
@@ -2140,9 +2139,5 @@ public final class QuorumController implements Controller {
 
     void handleUncleanBrokerShutdown(int brokerId, List<ApiMessageAndVersion> records) {
         replicationControl.handleBrokerUncleanShutdown(brokerId, records);
-    }
-
-    long getLastStableOffset() {
-        return offsetControl.lastStableOffset();
     }
 }

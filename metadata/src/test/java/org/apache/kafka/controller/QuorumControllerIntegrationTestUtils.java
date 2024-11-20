@@ -35,7 +35,6 @@ import org.apache.kafka.server.common.MetadataVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,21 +79,26 @@ public class QuorumControllerIntegrationTestUtils {
     /**
      * Create a broker features collection for use in a registration request. MV and given features are included.
      *
-     * @param minVersion    The minimum supported MV.
-     * @param maxVersion    The maximum supported MV.
-     * @param featureList   Other features to add.
+     * @param minVersion            The minimum supported MV.
+     * @param maxVersion            The maximum supported MV.
+     * @param featureMaxVersions    The features and their max supported versions.
      */
     static BrokerRegistrationRequestData.FeatureCollection brokerFeaturesPlusFeatureVersions(
             MetadataVersion minVersion,
             MetadataVersion maxVersion,
-            List<BrokerRegistrationRequestData.Feature> featureList
+            Map<String, Short> featureMaxVersions
     ) {
         BrokerRegistrationRequestData.FeatureCollection features = new BrokerRegistrationRequestData.FeatureCollection();
         features.add(new BrokerRegistrationRequestData.Feature()
                 .setName(MetadataVersion.FEATURE_NAME)
                 .setMinSupportedVersion(minVersion.featureLevel())
                 .setMaxSupportedVersion(maxVersion.featureLevel()));
-        features.addAll(featureList);
+        featureMaxVersions.entrySet().forEach(entry -> {
+            features.add(new BrokerRegistrationRequestData.Feature()
+                .setName(entry.getKey())
+                .setMaxSupportedVersion(entry.getValue())
+                .setMinSupportedVersion((short) 0));
+        });
         return features;
     }
 
@@ -118,10 +122,7 @@ public class QuorumControllerIntegrationTestUtils {
                     .setRack(null)
                     .setClusterId(controller.clusterId())
                     .setFeatures(brokerFeaturesPlusFeatureVersions(MetadataVersion.IBP_3_0_IV1, MetadataVersion.latestTesting(),
-                        Arrays.asList(new BrokerRegistrationRequestData.Feature()
-                            .setName(EligibleLeaderReplicasVersion.FEATURE_NAME)
-                            .setMinSupportedVersion(EligibleLeaderReplicasVersion.ELRV_0.featureLevel())
-                            .setMaxSupportedVersion(EligibleLeaderReplicasVersion.ELRV_1.featureLevel()))))
+                        Map.of(EligibleLeaderReplicasVersion.FEATURE_NAME, EligibleLeaderReplicasVersion.ELRV_1.featureLevel())))
                     .setIncarnationId(Uuid.fromString("kxAT73dKQsitIedpiPtwB" + brokerId))
                     .setLogDirs(Collections.singletonList(
                         Uuid.fromString("TESTBROKER" + Integer.toString(100000 + brokerId).substring(1) + "DIRAAAA")

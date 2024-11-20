@@ -191,10 +191,7 @@ public class QuorumControllerTest {
             controlEnv.activeController().registerBroker(ANONYMOUS_CONTEXT,
                 new BrokerRegistrationRequestData().
                 setFeatures(brokerFeaturesPlusFeatureVersions(MetadataVersion.IBP_3_0_IV1, MetadataVersion.latestTesting(),
-                    Arrays.asList(new BrokerRegistrationRequestData.Feature()
-                        .setName(EligibleLeaderReplicasVersion.FEATURE_NAME)
-                        .setMinSupportedVersion(EligibleLeaderReplicasVersion.ELRV_0.featureLevel())
-                        .setMaxSupportedVersion(EligibleLeaderReplicasVersion.ELRV_1.featureLevel())))).
+                    Map.of(EligibleLeaderReplicasVersion.FEATURE_NAME, EligibleLeaderReplicasVersion.ELRV_1.featureLevel()))).
                 setBrokerId(0).
                 setLogDirs(Collections.singletonList(Uuid.fromString("iiaQjkRPQcuMULNII0MUeA"))).
                 setClusterId(logEnv.clusterId())).get();
@@ -236,10 +233,7 @@ public class QuorumControllerTest {
             controlEnv.activeController().registerBroker(ANONYMOUS_CONTEXT,
                 new BrokerRegistrationRequestData().
                     setFeatures(brokerFeaturesPlusFeatureVersions(MetadataVersion.IBP_3_0_IV1, MetadataVersion.latestTesting(),
-                        Arrays.asList(new BrokerRegistrationRequestData.Feature()
-                            .setName(EligibleLeaderReplicasVersion.FEATURE_NAME)
-                            .setMinSupportedVersion(EligibleLeaderReplicasVersion.ELRV_0.featureLevel())
-                            .setMaxSupportedVersion(EligibleLeaderReplicasVersion.ELRV_1.featureLevel())))).
+                        Map.of(EligibleLeaderReplicasVersion.FEATURE_NAME, EligibleLeaderReplicasVersion.ELRV_1.featureLevel()))).
                     setBrokerId(0).
                     setLogDirs(Collections.singletonList(Uuid.fromString("sTbzRAMnTpahIyIPNjiLhw"))).
                     setClusterId(logEnv.clusterId())).get();
@@ -379,10 +373,7 @@ public class QuorumControllerTest {
             Map<Integer, Long> brokerEpochs = new HashMap<>();
             BrokerRegistrationRequestData.FeatureCollection features =
                 brokerFeaturesPlusFeatureVersions(MetadataVersion.IBP_3_0_IV1, MetadataVersion.IBP_4_0_IV1,
-                    Arrays.asList(new BrokerRegistrationRequestData.Feature()
-                        .setName(EligibleLeaderReplicasVersion.FEATURE_NAME)
-                        .setMinSupportedVersion(EligibleLeaderReplicasVersion.ELRV_0.featureLevel())
-                        .setMaxSupportedVersion(EligibleLeaderReplicasVersion.ELRV_1.featureLevel())));
+                    Map.of(EligibleLeaderReplicasVersion.FEATURE_NAME, EligibleLeaderReplicasVersion.ELRV_1.featureLevel()));
             for (Integer brokerId : allBrokers) {
                 CompletableFuture<BrokerRegistrationReply> reply = active.registerBroker(
                     anonymousContextFor(ApiKeys.BROKER_REGISTRATION),
@@ -753,11 +744,7 @@ public class QuorumControllerTest {
                     setClusterId(active.clusterId()).
                     setIncarnationId(Uuid.fromString("kxAT73dKQsitIedpiPtwBA")).
                     setFeatures(brokerFeaturesPlusFeatureVersions(MetadataVersion.IBP_3_0_IV1, MetadataVersion.latestTesting(),
-                        Arrays.asList(new BrokerRegistrationRequestData.Feature()
-                            .setName(EligibleLeaderReplicasVersion.FEATURE_NAME)
-                            .setMinSupportedVersion(EligibleLeaderReplicasVersion.ELRV_0.featureLevel())
-                            .setMaxSupportedVersion(EligibleLeaderReplicasVersion.ELRV_1.featureLevel())))
-                    ).
+                        Map.of(EligibleLeaderReplicasVersion.FEATURE_NAME, EligibleLeaderReplicasVersion.ELRV_1.featureLevel()))).
                     setLogDirs(Collections.singletonList(Uuid.fromString("vBpaRsZVSaGsQT53wtYGtg"))).
                     setListeners(listeners));
             assertEquals(5L, reply.get().epoch());
