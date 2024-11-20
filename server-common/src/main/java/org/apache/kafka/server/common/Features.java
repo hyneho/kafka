@@ -41,10 +41,10 @@ public enum Features {
      *
      * See {@link TestFeatureVersion} as an example. See {@link FeatureVersion} when implementing a new feature.
      */
-    TEST_VERSION("test.feature.version", TestFeatureVersion.values()),
-    KRAFT_VERSION("kraft.version", KRaftVersion.values()),
-    TRANSACTION_VERSION("transaction.version", TransactionVersion.values()),
-    GROUP_VERSION("group.version", GroupVersion.values());
+    TEST_VERSION("test.feature.version", TestFeatureVersion.values(), TestFeatureVersion.LATEST_PRODUCTION),
+    KRAFT_VERSION("kraft.version", KRaftVersion.values(), KRaftVersion.LATEST_PRODUCTION),
+    TRANSACTION_VERSION("transaction.version", TransactionVersion.values(), TransactionVersion.LATEST_PRODUCTION),
+    GROUP_VERSION("group.version", GroupVersion.values(), GroupVersion.LATEST_PRODUCTION);
 
     public static final Features[] FEATURES;
     public static final List<Features> PRODUCTION_FEATURES;
@@ -53,10 +53,21 @@ public enum Features {
     private final String name;
     private final FeatureVersion[] featureVersions;
 
+    // The latest production version of the feature, owned and updated by the feature owner
+    // in the respective feature definition. The value should not be smaller than the default
+    // value calculated with {@link #defaultValue(MetadataVersion)}.
+    private final FeatureVersion latestProduction;
+
     Features(String name,
-             FeatureVersion[] featureVersions) {
+             FeatureVersion[] featureVersions,
+             FeatureVersion latestProduction) {
         this.name = name;
         this.featureVersions = featureVersions;
+        this.latestProduction = latestProduction;
+
+        if (defaultValue(MetadataVersion.LATEST_PRODUCTION) > latestProduction.featureLevel()) {
+            throw new IllegalArgumentException("The latest production value should be no smaller than the default value.");
+        }
     }
 
     static {
@@ -78,7 +89,7 @@ public enum Features {
     }
 
     public short latestProduction() {
-        return defaultValue(MetadataVersion.LATEST_PRODUCTION);
+        return latestProduction.featureLevel();
     }
 
     public short minimumProduction() {

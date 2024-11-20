@@ -30,6 +30,8 @@ public enum TransactionVersion implements FeatureVersion {
 
     public static final String FEATURE_NAME = "transaction.version";
 
+    public static final TransactionVersion LATEST_PRODUCTION = TV_0;
+
     private final short featureLevel;
     private final MetadataVersion bootstrapMetadataVersion;
     private final Map<String, Short> dependencies;

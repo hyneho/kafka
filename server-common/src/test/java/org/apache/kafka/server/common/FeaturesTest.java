@@ -115,8 +115,8 @@ public class FeaturesTest {
 
     @ParameterizedTest
     @EnumSource(Features.class)
-    public void testLatestProductionMapsToLatestMetadataVersion(Features features) {
-        assertEquals(features.latestProduction(), features.defaultValue(MetadataVersion.LATEST_PRODUCTION));
+    public void testLatestProductionIsNotBehindLatestMetadataVersion(Features features) {
+        assertTrue(features.latestProduction() >= features.defaultValue(MetadataVersion.latestProduction()));
     }
 
     @ParameterizedTest
