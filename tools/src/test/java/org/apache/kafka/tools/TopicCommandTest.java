@@ -1152,7 +1152,7 @@ public class TopicCommandTest {
         }
     }
 
-    @ClusterTest(brokers = 3)
+    @ClusterTemplate("generate")
     public void testDescribeUnderReplicatedPartitionsWhenReassignmentIsInProgress(ClusterInstance clusterInstance) throws ExecutionException, InterruptedException {
         String testTopicName = TestUtils.randomString(10);
 
