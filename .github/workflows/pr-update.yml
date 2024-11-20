@@ -49,7 +49,7 @@ jobs:
         ./.github/scripts/label_small.sh
 
   add-triage-label:
-    if: github.event.action == 'opened'
+    if: github.event.action == 'opened' || github.event.action == 'reopened'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
