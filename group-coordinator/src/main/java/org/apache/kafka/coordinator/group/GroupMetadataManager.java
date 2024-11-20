@@ -2585,8 +2585,10 @@ public class GroupMetadataManager {
      * @param image     The metadata image to use for listing the topics.
      * @param regexes   The list of regular expressions that must be resolved.
      * @return The list of resolved regular expressions.
+     *
+     * public for benchmarks.
      */
-    private static Map<String, ResolvedRegularExpression> refreshRegularExpressions(
+    public static Map<String, ResolvedRegularExpression> refreshRegularExpressions(
         String groupId,
         Logger log,
         Time time,
