@@ -110,5 +110,4 @@ public class MetadataSchemaCheckerTool {
                 throw new RuntimeException("Unknown command " + command);
         }
     }
-
 }
