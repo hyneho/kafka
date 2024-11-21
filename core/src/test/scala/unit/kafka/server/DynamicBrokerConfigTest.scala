@@ -251,16 +251,24 @@ class DynamicBrokerConfigTest {
     config.dynamicConfig.updateDefaultConfig(props)
     assertEquals(6, config.remoteLogManagerConfig.remoteLogReaderThreads())
     verify(remoteLogManager).resizeReaderThreadPool(6)
+    props.clear()
 
     // Test dynamic update with invalid values
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "0")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
+    props.clear()
+
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "-2")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = false))
+    props.clear()
+
     props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "2")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = false))
+    props.clear()
+
     props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "-1")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
+    props.clear()
     verifyNoMoreInteractions(remoteLogManager)
   }
 
