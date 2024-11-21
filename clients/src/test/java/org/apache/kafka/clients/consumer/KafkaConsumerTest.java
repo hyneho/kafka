@@ -1968,11 +1968,11 @@ public class KafkaConsumerTest {
         }
 
         try (KafkaConsumer<byte[], byte[]> consumer = newConsumer(groupProtocol, null)) {
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitAsync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitAsync);
         }
 
         try (KafkaConsumer<byte[], byte[]> consumer = newConsumer(groupProtocol, null)) {
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitSync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitSync);
         }
     }
 
@@ -1983,8 +1983,8 @@ public class KafkaConsumerTest {
             consumer.assign(singleton(tp0));
 
             assertThrows(InvalidGroupIdException.class, () -> consumer.committed(Collections.singleton(tp0)).get(tp0));
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitAsync());
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitSync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitAsync);
+            assertThrows(InvalidGroupIdException.class, consumer::commitSync);
         }
     }
 
@@ -2667,7 +2667,7 @@ public class KafkaConsumerTest {
 
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
-    public void testListOffsetShouldUpdateSubscriptions(GroupProtocol groupProtocol) throws InterruptedException {
+    public void testListOffsetShouldUpdateSubscriptions(GroupProtocol groupProtocol) {
         final ConsumerMetadata metadata = createMetadata(subscription);
         final MockClient client = new MockClient(time, metadata);
 
