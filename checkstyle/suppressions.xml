@@ -32,8 +32,6 @@
               files="(ApiMessageType|FieldSpec|MessageDataGenerator|KafkaConsumerTest).java"/>
     <suppress checks="MethodLength"
               files="(FieldSpec|MessageDataGenerator).java"/>
-    <suppress checks="ImportControl"
-              files="CheckerUtils.java"/>
     <suppress id="dontUseSystemExit"
               files="MessageGenerator.java"/>
 

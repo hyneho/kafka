@@ -21,6 +21,7 @@ import org.apache.kafka.message.FieldSpec;
 import org.apache.kafka.message.MessageGenerator;
 import org.apache.kafka.message.MessageSpec;
 import org.apache.kafka.message.Versions;
+
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -35,6 +36,7 @@ import org.eclipse.jgit.treewalk.filter.PathFilter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
@@ -125,7 +127,10 @@ class CheckerUtils {
      * @return                     The file contents.
      */
     static String GetDataFromGit(String fileName) throws IOException {
-        String gitPath = String.valueOf(Paths.get("").toAbsolutePath().getParent());
+        Path gitPath = Paths.get("").toAbsolutePath();
+        while(!gitPath.endsWith("kafka")) {
+            gitPath = gitPath.getParent();
+        }
         String schemaPath = "metadata/src/main/resources/common/metadata/";
         Git git = Git.open(new File(gitPath + "/.git"));
         Repository repository = git.getRepository();
@@ -144,7 +149,7 @@ class CheckerUtils {
                 ObjectId objectId = treeWalk.getObjectId(0);
                 ObjectLoader loader = repository.open(objectId);
 
-                return new String(loader.getBytes());
+                return new String(loader.getBytes(), "UTF-8");
             }
         }
     }
