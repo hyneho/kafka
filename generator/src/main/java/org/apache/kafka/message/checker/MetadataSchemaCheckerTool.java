@@ -93,7 +93,7 @@ public class MetadataSchemaCheckerTool {
             case "verify-evolution-git": {
                 String filePath = "/metadata/src/main/resources/common/metadata/" + namespace.getString("file");
                 Path rootKafkaDirectory = Paths.get("").toAbsolutePath();
-                while(!rootKafkaDirectory.endsWith("kafka")) {
+                while (!rootKafkaDirectory.endsWith("kafka")) {
                     rootKafkaDirectory = rootKafkaDirectory.getParent();
                 }
                 String gitContent = GetDataFromGit(filePath, rootKafkaDirectory);
