@@ -25,8 +25,7 @@ from ducktape.services.service import Service
 from ducktape.utils.util import wait_until
 
 from kafkatest.directory_layout.kafka_path import KafkaPathResolverMixin
-from kafkatest.services.kafka.util import fix_opts_for_new_jvm
-from kafkatest.version import LATEST_3_9
+from kafkatest.services.kafka.util import fix_opts_for_new_jvm, get_log4j_config_param, get_log4j_config_for_connect
 
 
 class ConnectServiceBase(KafkaPathResolverMixin, Service):
@@ -341,7 +340,7 @@ class ConnectStandaloneService(ConnectServiceBase):
         return self.nodes[0]
 
     def start_cmd(self, node, connector_configs):
-        cmd = "( export KAFKA_LOG4J_OPTS=\"-Dlog4j.configuration=file:%s\"; " % self.LOG4J_CONFIG_FILE
+        cmd = "( export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), self.LOG4J_CONFIG_FILE)
         heap_kafka_opts = "-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=%s" % \
                           self.logs["connect_heap_dump_file"]["path"]
         other_kafka_opts = self.security_config.kafka_opts.strip('\"')
@@ -365,8 +364,7 @@ class ConnectStandaloneService(ConnectServiceBase):
         if self.external_config_template_func:
             node.account.create_file(self.EXTERNAL_CONFIGS_FILE, self.external_config_template_func(node))
         node.account.create_file(self.CONFIG_FILE, self.config_template_func(node))
-        log4j_path = 'connect_log4j2.yaml' if node.version > LATEST_3_9 else 'connect_log4j.properties'
-        node.account.create_file(self.LOG4J_CONFIG_FILE, self.render(log4j_path, log_file=self.LOG_FILE))
+        node.account.create_file(self.LOG4J_CONFIG_FILE, self.render(get_log4j_config_for_connect(node), log_file=self.LOG_FILE))
         remote_connector_configs = []
         for idx, template in enumerate(self.connector_config_templates):
             target_file = os.path.join(self.PERSISTENT_ROOT, "connect-connector-" + str(idx) + ".properties")
@@ -402,7 +400,7 @@ class ConnectDistributedService(ConnectServiceBase):
 
     # connector_configs argument is intentionally ignored in distributed service.
     def start_cmd(self, node, connector_configs):
-        cmd = "( export KAFKA_LOG4J_OPTS=\"-Dlog4j.configuration=file:%s\"; " % self.LOG4J_CONFIG_FILE
+        cmd = "( export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), self.LOG4J_CONFIG_FILE)
         heap_kafka_opts = "-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=%s" % \
                           self.logs["connect_heap_dump_file"]["path"]
         other_kafka_opts = self.security_config.kafka_opts.strip('\"')
@@ -423,8 +421,7 @@ class ConnectDistributedService(ConnectServiceBase):
         if self.external_config_template_func:
             node.account.create_file(self.EXTERNAL_CONFIGS_FILE, self.external_config_template_func(node))
         node.account.create_file(self.CONFIG_FILE, self.config_template_func(node))
-        log4j_path = 'connect_log4j2.yaml' if node.version > LATEST_3_9 else 'connect_log4j.properties'
-        node.account.create_file(self.LOG4J_CONFIG_FILE, self.render(log4j_path, log_file=self.LOG_FILE))
+        node.account.create_file(self.LOG4J_CONFIG_FILE, self.render(get_log4j_config_for_connect(node), log_file=self.LOG_FILE))
         if self.connector_config_templates:
             raise DucktapeError("Config files are not valid in distributed mode, submit connectors via the REST API")
 
