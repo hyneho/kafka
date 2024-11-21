@@ -16,10 +16,12 @@
  */
 package org.apache.kafka.streams.kstream.internals.graph;
 
+import java.util.Set;
 import org.apache.kafka.streams.kstream.internals.ConsumedInternal;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
+import org.apache.kafka.streams.processor.internals.StoreDelegatingProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.StoreFactory;
 
 public class GlobalStoreNode<KIn, VIn, S extends StateStore> extends StateStoreNode<S> {
@@ -52,15 +54,16 @@ public class GlobalStoreNode<KIn, VIn, S extends StateStore> extends StateStoreN
     @Override
     public void writeToTopology(final InternalTopologyBuilder topologyBuilder) {
         storeBuilder.withLoggingDisabled();
-        topologyBuilder.addGlobalStore(storeBuilder,
-                                       sourceName,
+        topologyBuilder.addGlobalStore(sourceName,
                                        consumed.timestampExtractor(),
                                        consumed.keyDeserializer(),
                                        consumed.valueDeserializer(),
                                        topic,
                                        processorName,
-                                       stateUpdateSupplier,
-                                       reprocessOnRestore);
+                                       new StoreDelegatingProcessorSupplier<>(
+                                               stateUpdateSupplier,
+                                               Set.of(new StoreFactory.FactoryWrappingStoreBuilder<>(storeBuilder))
+                                       ), reprocessOnRestore);
 
     }
 

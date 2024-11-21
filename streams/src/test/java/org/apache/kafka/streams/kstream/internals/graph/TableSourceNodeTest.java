@@ -16,6 +16,11 @@
  */
 package org.apache.kafka.streams.kstream.internals.graph;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.internals.ConsumedInternal;
@@ -23,16 +28,12 @@ import org.apache.kafka.streams.kstream.internals.KTableSource;
 import org.apache.kafka.streams.kstream.internals.MaterializedInternal;
 import org.apache.kafka.streams.kstream.internals.graph.TableSourceNode.TableSourceNodeBuilder;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
-
+import org.apache.kafka.streams.state.KeyValueStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.STRICT_STUBS)
@@ -59,12 +60,13 @@ public class TableSourceNodeTest {
 
     private void buildTableSourceNode(final boolean shouldReuseSourceTopicForChangelog) {
         final TableSourceNodeBuilder<String, String> tableSourceNodeBuilder = TableSourceNode.tableSourceNodeBuilder();
+        final MaterializedInternal<String, String, KeyValueStore<Bytes, byte[]>>
+                materializedInternal = new MaterializedInternal<>(Materialized.as(STORE_NAME));
         final TableSourceNode<String, String> tableSourceNode = tableSourceNodeBuilder
             .withTopic(TOPIC)
-            .withMaterializedInternal(new MaterializedInternal<>(Materialized.as(STORE_NAME)))
             .withConsumedInternal(new ConsumedInternal<>(Consumed.as("node-name")))
             .withProcessorParameters(
-                new ProcessorParameters<>(new KTableSource<>(STORE_NAME, STORE_NAME), null))
+                    new ProcessorParameters<>(new KTableSource<>(materializedInternal), null))
             .build();
         tableSourceNode.reuseSourceTopicForChangeLog(shouldReuseSourceTopicForChangelog);
 
