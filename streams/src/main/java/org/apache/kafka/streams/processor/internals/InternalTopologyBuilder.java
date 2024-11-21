@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
+import java.util.Properties;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -31,6 +32,9 @@ import org.apache.kafka.streams.processor.TimestampExtractor;
 import org.apache.kafka.streams.processor.TopicNameExtractor;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
+import org.apache.kafka.streams.processor.api.ProcessorWrapper;
+import org.apache.kafka.streams.processor.api.WrappedFixedKeyProcessorSupplier;
+import org.apache.kafka.streams.processor.api.WrappedProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.TopologyMetadata.Subtopology;
 import org.apache.kafka.streams.processor.internals.namedtopology.NamedTopology;
 import org.apache.kafka.streams.state.StoreBuilder;
@@ -66,11 +70,18 @@ public class InternalTopologyBuilder {
 
     public InternalTopologyBuilder() {
         this.topologyName = null;
+        this.processorWrapper = new NoOpProcessorWrapper();
     }
 
     public InternalTopologyBuilder(final TopologyConfig topologyConfigs) {
         this.topologyConfigs = topologyConfigs;
         this.topologyName = topologyConfigs.topologyName;
+
+        processorWrapper = topologyConfigs.getConfiguredInstance(
+            StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG,
+            ProcessorWrapper.class,
+            topologyConfigs.originals()
+        );
     }
 
     private static final Logger log = LoggerFactory.getLogger(InternalTopologyBuilder.class);
@@ -142,6 +153,8 @@ public class InternalTopologyBuilder {
 
     // Used to capture subscribed topics via Patterns discovered during the partition assignment process.
     private final Set<String> subscriptionUpdates = new HashSet<>();
+
+    private final ProcessorWrapper processorWrapper;
 
     private String applicationId = null;
 
@@ -367,7 +380,11 @@ public class InternalTopologyBuilder {
 
     public final synchronized void setStreamsConfig(final StreamsConfig applicationConfig) {
         Objects.requireNonNull(applicationConfig, "config can't be null");
-        topologyConfigs = new TopologyConfig(applicationConfig);
+
+        final Properties topologyOverrides = topologyConfigs == null
+            ? new Properties()
+            : topologyConfigs.topologyOverrides;
+        topologyConfigs = new TopologyConfig(topologyName, applicationConfig, topologyOverrides);
     }
 
     @SuppressWarnings("deprecation")
@@ -2244,5 +2261,23 @@ public class InternalTopologyBuilder {
 
     public synchronized Map<String, StoreFactory> stateStores() {
         return stateFactories;
+    }
+
+    public <KIn, VIn, VOut> WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> wrapFixedKeyProcessorSupplier(
+        final String name,
+        final FixedKeyProcessorSupplier<KIn, VIn,  VOut> processorSupplier
+    ) {
+        return ProcessorWrapper.asWrappedFixedKey(
+            processorWrapper.wrapFixedKeyProcessorSupplier(name, processorSupplier)
+        );
+    }
+
+    public <KIn, VIn, KOut, VOut> WrappedProcessorSupplier<KIn, VIn, KOut, VOut> wrapProcessorSupplier(
+        final String name,
+        final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier
+    ) {
+        return ProcessorWrapper.asWrapped(
+            processorWrapper.wrapProcessorSupplier(name, processorSupplier)
+        );
     }
 }
