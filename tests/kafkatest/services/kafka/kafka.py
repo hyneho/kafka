@@ -33,7 +33,7 @@ from kafkatest.services.security.listener_security_config import ListenerSecurit
 from kafkatest.services.security.security_config import SecurityConfig
 from kafkatest.version import DEV_BRANCH
 from kafkatest.version import KafkaVersion
-from kafkatest.services.kafka.util import fix_opts_for_new_jvm, get_log4j_config_param, get_log4j_config_for_connect
+from kafkatest.services.kafka.util import fix_opts_for_new_jvm, get_log4j_config_param, get_log4j_config
 
 
 class KafkaListener:
@@ -874,7 +874,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         self.logger.info("kafka.properties:")
         self.logger.info(prop_file)
         node.account.create_file(KafkaService.CONFIG_FILE, prop_file)
-        node.account.create_file(self.LOG4J_CONFIG, self.render(get_log4j_config_for_connect(node), log_dir=KafkaService.OPERATIONAL_LOG_DIR))
+        node.account.create_file(self.LOG4J_CONFIG, self.render(get_log4j_config(node), log_dir=KafkaService.OPERATIONAL_LOG_DIR))
 
         if self.quorum_info.using_kraft:
             # format log directories if necessary
