@@ -665,7 +665,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         if (!metrics().containsKey(metric.metricName())) {
             clientTelemetryReporter.ifPresent(reporter -> reporter.metricChange(metric));
         } else {
-            log.debug("Metric {} already registered consumer metric", metric.metricName());
+            log.debug("Skipping registration for metric {}. Existing consumer metrics cannot be overwritten.", metric.metricName());
         }
     }
 
@@ -674,7 +674,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         if (!metrics().containsKey(metric.metricName())) {
             clientTelemetryReporter.ifPresent(reporter -> reporter.metricRemoval(metric));
         } else {
-            log.debug("Metric {} is a standard consumer metric, won't unregister", metric.metricName());
+            log.debug("Skipping unregistration for metric {}. Existing consumer metrics cannot be removed.", metric.metricName());
         }
     }
 

@@ -262,7 +262,7 @@ public class KafkaConsumerTest {
             consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
             KafkaMetric existingMetricToAdd = (KafkaMetric) consumer.metrics().entrySet().iterator().next().getValue();
             consumer.registerMetricForSubscription(existingMetricToAdd);
-            final String expectedMessage = String.format("Metric %s already registered consumer metric", existingMetricToAdd.metricName());
+            final String expectedMessage = String.format("Skipping registration for metric %s. Existing consumer metrics cannot be overwritten.", existingMetricToAdd.metricName());
             assertTrue(appender.getMessages().stream().anyMatch(m -> m.contains(expectedMessage)));
         }
     }
@@ -279,7 +279,7 @@ public class KafkaConsumerTest {
             consumer = newConsumer(props, new StringDeserializer(), new StringDeserializer());
             KafkaMetric existingMetricToRemove = (KafkaMetric) consumer.metrics().entrySet().iterator().next().getValue();
             consumer.unregisterMetricFromSubscription(existingMetricToRemove);
-            final String expectedMessage = String.format("Metric %s is a standard consumer metric, won't unregister", existingMetricToRemove.metricName());
+            final String expectedMessage = String.format("Skipping unregistration for metric %s. Existing consumer metrics cannot be removed.", existingMetricToRemove.metricName());
             assertTrue(appender.getMessages().stream().anyMatch(m -> m.contains(expectedMessage)));
         }
     }
