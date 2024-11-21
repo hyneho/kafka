@@ -18,6 +18,7 @@
 package org.apache.kafka.streams.kstream.internals.graph;
 
 import java.util.Set;
+import org.apache.kafka.streams.internals.ApiUtils;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
@@ -79,6 +80,8 @@ public class ProcessorParameters<KIn, VIn, KOut, VOut> {
 
     public void addProcessorTo(final InternalTopologyBuilder topologyBuilder, final String[] parentNodeNames) {
         if (processorSupplier != null) {
+            ApiUtils.checkSupplier(processorSupplier);
+
             final ProcessorSupplier<KIn, VIn, KOut, VOut> wrapped =
                 topologyBuilder.wrapProcessorSupplier(processorName, processorSupplier);
 
@@ -92,6 +95,8 @@ public class ProcessorParameters<KIn, VIn, KOut, VOut> {
         }
 
         if (fixedKeyProcessorSupplier != null) {
+            ApiUtils.checkSupplier(fixedKeyProcessorSupplier);
+
             final FixedKeyProcessorSupplier<KIn, VIn, VOut> wrapped =
                 topologyBuilder.wrapFixedKeyProcessorSupplier(processorName, fixedKeyProcessorSupplier);
 

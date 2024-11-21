@@ -16,6 +16,10 @@
  */
 package org.apache.kafka.streams;
 
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.errors.StreamsException;
@@ -30,12 +34,17 @@ import org.apache.kafka.streams.kstream.StreamJoined;
 import org.apache.kafka.streams.kstream.TimeWindows;
 import org.apache.kafka.streams.processor.RecordContext;
 import org.apache.kafka.streams.processor.TopicNameExtractor;
+import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
+import org.apache.kafka.streams.processor.api.ProcessorWrapper;
 import org.apache.kafka.streams.processor.api.Record;
+import org.apache.kafka.streams.processor.api.WrappedFixedKeyProcessorSupplier;
+import org.apache.kafka.streams.processor.api.WrappedProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder.SubtopologyDescription;
+import org.apache.kafka.streams.processor.internals.InternalTopologyBuilderTest.ProcessorSkippingWrapper;
 import org.apache.kafka.streams.processor.internals.ProcessorTopology;
 import org.apache.kafka.streams.processor.internals.StoreFactory;
 import org.apache.kafka.streams.state.KeyValueStore;
@@ -71,6 +80,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.time.Duration.ofMillis;
+import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
+import static org.apache.kafka.streams.utils.TestUtils.dummyStreamsConfigMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -2413,6 +2424,64 @@ public class TopologyTest {
 
         final StoreFactory stateStoreFactory = topology.internalTopologyBuilder.stateStores().get(storeName);
         assertThat(stateStoreFactory.loggingEnabled(), equalTo(false));
+    }
+
+    @Test
+    public void shouldWrapProcessors() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, CountingProcessorWrapper.class);
+
+        final AtomicInteger wrappedProcessorCount = new AtomicInteger();
+        props.put("WRAPPED_PROCESSOR_COUNT", wrappedProcessorCount);
+
+        final Topology topology = new Topology(new TopologyConfig(new StreamsConfig(props)));
+
+        // Add a bit of randomness to the lambda-created processors to avoid them being
+        // optimized into a shared instance that will cause the ApiUtils#checkSupplier
+        // call to fail
+        final Random random = new Random();
+
+        topology.addSource("source", "topic");
+        topology.addProcessor(
+            "p1",
+            () -> (Processor<Object, Object, Object, Object>) record -> System.out.println("Processing: " + random.nextInt()),
+            "source"
+        );
+        topology.addProcessor(
+            "p2",
+            () -> (Processor<Object, Object, Object, Object>) record -> System.out.println("Processing: " + random.nextInt()),
+            "p1"
+        );
+        topology.addProcessor(
+            "p3",
+            () -> (Processor<Object, Object, Object, Object>) record -> System.out.println("Processing: " + random.nextInt()),
+            "p2"
+        );
+        assertThat(wrappedProcessorCount.get(), is(3));
+    }
+
+    public static class CountingProcessorWrapper implements ProcessorWrapper {
+
+        private AtomicInteger wrappedProcessorCount;
+
+        @Override
+        public void configure(final Map<String, ?> configs) {
+            wrappedProcessorCount = (AtomicInteger) configs.get("WRAPPED_PROCESSOR_COUNT");
+        }
+
+        @Override
+        public <KIn, VIn, KOut, VOut> WrappedProcessorSupplier<KIn, VIn, KOut, VOut> wrapProcessorSupplier(final String processorName,
+                                                                                                           final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier) {
+            wrappedProcessorCount.incrementAndGet();
+            return ProcessorWrapper.asWrapped(processorSupplier);
+        }
+
+        @Override
+        public <KIn, VIn, VOut> WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> wrapFixedKeyProcessorSupplier(final String processorName,
+                                                                                                               final FixedKeyProcessorSupplier<KIn, VIn, VOut> processorSupplier) {
+            wrappedProcessorCount.incrementAndGet();
+            return ProcessorWrapper.asWrappedFixedKey(processorSupplier);
+        }
     }
 
     @SuppressWarnings("deprecation")
