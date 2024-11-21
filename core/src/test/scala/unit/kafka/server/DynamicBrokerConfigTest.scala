@@ -233,7 +233,7 @@ class DynamicBrokerConfigTest {
     assertEquals(7, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
     verify(remoteLogManager).resizeExpirationThreadPool(7)
 
-    // When copier and expiration thread pools are set with the default value of -1, then it defaults to the remoteLogManagerThreadPoolSize
+    // When copier and expiration thread pools are set to -1 dynamically, then it defaults to the remoteLogManagerThreadPoolSize
     props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "-1")
     config.dynamicConfig.validate(props, perBrokerConfig = true)
     config.dynamicConfig.updateDefaultConfig(props)
