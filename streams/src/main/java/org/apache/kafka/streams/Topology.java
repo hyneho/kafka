@@ -851,7 +851,7 @@ public class Topology {
                                                            final String processorName,
                                                            final ProcessorSupplier<KIn, VIn, Void, Void> stateUpdateSupplier) {
         internalTopologyBuilder.addGlobalStore(
-            new StoreBuilderWrapper(storeBuilder),
+            StoreBuilderWrapper.wrapStoreBuilder(storeBuilder),
             sourceName,
             null,
             keyDeserializer,
@@ -897,7 +897,7 @@ public class Topology {
                                                            final String processorName,
                                                            final ProcessorSupplier<KIn, VIn, Void, Void> stateUpdateSupplier) {
         internalTopologyBuilder.addGlobalStore(
-            new StoreBuilderWrapper(storeBuilder),
+            StoreBuilderWrapper.wrapStoreBuilder(storeBuilder),
             sourceName,
             timestampExtractor,
             keyDeserializer,

@@ -1173,7 +1173,7 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
             bufferStoreName = Optional.of(name + "-Buffer");
             final RocksDBTimeOrderedKeyValueBuffer.Builder<Object, Object> storeBuilder =
                     new RocksDBTimeOrderedKeyValueBuffer.Builder<>(bufferStoreName.get(), joinedInternal.gracePeriod(), name);
-            builder.addStateStore(new StoreBuilderWrapper(storeBuilder));
+            builder.addStateStore(StoreBuilderWrapper.wrapStoreBuilder(storeBuilder));
         }
 
         final ProcessorSupplier<K, V, K, ? extends VR> processorSupplier = new KStreamKTableJoin<>(
