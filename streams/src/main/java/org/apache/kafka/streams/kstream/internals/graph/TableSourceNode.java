@@ -119,7 +119,7 @@ public class TableSourceNode<K, V> extends SourceGraphNode<K, V> {
             processorParameters.addProcessorTo(topologyBuilder, new String[]{sourceName});
 
             // only add state store if the source KTable should be materialized
-            final KTableSource<K, V> tableSource = (KTableSource<K, V>) processorParameters.innerProcessorSupplier();
+            final KTableSource<K, V> tableSource = (KTableSource<K, V>) processorParameters.processorSupplier();
             if (shouldReuseSourceTopicForChangelog) {
                 tableSource.reuseSourceTopicForChangelog(topologyBuilder, topicName);
             }

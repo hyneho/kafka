@@ -42,7 +42,6 @@ public class ProcessorParameters<KIn, VIn, KOut, VOut> {
     @SuppressWarnings("deprecation") // Old PAPI. Needs to be migrated.
     private final org.apache.kafka.streams.processor.ProcessorSupplier<KIn, VIn> oldProcessorSupplier;
     private final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier;
-    private final ProcessorSupplier<KIn, VIn, KOut, VOut> innerProcessorSupplier;
     private final FixedKeyProcessorSupplier<KIn, VIn, VOut> fixedKeyProcessorSupplier;
     private final String processorName;
 
@@ -50,27 +49,14 @@ public class ProcessorParameters<KIn, VIn, KOut, VOut> {
     public ProcessorParameters(final org.apache.kafka.streams.processor.ProcessorSupplier<KIn, VIn> processorSupplier,
                                final String processorName) {
         this.oldProcessorSupplier = processorSupplier;
-        this.innerProcessorSupplier = null;
         this.processorSupplier = () -> ProcessorAdapter.adapt(processorSupplier.get());
         this.fixedKeyProcessorSupplier = null;
         this.processorName = processorName;
     }
 
     public ProcessorParameters(final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier,
-                               final String processorName,
-                               final ProcessorWrapper processorWrapper) {
-        this.oldProcessorSupplier = null;
-        this.innerProcessorSupplier = processorSupplier;
-        this.processorSupplier = processorWrapper.wrapProcessorSupplier(processorName, processorSupplier);
-        this.fixedKeyProcessorSupplier = null;
-        this.processorName = processorName;
-    }
-
-    //TODO(sophie): fill in this and below to always accept ProcessorWrapper
-    public ProcessorParameters(final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier,
                                final String processorName) {
         this.oldProcessorSupplier = null;
-        this.innerProcessorSupplier = null;
         this.processorSupplier = processorSupplier;
         this.fixedKeyProcessorSupplier = null;
         this.processorName = processorName;
@@ -79,7 +65,6 @@ public class ProcessorParameters<KIn, VIn, KOut, VOut> {
     public ProcessorParameters(final FixedKeyProcessorSupplier<KIn, VIn, VOut> processorSupplier,
                                final String processorName) {
         this.oldProcessorSupplier = null;
-        this.innerProcessorSupplier = null;
         this.processorSupplier = null;
         this.fixedKeyProcessorSupplier = processorSupplier;
         this.processorName = processorName;
@@ -89,18 +74,17 @@ public class ProcessorParameters<KIn, VIn, KOut, VOut> {
         return processorSupplier;
     }
 
-    public ProcessorSupplier<KIn, VIn, KOut, VOut> innerProcessorSupplier() {
-        return innerProcessorSupplier;
-    }
-
     public FixedKeyProcessorSupplier<KIn, VIn, VOut> fixedKeyProcessorSupplier() {
         return fixedKeyProcessorSupplier;
     }
 
     public void addProcessorTo(final InternalTopologyBuilder topologyBuilder, final String[] parentNodeNames) {
         if (processorSupplier != null) {
-            topologyBuilder.addProcessor(processorName, processorSupplier, parentNodeNames);
-            final Set<StoreBuilder<?>> stores = processorSupplier.stores();
+            final ProcessorSupplier<KIn, VIn, KOut, VOut> wrapped = topologyBuilder.processorWrapper()
+                .wrapProcessorSupplier(processorName, processorSupplier);
+
+            topologyBuilder.addProcessor(processorName, wrapped, parentNodeNames);
+            final Set<StoreBuilder<?>> stores = wrapped.stores();
             if (stores != null) {
                 for (final StoreBuilder<?> storeBuilder : stores) {
                     topologyBuilder.addStateStore(storeBuilder, processorName);

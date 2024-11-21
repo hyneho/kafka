@@ -600,20 +600,22 @@ public class InternalTopologyBuilder {
 
     public final void addStateStore(final StoreBuilder<?> storeBuilder,
                                     final String... processorNames) {
-        addStateStore(new StoreBuilderWrapper(storeBuilder), false, processorNames);
+        addStateStoreInternal(new StoreBuilderWrapper(storeBuilder), processorNames);
     }
 
     public final void addStateStore(final StoreFactory storeFactory,
                                     final String... processorNames) {
-        addStateStore(storeFactory, false, processorNames);
+        addStateStoreInternal(storeFactory, processorNames);
     }
 
-    public final void addStateStore(final StoreFactory storeFactory,
-                                    final boolean allowOverride,
-                                    final String... processorNames) {
+    // TODO(sophie): convert addStateStore calls into addProcessorAndStateStore
+    //  and enforce stateful processors to implement ProcessorSupplier#stores
+    //  (or be wrapped with something that does)
+    private void addStateStoreInternal(final StoreFactory storeFactory,
+                                       final String... processorNames) {
         Objects.requireNonNull(storeFactory, "stateStoreFactory can't be null");
         final StoreFactory stateFactory = stateFactories.get(storeFactory.name());
-        if (!allowOverride && stateFactory != null && !stateFactory.isCompatibleWith(storeFactory)) {
+        if (stateFactory != null && !stateFactory.isCompatibleWith(storeFactory)) {
             throw new TopologyException("A different StateStore has already been added with the name " + storeFactory.name());
         }
         if (globalStateBuilders.containsKey(storeFactory.name())) {
@@ -722,6 +724,7 @@ public class InternalTopologyBuilder {
         return changelogTopicToStore.get(topicName);
     }
 
+    // TODO(sophie): convert this stuff too?
     public void connectSourceStoreAndTopic(final String sourceStoreName,
                                            final String topic) {
         if (storeToChangelogTopic.containsKey(sourceStoreName)) {

@@ -92,6 +92,25 @@ public interface StoreFactory {
             this.factory = factory;
         }
 
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            final FactoryWrappingStoreBuilder<?> that = (FactoryWrappingStoreBuilder<?>) o;
+
+            return factory.isCompatibleWith(that.factory);
+        }
+
+        @Override
+        public int hashCode() {
+            return factory.hashCode();
+        }
+
         public StoreBuilder<?> resolveStoreBuilder() {
             return factory.getBuilder();
         }

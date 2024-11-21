@@ -146,13 +146,13 @@ class KStreamImplJoin {
             otherWindowStore = joinWindowStoreBuilderFromSupplier(otherStoreSupplier, streamJoinedInternal.keySerde(), streamJoinedInternal.otherValueSerde());
         }
 
-        final KStreamJoinWindow<K, V1> thisWindowedStream = new KStreamJoinWindow<>(thisWindowStore.name());
+        final KStreamJoinWindow<K, V1> thisWindowedStream = new KStreamJoinWindow<>(thisWindowStore);
 
         final ProcessorParameters<K, V1, ?, ?> thisWindowStreamProcessorParams = new ProcessorParameters<>(thisWindowedStream, thisWindowStreamProcessorName);
         final ProcessorGraphNode<K, V1> thisWindowedStreamsNode = new WindowedStreamProcessorNode<>(thisWindowStore.name(), thisWindowStreamProcessorParams);
         builder.addGraphNode(thisGraphNode, thisWindowedStreamsNode);
 
-        final KStreamJoinWindow<K, V2> otherWindowedStream = new KStreamJoinWindow<>(otherWindowStore.name());
+        final KStreamJoinWindow<K, V2> otherWindowedStream = new KStreamJoinWindow<>(otherWindowStore);
 
         final ProcessorParameters<K, V2, ?, ?> otherWindowStreamProcessorParams = new ProcessorParameters<>(otherWindowedStream, otherWindowStreamProcessorName);
         final ProcessorGraphNode<K, V2> otherWindowedStreamsNode = new WindowedStreamProcessorNode<>(otherWindowStore.name(), otherWindowStreamProcessorParams);
@@ -173,28 +173,29 @@ class KStreamImplJoin {
 
         final JoinWindowsInternal internalWindows = new JoinWindowsInternal(windows);
         final KStreamKStreamJoinLeftSide<K, V1, V2, VOut> joinThis = new KStreamKStreamJoinLeftSide<>(
-            otherWindowStore.name(),
             internalWindows,
             joiner,
             leftOuter,
-            outerJoinWindowStore.map(StoreFactory::name),
-            sharedTimeTrackerSupplier
+            sharedTimeTrackerSupplier,
+            otherWindowStore,
+            outerJoinWindowStore
         );
 
         final KStreamKStreamJoinRightSide<K, V1, V2, VOut> joinOther = new KStreamKStreamJoinRightSide<>(
-            thisWindowStore.name(),
             internalWindows,
             AbstractStream.reverseJoinerWithKey(joiner),
             rightOuter,
-            outerJoinWindowStore.map(StoreFactory::name),
-            sharedTimeTrackerSupplier
+            sharedTimeTrackerSupplier,
+            thisWindowStore,
+            outerJoinWindowStore
         );
 
         final KStreamKStreamSelfJoin<K, V1, V2, VOut> selfJoin = new KStreamKStreamSelfJoin<>(
             thisWindowStore.name(),
             internalWindows,
             joiner,
-            windows.size() + windows.gracePeriodMs()
+            windows.size() + windows.gracePeriodMs(),
+            thisWindowStore
         );
 
         final PassThrough<K, VOut> joinMerge = new PassThrough<>();
@@ -209,18 +210,12 @@ class KStreamImplJoin {
         joinBuilder.withJoinMergeProcessorParameters(joinMergeProcessorParams)
                    .withJoinThisProcessorParameters(joinThisProcessorParams)
                    .withJoinOtherProcessorParameters(joinOtherProcessorParams)
-                   .withThisWindowStoreBuilder(thisWindowStore)
-                   .withOtherWindowStoreBuilder(otherWindowStore)
-                   .withThisWindowedStreamProcessorParameters(thisWindowStreamProcessorParams)
-                   .withOtherWindowedStreamProcessorParameters(otherWindowStreamProcessorParams)
+                   .withThisWindowedStreamProcessorName(thisWindowStreamProcessorParams.processorName())
+                   .withOtherWindowedStreamProcessorName(otherWindowStreamProcessorParams.processorName())
                    .withOuterJoinWindowStoreBuilder(outerJoinWindowStore)
                    .withValueJoiner(joiner)
                    .withNodeName(joinMergeName)
                    .withSelfJoinProcessorParameters(selfJoinProcessorParams);
-
-        if (internalWindows.spuriousResultFixEnabled()) {
-            joinBuilder.withSpuriousResultFixEnabled();
-        }
 
         final GraphNode joinGraphNode = joinBuilder.build();
 

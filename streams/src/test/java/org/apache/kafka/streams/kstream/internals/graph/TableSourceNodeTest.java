@@ -41,7 +41,7 @@ public class TableSourceNodeTest {
     private static final String STORE_NAME = "store-name";
     private static final String TOPIC = "input-topic";
 
-    private InternalTopologyBuilder topologyBuilder = mock(InternalTopologyBuilder.class);
+    private final InternalTopologyBuilder topologyBuilder = mock(InternalTopologyBuilder.class);
 
     @Test
     public void shouldConnectStateStoreToInputTopicIfInputTopicIsUsedAsChangelog() {
