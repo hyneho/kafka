@@ -64,10 +64,6 @@ public enum Features {
         this.name = name;
         this.featureVersions = featureVersions;
         this.latestProduction = latestProduction;
-
-        if (defaultValue(MetadataVersion.LATEST_PRODUCTION) > latestProduction.featureLevel()) {
-            throw new IllegalArgumentException("The latest production value should be no smaller than the default value.");
-        }
     }
 
     static {
@@ -78,6 +74,10 @@ public enum Features {
                 !feature.name.equals(TEST_VERSION.featureName())).collect(Collectors.toList());
         PRODUCTION_FEATURE_NAMES = PRODUCTION_FEATURES.stream().map(feature ->
                 feature.name).collect(Collectors.toList());
+
+        for (Features feature : enumValues) {
+            validateDefaultValueAndLatestProductionValue(feature);
+        }
     }
 
     public String featureName() {
@@ -153,25 +153,29 @@ public enum Features {
     }
 
     /**
-     * A method to return the default (latest production) level of a feature based on the metadata version provided.
+     * A method to return the default (latest production) version of a feature based on the metadata version provided.
      *
      * Every time a new feature is added, it should create a mapping from metadata version to feature version
-     * with {@link FeatureVersion#bootstrapMetadataVersion()}. When the feature version is production ready, the metadata
-     * version should be made production ready as well.
+     * with {@link FeatureVersion#bootstrapMetadataVersion()}. The feature version should be marked as production ready
+     * before the metadata version is made production ready.
      *
      * @param metadataVersion the metadata version we want to use to set the default.
-     * @return the default version level given the feature and provided metadata version
+     * @return the default version given the feature and provided metadata version
      */
-    public short defaultValue(MetadataVersion metadataVersion) {
-        short level = 0;
+    public FeatureVersion defaultVersion(MetadataVersion metadataVersion) {
+        FeatureVersion version = featureVersions[0];
         for (Iterator<FeatureVersion> it = Arrays.stream(featureVersions).iterator(); it.hasNext(); ) {
             FeatureVersion feature = it.next();
             if (feature.bootstrapMetadataVersion().isLessThan(metadataVersion) || feature.bootstrapMetadataVersion().equals(metadataVersion))
-                level = feature.featureLevel();
+                version = feature;
             else
-                return level;
+                return version;
         }
-        return level;
+        return version;
+    }
+
+    public short defaultValue(MetadataVersion metadataVersion) {
+        return defaultVersion(metadataVersion).featureLevel();
     }
 
     public static Features featureFromName(String featureName) {
@@ -187,5 +191,52 @@ public enum Features {
      */
     public static Map<String, Short> featureImplsToMap(List<FeatureVersion> features) {
         return features.stream().collect(Collectors.toMap(FeatureVersion::featureName, FeatureVersion::featureLevel));
+    }
+
+    public boolean isProductionReady(short featureVersion) {
+        return featureVersion <= latestProduction();
+    }
+
+    /**
+     * The method ensures that the following statements are met:
+     * 1. The latest production value >= the default value.
+     * 2. The dependencies of the latest production value <= their latest production values.
+     * 3. The dependencies of the default value <= their default values.
+     */
+    public static void validateDefaultValueAndLatestProductionValue(Features feature) {
+        FeatureVersion defaultVersion = feature.defaultVersion(MetadataVersion.LATEST_PRODUCTION);
+        if (feature.latestProduction() < defaultVersion.featureLevel()) {
+            throw new IllegalArgumentException("The latest production value should be no smaller than the default value.");
+        }
+
+        for (Map.Entry<String, Short> dependency: feature.latestProduction.dependencies().entrySet()) {
+            Features dependencyFeature;
+            try {
+                dependencyFeature = featureFromName(dependency.getKey());
+            } catch (IllegalArgumentException e) {
+                // There might be feature depending on MetadataVersion which is not a feature,
+                // so we just skip checking it.
+                continue;
+            }
+
+            if (!dependencyFeature.isProductionReady(dependency.getValue())) {
+                throw new IllegalArgumentException("The latest production value has a dependency that is not production ready.");
+            }
+        }
+
+        for (Map.Entry<String, Short> dependency: defaultVersion.dependencies().entrySet()) {
+            Features dependencyFeature;
+            try {
+                dependencyFeature = featureFromName(dependency.getKey());
+            } catch (IllegalArgumentException e) {
+                // There might be feature depending on MetadataVersion which is not a feature,
+                // so we just skip checking it.
+                continue;
+            }
+
+            if (dependency.getValue() > dependencyFeature.defaultValue(MetadataVersion.LATEST_PRODUCTION)) {
+                throw new IllegalArgumentException("The default value has a dependency that is ahead of its default value.");
+            }
+        }
     }
 }
