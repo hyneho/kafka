@@ -126,12 +126,7 @@ class CheckerUtils {
      * @param fileName   The file to read from remote git repo.
      * @return                     The file contents.
      */
-    static String GetDataFromGit(String fileName) throws IOException {
-        Path gitPath = Paths.get("").toAbsolutePath();
-        while(!gitPath.endsWith("kafka")) {
-            gitPath = gitPath.getParent();
-        }
-        String schemaPath = "metadata/src/main/resources/common/metadata/";
+    static String GetDataFromGit(String fileName, Path gitPath) throws IOException {
         Git git = Git.open(new File(gitPath + "/.git"));
         Repository repository = git.getRepository();
         Ref head = git.getRepository().getRefDatabase().firstExactRef("refs/heads/trunk");
@@ -142,9 +137,9 @@ class CheckerUtils {
             try (TreeWalk treeWalk = new TreeWalk(repository)) {
                 treeWalk.addTree(tree);
                 treeWalk.setRecursive(true);
-                treeWalk.setFilter(PathFilter.create(String.valueOf(Paths.get(schemaPath + fileName))));
+                treeWalk.setFilter(PathFilter.create(String.valueOf(Paths.get(fileName.substring(1)))));
                 if (!treeWalk.next()) {
-                    throw new IllegalStateException("Did not find expected file " + schemaPath + " " + fileName);
+                    throw new IllegalStateException("Did not find expected file " + fileName.substring(1));
                 }
                 ObjectId objectId = treeWalk.getObjectId(0);
                 ObjectLoader loader = repository.open(objectId);
