@@ -22,7 +22,7 @@ import kafka.utils.{TestInfoUtils, TestUtils}
 import org.apache.kafka.clients.consumer._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.{ApiException, InvalidProducerEpochException, ProducerFencedException, TimeoutException}
+import org.apache.kafka.common.errors.{InvalidProducerEpochException, ProducerFencedException, TimeoutException}
 import org.apache.kafka.common.test.api.Flaky
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
@@ -402,17 +402,14 @@ class TransactionsTest extends IntegrationTestHarness {
     producer1.beginTransaction()
     producer1.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "1", "1", willBeCommitted = false))
     producer1.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic2, null, "3", "3", willBeCommitted = false))
+    producer1.flush()
 
     producer2.initTransactions()  // ok, will abort the open transaction.
     producer2.beginTransaction()
     producer2.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic1, null, "2", "4", willBeCommitted = true))
     producer2.send(TestUtils.producerRecordWithExpectedTransactionStatus(topic2, null, "2", "4", willBeCommitted = true))
 
-    val exception = assertThrows(classOf[ApiException], () => producer1.commitTransaction())
-    // The exception depends on the timing. If the produce 1 finished produce first than the producer 2, it receives
-    // ProducerFencedException when commit the transaction. Otherwise, it receives InvalidProducerEpochException
-    // during the produce.
-    assertTrue(exception.isInstanceOf[ProducerFencedException] || exception.isInstanceOf[InvalidProducerEpochException])
+    assertThrows(classOf[ProducerFencedException], () => producer1.commitTransaction())
 
     producer2.commitTransaction()  // ok
 
