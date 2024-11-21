@@ -123,7 +123,7 @@ public class UnattachedState implements EpochState {
         if (votedKey.isPresent()) {
             ReplicaKey votedReplicaKey = votedKey.get();
             if (votedReplicaKey.id() == replicaKey.id()) {
-                return !votedReplicaKey.directoryId().isPresent() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
+                return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
             }
             log.debug(
                 "Rejecting vote request from replica ({}), already have voted for another " +

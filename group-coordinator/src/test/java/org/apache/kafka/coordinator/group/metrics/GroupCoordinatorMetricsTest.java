@@ -16,9 +16,10 @@
  */
 package org.apache.kafka.coordinator.group.metrics;
 
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.MetricName;
-import org.apache.kafka.common.ShareGroupState;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.internals.Topic;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
@@ -115,19 +116,19 @@ public class GroupCoordinatorMetricsTest {
                 GroupCoordinatorMetrics.METRICS_GROUP,
                 "The number of share groups in empty state.",
                 "protocol", Group.GroupType.SHARE.toString(),
-                "state", ShareGroupState.EMPTY.toString()),
+                "state", GroupState.EMPTY.toString()),
             metrics.metricName(
                 "group-count",
                 GroupCoordinatorMetrics.METRICS_GROUP,
                 "The number of share groups in stable state.",
                 "protocol", Group.GroupType.SHARE.toString(),
-                "state", ShareGroupState.STABLE.toString()),
+                "state", GroupState.STABLE.toString()),
             metrics.metricName(
                 "group-count",
                 GroupCoordinatorMetrics.METRICS_GROUP,
                 "The number of share groups in dead state.",
                 "protocol", Group.GroupType.SHARE.toString(),
-                "state", ShareGroupState.DEAD.toString())
+                "state", GroupState.DEAD.toString())
         ));
 
         try {
@@ -159,8 +160,8 @@ public class GroupCoordinatorMetricsTest {
         GroupCoordinatorMetrics coordinatorMetrics = new GroupCoordinatorMetrics(registry, metrics);
         SnapshotRegistry snapshotRegistry0 = new SnapshotRegistry(new LogContext());
         SnapshotRegistry snapshotRegistry1 = new SnapshotRegistry(new LogContext());
-        TopicPartition tp0 = new TopicPartition("__consumer_offsets", 0);
-        TopicPartition tp1 = new TopicPartition("__consumer_offsets", 1);
+        TopicPartition tp0 = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0);
+        TopicPartition tp1 = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 1);
         GroupCoordinatorMetricsShard shard0 = coordinatorMetrics.newMetricsShard(snapshotRegistry0, tp0);
         GroupCoordinatorMetricsShard shard1 = coordinatorMetrics.newMetricsShard(snapshotRegistry1, tp1);
         coordinatorMetrics.activateMetricsShard(shard0);
@@ -233,7 +234,7 @@ public class GroupCoordinatorMetricsTest {
         Metrics metrics = new Metrics(time);
         GroupCoordinatorMetrics coordinatorMetrics = new GroupCoordinatorMetrics(registry, metrics);
         GroupCoordinatorMetricsShard shard = coordinatorMetrics.newMetricsShard(
-            new SnapshotRegistry(new LogContext()), new TopicPartition("__consumer_offsets", 0)
+            new SnapshotRegistry(new LogContext()), new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0)
         );
 
         shard.record(CLASSIC_GROUP_COMPLETED_REBALANCES_SENSOR_NAME, 10);
