@@ -109,26 +109,22 @@ public interface StoreFactory {
 
         @Override
         public StoreBuilder<T> withCachingEnabled() {
-            storeFactory.withCachingEnabled();
-            return this;
+            throw new IllegalStateException("Should not try to modify StoreBuilder wrapper");
         }
 
         @Override
         public StoreBuilder<T> withCachingDisabled() {
-            storeFactory.withCachingDisabled();
-            return this;
+            throw new IllegalStateException("Should not try to modify StoreBuilder wrapper");
         }
 
         @Override
         public StoreBuilder<T> withLoggingEnabled(final Map<String, String> config) {
-            storeFactory.withLoggingEnabled(config);
-            return this;
+            throw new IllegalStateException("Should not try to modify StoreBuilder wrapper");
         }
 
         @Override
         public StoreBuilder<T> withLoggingDisabled() {
-            storeFactory.withLoggingDisabled();
-            return this;
+            throw new IllegalStateException("Should not try to modify StoreBuilder wrapper");
         }
 
         @SuppressWarnings("unchecked")
