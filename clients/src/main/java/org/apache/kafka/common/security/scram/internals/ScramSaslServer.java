@@ -203,16 +203,12 @@ public class ScramSaslServer implements SaslServer {
 
     @Override
     public byte[] unwrap(byte[] incoming, int offset, int len) {
-        if (!isComplete())
-            throw new IllegalStateException("Authentication exchange has not completed");
-        return Arrays.copyOfRange(incoming, offset, offset + len);
+        throw new IllegalStateException("Mechanism does not support integrity nor confidentality");
     }
 
     @Override
     public byte[] wrap(byte[] outgoing, int offset, int len) {
-        if (!isComplete())
-            throw new IllegalStateException("Authentication exchange has not completed");
-        return Arrays.copyOfRange(outgoing, offset, offset + len);
+        throw new IllegalStateException("Mechanism does not support integrity nor confidentality");
     }
 
     @Override
