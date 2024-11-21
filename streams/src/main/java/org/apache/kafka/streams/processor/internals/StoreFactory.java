@@ -86,10 +86,14 @@ public interface StoreFactory {
 
     class FactoryWrappingStoreBuilder<T extends StateStore> implements StoreBuilder<T> {
 
-        private final StoreFactory factory;
+        private final StoreFactory storeFactory;
 
-        public FactoryWrappingStoreBuilder(final StoreFactory factory) {
-            this.factory = factory;
+        public FactoryWrappingStoreBuilder(final StoreFactory storeFactory) {
+            this.storeFactory = storeFactory;
+        }
+
+        public StoreFactory storeFactory() {
+            return storeFactory;
         }
 
         @Override
@@ -103,61 +107,57 @@ public interface StoreFactory {
 
             final FactoryWrappingStoreBuilder<?> that = (FactoryWrappingStoreBuilder<?>) o;
 
-            return factory.isCompatibleWith(that.factory);
+            return storeFactory.isCompatibleWith(that.storeFactory);
         }
 
         @Override
         public int hashCode() {
-            return factory.hashCode();
-        }
-
-        public StoreBuilder<?> resolveStoreBuilder() {
-            return factory.getBuilder();
+            return storeFactory.hashCode();
         }
 
         @Override
         public StoreBuilder<T> withCachingEnabled() {
-            factory.withCachingEnabled();
+            storeFactory.withCachingEnabled();
             return this;
         }
 
         @Override
         public StoreBuilder<T> withCachingDisabled() {
-            factory.withCachingDisabled();
+            storeFactory.withCachingDisabled();
             return this;
         }
 
         @Override
         public StoreBuilder<T> withLoggingEnabled(final Map<String, String> config) {
-            factory.withLoggingEnabled(config);
+            storeFactory.withLoggingEnabled(config);
             return this;
         }
 
         @Override
         public StoreBuilder<T> withLoggingDisabled() {
-            factory.withLoggingDisabled();
+            storeFactory.withLoggingDisabled();
             return this;
         }
 
         @SuppressWarnings("unchecked")
         @Override
         public T build() {
-            return (T) factory.build();
+            return (T) storeFactory.build();
         }
 
         @Override
         public Map<String, String> logConfig() {
-            return factory.logConfig();
+            return storeFactory.logConfig();
         }
 
         @Override
         public boolean loggingEnabled() {
-            return factory.loggingEnabled();
+            return storeFactory.loggingEnabled();
         }
 
         @Override
         public String name() {
-            return factory.name();
+            return storeFactory.name();
         }
     }
 }

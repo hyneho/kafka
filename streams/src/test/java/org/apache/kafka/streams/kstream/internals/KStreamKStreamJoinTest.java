@@ -477,8 +477,8 @@ public class KStreamKStreamJoinTest {
             (key, v1, v2) -> v1 + v2,
             true,
             tracker,
-            new StoreBuilderWrapper(otherStoreBuilder),
-            Optional.of(new StoreBuilderWrapper(outerStoreBuilder)));
+            StoreBuilderWrapper.wrapStoreBuilder(otherStoreBuilder),
+            Optional.of(StoreBuilderWrapper.wrapStoreBuilder(outerStoreBuilder)));
         final Processor<String, String, String, String> joinProcessor = join.get();
         final MockInternalNewProcessorContext<String, String> procCtx = new MockInternalNewProcessorContext<>();
         final WindowStore<String, String> otherStore = otherStoreBuilder.build();

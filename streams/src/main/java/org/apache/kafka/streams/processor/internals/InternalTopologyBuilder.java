@@ -600,7 +600,7 @@ public class InternalTopologyBuilder {
 
     public final void addStateStore(final StoreBuilder<?> storeBuilder,
                                     final String... processorNames) {
-        addStateStoreInternal(new StoreBuilderWrapper(storeBuilder), processorNames);
+        addStateStoreInternal(StoreBuilderWrapper.wrapStoreBuilder(storeBuilder), processorNames);
     }
 
     public final void addStateStore(final StoreFactory storeFactory,
