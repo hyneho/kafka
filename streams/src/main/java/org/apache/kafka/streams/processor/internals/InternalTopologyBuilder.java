@@ -19,6 +19,7 @@ package org.apache.kafka.streams.processor.internals;
 import java.util.Properties;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.streams.StreamsConfig;
@@ -65,6 +66,7 @@ import java.util.stream.Collectors;
 import static org.apache.kafka.clients.consumer.OffsetResetStrategy.EARLIEST;
 import static org.apache.kafka.clients.consumer.OffsetResetStrategy.LATEST;
 import static org.apache.kafka.clients.consumer.OffsetResetStrategy.NONE;
+import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
 
 public class InternalTopologyBuilder {
 
@@ -77,11 +79,18 @@ public class InternalTopologyBuilder {
         this.topologyConfigs = topologyConfigs;
         this.topologyName = topologyConfigs.topologyName;
 
-        processorWrapper = topologyConfigs.getConfiguredInstance(
-            StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG,
-            ProcessorWrapper.class,
-            topologyConfigs.originals()
-        );
+        try {
+            processorWrapper = topologyConfigs.getConfiguredInstance(
+                PROCESSOR_WRAPPER_CLASS_CONFIG,
+                ProcessorWrapper.class,
+                topologyConfigs.originals()
+            );
+        } catch (final Exception e) {
+            log.error("Unable to instantiate ProcessorWrapper from value of config {}. "
+                          + "Please provide a valid class that implements the ProcessorWrapper interface. ",
+                      PROCESSOR_WRAPPER_CLASS_CONFIG);
+            throw new ConfigException("Invalid class for config " + PROCESSOR_WRAPPER_CLASS_CONFIG, e);
+        }
     }
 
     private static final Logger log = LoggerFactory.getLogger(InternalTopologyBuilder.class);

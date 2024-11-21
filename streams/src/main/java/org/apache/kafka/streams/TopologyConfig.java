@@ -39,6 +39,7 @@ import java.util.Properties;
 import java.util.function.Supplier;
 
 import static org.apache.kafka.common.config.ConfigDef.ValidString.in;
+import static org.apache.kafka.common.utils.Utils.mkObjectProperties;
 import static org.apache.kafka.streams.StreamsConfig.BUFFERED_RECORDS_PER_PARTITION_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.BUFFERED_RECORDS_PER_PARTITION_DOC;
 import static org.apache.kafka.streams.StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG;
@@ -85,7 +86,7 @@ public final class TopologyConfig extends AbstractConfig {
         CONFIG = new ConfigDef()
             .define(PROCESSOR_WRAPPER_CLASS_CONFIG,
                     Type.CLASS,
-                    NoOpProcessorWrapper.class,
+                    NoOpProcessorWrapper.class.getName(),
                     Importance.LOW,
                     PROCESSOR_WRAPPER_CLASS_DOC)
             .define(BUFFERED_RECORDS_PER_PARTITION_CONFIG,
@@ -160,8 +161,8 @@ public final class TopologyConfig extends AbstractConfig {
     public final Supplier<DeserializationExceptionHandler> deserializationExceptionHandlerSupplier;
     public final Supplier<ProcessingExceptionHandler> processingExceptionHandlerSupplier;
 
-    public TopologyConfig(final StreamsConfig globalAppConfigs) {
-        this(null, globalAppConfigs, new Properties());
+    public TopologyConfig(final StreamsConfig configs) {
+        this(null, configs, mkObjectProperties(configs.originals()));
     }
 
     public TopologyConfig(final String topologyName, final StreamsConfig globalAppConfigs, final Properties topologyOverrides) {

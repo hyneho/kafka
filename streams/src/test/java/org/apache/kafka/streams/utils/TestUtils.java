@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.streams.utils;
 
+import java.util.HashMap;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.streams.KafkaStreams;
 
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.apache.kafka.streams.StreamsConfig.APPLICATION_ID_CONFIG;
+import static org.apache.kafka.streams.StreamsConfig.BOOTSTRAP_SERVERS_CONFIG;
 import static org.apache.kafka.test.TestUtils.retryOnExceptionWithTimeout;
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -84,5 +87,16 @@ public class TestUtils {
             .replace(']', '_')
             .replace(' ', '_')
             .replace('=', '_');
+    }
+
+    /**
+     * Quick method of generating a config map prepopulated with the required
+     * StreamsConfig properties
+     */
+    public static Map<Object, Object> dummyStreamsConfigMap() {
+        final Map<Object, Object> baseConfigs = new HashMap<>();
+        baseConfigs.put(APPLICATION_ID_CONFIG, "dummy-app-id");
+        baseConfigs.put(BOOTSTRAP_SERVERS_CONFIG, "local");
+        return baseConfigs;
     }
 }
