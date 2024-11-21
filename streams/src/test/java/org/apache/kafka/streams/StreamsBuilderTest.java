@@ -1433,7 +1433,7 @@ public class StreamsBuilderTest {
     }
 
     @Test
-    public void shouldWrapProcessors() {
+    public void shouldWrapProcessorsForProcess() {
         final Map<Object, Object> props = dummyStreamsConfigMap();
         props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, CountingProcessorWrapper.class);
 
@@ -1450,6 +1450,26 @@ public class StreamsBuilderTest {
         builder.stream("input")
             .process((ProcessorSupplier<Object, Object, Object, Object>) () -> record -> System.out.println("Processing: " + random.nextInt()))
             .processValues(() -> record -> System.out.println("Processing: " + random.nextInt()))
+            .to("output");
+
+        builder.build();
+        assertThat(wrappedProcessorCount.get(), CoreMatchers.is(2));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForAggregation() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, CountingProcessorWrapper.class);
+
+        final AtomicInteger wrappedProcessorCount = new AtomicInteger();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessorCount);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        builder.stream("input")
+            .groupByKey()
+            .count() // wrapped 1
+            .toStream()// wrapped 2
             .to("output");
 
         builder.build();
