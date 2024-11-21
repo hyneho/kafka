@@ -233,6 +233,19 @@ class DynamicBrokerConfigTest {
     assertEquals(7, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
     verify(remoteLogManager).resizeExpirationThreadPool(7)
 
+    // When copier and expiration thread pools are set with the default value of -1, then it defaults to the remoteLogManagerThreadPoolSize
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "-1")
+    config.dynamicConfig.validate(props, perBrokerConfig = true)
+    config.dynamicConfig.updateDefaultConfig(props)
+    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerCopierThreadPoolSize())
+    verify(remoteLogManager).resizeCopierThreadPool(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE)
+
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "-1")
+    config.dynamicConfig.validate(props, perBrokerConfig = false)
+    config.dynamicConfig.updateDefaultConfig(props)
+    assertEquals(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE, config.remoteLogManagerConfig.remoteLogManagerExpirationThreadPoolSize())
+    verify(remoteLogManager).resizeExpirationThreadPool(RemoteLogManagerConfig.DEFAULT_REMOTE_LOG_MANAGER_THREAD_POOL_SIZE)
+
     props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "6")
     config.dynamicConfig.validate(props, perBrokerConfig = true)
     config.dynamicConfig.updateDefaultConfig(props)
@@ -240,13 +253,13 @@ class DynamicBrokerConfigTest {
     verify(remoteLogManager).resizeReaderThreadPool(6)
 
     // Test dynamic update with invalid values
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "20")
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP, "0")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "15")
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP, "-2")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = false))
     props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "2")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = false))
-    props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "0")
+    props.put(RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP, "-1")
     assertThrows(classOf[ConfigException], () => config.dynamicConfig.validate(props, perBrokerConfig = true))
     verifyNoMoreInteractions(remoteLogManager)
   }

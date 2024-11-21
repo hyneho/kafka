@@ -1168,24 +1168,18 @@ class DynamicRemoteLogConfig(server: KafkaBroker) extends BrokerReconfigurable w
         }
       }
 
-      // The default value of copier and expiration thread pool size is set to -1 (sentinel) to derive the value from
-      // RemoteLogManagerConfig#REMOTE_LOG_MANAGER_THREAD_POOL_SIZE_PROP, this is done for backward compatibility when
-      // splitting the thread-pool usage for copier and expiration tasks.
-      // Once the copier and expiration thread pool values are changed from -1 to valid value (>0), then the below
-      // validation starts to take effect. Note that once the valid thread pool size is set for the copier and
-      // expiration thread pools, then it is not allowed to set the value back to -1 dynamically.
-      if (RemoteLogManagerConfig.REMOTE_LOG_MANAGER_COPIER_THREAD_POOL_SIZE_PROP.equals(k) ||
-        RemoteLogManagerConfig.REMOTE_LOG_MANAGER_EXPIRATION_THREAD_POOL_SIZE_PROP.equals(k) ||
-        RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP.equals(k)) {
+      // No validations are done for copier and expiration thread pools, it follows the default validation
+      // defined in the ConfigDef
+      if (RemoteLogManagerConfig.REMOTE_LOG_READER_THREADS_PROP.equals(k)) {
         val newValue = v.asInstanceOf[Int]
         val oldValue = server.config.getInt(k)
         if (newValue != oldValue) {
           val errorMsg = s"Dynamic thread count update validation failed for $k=$v"
           if (newValue <= 0)
             throw new ConfigException(s"$errorMsg, value should be at least 1")
-          if (oldValue != -1 && newValue < oldValue / 2)
+          if (newValue < oldValue / 2)
             throw new ConfigException(s"$errorMsg, value should be at least half the current value $oldValue")
-          if (oldValue != -1 && newValue > oldValue * 2)
+          if (newValue > oldValue * 2)
             throw new ConfigException(s"$errorMsg, value should not be greater than double the current value $oldValue")
         }
       }
