@@ -161,7 +161,7 @@ class TrogdorService(KafkaPathResolverMixin, Service):
 
     def _start_trogdor_daemon(self, daemon_name, stdout_stderr_capture_path,
                               log4j_properties_path, log_path, node):
-        cmd = "export KAFKA_LOG4J_OPTS='%s=file:%s'; " % (get_log4j_config_param(node), log4j_properties_path)
+        cmd = "export KAFKA_LOG4J_OPTS='%s%s'; " % (get_log4j_config_param(node), log4j_properties_path)
         cmd += "%s %s --%s.config %s --node-name %s 1>> %s 2>> %s &" % \
                (self.path.script("trogdor.sh", node),
                 daemon_name,
