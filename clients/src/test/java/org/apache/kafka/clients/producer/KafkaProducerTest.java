@@ -82,6 +82,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetrySender;
 import org.apache.kafka.common.utils.KafkaThread;
+import org.apache.kafka.common.utils.LogCaptureAppender;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.common.utils.Time;
@@ -91,6 +92,7 @@ import org.apache.kafka.test.MockProducerInterceptor;
 import org.apache.kafka.test.MockSerializer;
 import org.apache.kafka.test.TestUtils;
 
+import org.apache.log4j.Level;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -108,7 +110,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -139,9 +140,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -2552,7 +2551,7 @@ public class KafkaProducerTest {
 
 
     @Test
-    public void testSubscribingCustomMetricsDoesntAffectConsumerMetrics() {
+    public void testSubscribingCustomMetricsDoesntAffectProducerMetrics() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
 
@@ -2580,45 +2579,33 @@ public class KafkaProducerTest {
     }
 
     @Test
-    public void testSubscribingCustomMetricWithSameNameAsExistingMetricDoesntAffectProducerMetric() {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
-        KafkaProducer<String, String> producer = new KafkaProducer<>(
-            props, new StringSerializer(), new StringSerializer());
-
-        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(producer.metrics());
-        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-
-        Object lock = new Object();
-        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
-        KafkaMetric metricCopy = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
-        producer.registerMetricForSubscription(metricCopy);
-
-        sortedMetrics = new LinkedHashMap<>(producer.metrics());
-        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-        assertSame(firstMetric, secondMetric);
-        assertNotSame(firstMetric, metricCopy);
+    public void testSubscribingCustomMetricsWithSameNameDoesntAffectProducerMetrics() {
+        try (final LogCaptureAppender appender = LogCaptureAppender.createAndRegister()) {
+            appender.setClassLogger(KafkaProducer.class, Level.DEBUG);
+            Map<String, Object> props = new HashMap<>();
+            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+            KafkaProducer<String, String> producer = new KafkaProducer<>(
+                    props, new StringSerializer(), new StringSerializer());
+            KafkaMetric existingMetricToAdd = (KafkaMetric) producer.metrics().entrySet().iterator().next().getValue();
+            producer.registerMetricForSubscription(existingMetricToAdd);
+            final String expectedMessage = String.format("Skipping registration for metric %s. Existing producer metrics cannot be overwritten.", existingMetricToAdd.metricName());
+            assertTrue(appender.getMessages().stream().anyMatch(m -> m.contains(expectedMessage)));
+        }
     }
 
     @Test
     public void testUnsubscribingCustomMetricWithSameNameAsExistingMetricDoesntAffectProducerMetric() {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
-        KafkaProducer<String, String> producer = new KafkaProducer<>(
-            props, new StringSerializer(), new StringSerializer());
-
-        Map<MetricName, ? extends Metric> sortedMetrics = new LinkedHashMap<>(producer.metrics());
-        KafkaMetric firstMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-
-        Object lock = new Object();
-        MetricName metricNameCopy = new MetricName(firstMetric.metricName().name(), firstMetric.metricName().group(), firstMetric.metricName().description(), firstMetric.metricName().tags());
-        KafkaMetric metricToRemove = new KafkaMetric(lock, metricNameCopy, firstMetric.measurable(), firstMetric.config(), Time.SYSTEM);
-        producer.unregisterMetricFromSubscription(metricToRemove);
-
-        sortedMetrics = new LinkedHashMap<>(producer.metrics());
-        KafkaMetric secondMetric = (KafkaMetric) sortedMetrics.entrySet().iterator().next().getValue();
-        assertSame(firstMetric, secondMetric);
-        assertNotSame(firstMetric, metricToRemove);
+        try (final LogCaptureAppender appender = LogCaptureAppender.createAndRegister()) {
+            appender.setClassLogger(KafkaProducer.class, Level.DEBUG);
+            Map<String, Object> props = new HashMap<>();
+            props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9999");
+            KafkaProducer<String, String> producer = new KafkaProducer<>(
+                    props, new StringSerializer(), new StringSerializer());
+            KafkaMetric existingMetricToRemove = (KafkaMetric) producer.metrics().entrySet().iterator().next().getValue();
+            producer.unregisterMetricFromSubscription(existingMetricToRemove);
+            final String expectedMessage = String.format("Skipping unregistration for metric %s. Existing producer metrics cannot be removed.", existingMetricToRemove.metricName());
+            assertTrue(appender.getMessages().stream().anyMatch(m -> m.contains(expectedMessage)));
+        }
     }
 
     @Test
