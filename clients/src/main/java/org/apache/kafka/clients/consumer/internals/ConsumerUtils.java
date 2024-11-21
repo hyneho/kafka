@@ -130,7 +130,7 @@ public final class ConsumerUtils {
 
     public static SubscriptionState createSubscriptionState(ConsumerConfig config, LogContext logContext) {
         String s = config.getString(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG);
-        AutoOffsetResetStrategy strategy = AutoOffsetResetStrategy.valueOf(s);
+        AutoOffsetResetStrategy strategy = AutoOffsetResetStrategy.fromString(s);
         return new SubscriptionState(logContext, strategy);
     }
 

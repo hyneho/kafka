@@ -41,14 +41,14 @@ public class AutoOffsetResetStrategyTest {
     }
 
     @Test
-    public void testValueOf() {
-        assertEquals(AutoOffsetResetStrategy.EARLIEST, AutoOffsetResetStrategy.valueOf("earliest"));
-        assertEquals(AutoOffsetResetStrategy.LATEST, AutoOffsetResetStrategy.valueOf("latest"));
-        assertEquals(AutoOffsetResetStrategy.NONE, AutoOffsetResetStrategy.valueOf("none"));
-        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf("invalid"));
-        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf("LATEST"));
-        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf(""));
-        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf(null));
+    public void testFromString() {
+        assertEquals(AutoOffsetResetStrategy.EARLIEST, AutoOffsetResetStrategy.fromString("earliest"));
+        assertEquals(AutoOffsetResetStrategy.LATEST, AutoOffsetResetStrategy.fromString("latest"));
+        assertEquals(AutoOffsetResetStrategy.NONE, AutoOffsetResetStrategy.fromString("none"));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("invalid"));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("LATEST"));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString(""));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString(null));
     }
 
     @Test
@@ -65,9 +65,9 @@ public class AutoOffsetResetStrategyTest {
 
     @Test
     public void testEqualsAndHashCode() {
-        AutoOffsetResetStrategy strategy1 = AutoOffsetResetStrategy.valueOf("earliest");
-        AutoOffsetResetStrategy strategy2 = AutoOffsetResetStrategy.valueOf("earliest");
-        AutoOffsetResetStrategy strategy3 = AutoOffsetResetStrategy.valueOf("latest");
+        AutoOffsetResetStrategy strategy1 = AutoOffsetResetStrategy.fromString("earliest");
+        AutoOffsetResetStrategy strategy2 = AutoOffsetResetStrategy.fromString("earliest");
+        AutoOffsetResetStrategy strategy3 = AutoOffsetResetStrategy.fromString("latest");
 
         assertEquals(strategy1, strategy2);
         assertNotEquals(strategy1, strategy3);

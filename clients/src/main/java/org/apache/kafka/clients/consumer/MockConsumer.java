@@ -85,7 +85,7 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
      */
     @Deprecated
     public MockConsumer(OffsetResetStrategy offsetResetStrategy) {
-        this(AutoOffsetResetStrategy.valueOf(offsetResetStrategy.toString()));
+        this(AutoOffsetResetStrategy.fromString(offsetResetStrategy.toString()));
     }
 
     /**
@@ -93,7 +93,7 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
      * @param offsetResetStrategy the offset reset strategy to use
      */
     public MockConsumer(String offsetResetStrategy) {
-        this(AutoOffsetResetStrategy.valueOf(offsetResetStrategy));
+        this(AutoOffsetResetStrategy.fromString(offsetResetStrategy));
     }
 
     private MockConsumer(AutoOffsetResetStrategy offsetResetStrategy) {

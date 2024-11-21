@@ -36,26 +36,17 @@ public class AutoOffsetResetStrategy {
         this.name = name;
     }
 
-    public static boolean isValid(String configValue) {
-        if (configValue == null) {
-            return false;
-        }
-        switch (configValue) {
-            case EARLIEST_STRATEGY_NAME:
-            case LATEST_STRATEGY_NAME:
-            case NONE_STRATEGY_NAME:
-                return true;
-            default:
-                return false;
-        }
+    public static boolean isValid(String offsetStrategy) {
+        return EARLIEST_STRATEGY_NAME.equals(offsetStrategy) ||
+                LATEST_STRATEGY_NAME.equals(offsetStrategy) ||
+                NONE_STRATEGY_NAME.equals(offsetStrategy);
     }
 
-
-    public static AutoOffsetResetStrategy valueOf(String configValue) {
-        if (configValue == null) {
+    public static AutoOffsetResetStrategy fromString(String offsetStrategy) {
+        if (offsetStrategy == null) {
             throw new IllegalArgumentException("auto offset reset strategy is null");
         }
-        switch (configValue) {
+        switch (offsetStrategy) {
             case EARLIEST_STRATEGY_NAME:
                 return EARLIEST;
             case LATEST_STRATEGY_NAME:
@@ -63,7 +54,7 @@ public class AutoOffsetResetStrategy {
             case NONE_STRATEGY_NAME:
                 return NONE;
             default:
-                throw new IllegalArgumentException("Unknown auto offset reset strategy: " + configValue);
+                throw new IllegalArgumentException("Unknown auto offset reset strategy: " + offsetStrategy);
         }
     }
 
