@@ -91,17 +91,14 @@ public class MetadataSchemaCheckerTool {
                 break;
             }
             case "verify-evolution-git": {
-                String schemaPath = "/metadata/src/main/resources/common/metadata/";
-                String fileName = schemaPath + namespace.getString("file");
+                String filePath = "/metadata/src/main/resources/common/metadata/" + namespace.getString("file");
                 Path rootKafkaDirectory = Paths.get("").toAbsolutePath();
                 while(!rootKafkaDirectory.endsWith("kafka")) {
                     rootKafkaDirectory = rootKafkaDirectory.getParent();
                 }
-                String gitContent = GetDataFromGit(fileName, rootKafkaDirectory);
-
-
+                String gitContent = GetDataFromGit(filePath, rootKafkaDirectory);
                 EvolutionVerifier verifier = new EvolutionVerifier(
-                        CheckerUtils.readMessageSpecFromFile(rootKafkaDirectory + fileName),
+                        CheckerUtils.readMessageSpecFromFile(rootKafkaDirectory + filePath),
                         CheckerUtils.readMessageSpecFromString(gitContent));
                 verifier.verify();
                 writer.println("Successfully verified evolution of file: " + namespace.getString("file"));
