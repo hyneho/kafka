@@ -55,20 +55,8 @@ public abstract class MaterializedStoreFactory<K, V, S extends StateStore> exten
     }
 
     @Override
-    public StoreFactory withCachingEnabled() {
-        materialized.withCachingEnabled();
-        return this;
-    }
-
-    @Override
     public StoreFactory withLoggingDisabled() {
         materialized.withLoggingDisabled();
-        return this;
-    }
-
-    @Override
-    public StoreFactory withLoggingEnabled(final Map<String, String> config) {
-        materialized.withLoggingEnabled(config);
         return this;
     }
 

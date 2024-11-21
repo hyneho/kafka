@@ -16,6 +16,9 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
+import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.kstream.internals.AbstractConfigurableStoreFactory;
+import org.apache.kafka.streams.state.DslStoreSuppliers;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.internals.SessionStoreBuilder;
 import org.apache.kafka.streams.state.internals.TimestampedWindowStoreBuilder;
@@ -47,6 +50,13 @@ public class StoreBuilderWrapper implements StoreFactory {
 
     private StoreBuilderWrapper(final StoreBuilder<?> builder) {
         this.builder = builder;
+    }
+
+    @Override
+    public void configure(final StreamsConfig config) {
+        if (builder instanceof FactoryWrappingStoreBuilder) {
+            ((FactoryWrappingStoreBuilder) builder).storeFactory().configure(config);
+        }
     }
 
     @Override
@@ -117,20 +127,8 @@ public class StoreBuilderWrapper implements StoreFactory {
     }
 
     @Override
-    public StoreFactory withCachingEnabled() {
-        builder.withCachingEnabled();
-        return this;
-    }
-
-    @Override
     public StoreFactory withLoggingDisabled() {
         builder.withLoggingDisabled();
-        return this;
-    }
-
-    @Override
-    public StoreFactory withLoggingEnabled(final Map<String, String> config) {
-        builder.withLoggingEnabled(config);
         return this;
     }
 

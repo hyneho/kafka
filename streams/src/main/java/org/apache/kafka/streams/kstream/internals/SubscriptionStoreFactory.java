@@ -104,20 +104,8 @@ public class SubscriptionStoreFactory<K> extends AbstractConfigurableStoreFactor
     }
 
     @Override
-    public StoreFactory withCachingEnabled() {
-        throw new IllegalStateException("Caching should never be enabled for subscription stores");
-    }
-
-    @Override
     public StoreFactory withLoggingDisabled() {
         loggingEnabled = false;
-        return this;
-    }
-
-    @Override
-    public StoreFactory withLoggingEnabled(final Map<String, String> config) {
-        loggingEnabled = true;
-        logConfig.putAll(config);
         return this;
     }
 
