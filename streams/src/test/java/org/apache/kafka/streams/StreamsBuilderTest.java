@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.streams;
 
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -37,8 +39,10 @@ import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.SessionWindows;
 import org.apache.kafka.streams.kstream.StreamJoined;
 import org.apache.kafka.streams.processor.StateStore;
+import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
+import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
 import org.apache.kafka.streams.processor.internals.ProcessorNode;
@@ -54,6 +58,7 @@ import org.apache.kafka.streams.state.internals.InMemoryWindowStore;
 import org.apache.kafka.streams.state.internals.RocksDBStore;
 import org.apache.kafka.streams.state.internals.RocksDBWindowStore;
 import org.apache.kafka.streams.state.internals.WrappedStateStore;
+import org.apache.kafka.streams.utils.TestUtils.CountingProcessorWrapper;
 import org.apache.kafka.test.MockApiProcessorSupplier;
 import org.apache.kafka.test.MockMapper;
 import org.apache.kafka.test.MockPredicate;
@@ -62,6 +67,7 @@ import org.apache.kafka.test.NoopValueTransformer;
 import org.apache.kafka.test.NoopValueTransformerWithKey;
 import org.apache.kafka.test.StreamsTestUtils;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -78,8 +84,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
+import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
 import static org.apache.kafka.streams.processor.internals.assignment.AssignmentTestUtils.SUBTOPOLOGY_0;
 import static org.apache.kafka.streams.processor.internals.assignment.AssignmentTestUtils.SUBTOPOLOGY_1;
+import static org.apache.kafka.streams.utils.TestUtils.PROCESSOR_WRAPPER_COUNTER_CONFIG;
+import static org.apache.kafka.streams.utils.TestUtils.dummyStreamsConfigMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -1421,6 +1430,30 @@ public class StreamsBuilderTest {
 
         final ProcessorTopology topology = builder.internalTopologyBuilder.rewriteTopology(new StreamsConfig(props)).buildGlobalStateTopology();
         assertNamesForOperation(topology, "KSTREAM-SOURCE-0000000000", "KTABLE-SOURCE-0000000001");
+    }
+
+    @Test
+    public void shouldWrapProcessors() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, CountingProcessorWrapper.class);
+
+        final AtomicInteger wrappedProcessorCount = new AtomicInteger();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessorCount);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        // Add a bit of randomness to the lambda-created processors to avoid them being
+        // optimized into a shared instance that will cause the ApiUtils#checkSupplier
+        // call to fail
+        final Random random = new Random();
+
+        builder.stream("input")
+            .process((ProcessorSupplier<Object, Object, Object, Object>) () -> record -> System.out.println("Processing: " + random.nextInt()))
+            .processValues(() -> record -> System.out.println("Processing: " + random.nextInt()))
+            .to("output");
+
+        builder.build();
+        assertThat(wrappedProcessorCount.get(), CoreMatchers.is(2));
     }
 
     @Test
