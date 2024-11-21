@@ -54,6 +54,7 @@ import org.apache.kafka.streams.state.Stores;
 import org.apache.kafka.streams.state.WindowBytesStoreSupplier;
 import org.apache.kafka.streams.state.WindowStore;
 import org.apache.kafka.streams.state.internals.KeyValueStoreBuilder;
+import org.apache.kafka.streams.utils.TestUtils.CountingProcessorWrapper;
 import org.apache.kafka.test.MockApiProcessorSupplier;
 import org.apache.kafka.test.MockKeyValueStore;
 import org.apache.kafka.test.MockProcessorSupplier;
@@ -81,6 +82,7 @@ import java.util.regex.Pattern;
 
 import static java.time.Duration.ofMillis;
 import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
+import static org.apache.kafka.streams.utils.TestUtils.PROCESSOR_WRAPPER_COUNTER_CONFIG;
 import static org.apache.kafka.streams.utils.TestUtils.dummyStreamsConfigMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -2432,7 +2434,7 @@ public class TopologyTest {
         props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, CountingProcessorWrapper.class);
 
         final AtomicInteger wrappedProcessorCount = new AtomicInteger();
-        props.put("WRAPPED_PROCESSOR_COUNT", wrappedProcessorCount);
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessorCount);
 
         final Topology topology = new Topology(new TopologyConfig(new StreamsConfig(props)));
 
@@ -2458,30 +2460,6 @@ public class TopologyTest {
             "p2"
         );
         assertThat(wrappedProcessorCount.get(), is(3));
-    }
-
-    public static class CountingProcessorWrapper implements ProcessorWrapper {
-
-        private AtomicInteger wrappedProcessorCount;
-
-        @Override
-        public void configure(final Map<String, ?> configs) {
-            wrappedProcessorCount = (AtomicInteger) configs.get("WRAPPED_PROCESSOR_COUNT");
-        }
-
-        @Override
-        public <KIn, VIn, KOut, VOut> WrappedProcessorSupplier<KIn, VIn, KOut, VOut> wrapProcessorSupplier(final String processorName,
-                                                                                                           final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier) {
-            wrappedProcessorCount.incrementAndGet();
-            return ProcessorWrapper.asWrapped(processorSupplier);
-        }
-
-        @Override
-        public <KIn, VIn, VOut> WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> wrapFixedKeyProcessorSupplier(final String processorName,
-                                                                                                               final FixedKeyProcessorSupplier<KIn, VIn, VOut> processorSupplier) {
-            wrappedProcessorCount.incrementAndGet();
-            return ProcessorWrapper.asWrappedFixedKey(processorSupplier);
-        }
     }
 
     @SuppressWarnings("deprecation")
