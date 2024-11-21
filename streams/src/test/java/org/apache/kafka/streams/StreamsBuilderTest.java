@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.streams;
 
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.common.serialization.LongSerializer;
@@ -1457,7 +1458,7 @@ public class StreamsBuilderTest {
     }
 
     @Test
-    public void shouldWrapProcessorsForAggregation() {
+    public void shouldWrapProcessorsForAggregationOperators() {
         final Map<Object, Object> props = dummyStreamsConfigMap();
         props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, CountingProcessorWrapper.class);
 
@@ -1474,6 +1475,30 @@ public class StreamsBuilderTest {
 
         builder.build();
         assertThat(wrappedProcessorCount.get(), CoreMatchers.is(2));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForStatelessOperators() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, CountingProcessorWrapper.class);
+
+        final AtomicInteger wrappedProcessorCount = new AtomicInteger();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessorCount);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        builder.stream("input")
+            .filter((k, v) -> true) // wrapped 1
+            .map(KeyValue::new) // wrapped 2
+            .selectKey((k, v) -> k) // wrapped 3
+            .peek((k, v) -> { }) // wrapped 4
+            .flatMapValues(e -> new ArrayList<>()) // wrapped 5
+            .toTable() // wrapped 6
+            .toStream() // wrapped 7
+            .to("output");
+
+        builder.build();
+        assertThat(wrappedProcessorCount.get(), CoreMatchers.is(7));
     }
 
     @Test
