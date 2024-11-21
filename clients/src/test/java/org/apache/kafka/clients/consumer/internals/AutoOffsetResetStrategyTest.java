@@ -37,6 +37,7 @@ public class AutoOffsetResetStrategyTest {
         assertFalse(AutoOffsetResetStrategy.isValid("invalid"));
         assertFalse(AutoOffsetResetStrategy.isValid("LATEST"));
         assertFalse(AutoOffsetResetStrategy.isValid(""));
+        assertFalse(AutoOffsetResetStrategy.isValid(null));
     }
 
     @Test
@@ -47,6 +48,7 @@ public class AutoOffsetResetStrategyTest {
         assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf("invalid"));
         assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf("LATEST"));
         assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf(""));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.valueOf(null));
     }
 
     @Test
@@ -58,6 +60,7 @@ public class AutoOffsetResetStrategyTest {
         assertThrows(ConfigException.class, () -> validator.ensureValid("test", "invalid"));
         assertThrows(ConfigException.class, () -> validator.ensureValid("test", "LATEST"));
         assertThrows(ConfigException.class, () -> validator.ensureValid("test", ""));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("test", null));
     }
 
     @Test

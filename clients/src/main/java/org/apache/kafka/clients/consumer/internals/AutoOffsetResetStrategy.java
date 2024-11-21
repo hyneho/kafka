@@ -37,6 +37,9 @@ public class AutoOffsetResetStrategy {
     }
 
     public static boolean isValid(String configValue) {
+        if (configValue == null) {
+            return false;
+        }
         switch (configValue) {
             case EARLIEST_STRATEGY_NAME:
             case LATEST_STRATEGY_NAME:
@@ -47,7 +50,11 @@ public class AutoOffsetResetStrategy {
         }
     }
 
+
     public static AutoOffsetResetStrategy valueOf(String configValue) {
+        if (configValue == null) {
+            throw new IllegalArgumentException("auto offset reset strategy is null");
+        }
         switch (configValue) {
             case EARLIEST_STRATEGY_NAME:
                 return EARLIEST;
