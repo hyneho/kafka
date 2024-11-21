@@ -61,7 +61,7 @@ public class MetadataSchemaCheckerTool {
             required(true).
             help("The final schema JSON path.");
         Subparser evolutionGitVerifierParser = subparsers.addParser("verify-evolution-git").
-            help(" Verify that an evolution of a JSON file is valid using git. Must be run from the generator directory");
+            help(" Verify that an evolution of a JSON file is valid using git.");
         evolutionGitVerifierParser.addArgument("--file", "-3").
             required(true).
             help("The edited JSON file");
