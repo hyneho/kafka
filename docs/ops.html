@@ -2988,7 +2988,7 @@ All of the following metrics have a recording level of <code>info</code>:
       </tr>
       <tr>
         <td>blocked-time-ns-total</td>
-        <td>The total time the thread spent blocked on kafka.</td>
+        <td>The total time in ns the thread spent blocked on kafka.</td>
         <td>kafka.streams:type=stream-thread-metrics,thread-id=([-.\w]+)</td>
       </tr>
       <tr>
@@ -3031,12 +3031,12 @@ active-process-ratio metrics which have a recording level of <code>info</code>:
       </tr>
       <tr>
         <td>record-lateness-avg</td>
-        <td>The average observed lateness of records (stream time - record timestamp).</td>
+        <td>The average observed lateness in ms of records (stream time - record timestamp).</td>
         <td>kafka.streams:type=stream-task-metrics,thread-id=([-.\w]+),task-id=([-.\w]+)</td>
       </tr>
       <tr>
         <td>record-lateness-max</td>
-        <td>The max observed lateness of records (stream time - record timestamp).</td>
+        <td>The max observed lateness in ms of records (stream time - record timestamp).</td>
         <td>kafka.streams:type=stream-task-metrics,thread-id=([-.\w]+),task-id=([-.\w]+)</td>
       </tr>
       <tr>
@@ -3051,7 +3051,7 @@ active-process-ratio metrics which have a recording level of <code>info</code>:
       </tr>
       <tr>
         <td>dropped-records-rate</td>
-        <td>The average number of records dropped within this task.</td>
+        <td>The average number of records dropped per second within this task.</td>
         <td>kafka.streams:type=stream-task-metrics,thread-id=([-.\w]+),task-id=([-.\w]+)</td>
       </tr>
       <tr>
@@ -3124,17 +3124,17 @@ active-process-ratio metrics which have a recording level of <code>info</code>:
       </tr>
       <tr>
         <td>emit-final-latency-max</td>
-        <td>The max latency to emit final records when a record could be emitted.</td>
+        <td>The max latency in ms to emit final records when a record could be emitted.</td>
         <td>kafka.streams:type=stream-processor-node-metrics,thread-id=([-.\w]+),task-id=([-.\w]+),processor-node-id=([-.\w]+)</td>
       </tr>
       <tr>
         <td>emit-final-latency-avg</td>
-        <td>The avg latency to emit final records when a record could be emitted.</td>
+        <td>The avg latency in ms to emit final records when a record could be emitted.</td>
         <td>kafka.streams:type=stream-processor-node-metrics,thread-id=([-.\w]+),task-id=([-.\w]+),processor-node-id=([-.\w]+)</td>
       </tr>
       <tr>
         <td>emit-final-records-rate</td>
-        <td>The rate of records emitted when records could be emitted.</td>
+        <td>The rate of records emitted per seconds when records could be emitted.</td>
         <td>kafka.streams:type=stream-processor-node-metrics,thread-id=([-.\w]+),task-id=([-.\w]+),processor-node-id=([-.\w]+)</td>
       </tr>
       <tr>
@@ -3144,17 +3144,17 @@ active-process-ratio metrics which have a recording level of <code>info</code>:
       </tr>
       <tr>
         <td>record-e2e-latency-avg</td>
-        <td>The average end-to-end latency of a record, measured by comparing the record timestamp with the system time when it has been fully processed by the node.</td>
+        <td>The average end-to-end latency in ms of a record, measured by comparing the record timestamp with the system time when it has been fully processed by the node.</td>
         <td>kafka.streams:type=stream-processor-node-metrics,thread-id=([-.\w]+),task-id=([-.\w]+),processor-node-id=([-.\w]+)</td>
       </tr>
       <tr>
         <td>record-e2e-latency-max</td>
-        <td>The maximum end-to-end latency of a record, measured by comparing the record timestamp with the system time when it has been fully processed by the node.</td>
+        <td>The maximum end-to-end latency in ms of a record, measured by comparing the record timestamp with the system time when it has been fully processed by the node.</td>
         <td>kafka.streams:type=stream-processor-node-metrics,thread-id=([-.\w]+),task-id=([-.\w]+),processor-node-id=([-.\w]+)</td>
       </tr>
       <tr>
         <td>record-e2e-latency-min</td>
-        <td>The minimum end-to-end latency of a record, measured by comparing the record timestamp with the system time when it has been fully processed by the node.</td>
+        <td>The minimum end-to-end latency in ms of a record, measured by comparing the record timestamp with the system time when it has been fully processed by the node.</td>
         <td>kafka.streams:type=stream-processor-node-metrics,thread-id=([-.\w]+),task-id=([-.\w]+),processor-node-id=([-.\w]+)</td>
       </tr>
       <tr>
