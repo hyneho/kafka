@@ -108,7 +108,8 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
                                                        'configs': {"min.insync.replicas": 1}}},
                                   version=DEV_BRANCH,
                                   controller_num_nodes_override=2,
-                                  dynamicRaftQuorum=True)
+                                  dynamicRaftQuorum=True,
+                                  server_properties_override={"unstable.feature.versions.enable": "true"})
         # Start a controller and the broker-only nodes
         # We leave starting the second controller for later in perform_reconfig
         inactive_controller = self.kafka.nodes[1]
@@ -148,7 +149,8 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
                                   version=DEV_BRANCH,
                                   controller_num_nodes_override=2,
                                   quorum_info_provider=remote_quorum,
-                                  dynamicRaftQuorum=True)
+                                  dynamicRaftQuorum=True,
+                                  server_properties_override={"unstable.feature.versions.enable": "true"})
         # Start a controller and the broker-only nodes
         # We leave starting the second controller for later in perform_reconfig
         controller_quorum = self.kafka.controller_quorum
