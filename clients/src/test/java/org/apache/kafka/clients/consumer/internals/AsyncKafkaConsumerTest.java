@@ -53,6 +53,7 @@ import org.apache.kafka.clients.consumer.internals.events.SyncCommitEvent;
 import org.apache.kafka.clients.consumer.internals.events.TopicPatternSubscriptionChangeEvent;
 import org.apache.kafka.clients.consumer.internals.events.TopicSubscriptionChangeEvent;
 import org.apache.kafka.clients.consumer.internals.events.UnsubscribeEvent;
+import org.apache.kafka.clients.consumer.internals.events.UpdatePatternSubscriptionEvent;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.TopicPartition;
@@ -1829,6 +1830,27 @@ public class AsyncKafkaConsumerTest {
         assertEquals(OffsetResetStrategy.LATEST, resetOffsetEvent.offsetResetStrategy());
     }
 
+    @Test
+    public void testUpdatePatternSubscriptionEventGeneratedOnlyIfPatternUsed() {
+        consumer = newConsumer();
+        doReturn(Fetch.empty()).when(fetchCollector).collectFetch(any(FetchBuffer.class));
+        when(applicationEventHandler.addAndGet(any(CheckAndUpdatePositionsEvent.class))).thenReturn(true);
+        doReturn(LeaderAndEpoch.noLeaderOrEpoch()).when(metadata).currentLeader(any());
+        completeAssignmentChangeEventSuccessfully();
+        completeTopicPatternSubscriptionChangeEventSuccessfully();
+        completeUnsubscribeApplicationEventSuccessfully();
+
+        consumer.assign(singleton(new TopicPartition("topic1", 0)));
+        consumer.poll(Duration.ZERO);
+        verify(applicationEventHandler, never()).addAndGet(any(UpdatePatternSubscriptionEvent.class));
+
+        consumer.unsubscribe();
+
+        consumer.subscribe(Pattern.compile("t*"));
+        consumer.poll(Duration.ZERO);
+        verify(applicationEventHandler).addAndGet(any(UpdatePatternSubscriptionEvent.class));
+    }
+
     private Map<TopicPartition, OffsetAndMetadata> mockTopicPartitionOffset() {
         final TopicPartition t0 = new TopicPartition("t0", 2);
         final TopicPartition t1 = new TopicPartition("t0", 3);
@@ -1913,6 +1935,7 @@ public class AsyncKafkaConsumerTest {
     private void completeUnsubscribeApplicationEventSuccessfully() {
         doAnswer(invocation -> {
             UnsubscribeEvent event = invocation.getArgument(0);
+            consumer.subscriptions().unsubscribe();
             event.future().complete(null);
             return null;
         }).when(applicationEventHandler).add(ArgumentMatchers.isA(UnsubscribeEvent.class));
