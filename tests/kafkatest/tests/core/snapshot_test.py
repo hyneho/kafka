@@ -148,8 +148,7 @@ class TestSnapshots(ProduceConsumeValidateTest):
     @cluster(num_nodes=9)
     @matrix(
         metadata_quorum=quorum.all_kraft,
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         metadata_quorum=quorum.all_kraft,
@@ -212,7 +211,7 @@ class TestSnapshots(ProduceConsumeValidateTest):
         self.kafka.create_topic(topic_cfg)
 
         # Produce to the newly created topic and make sure it works.
-        self.validate_success(broker_topic, group_protocol)
+        self.validate_success(broker_topic, group_protocol=group_protocol)
 
     @cluster(num_nodes=9)
     @matrix(

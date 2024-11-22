@@ -52,13 +52,13 @@ class ConsumerGroupCommandTest(Test):
             controller_num_nodes_override=self.num_brokers)
         self.kafka.start()
 
-    def start_consumer(self, group_protocol):
+    def start_consumer(self, group_protocol=None):
         consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, num_nodes=self.num_brokers, kafka=self.kafka, topic=TOPIC,
                                         consumer_timeout_ms=None, consumer_properties=consumer_properties)
         self.consumer.start()
 
-    def setup_and_verify(self, security_protocol, group_protocol, group=None):
+    def setup_and_verify(self, security_protocol, group=None, group_protocol=None):
         self.start_kafka(security_protocol, security_protocol)
         self.start_consumer(group_protocol=group_protocol)
         consumer_node = self.consumer.nodes[0]
@@ -87,8 +87,7 @@ class ConsumerGroupCommandTest(Test):
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],
@@ -107,8 +106,7 @@ class ConsumerGroupCommandTest(Test):
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         security_protocol=['PLAINTEXT', 'SSL'],

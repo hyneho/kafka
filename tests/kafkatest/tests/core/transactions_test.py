@@ -220,7 +220,8 @@ class TransactionsTest(Test):
         check_order=[True, False],
         use_group_metadata=[True, False],
         metadata_quorum=quorum.all_kraft,
-        use_new_coordinator=[True]
+        use_new_coordinator=[True],
+        group_protocol=consumer_group.all_group_protocols
     )
     def test_transactions(self, failure_mode, bounce_target, check_order, use_group_metadata, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         security_protocol = 'PLAINTEXT'

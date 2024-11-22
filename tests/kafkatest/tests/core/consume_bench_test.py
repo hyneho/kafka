@@ -68,8 +68,7 @@ class ConsumeBenchTest(Test):
             ["consume_bench_topic[0-5]:[0-4]"] # manual topic assignment
         ],
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         topics=[
@@ -103,8 +102,7 @@ class ConsumeBenchTest(Test):
     @cluster(num_nodes=10)
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
@@ -135,8 +133,7 @@ class ConsumeBenchTest(Test):
     @cluster(num_nodes=10)
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
@@ -168,8 +165,7 @@ class ConsumeBenchTest(Test):
     @cluster(num_nodes=10)
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
@@ -202,8 +198,7 @@ class ConsumeBenchTest(Test):
     @cluster(num_nodes=10)
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
@@ -236,8 +231,7 @@ class ConsumeBenchTest(Test):
     @cluster(num_nodes=10)
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         metadata_quorum=[quorum.isolated_kraft],

@@ -63,13 +63,12 @@ class EndToEndTest(Test):
         self.kafka = KafkaService(self.test_context, num_nodes=num_nodes,
                                   zk=self.zk, topics=topics, **kwargs)
 
-    def create_consumer(self, group_protocol, num_nodes=1, group_id="test_group", **kwargs):
+    def create_consumer(self, num_nodes=1, group_id="test_group", **kwargs):
         self.consumer = VerifiableConsumer(self.test_context,
                                            num_nodes=num_nodes,
                                            kafka=self.kafka,
                                            topic=self.topic,
                                            group_id=group_id,
-                                           group_protocol=group_protocol,
                                            on_record_consumed=self.on_record_consumed,
                                            **kwargs)
                                     

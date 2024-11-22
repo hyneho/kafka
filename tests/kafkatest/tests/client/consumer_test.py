@@ -148,8 +148,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_consumer_bounce(self, clean_shutdown, bounce_mode, metadata_quorum=quorum.isolated_kraft,
-                             use_new_coordinator=False, group_protocol=None):
+    def test_consumer_bounce(self, clean_shutdown, bounce_mode, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=None):
         """
         Verify correct consumer behavior when the consumers in the group are consecutively restarted.
 
@@ -208,10 +207,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=[consumer_group.classic_group_protocol]
     )
-    def test_static_consumer_bounce_with_eager_assignment(self, clean_shutdown, static_membership, bounce_mode,
-                                                          num_bounces, metadata_quorum=quorum.isolated_kraft,
-                                                          use_new_coordinator=False,
-                                                          group_protocol=None):
+    def test_static_consumer_bounce_with_eager_assignment(self, clean_shutdown, static_membership, bounce_mode, num_bounces, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=None):
         """
         Verify correct static consumer behavior when the consumers in the group are restarted. In order to make 
         sure the behavior of static members are different from dynamic ones, we take both static and dynamic
@@ -328,8 +324,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_fencing_static_consumer(self, num_conflict_consumers, fencing_stage, metadata_quorum=quorum.isolated_kraft,
-                                     use_new_coordinator=False, group_protocol=None):
+    def test_fencing_static_consumer(self, num_conflict_consumers, fencing_stage, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=None):
         """
         Verify correct static consumer behavior when there are conflicting consumers with same group.instance.id.
 
