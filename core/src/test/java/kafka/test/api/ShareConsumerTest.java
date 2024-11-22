@@ -1673,7 +1673,6 @@ public class ShareConsumerTest {
         }
     }
 
-    @Flaky("KAFKA-18033")
     @ParameterizedTest(name = "{displayName}.persister={0}")
     @ValueSource(strings = {NO_OP_PERSISTER, DEFAULT_STATE_PERSISTER})
     public void testShareAutoOffsetResetDefaultValue(String persister) {
