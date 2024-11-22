@@ -708,6 +708,24 @@ class TransactionCoordinatorTest {
     verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = Array(false, true))
+  def TestEndTxnRequestWhenEmptyTransactionStateForCommitInV2(isRetry: Boolean): Unit = {
+    val clientTransactionVersion = TransactionVersion.fromFeatureLevel(2)
+    when(transactionManager.getTransactionState(ArgumentMatchers.eq(transactionalId)))
+      .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, new TransactionMetadata(transactionalId, producerId, producerId,
+        RecordBatch.NO_PRODUCER_ID, producerEpoch, RecordBatch.NO_PRODUCER_EPOCH, 1, Empty, collection.mutable.Set.empty[TopicPartition], 0, time.milliseconds(), clientTransactionVersion)))))
+
+    val epoch = if (isRetry) producerEpoch - 1 else producerEpoch
+    coordinator.handleEndTransaction(transactionalId, producerId, epoch.toShort, TransactionResult.COMMIT, clientTransactionVersion, endTxnCallback)
+    if (isRetry) {
+      assertEquals(Errors.PRODUCER_FENCED, error)
+    } else {
+      assertEquals(Errors.INVALID_TXN_STATE, error)
+    }
+    verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
+  }
+
   @Test
   def shouldReturnWhenTransactionVersionDowngraded(): Unit = {
     // State was written when transactions V2

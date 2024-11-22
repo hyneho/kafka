@@ -523,7 +523,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
     +----------------+-------+---------+-------+---------+
     |                | Retry | Current | Retry | Current |
     +----------------+-------+---------+-------+---------+
-    | Empty          | PF    | EB      | ITS   | ITS     |
+    | Empty          | PF    | EB      | PF   | ITS     |
     +----------------+-------+---------+-------+---------+
     | CompleteAbort  | NONE  | EB      | ITS   | ITS     |
     +----------------+-------+---------+-------+---------+
