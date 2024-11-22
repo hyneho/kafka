@@ -31,9 +31,9 @@ Configuration:
 
     Logger:
     # Add additional loggers dynamically if defined
-        {% if loggers is defined %}
-        {% for logger, log_level in loggers.items() %}
+      {% if loggers is defined %}
+      {% for logger, log_level in loggers.items() %}
       - name: {{ logger }}
         level: {{ log_level }}
-        {% endfor %}
-        {% endif %}
+      {% endfor %}
+      {% endif %}

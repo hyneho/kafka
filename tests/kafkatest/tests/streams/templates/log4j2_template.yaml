@@ -19,7 +19,6 @@ Configuration:
     File:
       name: FILE
       fileName: {{ log_file }}
-      filePattern: "streams-templates-%d{yyyy-MM-dd}.log"
       append: true
       immediateFlush: true
       PatternLayout:

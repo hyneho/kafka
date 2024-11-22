@@ -17,8 +17,6 @@ Configuration:
     Property:
       - name: "log_dir"
         value: {{ log_dir }}
-      - name: "log_level"
-        value: "DEBUG"
       - name: "logPattern"
         value: "[%d] %p %m (%c)%n"
 
@@ -163,114 +161,110 @@ Configuration:
 
   Loggers:
     Root:
-      level: "${sys:log_level}"
+      level: {{ log_level|default("DEBUG") }}
       AppenderRef:
         - ref: STDOUT
 
     Logger:
       - name: kafka.producer.async.DefaultEventHandler
-        level: "${sys:log_level}"
-        additivity: false
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: KafkaInfoAppender
           - ref: KafkaDebugAppender
 
       - name: kafka.client.ClientUtils
-        level: "${sys:log_level}"
-        additivity: false
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: KafkaInfoAppender
           - ref: KafkaDebugAppender
 
       - name: kafka.perf
-        level: "${sys:log_level}"
-        additivity: false
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: KafkaInfoAppender
           - ref: KafkaDebugAppender
 
       - name: kafka.perf.ProducerPerformance$ProducerThread
-        level: "${sys:log_level}"
-        additivity: false
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: KafkaInfoAppender
           - ref: KafkaDebugAppender
 
       - name: kafka
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: KafkaInfoAppender
           - ref: KafkaDebugAppender
 
       - name: kafka.network.RequestChannel$
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: RequestInfoAppender
           - ref: RequestDebugAppender
 
       - name: kafka.network.Processor
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: RequestInfoAppender
           - ref: RequestDebugAppender
 
       - name: kafka.server.KafkaApis
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: RequestInfoAppender
           - ref: RequestDebugAppender
 
       - name: kafka.request.logger
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: RequestInfoAppender
           - ref: RequestDebugAppender
 
       - name: org.apache.kafka.raft
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: ControllerInfoAppender
           - ref: ControllerDebugAppender
 
       - name: org.apache.kafka.controller
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         AppenderRef:
           - ref: ControllerInfoAppender
           - ref: ControllerDebugAppender
 
       - name: kafka.controller
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: ControllerInfoAppender
           - ref: ControllerDebugAppender
 
       - name: kafka.log.LogCleaner
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: CleanerInfoAppender
           - ref: CleanerDebugAppender
 
       - name: state.change.logger
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: StateChangeInfoAppender
           - ref: StateChangeDebugAppender
 
       - name: kafka.authorizer.logger
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: AuthorizerInfoAppender
           - ref: AuthorizerDebugAppender
 
       - name: org.apache.kafka.coordinator.group
-        level: "${sys:log_level}"
+        level: {{ log_level|default("DEBUG") }}
         additivity: false
         AppenderRef:
           - ref: KafkaInfoAppender

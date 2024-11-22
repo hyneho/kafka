@@ -25,17 +25,13 @@ Configuration:
       PatternLayout:
         pattern: "${logPattern}"
 
-    RollingFile:
+    File:
       - name: FILE
         fileName: {{ log_file }}
-        filePattern: "test.log.%d{yyyy-MM-dd-HH}"
         append: true
         immediateFlush: true
         PatternLayout:
           pattern: "${logPattern}"
-        TimeBasedTriggeringPolicy:
-          modulate: true
-          interval: 1
 
   Loggers:
     Root:
