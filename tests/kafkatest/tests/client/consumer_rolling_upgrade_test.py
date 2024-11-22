@@ -61,7 +61,7 @@ class ConsumerRollingUpgradeTest(VerifiableConsumerTest):
         """
 
         # initialize the consumer using range assignment
-        consumer = self.setup_consumer(self.TOPIC, assignment_strategy=self.RANGE, group_protocol=None)
+        consumer = self.setup_consumer(self.TOPIC, assignment_strategy=self.RANGE)
 
         consumer.start()
         self.await_all_members(consumer)

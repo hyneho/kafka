@@ -68,9 +68,9 @@ class OffsetValidationTest(VerifiableConsumerTest):
                 self.await_all_members(consumer)
                 self.await_consumed_messages(consumer)
 
-    def setup_consumer(self, topic, group_protocol, **kwargs):
+    def setup_consumer(self, topic, **kwargs):
         # collect verifiable consumer events since this makes debugging much easier
-        consumer = super(OffsetValidationTest, self).setup_consumer(topic, group_protocol, **kwargs)
+        consumer = super(OffsetValidationTest, self).setup_consumer(topic, **kwargs)
         self.mark_for_collect(consumer, 'verifiable_consumer_stdout')
         return consumer
 
