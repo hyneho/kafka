@@ -153,7 +153,14 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
                 .map(rm -> rm.maximumTimeToWait(currentTimeMs))
                 .reduce(Long.MAX_VALUE, Math::min);
 
-        reapExpiredApplicationEvents(currentTimeMs);
+        List<CompletableEvent<?>> completableEvents = reapExpiredApplicationEvents(currentTimeMs);
+        
+        if (networkClientDelegate.metadataError().isPresent()) {
+            Throwable metadataError = networkClientDelegate.metadataError().get();
+            completableEvents.forEach(event -> event.future().completeExceptionally(metadataError));
+            applicationEventProcessor.setMetadataError(metadataError);
+            networkClientDelegate.clearMetadataError();
+        }
     }
 
     /**
@@ -162,7 +169,6 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
     private void processApplicationEvents() {
         LinkedList<ApplicationEvent> events = new LinkedList<>();
         applicationEventQueue.drainTo(events);
-        applicationEventProcessor.setMetadataError(networkClientDelegate.metadataError());
 
         for (ApplicationEvent event : events) {
             try {
@@ -181,8 +187,8 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
      * thread has made at least one call to {@link NetworkClientDelegate#poll(long, long) poll} so that each event
      * is given least one attempt to satisfy any network requests <em>before</em> checking if a timeout has expired.
      */
-    private void reapExpiredApplicationEvents(long currentTimeMs) {
-        applicationEventReaper.reap(currentTimeMs);
+    private List<CompletableEvent<?>> reapExpiredApplicationEvents(long currentTimeMs) {
+        return applicationEventReaper.reap(currentTimeMs);
     }
 
     /**

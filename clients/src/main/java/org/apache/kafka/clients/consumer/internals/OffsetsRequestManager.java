@@ -31,7 +31,6 @@ import org.apache.kafka.common.ClusterResourceListener;
 import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.errors.AuthorizationException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.message.ListOffsetsRequestData;
 import org.apache.kafka.common.requests.AbstractRequest;
@@ -187,8 +186,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      */
     public CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> fetchOffsets(
             Map<TopicPartition, Long> timestampsToSearch,
-            boolean requireTimestamps,
-            final CompletableFuture<RuntimeException> metadataError) {
+            boolean requireTimestamps) {
         if (timestampsToSearch.isEmpty()) {
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
@@ -211,20 +209,11 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
 
         prepareFetchOffsetsRequests(timestampsToSearch, requireTimestamps, listOffsetsRequestState);
         
-        CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> metadataErrorResult =
-                new CompletableFuture<>();
-        metadataError.whenComplete((__, error) -> {
-            metadataErrorResult.completeExceptionally(error);
-        });
+        return listOffsetsRequestState.globalResult.thenApply(
+                result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
+                        timestampsToSearch,
+                        result.fetchedOffsets));
 
-        if (!metadataErrorResult.isCompletedExceptionally()) {
-            return listOffsetsRequestState.globalResult.thenApply(
-                    result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
-                            timestampsToSearch,
-                            result.fetchedOffsets));
-        }
-
-        return metadataErrorResult;
     }
 
     /**
@@ -244,7 +233,7 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
      * on {@link SubscriptionState#hasAllFetchPositions()}). It will complete immediately, with true, if all positions
      * are already available. If some positions are missing, the future will complete once the offsets are retrieved and positions are updated.
      */
-    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs, CompletableFuture<RuntimeException> metadataError) {
+    public CompletableFuture<Boolean> updateFetchPositions(long deadlineMs) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -266,16 +255,6 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
                     result.completeExceptionally(error);
                 } else {
                     result.complete(subscriptionState.hasAllFetchPositions());
-                }
-            });
-
-            metadataError.whenComplete((__, error) -> {
-                if (error instanceof AuthorizationException && pendingOffsetFetchEvent != null) {
-                    pendingOffsetFetchEvent.result.completeExceptionally(error);
-                    result.completeExceptionally(error);
-                }
-                if (error == null) {
-                    result.complete(true);
                 }
             });
 

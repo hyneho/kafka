@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -56,7 +57,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     private final SubscriptionState subscriptions;
     private final RequestManagers requestManagers;
     private int metadataVersionSnapshot;
-    private CompletableFuture<RuntimeException> metadataError;
+    private Optional<Throwable> metadataError;
 
     public ApplicationEventProcessor(final LogContext logContext,
                                      final RequestManagers requestManagers,
@@ -219,6 +220,11 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(final SyncCommitEvent event) {
+        if (metadataError.isPresent()) {
+            event.future().completeExceptionally(metadataError.get());
+            return;
+        }
+        
         if (requestManagers.commitRequestManager.isEmpty()) {
             event.future().completeExceptionally(new KafkaException("Unable to sync commit " +
                 "offset because the CommitRequestManager is not available. Check if group.id was set correctly"));
@@ -272,7 +278,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      */
     private void process(final ListOffsetsEvent event) {
         final CompletableFuture<Map<TopicPartition, OffsetAndTimestampInternal>> future =
-            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps(), metadataError);
+            requestManagers.offsetsRequestManager.fetchOffsets(event.timestampsToSearch(), event.requireTimestamps());
         future.whenComplete(complete(event.future()));
     }
 
@@ -282,7 +288,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * it is already a member on the next poll.
      */
     private void process(final TopicSubscriptionChangeEvent event) {
-        if (!requestManagers.consumerHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.consumerHeartbeatRequestManager.isEmpty()) {
             log.warn("Group membership manager not present when processing a subscribe event");
             event.future().complete(null);
             return;
@@ -365,7 +371,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * them to update positions in the subscription state.
      */
     private void process(final CheckAndUpdatePositionsEvent event) {
-        CompletableFuture<Boolean> future = requestManagers.offsetsRequestManager.updateFetchPositions(event.deadlineMs(), metadataError);
+        CompletableFuture<Boolean> future = requestManagers.offsetsRequestManager.updateFetchPositions(event.deadlineMs());
         future.whenComplete(complete(event.future()));
     }
 
@@ -382,7 +388,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(final ConsumerRebalanceListenerCallbackCompletedEvent event) {
-        if (!requestManagers.consumerHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.consumerHeartbeatRequestManager.isEmpty()) {
             log.warn(
                 "An internal error occurred; the group membership manager was not present, so the notification of the {} callback execution could not be sent",
                 event.methodName()
@@ -393,14 +399,14 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(@SuppressWarnings("unused") final CommitOnCloseEvent event) {
-        if (!requestManagers.commitRequestManager.isPresent())
+        if (requestManagers.commitRequestManager.isEmpty())
             return;
         log.debug("Signal CommitRequestManager closing");
         requestManagers.commitRequestManager.get().signalClose();
     }
 
     private void process(final LeaveGroupOnCloseEvent event) {
-        if (!requestManagers.consumerMembershipManager.isPresent())
+        if (requestManagers.consumerMembershipManager.isEmpty())
             return;
 
         log.debug("Signal the ConsumerMembershipManager to leave the consumer group since the consumer is closing");
@@ -590,7 +596,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         return metadataVersionSnapshot;
     }
     
-    public void setMetadataError(CompletableFuture<RuntimeException> metadataError) {
-        this.metadataError = metadataError;
+    public void setMetadataError(Throwable metadataError) {
+        this.metadataError = Optional.of(metadataError);
     }
 }
