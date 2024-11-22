@@ -208,12 +208,10 @@ public final class OffsetsRequestManager implements RequestManager, ClusterResou
         });
 
         prepareFetchOffsetsRequests(timestampsToSearch, requireTimestamps, listOffsetsRequestState);
-        
         return listOffsetsRequestState.globalResult.thenApply(
                 result -> OffsetFetcherUtils.buildOffsetsForTimeInternalResult(
                         timestampsToSearch,
                         result.fetchedOffsets));
-
     }
 
     /**
