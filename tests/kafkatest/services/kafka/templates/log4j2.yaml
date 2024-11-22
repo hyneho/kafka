@@ -37,6 +37,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: INFO
+            onMatch: ACCEPT
 
       - name: KafkaDebugAppender
         fileName: "${sys:log_dir}/debug/server.log"
@@ -48,6 +49,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
+            onMatch: ACCEPT
 
       - name: StateChangeInfoAppender
         fileName: "${sys:log_dir}/info/state-change.log"
@@ -59,6 +61,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: INFO
+            onMatch: ACCEPT
 
       - name: StateChangeDebugAppender
         fileName: "${sys:log_dir}/debug/state-change.log"
@@ -70,6 +73,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
+            onMatch: ACCEPT
 
       - name: RequestInfoAppender
         fileName: "${sys:log_dir}/info/kafka-request.log"
@@ -81,6 +85,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: INFO
+            onMatch: ACCEPT
 
       - name: RequestDebugAppender
         fileName: "${sys:log_dir}/debug/kafka-request.log"
@@ -92,6 +97,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
+            onMatch: ACCEPT
 
       - name: CleanerInfoAppender
         fileName: "${sys:log_dir}/info/log-cleaner.log"
@@ -103,6 +109,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: INFO
+            onMatch: ACCEPT
 
       - name: CleanerDebugAppender
         fileName: "${sys:log_dir}/debug/log-cleaner.log"
@@ -114,6 +121,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
+            onMatch: ACCEPT
 
       - name: ControllerInfoAppender
         fileName: "${sys:log_dir}/info/controller.log"
@@ -125,6 +133,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: INFO
+            onMatch: ACCEPT
 
       - name: ControllerDebugAppender
         fileName: "${sys:log_dir}/debug/controller.log"
@@ -136,6 +145,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
+            onMatch: ACCEPT
 
       - name: AuthorizerInfoAppender
         fileName: "${sys:log_dir}/info/kafka-authorizer.log"
@@ -147,6 +157,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: INFO
+            onMatch: ACCEPT
 
       - name: AuthorizerDebugAppender
         fileName: "${sys:log_dir}/debug/kafka-authorizer.log"
@@ -158,6 +169,7 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
+            onMatch: ACCEPT
 
   Loggers:
     Root:
