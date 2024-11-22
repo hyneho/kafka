@@ -81,39 +81,39 @@ public class ProducerConfig extends AbstractConfig {
     public static final String BATCH_SIZE_CONFIG = "batch.size";
     private static final String BATCH_SIZE_DOC = "The producer will attempt to batch records together into fewer requests whenever multiple records are being sent"
                                                  + " to the same partition. This helps performance on both the client and the server. This configuration controls the "
-                                                 + "default batch size in bytes. "
+                                                 + "default batch size in bytes."
                                                  + "<p>"
-                                                 + "No attempt will be made to batch records larger than this size. "
+                                                 + "No attempt will be made to batch records larger than this size."
                                                  + "<p>"
-                                                 + "Requests sent to brokers will contain multiple batches, one for each partition with data available to be sent. "
+                                                 + "Requests sent to brokers will contain multiple batches, one for each partition with data available to be sent."
                                                  + "<p>"
                                                  + "A small batch size will make batching less common and may reduce throughput (a batch size of zero will disable "
                                                  + "batching entirely). A very large batch size may use memory a bit more wastefully as we will always allocate a "
                                                  + "buffer of the specified batch size in anticipation of additional records."
                                                  + "<p>"
                                                  + "Note: This setting gives the upper bound of the batch size to be sent. If we have fewer than this many bytes accumulated "
-                                                 + "for this partition, we will 'linger' for the <code>linger.ms</code> time waiting for more records to show up. "
+                                                 + "for this partition, we will 'linger' for the <code>linger.ms</code> time waiting for more records to show up."
                                                  + "This <code>linger.ms</code> setting defaults to 0, which means we'll immediately send out a record even the accumulated "
                                                  + "batch size is under this <code>batch.size</code> setting.";
 
     /** <code>partitioner.adaptive.partitioning.enable</code> */
-    public static final String PARTITIONER_ADPATIVE_PARTITIONING_ENABLE_CONFIG = "partitioner.adaptive.partitioning.enable";
-    private static final String PARTITIONER_ADPATIVE_PARTITIONING_ENABLE_DOC =
-            "When set to 'true', the producer will try to adapt to broker performance and produce more messages to partitions hosted on faster brokers. "
+    public static final String PARTITIONER_ADAPTIVE_PARTITIONING_ENABLE_CONFIG = "partitioner.adaptive.partitioning.enable";
+    private static final String PARTITIONER_ADAPTIVE_PARTITIONING_ENABLE_DOC =
+            "When set to 'true', the producer will try to adapt to broker performance and produce more messages to partitions hosted on faster brokers."
             + "If 'false', producer will try to distribute messages uniformly. Note: this setting has no effect if a custom partitioner is used";
 
     /** <code>partitioner.availability.timeout.ms</code> */
     public static final String PARTITIONER_AVAILABILITY_TIMEOUT_MS_CONFIG = "partitioner.availability.timeout.ms";
     private static final String PARTITIONER_AVAILABILITY_TIMEOUT_MS_DOC =
             "If a broker cannot process produce requests from a partition for <code>" + PARTITIONER_AVAILABILITY_TIMEOUT_MS_CONFIG + "</code> time, "
-            + "the partitioner treats that partition as not available.  If the value is 0, this logic is disabled. "
+            + "the partitioner treats that partition as not available.  If the value is 0, this logic is disabled."
             + "Note: this setting has no effect if a custom partitioner is used or <code>" + PARTITIONER_ADPATIVE_PARTITIONING_ENABLE_CONFIG
             + "</code> is set to 'false'";
 
     /** <code>partitioner.ignore.keys</code> */
     public static final String PARTITIONER_IGNORE_KEYS_CONFIG = "partitioner.ignore.keys";
-    private static final String PARTITIONER_IGNORE_KEYS_DOC = "When set to 'true' the producer won't use record keys to choose a partition. "
-            + "If 'false', producer would choose a partition based on a hash of the key when a key is present. "
+    private static final String PARTITIONER_IGNORE_KEYS_DOC = "When set to 'true' the producer won't use record keys to choose a partition."
+            + "If 'false', producer would choose a partition based on a hash of the key when a key is present."
             + "Note: this setting has no effect if a custom partitioner is used.";
 
     /** <code>acks</code> */
@@ -139,7 +139,7 @@ public class ProducerConfig extends AbstractConfig {
 
     /** <code>linger.ms</code> */
     public static final String LINGER_MS_CONFIG = "linger.ms";
-    private static final String LINGER_MS_DOC = "The producer groups together any records that arrive in between request transmissions into a single batched request. "
+    private static final String LINGER_MS_DOC = "The producer groups together any records that arrive in between request transmissions into a single batched request."
                                                 + "Normally this occurs only under load when records arrive faster than they can be sent out. However in some circumstances the client may want to "
                                                 + "reduce the number of requests even under moderate load. This setting accomplishes this by adding a small amount "
                                                 + "of artificial delay&mdash;that is, rather than immediately sending out a record, the producer will wait for up to "
@@ -163,7 +163,7 @@ public class ProducerConfig extends AbstractConfig {
             + "prior to sending, the time to await acknowledgement from the broker (if expected), and the time allowed "
             + "for retriable send failures. The producer may report failure to send a record earlier than this config if "
             + "either an unrecoverable error is encountered, the retries have been exhausted, "
-            + "or the record is added to a batch which reached an earlier delivery expiration deadline. "
+            + "or the record is added to a batch which reached an earlier delivery expiration deadline."
             + "The value of this config should be greater than or equal to the sum of <code>" + REQUEST_TIMEOUT_MS_CONFIG + "</code> "
             + "and <code>" + LINGER_MS_CONFIG + "</code>.";
 
