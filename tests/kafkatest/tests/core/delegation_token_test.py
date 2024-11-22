@@ -55,6 +55,7 @@ client.id=console-consumer
         self.producer = VerifiableProducer(self.test_context, num_nodes=1, kafka=self.kafka, topic=self.topic, max_messages=1,
                                        throughput=1, kafka_opts_override=self.client_kafka_opts,
                                        client_prop_file_override=self.client_properties_content)
+
         self.consumer = ConsoleConsumer(self.test_context, num_nodes=1, kafka=self.kafka, topic=self.topic,
                                         kafka_opts_override=self.client_kafka_opts,
                                         client_prop_file_override=self.client_properties_content)

@@ -168,7 +168,7 @@ class LogDirFailureTest(ProduceConsumeValidateTest):
             self.producer = VerifiableProducer(self.test_context, self.num_producers, self.kafka, self.topic1,
                                                throughput=self.producer_throughput, offline_nodes=offline_nodes)
             self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka, self.topic1, group_id="test-consumer-group-2",
-                                            consumer_timeout_ms=90000, message_validator=is_int, consumer_properties=consumer_properties)
+                                            consumer_timeout_ms=90000, message_validator=is_int)
             self.consumer_start_timeout_sec = 90
             self.start_producer_and_consumer()
 

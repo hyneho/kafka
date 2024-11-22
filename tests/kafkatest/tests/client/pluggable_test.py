@@ -17,7 +17,7 @@ from ducktape.mark import matrix
 from ducktape.mark.resource import cluster
 from ducktape.utils.util import wait_until
 
-from kafkatest.services.kafka import quorum, consumer_group
+from kafkatest.services.kafka import quorum
 from kafkatest.tests.verifiable_consumer_test import VerifiableConsumerTest
 
 class PluggableConsumerTest(VerifiableConsumerTest):
@@ -33,12 +33,12 @@ class PluggableConsumerTest(VerifiableConsumerTest):
         })
 
     @cluster(num_nodes=4)
-    @matrix(metadata_quorum=quorum.all_non_upgrade, group_protocol=[consumer_group.classic_group_protocol])
-    def test_start_stop(self, metadata_quorum=quorum.zk, group_protocol=consumer_group.classic_group_protocol):
+    @matrix(metadata_quorum=quorum.all_non_upgrade)
+    def test_start_stop(self, metadata_quorum=quorum.zk):
         """
         Test that a pluggable VerifiableConsumer module load works
         """
-        consumer = self.setup_consumer(self.TOPIC, group_protocol=group_protocol)
+        consumer = self.setup_consumer(self.TOPIC)
 
         for _, node in enumerate(consumer.nodes, 1):
             consumer.start_node(node)

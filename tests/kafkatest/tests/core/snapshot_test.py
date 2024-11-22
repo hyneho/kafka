@@ -126,7 +126,7 @@ class TestSnapshots(ProduceConsumeValidateTest):
             self.logger.debug("File %s was found" % file_path)
             return True
 
-    def validate_success(self, group_protocol, topic = None):
+    def validate_success(self, topic = None, group_protocol=None):
         if topic is None:
             # Create a new topic
             topic = "%s%d" % (TestSnapshots.TOPIC_NAME_PREFIX, self.topics_created)
@@ -213,7 +213,7 @@ class TestSnapshots(ProduceConsumeValidateTest):
         self.kafka.create_topic(topic_cfg)
 
         # Produce to the newly created topic and make sure it works.
-        self.validate_success(group_protocol, broker_topic)
+        self.validate_success(broker_topic, group_protocol)
 
     @cluster(num_nodes=9)
     @matrix(
