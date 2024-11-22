@@ -17,13 +17,14 @@
 
 package org.apache.kafka.streams.kstream.internals.graph;
 
-import java.util.Set;
 import org.apache.kafka.streams.internals.ApiUtils;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
 import org.apache.kafka.streams.processor.internals.ProcessorAdapter;
 import org.apache.kafka.streams.state.StoreBuilder;
+
+import java.util.Set;
 
 /**
  * Class used to represent a {@link ProcessorSupplier} or {@link FixedKeyProcessorSupplier} and the name

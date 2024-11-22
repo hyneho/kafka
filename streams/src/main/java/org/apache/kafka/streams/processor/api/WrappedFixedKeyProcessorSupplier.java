@@ -27,4 +27,3 @@ package org.apache.kafka.streams.processor.api;
 public interface WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> extends FixedKeyProcessorSupplier<KIn, VIn, VOut> {
 
 }
-

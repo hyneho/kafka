@@ -1383,8 +1383,8 @@ public class InternalTopologyBuilderTest {
 
         final ProcessorSupplier<String, String, String, String> throwingProcessorSupplier =
             () -> (Processor<String, String, String, String>) record -> {
-            throw new RuntimeException("oops, don't call process on me!");
-        };
+                throw new RuntimeException("oops, don't call process on me!");
+            };
 
         final ProcessorSupplier<String, String, String, String> wrappedProcessorSupplier =
             builder.wrapProcessorSupplier("name", throwingProcessorSupplier);

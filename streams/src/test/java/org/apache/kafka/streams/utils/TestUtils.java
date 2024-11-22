@@ -16,22 +16,22 @@
  */
 package org.apache.kafka.streams.utils;
 
-import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.streams.KafkaStreams;
-
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorWrapper;
 import org.apache.kafka.streams.processor.api.WrappedFixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.WrappedProcessorSupplier;
+
 import org.junit.jupiter.api.TestInfo;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.StreamsConfig.APPLICATION_ID_CONFIG;

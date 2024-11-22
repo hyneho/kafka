@@ -17,7 +17,6 @@
 
 package org.apache.kafka.streams.processor.api;
 
-import java.util.Map;
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
@@ -25,6 +24,8 @@ import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.TopologyConfig;
 import org.apache.kafka.streams.processor.internals.NoOpProcessorWrapper.WrappedFixedKeyProcessorSupplierImpl;
 import org.apache.kafka.streams.processor.internals.NoOpProcessorWrapper.WrappedProcessorSupplierImpl;
+
+import java.util.Map;
 
 /**
  * Wrapper class that can be used to inject custom wrappers around the processors of their application topology.

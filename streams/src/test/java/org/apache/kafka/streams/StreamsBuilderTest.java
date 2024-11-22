@@ -16,9 +16,6 @@
  */
 package org.apache.kafka.streams;
 
-import java.util.ArrayList;
-import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -74,13 +71,16 @@ import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;

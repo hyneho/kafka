@@ -16,15 +16,16 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
-import java.util.Set;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessor;
-import org.apache.kafka.streams.processor.api.Processor;
-import org.apache.kafka.streams.processor.api.ProcessorWrapper;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
+import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
+import org.apache.kafka.streams.processor.api.ProcessorWrapper;
 import org.apache.kafka.streams.processor.api.WrappedFixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.WrappedProcessorSupplier;
 import org.apache.kafka.streams.state.StoreBuilder;
+
+import java.util.Set;
 
 public class NoOpProcessorWrapper implements ProcessorWrapper {
 
