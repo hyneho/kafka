@@ -80,7 +80,7 @@ class ConsumeBenchTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_consume_bench(self, topics, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_consume_bench(self, topics, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         """
         Runs a ConsumeBench workload to consume messages
         """
@@ -111,7 +111,7 @@ class ConsumeBenchTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_single_partition(self, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_single_partition(self, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         """
         Run a ConsumeBench against a single partition
         """
@@ -143,7 +143,7 @@ class ConsumeBenchTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_multiple_consumers_random_group_topics(self, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_multiple_consumers_random_group_topics(self, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         """
         Runs multiple consumers group to read messages from topics.
         Since a consumerGroup isn't specified, each consumer should read from all topics independently
@@ -176,7 +176,7 @@ class ConsumeBenchTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_two_consumers_specified_group_topics(self, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_two_consumers_specified_group_topics(self, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         """
         Runs two consumers in the same consumer group to read messages from topics.
         Since a consumerGroup is specified, each consumer should dynamically get assigned a partition from group
@@ -210,7 +210,7 @@ class ConsumeBenchTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_multiple_consumers_random_group_partitions(self, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_multiple_consumers_random_group_partitions(self, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         """
         Runs multiple consumers in to read messages from specific partitions.
         Since a consumerGroup isn't specified, each consumer will get assigned a random group
@@ -244,7 +244,7 @@ class ConsumeBenchTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_multiple_consumers_specified_group_partitions_should_raise(self, metadata_quorum, use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_multiple_consumers_specified_group_partitions_should_raise(self, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         """
         Runs multiple consumers in the same group to read messages from specific partitions.
         It is an invalid configuration to provide a consumer group and specific partitions.

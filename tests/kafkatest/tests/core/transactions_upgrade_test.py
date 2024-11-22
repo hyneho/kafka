@@ -201,11 +201,9 @@ class TransactionsUpgradeTest(Test):
     @matrix(
         from_kafka_version=[str(LATEST_3_9), str(LATEST_3_8), str(LATEST_3_7), str(LATEST_3_6), str(LATEST_3_5), str(LATEST_3_4), str(LATEST_3_3), str(LATEST_3_2), str(LATEST_3_1)],
         metadata_quorum=[isolated_kraft],
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
-    def test_transactions_upgrade(self, from_kafka_version, metadata_quorum=quorum.isolated_kraft,
-                                  use_new_coordinator=False, group_protocol=consumer_group.classic_group_protocol):
+    def test_transactions_upgrade(self, from_kafka_version, metadata_quorum=quorum.isolated_kraft, use_new_coordinator=False, group_protocol=None):
         fromKafkaVersion = KafkaVersion(from_kafka_version)
         self.kafka = KafkaService(self.test_context,
                                   num_nodes=self.num_brokers,

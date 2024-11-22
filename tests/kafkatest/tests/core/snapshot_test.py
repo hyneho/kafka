@@ -156,8 +156,7 @@ class TestSnapshots(ProduceConsumeValidateTest):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_broker(self, metadata_quorum=quorum.combined_kraft, use_new_coordinator=False,
-                    group_protocol=consumer_group.classic_group_protocol):
+    def test_broker(self, metadata_quorum=quorum.combined_kraft, use_new_coordinator=False, group_protocol=None):
         """ Test the ability of a broker to consume metadata snapshots
         and to recover the cluster metadata state using them
 
@@ -218,16 +217,14 @@ class TestSnapshots(ProduceConsumeValidateTest):
     @cluster(num_nodes=9)
     @matrix(
         metadata_quorum=quorum.all_kraft,
-        use_new_coordinator=[False],
-        group_protocol=[consumer_group.classic_group_protocol]
+        use_new_coordinator=[False]
     )
     @matrix(
         metadata_quorum=quorum.all_kraft,
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_controller(self, metadata_quorum=quorum.combined_kraft, use_new_coordinator=False,
-                        group_protocol=consumer_group.classic_group_protocol):
+    def test_controller(self, metadata_quorum=quorum.combined_kraft, use_new_coordinator=False, group_protocol=None):
         """ Test the ability of controllers to consume metadata snapshots
         and to recover the cluster metadata state using them
 

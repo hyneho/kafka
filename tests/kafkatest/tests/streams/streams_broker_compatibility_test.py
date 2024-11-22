@@ -13,12 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ducktape.mark import parametrize
 from ducktape.mark import matrix
 from ducktape.mark.resource import cluster
 from ducktape.tests.test import Test
 from ducktape.utils.util import wait_until
-from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.streams import StreamsBrokerCompatibilityService
 from kafkatest.services.verifiable_consumer import VerifiableConsumer
@@ -51,8 +49,7 @@ class StreamsBrokerCompatibility(Test):
                                            1,
                                            self.kafka,
                                            self.output,
-                                           "stream-broker-compatibility-verify-consumer",
-                                           consumer_group.classic_group_protocol)
+                                           "stream-broker-compatibility-verify-consumer")
 
 
     @cluster(num_nodes=4)
