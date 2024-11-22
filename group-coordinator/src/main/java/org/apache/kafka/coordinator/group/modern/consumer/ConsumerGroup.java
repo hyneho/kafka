@@ -26,6 +26,7 @@ import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerProtocolSubscription;
 import org.apache.kafka.common.protocol.Errors;
+import org.apache.kafka.common.requests.JoinGroupRequest;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers;
 import org.apache.kafka.coordinator.group.OffsetExpirationCondition;
@@ -513,6 +514,13 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         // or a consumer which does not use the group management facility. In this case,
         // the request can commit offsets if the group is empty.
         if (memberEpoch < 0 && members().isEmpty()) return;
+
+        // TxnOffsetCommitRequest versions v0-v2 do not include a member ID.
+        // And we can still send UNKNOWN_GENERATION_ID and UNKNOWN_MEMBER_ID through Producer#sendOffsetsToTransaction.
+        // Therefore, we should not throw exception in these cases.
+        if (isTransactional && memberEpoch == JoinGroupRequest.UNKNOWN_GENERATION_ID &&
+            memberId.equals(JoinGroupRequest.UNKNOWN_MEMBER_ID) && groupInstanceId == null)
+            return;
 
         final ConsumerGroupMember member = getOrMaybeCreateMember(memberId, false);
 
