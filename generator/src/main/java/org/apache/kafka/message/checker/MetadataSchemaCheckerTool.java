@@ -95,6 +95,9 @@ public class MetadataSchemaCheckerTool {
                 Path rootKafkaDirectory = Paths.get("").toAbsolutePath();
                 while (!rootKafkaDirectory.endsWith("kafka")) {
                     rootKafkaDirectory = rootKafkaDirectory.getParent();
+                    if (rootKafkaDirectory == null) {
+                        throw new RuntimeException("Invalid directory, need to be within the kafka directory");
+                    }
                 }
                 String gitContent = GetDataFromGit(filePath, rootKafkaDirectory);
                 EvolutionVerifier verifier = new EvolutionVerifier(
