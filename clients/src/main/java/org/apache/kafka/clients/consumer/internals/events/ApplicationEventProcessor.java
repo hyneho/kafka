@@ -68,6 +68,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         this.metadata = metadata;
         this.subscriptions = subscriptions;
         this.metadataVersionSnapshot = metadata.updateVersion();
+        this.metadataError = Optional.empty();
     }
 
     @SuppressWarnings({"CyclomaticComplexity"})
