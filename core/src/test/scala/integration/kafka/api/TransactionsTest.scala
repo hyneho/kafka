@@ -301,13 +301,6 @@ class TransactionsTest extends IntegrationTestHarness {
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961"))
-  def testSendOffsetsWithGroupId(quorum: String, groupProtocol: String): Unit = {
-    sendOffset((producer, groupId, consumer) =>
-      producer.sendOffsetsToTransaction(TestUtils.consumerPositions(consumer).asJava, consumer.groupMetadata()))
-  }
-
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testSendOffsetsWithGroupMetadata(quorum: String, groupProtocol: String): Unit = {
     sendOffset((producer, _, consumer) =>

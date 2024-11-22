@@ -76,13 +76,6 @@ class TransactionsBounceTest extends IntegrationTestHarness {
   override protected def brokerCount: Int = 4
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961"))
-  def testWithGroupId(quorum: String, groupProtocol: String): Unit = {
-    testBrokerFailure((producer, groupId, consumer) =>
-      producer.sendOffsetsToTransaction(TestUtils.consumerPositions(consumer).asJava, consumer.groupMetadata()))
-  }
-
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testWithGroupMetadata(quorum: String, groupProtocol: String): Unit = {
     testBrokerFailure((producer, _, consumer) =>
