@@ -22,9 +22,9 @@ import org.apache.kafka.common.config.ConfigException;
 import java.util.Objects;
 
 public class AutoOffsetResetStrategy {
-    public static final String EARLIEST_STRATEGY_NAME = "earliest";
-    public static final String LATEST_STRATEGY_NAME = "latest";
-    public static final String NONE_STRATEGY_NAME = "none";
+    private static final String EARLIEST_STRATEGY_NAME = "earliest";
+    private static final String LATEST_STRATEGY_NAME = "latest";
+    private static final String NONE_STRATEGY_NAME = "none";
 
     public static final AutoOffsetResetStrategy EARLIEST = new AutoOffsetResetStrategy(EARLIEST_STRATEGY_NAME);
     public static final AutoOffsetResetStrategy LATEST = new AutoOffsetResetStrategy(LATEST_STRATEGY_NAME);
