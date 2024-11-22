@@ -94,7 +94,7 @@ class TestKRaftUpgrade(ProduceConsumeValidateTest):
             self.wait_until_rejoin()
             self.logger.info("Successfully restarted broker node %s" % node.account.hostname)
 
-    def run_upgrade(self, from_kafka_version, group_protocol):
+    def run_upgrade(self, from_kafka_version):
         """Test upgrade of Kafka broker cluster from various versions to the current version
 
         from_kafka_version is a Kafka version to upgrade from.

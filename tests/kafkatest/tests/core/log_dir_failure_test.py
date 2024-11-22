@@ -87,8 +87,7 @@ class LogDirFailureTest(ProduceConsumeValidateTest):
 
     @cluster(num_nodes=10)
     @matrix(bounce_broker=[False, True], broker_type=["leader", "follower"], security_protocol=["PLAINTEXT"], metadata_quorum=[quorum.isolated_kraft])
-    def test_replication_with_disk_failure(self, bounce_broker, security_protocol, broker_type, metadata_quorum,
-                                           group_protocol=consumer_group.classic_group_protocol):
+    def test_replication_with_disk_failure(self, bounce_broker, security_protocol, broker_type, metadata_quorum):
         """Replication tests.
         These tests verify that replication provides simple durability guarantees by checking that data acked by
         brokers is still available for consumption in the face of various failure scenarios.
@@ -114,9 +113,8 @@ class LogDirFailureTest(ProduceConsumeValidateTest):
             # Initialize producer/consumer for topic2
             self.producer = VerifiableProducer(self.test_context, self.num_producers, self.kafka, self.topic2,
                                                throughput=self.producer_throughput)
-            consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
             self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka, self.topic2, group_id="test-consumer-group-1",
-                                            consumer_timeout_ms=60000, message_validator=is_int, consumer_properties=consumer_properties)
+                                            consumer_timeout_ms=60000, message_validator=is_int)
             self.start_producer_and_consumer()
 
             # Get a replica of the partition of topic2 and make its log directory offline by changing the log dir's permission.

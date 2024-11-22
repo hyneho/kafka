@@ -15,7 +15,7 @@ from ducktape.utils.util import wait_until
 from ducktape.mark.resource import cluster
 
 from kafkatest.services.console_consumer import ConsoleConsumer
-from kafkatest.services.kafka import KafkaService, quorum, consumer_group
+from kafkatest.services.kafka import KafkaService, quorum
 from kafkatest.services.kafka import config_property
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest
@@ -61,7 +61,7 @@ class ClientCompatibilityTestNewBroker(ProduceConsumeValidateTest):
     @matrix(producer_version=[str(LATEST_3_8)], consumer_version=[str(LATEST_3_8)], compression_types=[["none"]], timestamp_type=[str("CreateTime")], metadata_quorum=quorum.all_non_upgrade)
     @matrix(producer_version=[str(LATEST_3_9)], consumer_version=[str(LATEST_3_9)], compression_types=[["none"]], timestamp_type=[str("CreateTime")], metadata_quorum=quorum.all_non_upgrade)
     @matrix(producer_version=[str(LATEST_2_1)], consumer_version=[str(LATEST_2_1)], compression_types=[["zstd"]], timestamp_type=[str("CreateTime")], metadata_quorum=quorum.all_non_upgrade)
-    def test_compatibility(self, producer_version, consumer_version, compression_types, timestamp_type=None, metadata_quorum=quorum.zk, group_protocol=consumer_group.classic_group_protocol):
+    def test_compatibility(self, producer_version, consumer_version, compression_types, timestamp_type=None, metadata_quorum=quorum.zk):
         self.kafka = KafkaService(self.test_context, num_nodes=3, zk=None, version=DEV_BRANCH, topics={self.topic: {
                                                                     "partitions": 3,
                                                                     "replication-factor": 3,
@@ -78,11 +78,9 @@ class ClientCompatibilityTestNewBroker(ProduceConsumeValidateTest):
                                            compression_types=compression_types,
                                            version=KafkaVersion(producer_version))
 
-        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
                                         self.topic, consumer_timeout_ms=30000,
-                                        message_validator=is_int, version=KafkaVersion(consumer_version),
-                                        consumer_properties=consumer_properties)
+                                        message_validator=is_int, version=KafkaVersion(consumer_version))
 
         self.run_produce_consume_validate(lambda: wait_until(
             lambda: self.producer.each_produced_at_least(self.messages_per_producer) == True,

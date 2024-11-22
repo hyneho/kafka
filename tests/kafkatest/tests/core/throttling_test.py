@@ -137,7 +137,7 @@ class ThrottlingTest(ProduceConsumeValidateTest):
     @cluster(num_nodes=10)
     @parametrize(bounce_brokers=True, metadata_quorum=quorum.isolated_kraft)
     @parametrize(bounce_brokers=False, metadata_quorum=quorum.isolated_kraft)
-    def test_throttled_reassignment(self, bounce_brokers, metadata_quorum, group_protocol=consumer_group.classic_group_protocol):
+    def test_throttled_reassignment(self, bounce_brokers, metadata_quorum):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol
@@ -155,7 +155,6 @@ class ThrottlingTest(ProduceConsumeValidateTest):
                                            message_validator=is_int,
                                            throughput=self.producer_throughput)
 
-        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context,
                                         self.num_consumers,
                                         self.kafka,
@@ -163,8 +162,7 @@ class ThrottlingTest(ProduceConsumeValidateTest):
                                         consumer_timeout_ms=60000,
                                         message_validator=is_int,
                                         from_beginning=False,
-                                        wait_until_partitions_assigned=True,
-                                        consumer_properties=consumer_properties)
+                                        wait_until_partitions_assigned=True)
 
         self.kafka.start()
         bulk_producer.run()

@@ -17,7 +17,7 @@ from ducktape.mark import parametrize, matrix
 from ducktape.mark.resource import cluster
 from ducktape.utils.util import wait_until
 
-from kafkatest.services.kafka import config_property, consumer_group
+from kafkatest.services.kafka import config_property
 from kafkatest.tests.end_to_end import EndToEndTest
 from kafkatest.version import LATEST_2_4, LATEST_2_5, \
     LATEST_2_6, LATEST_2_7, LATEST_2_8, LATEST_3_0, LATEST_3_1, LATEST_3_2, LATEST_3_3, LATEST_3_4, LATEST_3_5, \
@@ -54,7 +54,7 @@ class TestDowngrade(EndToEndTest):
             self.kafka.start_node(node)
             self.wait_until_rejoin()
 
-    def setup_services(self, kafka_version, compression_types, security_protocol, static_membership, group_protocol):
+    def setup_services(self, kafka_version, compression_types, security_protocol, static_membership):
         self.create_zookeeper_if_necessary()
         self.zk.start()
 
@@ -71,8 +71,7 @@ class TestDowngrade(EndToEndTest):
 
         self.create_consumer(log_level="DEBUG",
                              version=kafka_version,
-                             static_membership=static_membership,
-                             group_protocol=group_protocol)
+                             static_membership=static_membership)
 
         self.consumer.start()
 
@@ -128,7 +127,7 @@ class TestDowngrade(EndToEndTest):
     @parametrize(version=str(LATEST_2_4), compression_types=["none"], static_membership=True)
     @parametrize(version=str(LATEST_2_4), compression_types=["zstd"], security_protocol="SASL_SSL", static_membership=True)
     def test_upgrade_and_downgrade(self, version, compression_types, security_protocol="PLAINTEXT",
-            static_membership=False, group_protocol=consumer_group.classic_group_protocol):
+            static_membership=False):
         """Test upgrade and downgrade of Kafka cluster from old versions to the current version
 
         `version` is the Kafka version to upgrade from and downgrade back to
@@ -149,7 +148,7 @@ class TestDowngrade(EndToEndTest):
         """
         kafka_version = KafkaVersion(version)
 
-        self.setup_services(kafka_version, compression_types, security_protocol, static_membership, group_protocol)
+        self.setup_services(kafka_version, compression_types, security_protocol, static_membership)
         self.await_startup()
 
         start_topic_id = self.kafka.topic_id(self.topic)

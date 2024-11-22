@@ -94,7 +94,7 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
 
     @cluster(num_nodes=6)
     @matrix(metadata_quorum=[combined_kraft])
-    def test_combined_mode_reconfig(self, metadata_quorum, group_protocol=consumer_group.classic_group_protocol):
+    def test_combined_mode_reconfig(self, metadata_quorum):
         """
         Tests quorum reconfiguration in combined mode with produce & consume validation.
         Starts a controller in standalone mode with two other broker nodes, then calls perform_reconfig to add
@@ -119,11 +119,9 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
                                            self.topic, throughput=self.producer_throughput,
                                            message_validator=is_int, compression_types=["none"],
                                            version=DEV_BRANCH, offline_nodes=[inactive_controller])
-        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
                                         self.topic, consumer_timeout_ms=30000,
-                                        message_validator=is_int, version=DEV_BRANCH,
-                                        consumer_properties=consumer_properties)
+                                        message_validator=is_int, version=DEV_BRANCH)
         # Perform reconfigurations
         self.run_produce_consume_validate(
             core_test_action=lambda: self.perform_reconfig(self.kafka.idx(self.kafka.nodes[0]),
@@ -133,7 +131,7 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
 
     @cluster(num_nodes=7)
     @matrix(metadata_quorum=[isolated_kraft])
-    def test_isolated_mode_reconfig(self, metadata_quorum, group_protocol=consumer_group.classic_group_protocol):
+    def test_isolated_mode_reconfig(self, metadata_quorum):
         """
         Tests quorum reconfiguration in isolated mode with produce & consume validation.
         Starts a controller in standalone mode with three other broker nodes, then calls perform_reconfig to add
@@ -162,11 +160,9 @@ class TestQuorumReconfiguration(ProduceConsumeValidateTest):
                                            self.topic, throughput=self.producer_throughput,
                                            message_validator=is_int, compression_types=["none"],
                                            version=DEV_BRANCH)
-        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka,
                                         self.topic, consumer_timeout_ms=30000,
-                                        message_validator=is_int, version=DEV_BRANCH,
-                                        consumer_properties=consumer_properties)
+                                        message_validator=is_int, version=DEV_BRANCH)
         # Perform reconfigurations
         self.run_produce_consume_validate(
             core_test_action=lambda: self.perform_reconfig(controller_quorum.node_id_as_isolated_controller(self.kafka.controller_quorum.nodes[0]),
