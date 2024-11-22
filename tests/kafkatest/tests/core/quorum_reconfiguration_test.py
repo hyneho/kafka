@@ -26,7 +26,7 @@ from ducktape.tests.test import TestContext
 from ducktape.utils.util import wait_until
 
 from kafkatest.services.console_consumer import ConsoleConsumer
-from kafkatest.services.kafka import KafkaService, consumer_group
+from kafkatest.services.kafka import KafkaService
 from kafkatest.services.kafka.quorum import combined_kraft, ServiceQuorumInfo, isolated_kraft
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.tests.produce_consume_validate import ProduceConsumeValidateTest

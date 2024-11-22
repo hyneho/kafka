@@ -129,8 +129,7 @@ class QuotaTest(Test):
     @cluster(num_nodes=5)
     @matrix(quota_type=[QuotaConfig.CLIENT_ID, QuotaConfig.USER, QuotaConfig.USER_CLIENT], override_quota=[True, False])
     @parametrize(quota_type=QuotaConfig.CLIENT_ID, consumer_num=2)
-    def test_quota(self, quota_type, override_quota=True, producer_num=1, consumer_num=1,
-                   group_protocol=consumer_group.classic_group_protocol):
+    def test_quota(self, quota_type, override_quota=True, producer_num=1, consumer_num=1):
         self.kafka.start()
 
         self.quota_config = QuotaConfig(quota_type, override_quota, self.kafka)
@@ -148,12 +147,10 @@ class QuotaTest(Test):
         producer.run()
 
         # Consume all messages
-        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         consumer = ConsoleConsumer(self.test_context, consumer_num, self.kafka, self.topic,
             consumer_timeout_ms=60000, client_id=consumer_client_id,
             jmx_object_names=['kafka.consumer:type=consumer-fetch-manager-metrics,client-id=%s' % consumer_client_id],
-            jmx_attributes=['bytes-consumed-rate'], version=client_version,
-            consumer_properties=consumer_properties)
+            jmx_attributes=['bytes-consumed-rate'], version=client_version)
         consumer.run()
 
         for idx, messages in consumer.messages_consumed.items():
