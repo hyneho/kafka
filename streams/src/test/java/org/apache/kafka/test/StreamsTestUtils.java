@@ -114,7 +114,7 @@ public final class StreamsTestUtils {
         return getStreamsConfig(UUID.randomUUID().toString());
     }
 
-    public static <K, V> List<KeyValue<K, V>> toList(final KeyValueIterator<K, V> iterator) {
+    public static <K, V> List<KeyValue<K, V>> toListAndCloseIterator(final KeyValueIterator<K, V> iterator) {
         try (iterator) {
             final List<KeyValue<K, V>> results = new ArrayList<>();
 

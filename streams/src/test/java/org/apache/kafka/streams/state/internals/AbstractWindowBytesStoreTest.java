@@ -59,7 +59,7 @@ import static java.time.Instant.ofEpochMilli;
 import static java.util.Arrays.asList;
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
-import static org.apache.kafka.test.StreamsTestUtils.toList;
+import static org.apache.kafka.test.StreamsTestUtils.toListAndCloseIterator;
 import static org.apache.kafka.test.StreamsTestUtils.toSet;
 import static org.apache.kafka.test.StreamsTestUtils.valuesToSetAndCloseIterator;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -263,7 +263,7 @@ public abstract class AbstractWindowBytesStoreTest {
 
         assertEquals(
             asList(zero, one, two, three, four, five),
-            toList(windowStore.all())
+            toListAndCloseIterator(windowStore.all())
         );
     }
 
@@ -283,7 +283,7 @@ public abstract class AbstractWindowBytesStoreTest {
         // Only non-deleted records should appear in the all() iterator
         assertEquals(
             asList(zero, two, four),
-            toList(windowStore.all())
+            toListAndCloseIterator(windowStore.all())
         );
     }
 
@@ -301,7 +301,7 @@ public abstract class AbstractWindowBytesStoreTest {
 
         assertEquals(
             asList(zero, one, two, three, four),
-            toList(windowStore.all())
+            toListAndCloseIterator(windowStore.all())
         );
     }
 
@@ -317,7 +317,7 @@ public abstract class AbstractWindowBytesStoreTest {
         // A new all() iterator after a previous all() iterator was closed should return all elements.
         assertEquals(
             asList(zero, one),
-            toList(windowStore.all())
+            toListAndCloseIterator(windowStore.all())
         );
     }
 
@@ -327,7 +327,7 @@ public abstract class AbstractWindowBytesStoreTest {
 
         assertEquals(
             asList(five, four, three, two, one, zero),
-            toList(windowStore.backwardAll())
+            toListAndCloseIterator(windowStore.backwardAll())
         );
     }
 
@@ -337,15 +337,15 @@ public abstract class AbstractWindowBytesStoreTest {
 
         assertEquals(
             asList(one, two, three, four),
-            toList(windowStore.fetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 4)))
+            toListAndCloseIterator(windowStore.fetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 4)))
         );
         assertEquals(
             asList(zero, one, two, three),
-            toList(windowStore.fetchAll(ofEpochMilli(defaultStartTime), ofEpochMilli(defaultStartTime + 3)))
+            toListAndCloseIterator(windowStore.fetchAll(ofEpochMilli(defaultStartTime), ofEpochMilli(defaultStartTime + 3)))
         );
         assertEquals(
             asList(one, two, three, four, five),
-            toList(windowStore.fetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 5)))
+            toListAndCloseIterator(windowStore.fetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 5)))
         );
     }
 
@@ -355,15 +355,15 @@ public abstract class AbstractWindowBytesStoreTest {
 
         assertEquals(
             asList(four, three, two, one),
-            toList(windowStore.backwardFetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 4)))
+            toListAndCloseIterator(windowStore.backwardFetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 4)))
         );
         assertEquals(
             asList(three, two, one, zero),
-            toList(windowStore.backwardFetchAll(ofEpochMilli(defaultStartTime), ofEpochMilli(defaultStartTime + 3)))
+            toListAndCloseIterator(windowStore.backwardFetchAll(ofEpochMilli(defaultStartTime), ofEpochMilli(defaultStartTime + 3)))
         );
         assertEquals(
             asList(five, four, three, two, one),
-            toList(windowStore.backwardFetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 5)))
+            toListAndCloseIterator(windowStore.backwardFetchAll(ofEpochMilli(defaultStartTime + 1), ofEpochMilli(defaultStartTime + 5)))
         );
     }
 
@@ -373,7 +373,7 @@ public abstract class AbstractWindowBytesStoreTest {
 
         assertEquals(
             asList(zero, one),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 0,
                 1,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -381,7 +381,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             Collections.singletonList(one),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 1,
                 1,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -389,7 +389,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(one, two, three),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 1,
                 3,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -397,7 +397,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(zero, one, two, three),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 0,
                 5,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -405,7 +405,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(zero, one, two, three, four, five),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 0,
                 5,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -413,7 +413,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(two, three, four, five),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 0,
                 5,
                 ofEpochMilli(defaultStartTime + 2L),
@@ -421,7 +421,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             Collections.emptyList(),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 4,
                 5,
                 ofEpochMilli(defaultStartTime + 2L),
@@ -429,7 +429,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             Collections.emptyList(),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 0,
                 3,
                 ofEpochMilli(defaultStartTime + 3L),
@@ -437,7 +437,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(zero, one, two),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 null,
                 2,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -445,7 +445,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(two, three, four, five),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 2,
                 null,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -453,7 +453,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(zero, one, two, three, four, five),
-            toList(windowStore.fetch(
+            toListAndCloseIterator(windowStore.fetch(
                 null,
                 null,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -468,7 +468,7 @@ public abstract class AbstractWindowBytesStoreTest {
 
         assertEquals(
             asList(one, zero),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 0,
                 1,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -476,7 +476,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             Collections.singletonList(one),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 1,
                 1,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -484,7 +484,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(three, two, one),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 1,
                 3,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -492,7 +492,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(three, two, one, zero),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 0,
                 5,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -500,7 +500,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(five, four, three, two, one, zero),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 0,
                 5,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -508,7 +508,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(five, four, three, two),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 0,
                 5,
                 ofEpochMilli(defaultStartTime + 2L),
@@ -516,7 +516,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             Collections.emptyList(),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 4,
                 5,
                 ofEpochMilli(defaultStartTime + 2L),
@@ -524,7 +524,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             Collections.emptyList(),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 0,
                 3,
                 ofEpochMilli(defaultStartTime + 3L),
@@ -532,7 +532,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(two, one, zero),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 null,
                 2,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -540,7 +540,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(five, four, three, two),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 2,
                 null,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),
@@ -548,7 +548,7 @@ public abstract class AbstractWindowBytesStoreTest {
         );
         assertEquals(
             asList(five, four, three, two, one, zero),
-            toList(windowStore.backwardFetch(
+            toListAndCloseIterator(windowStore.backwardFetch(
                 null,
                 null,
                 ofEpochMilli(defaultStartTime - WINDOW_SIZE),

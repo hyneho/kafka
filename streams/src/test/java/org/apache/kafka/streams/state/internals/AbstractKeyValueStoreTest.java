@@ -42,7 +42,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.kafka.test.StreamsTestUtils.toList;
+import static org.apache.kafka.test.StreamsTestUtils.toListAndCloseIterator;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -498,7 +498,7 @@ public abstract class AbstractKeyValueStoreTest {
 
         store.putAll(entries);
 
-        final List<KeyValue<Integer, String>> allReturned = toList(store.all());
+        final List<KeyValue<Integer, String>> allReturned = toListAndCloseIterator(store.all());
         final List<KeyValue<Integer, String>> expectedReturned =
             Arrays.asList(KeyValue.pair(1, "one"), KeyValue.pair(2, "two"));
 
@@ -513,16 +513,11 @@ public abstract class AbstractKeyValueStoreTest {
 
         store.putAll(entries);
 
-        final List<KeyValue<Integer, String>> allReturned = new ArrayList<>();
+        final List<KeyValue<Integer, String>> allReturned = toListAndCloseIterator(store.reverseAll());
         final List<KeyValue<Integer, String>> expectedReturned =
             Arrays.asList(KeyValue.pair(2, "two"), KeyValue.pair(1, "one"));
 
-        try (final KeyValueIterator<Integer, String> iterator = store.reverseAll()) {
-            while (iterator.hasNext()) {
-                allReturned.add(iterator.next());
-            }
-            assertThat(allReturned, equalTo(expectedReturned));
-        }
+        assertThat(allReturned, equalTo(expectedReturned));
     }
 
     @Test
