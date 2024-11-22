@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class LogContext {
 
-    private static final ConcurrentHashMap<Class<?>, Logger> loggerCache = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Class<?>, Logger> LOGGER_CACHE = new ConcurrentHashMap<>();
     private final String logPrefix;
 
     public LogContext(String logPrefix) {
@@ -46,7 +46,7 @@ public class LogContext {
     }
 
     public Logger logger(Class<?> clazz) {
-        Logger logger = loggerCache.computeIfAbsent(clazz, LoggerFactory::getLogger);
+        Logger logger = LOGGER_CACHE.computeIfAbsent(clazz, LoggerFactory::getLogger);
         if (logger instanceof LocationAwareLogger) {
             return new LocationAwareKafkaLogger(logPrefix, (LocationAwareLogger) logger);
         } else {
