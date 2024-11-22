@@ -104,28 +104,24 @@ class ConsumerProtocolMigrationTest(VerifiableConsumerTest):
         metadata_quorum=[quorum.isolated_kraft],
         consumer_group_migration_policy=["disabled"],
         consumer_version=consumer_versions_supporting_range_assignnor,
-        assignment_strategy=[RANGE],
-        group_protocol=[consumer_group.classic_group_protocol]
+        assignment_strategy=[RANGE]
     )
     @matrix(
         static_membership=[True],
         metadata_quorum=[quorum.isolated_kraft],
         consumer_group_migration_policy=["disabled"],
         consumer_version=consumer_versions_supporting_static_membership,
-        assignment_strategy=[RANGE],
-        group_protocol=[consumer_group.classic_group_protocol]
+        assignment_strategy=[RANGE]
     )
     @matrix(
         static_membership=[True, False],
         metadata_quorum=[quorum.isolated_kraft],
         consumer_group_migration_policy=["disabled"],
         consumer_version=consumer_versions_supporting_cooperative_sticky_assignor,
-        assignment_strategy=[COOPERATIVE_STICKEY],
-        group_protocol=[consumer_group.classic_group_protocol]
+        assignment_strategy=[COOPERATIVE_STICKEY]
     )
     def test_consumer_offline_migration(self, static_membership, metadata_quorum,
-                                        consumer_group_migration_policy, consumer_version, assignment_strategy,
-                                        group_protocol=consumer_group.classic_group_protocol):
+                                        consumer_group_migration_policy, consumer_version, assignment_strategy):
         """
         Verify correct consumer behavior when the consumers in the group are restarted to perform
         offline upgrade/downgrade.
@@ -140,7 +136,7 @@ class ConsumerProtocolMigrationTest(VerifiableConsumerTest):
           to finish shutting down before starting up them.
         """
         producer = self.setup_producer(self.TOPIC)
-        consumer = self.setup_consumer(self.TOPIC, group_protocol=group_protocol,
+        consumer = self.setup_consumer(self.TOPIC, group_protocol=consumer_group.classic_group_protocol,
                                        assignment_strategy=assignment_strategy, enable_autocommit=True)
 
         kafka_version = KafkaVersion(consumer_version)
@@ -178,28 +174,24 @@ class ConsumerProtocolMigrationTest(VerifiableConsumerTest):
         metadata_quorum=[quorum.isolated_kraft],
         consumer_group_migration_policy=["bidirectional", "upgrade"],
         consumer_version=consumer_versions_supporting_range_assignnor,
-        assignment_strategy=[RANGE],
-        group_protocol=[consumer_group.classic_group_protocol]
+        assignment_strategy=[RANGE]
     )
     @matrix(
         static_membership=[True],
         metadata_quorum=[quorum.isolated_kraft],
         consumer_group_migration_policy=["bidirectional", "upgrade"],
         consumer_version=consumer_versions_supporting_static_membership,
-        assignment_strategy=[RANGE],
-        group_protocol=[consumer_group.classic_group_protocol]
+        assignment_strategy=[RANGE]
     )
     @matrix(
         static_membership=[True, False],
         metadata_quorum=[quorum.isolated_kraft],
         consumer_group_migration_policy=["bidirectional", "upgrade"],
         consumer_version=consumer_versions_supporting_cooperative_sticky_assignor,
-        assignment_strategy=[COOPERATIVE_STICKEY],
-        group_protocol=[consumer_group.classic_group_protocol]
+        assignment_strategy=[COOPERATIVE_STICKEY]
     )
     def test_consumer_rolling_upgrade(self, static_membership, metadata_quorum,
-                                      consumer_group_migration_policy, consumer_version, assignment_strategy,
-                                      group_protocol=consumer_group.classic_group_protocol):
+                                      consumer_group_migration_policy, consumer_version, assignment_strategy):
         """
         Verify correct consumer behavior when the consumers in the group are restarted to perform
         online upgrade when the migration policy is set to be UPGRADE.
@@ -212,7 +204,7 @@ class ConsumerProtocolMigrationTest(VerifiableConsumerTest):
           each one to rejoin the group before restarting the rest.
         """
         producer = self.setup_producer(self.TOPIC)
-        consumer = self.setup_consumer(self.TOPIC, group_protocol=group_protocol,
+        consumer = self.setup_consumer(self.TOPIC, group_protocol=consumer_group.classic_group_protocol,
                                        assignment_strategy=assignment_strategy, enable_autocommit=True)
 
         kafka_version = KafkaVersion(consumer_version)

@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from ducktape.utils.util import wait_until
-from kafkatest.services.kafka import consumer_group
 from kafkatest.services.verifiable_consumer import VerifiableConsumer
 from kafkatest.services.verifiable_producer import VerifiableProducer
 from kafkatest.tests.kafka_test import KafkaTest
@@ -37,7 +36,6 @@ class BaseStreamsTest(KafkaTest):
                                   self.kafka,
                                   topic,
                                   client_id,
-                                  consumer_group.classic_group_protocol,
                                   max_messages=num_messages)
 
     def get_producer(self, topic, num_messages, throughput=1000, repeating_keys=None):

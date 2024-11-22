@@ -57,7 +57,7 @@ class ClientCompatibilityProduceConsumeTest(ProduceConsumeValidateTest):
         return super(ClientCompatibilityProduceConsumeTest, self).min_cluster_size() + self.num_producers + self.num_consumers
 
     @cluster(num_nodes=9)
-    @matrix(broker_version=[str(DEV_BRANCH)], metadata_quorum=quorum.all_non_upgrade, group_protocol=[consumer_group.classic_group_protocol])
+    @matrix(broker_version=[str(DEV_BRANCH)], metadata_quorum=quorum.all_non_upgrade)
     @parametrize(broker_version=str(LATEST_2_1))
     @parametrize(broker_version=str(LATEST_2_2))
     @parametrize(broker_version=str(LATEST_2_3))
@@ -76,7 +76,7 @@ class ClientCompatibilityProduceConsumeTest(ProduceConsumeValidateTest):
     @parametrize(broker_version=str(LATEST_3_7))
     @parametrize(broker_version=str(LATEST_3_8))
     @parametrize(broker_version=str(LATEST_3_9))
-    def test_produce_consume(self, broker_version, metadata_quorum=quorum.zk, group_protocol=consumer_group.classic_group_protocol):
+    def test_produce_consume(self, broker_version, metadata_quorum=quorum.zk):
         print("running producer_consumer_compat with broker_version = %s" % broker_version, flush=True)
         self.kafka.set_version(KafkaVersion(broker_version))
         self.kafka.security_protocol = "PLAINTEXT"
@@ -84,11 +84,9 @@ class ClientCompatibilityProduceConsumeTest(ProduceConsumeValidateTest):
         self.producer = VerifiableProducer(self.test_context, self.num_producers, self.kafka,
                                            self.topic, throughput=self.producer_throughput,
                                            message_validator=is_int_with_prefix)
-        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers, self.kafka, self.topic,
                                         consumer_timeout_ms=60000,
-                                        message_validator=is_int_with_prefix,
-                                        consumer_properties=consumer_properties)
+                                        message_validator=is_int_with_prefix)
         self.kafka.start()
 
         self.run_produce_consume_validate(lambda: wait_until(
