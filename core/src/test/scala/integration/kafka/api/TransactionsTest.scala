@@ -38,7 +38,6 @@ import java.time.Duration
 import java.util
 import java.util.concurrent.TimeUnit
 import java.util.{Optional, Properties}
-import scala.annotation.nowarn
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.{Seq, mutable}
 import scala.concurrent.ExecutionException
@@ -298,14 +297,6 @@ class TransactionsTest extends IntegrationTestHarness {
     assertEquals("x", new String(second.key))
     assertEquals("2", new String(second.value))
     assertEquals(3L, second.offset)
-  }
-
-  @nowarn("cat=deprecation")
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961"))
-  def testSendOffsetsWithGroupId(quorum: String, groupProtocol: String): Unit = {
-    sendOffset((producer, groupId, consumer) =>
-      producer.sendOffsetsToTransaction(TestUtils.consumerPositions(consumer).asJava, groupId))
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
