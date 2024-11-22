@@ -1249,7 +1249,7 @@ queued.max.requests=[number of concurrent requests]</code></pre>
 
   <h3 class="anchor-heading"><a id="java" class="anchor-link"></a><a href="#java">6.6 Java Version</a></h3>
 
-  Java 11, Java 17, and Java 21 are supported.
+  Java 11, Java 17, Java 21 and Java 23 are supported.
   <p>
   Note that Java 11 support for the broker and tools has been deprecated since Apache Kafka 3.7. Both will be removed in Apache Kafka 4.0.
   <p>
@@ -2862,6 +2862,11 @@ All of the following metrics have a recording level of <code>info</code>:
   <tr>
     <td>state</td>
     <td>The state of the Kafka Streams client.</td>
+    <td>kafka.streams:type=stream-metrics,client-id=([-.\w]+)</td>
+  </tr>
+  <tr>
+    <td>alive-stream-threads</td>
+    <td>The current number of alive stream threads that are running or participating in rebalance.</td>
     <td>kafka.streams:type=stream-metrics,client-id=([-.\w]+)</td>
   </tr>
   <tr>
