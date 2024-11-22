@@ -115,8 +115,8 @@ ext {
   commitId = determineCommitId()
 
   isModuleNeedJava11 = { projectPath ->
-    def modulesNeedingJava11 = [":clients", ":streams"]
-    modulesNeedingJava11.any { projectPath.startsWith(it) }
+    def modulesNeedingJava11 = [":clients", ":streams", ":streams:test-utils", ":streams-scala"]
+    modulesNeedingJava11.any { projectPath.equals(it) }
   }
 
   configureJavaCompiler = { name, options, projectPath ->
@@ -131,6 +131,8 @@ ext {
     if (name in ["compileTestJava", "compileTestScala"]) {
       options.compilerArgs << "-parameters"
     } else if (name in ["compileJava", "compileScala"]) {
+      if (!project.path.startsWith(":connect") && !project.path.startsWith(":storage"))
+        options.compilerArgs << "-Xlint:-rawtypes"
       options.compilerArgs << "-Xlint:all"
       options.compilerArgs << "-Xlint:-serial"
       options.compilerArgs << "-Xlint:-try"
@@ -732,8 +734,8 @@ subprojects {
   }
 
   tasks.withType(ScalaCompile) {
-    def modulesNeedingJava11 = [":clients", ":streams"]
-    def releaseVersion = modulesNeedingJava11.any { project.path.startsWith(it) } ?
+    def modulesNeedingJava11 = [":clients", ":streams", ":streams:test-utils", ":streams-scala"]
+    def releaseVersion = modulesNeedingJava11.any { project.path.equals(it) } ?
         minClientJavaVersion : minServerJavaVersion
     scalaCompileOptions.keepAliveMode = userKeepAliveMode
 
