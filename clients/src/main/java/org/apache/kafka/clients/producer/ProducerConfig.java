@@ -112,7 +112,7 @@ public class ProducerConfig extends AbstractConfig {
 
     /** <code>partitioner.ignore.keys</code> */
     public static final String PARTITIONER_IGNORE_KEYS_CONFIG = "partitioner.ignore.keys";
-    private static final String PARTITIONER_IGNORE_KEYS_DOC = "When set to 'true' the producer won't use record keys to choose a partition."
+    private static final String PARTITIONER_IGNORE_KEYS_DOC = "When set to 'true' the producer won't use record keys to choose a partition. "
             + "If 'false', producer would choose a partition based on a hash of the key when a key is present. "
             + "Note: this setting has no effect if a custom partitioner is used.";
 
