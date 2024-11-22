@@ -421,6 +421,10 @@ public class ShareConsumerTest {
                     Set<Long> mergedOffsets = new HashSet<>();
                     mergedOffsets.addAll(oldOffsets);
                     mergedOffsets.addAll(newOffsets);
+                    if (mergedOffsets.size() < (oldOffsets.size() + newOffsets.size())) {
+                        throw new IllegalStateException("Acknowledgement Callback invoked more than once" +
+                                " for existing offsets in partition - " + partition);
+                    }
                     return mergedOffsets;
                 });
                 if (!partitionExceptionMap.containsKey(partition.topicPartition())) {
