@@ -333,7 +333,7 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       (topicPartitions ++ addedTopicPartitions).toSet, newTxnStartTimestamp, updateTimestamp)
   }
 
-  def prepareAbortOrCommit(newState: TransactionState, clientTransactionVersion: TransactionVersion, nextProducerId: Long, updateTimestamp: Long): TxnTransitMetadata = {
+  def prepareAbortOrCommit(newState: TransactionState, clientTransactionVersion: TransactionVersion, nextProducerId: Long, updateTimestamp: Long, isEmptyAbort: Boolean): TxnTransitMetadata = {
     val (updatedProducerEpoch, updatedLastProducerEpoch) = if (clientTransactionVersion.supportsEpochBump()) {
       // We already ensured that we do not overflow here. MAX_SHORT is the highest possible value.
       ((producerEpoch + 1).toShort, producerEpoch)
@@ -341,8 +341,9 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       (producerEpoch, lastProducerEpoch)
     }
 
+    val newTxnStartTimestamp = if (isEmptyAbort) updateTimestamp else txnStartTimestamp
     prepareTransitionTo(newState, producerId, nextProducerId, updatedProducerEpoch, updatedLastProducerEpoch, txnTimeoutMs, topicPartitions.toSet,
-      txnStartTimestamp, updateTimestamp, clientTransactionVersion)
+      newTxnStartTimestamp, updateTimestamp, clientTransactionVersion)
   }
 
   def prepareComplete(updateTimestamp: Long): TxnTransitMetadata = {
@@ -481,21 +482,21 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
           }
 
         case PrepareAbort | PrepareCommit => // from endTxn
+          // In V2, we allow state transits from Empty, CompleteCommit and CompleteAbort to PrepareAbort. It is possible
+          // their updated start time is not equal to the current start time.
+          val allowedEmptyAbort = toState == PrepareAbort && transitMetadata.clientTransactionVersion.supportsEpochBump() &&
+            (state == Empty || state == CompleteCommit || state == CompleteAbort)
           if (!validProducerEpoch(transitMetadata) ||
             !topicPartitions.toSet.equals(transitMetadata.topicPartitions) ||
             txnTimeoutMs != transitMetadata.txnTimeoutMs ||
-            txnStartTimestamp != transitMetadata.txnStartTimestamp) {
+            txnStartTimestamp != transitMetadata.txnStartTimestamp && !allowedEmptyAbort) {
 
             throwStateTransitionFailure(transitMetadata)
           } else if (transitMetadata.clientTransactionVersion.supportsEpochBump()) {
             producerEpoch = transitMetadata.producerEpoch
             lastProducerEpoch = transitMetadata.lastProducerEpoch
             nextProducerId = transitMetadata.nextProducerId
-            if (toState == PrepareAbort && (state == Empty || state == CompleteCommit || state == CompleteAbort)) {
-              // In V2, we allow state transits from Empty, CompleteCommit and CompleteAbort to PrepareAbort. Let's
-              // use the last update time as the txn start time.
-              txnStartTimestamp = transitMetadata.txnLastUpdateTimestamp
-            }
+            txnStartTimestamp = transitMetadata.txnStartTimestamp
           }
 
         case CompleteAbort | CompleteCommit => // from write markers

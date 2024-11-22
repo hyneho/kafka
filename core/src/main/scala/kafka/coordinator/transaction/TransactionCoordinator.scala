@@ -499,7 +499,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
   }
 
   /*
-    The state transition for Empty, CompleteAbort, CompleteCommit is complicated, so here is a table to make it clear.
+    Here is the table to demonstrate the state transition for Empty, CompleteAbort, CompleteCommit in Transaction V2.
     Note:
     PF = PRODUCER_FENCED
     ITS = INVALID_TXN_STATE
@@ -508,20 +508,15 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
 
     Retry => producerEpoch = txnState.ProducerEpoch - 1
     Current => producerEpoch = txnState.ProducerEpoch
-    ------------------------------------------------------
-    With transaction V1.
-    +----------------+-----------------+-----------------+
-    |                | Abort           | Commit          |
-    +----------------+-------+---------+-------+---------+
-    |                | Retry | Current | Retry | Current |
-    +----------------+-------+---------+-------+---------+
-    | Empty          | PF    | ITS     | PF    | ITS     |
-    +----------------+-------+---------+-------+---------+
-    | CompleteAbort  | PF    | NONE    | PF    | ITS     |
-    +----------------+-------+---------+-------+---------+
-    | CompleteCommit | PF    | ITS     | PF    | NONE    |
-    +----------------+-------+---------+-------+---------+
 
+    ------------------------------------------------------
+    With transaction V1, Retry is not allowed, PRODUCER_FENCED will be returned if the epoch does not match.
+    Empty does not accept Abort and Commit.
+    CompleteAbort only accepts Abort.
+    CompleteCommit only accepts Commit.
+    For all invalid cases, INVALID_TXN_STATE is returned.
+
+    ------------------------------------------------------
     With transaction V2.
     +----------------+-----------------+-----------------+
     |                | Abort           | Commit          |
@@ -535,7 +530,6 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
     | CompleteCommit | ITS   | EB      | NONE  | ITS     |
     +----------------+-------+---------+-------+---------+
    */
-
 
   private def endTransaction(transactionalId: String,
                              producerId: Long,
@@ -592,7 +586,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
 
             val isRetry = retryOnEpochBump || retryOnOverflow
 
-            def generateTxnTransitMetadataForTxnCompletion(nextState: TransactionState): ApiResult[(Int, TxnTransitMetadata)] = {
+            def generateTxnTransitMetadataForTxnCompletion(nextState: TransactionState, isEmptyAbort: Boolean): ApiResult[(Int, TxnTransitMetadata)] = {
               // Maybe allocate new producer ID if we are bumping epoch and epoch is exhausted
               val nextProducerIdOrErrors =
                 if (clientTransactionVersion.supportsEpochBump() && !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.isProducerEpochExhausted) {
@@ -616,7 +610,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
 
               nextProducerIdOrErrors.flatMap {
                 nextProducerId =>
-                  Right(coordinatorEpoch, txnMetadata.prepareAbortOrCommit(nextState, clientTransactionVersion, nextProducerId.asInstanceOf[Long], time.milliseconds()))
+                  Right(coordinatorEpoch, txnMetadata.prepareAbortOrCommit(nextState, clientTransactionVersion, nextProducerId.asInstanceOf[Long], time.milliseconds(), isEmptyAbort))
               }
             }
 
@@ -633,7 +627,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                 else
                   PrepareAbort
 
-                generateTxnTransitMetadataForTxnCompletion(nextState)
+                generateTxnTransitMetadataForTxnCompletion(nextState, false)
               case CompleteCommit =>
                 if (currentTxnMetadataIsAtLeastTransactionsV2) {
                   if (txnMarkerResult == TransactionResult.COMMIT) {
@@ -645,7 +639,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                     if (isRetry)
                       logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                     else
-                      generateTxnTransitMetadataForTxnCompletion(PrepareAbort)
+                      generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                   }
                 } else {
                   // Transaction V1
@@ -660,7 +654,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                     if (isRetry)
                       Left(Errors.NONE)
                     else
-                      generateTxnTransitMetadataForTxnCompletion(PrepareAbort)
+                      generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                   } else {
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                   }
@@ -689,7 +683,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                   // Note that, we should not use txnMetadata info to check if the client is using V2 because the
                   // only request received by server so far can be just InitProducerId request which does not tell whether
                   // the client uses V2.
-                  generateTxnTransitMetadataForTxnCompletion(PrepareAbort)
+                  generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                 } else {
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                 }
