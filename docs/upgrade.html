@@ -133,10 +133,19 @@
                         </li>
                     </ul>
                 </li>
+                <li><b>Producer</b>
+                    <ul>
+                        <li>The <code>enable.idempotence</code> configuration will no longer automatically fall back when the <code>max.in.flight.requests.per.connection</code> value exceeds 5.
+                        </li>
+                    </ul>
+                </li>
             </ul>
         </li>
         <li>Other changes:
             <ul>
+                <li>
+                    Java 23 support has been added in Apache Kafka 4.0
+                </li>
                 <li>
                     Scala 2.12 support has been removed in Apache Kafka 4.0
                     See <a href="https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=181308218">KIP-751</a> for more details

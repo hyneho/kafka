@@ -15,8 +15,8 @@ Arbitrary server properties can also be provided in the annotation:
 
 ```java
 @ClusterTest(
-  types = {Type.KRAFT}, 
-  brokerSecurityProtocol = SecurityProtocol.PLAINTEXT, 
+  types = {Type.KRAFT},
+  brokerSecurityProtocol = SecurityProtocol.PLAINTEXT,
   properties = {
     @ClusterProperty(key = "inter.broker.protocol.version", value = "2.7-IV2"),
     @ClusterProperty(key = "socket.send.buffer.bytes", value = "10240"),
@@ -28,8 +28,8 @@ Multiple `@ClusterTest` annotations can be given to generate more than one test 
 
 ```scala
 @ClusterTests(Array(
-  @ClusterTest(brokerSecurityProtocol = SecurityProtocol.PLAINTEXT),
-  @ClusterTest(securityProtocol = SecurityProtocol.SASL_PLAINTEXT)
+  new ClusterTest(brokerSecurityProtocol = SecurityProtocol.PLAINTEXT),
+  new ClusterTest(brokerSecurityProtocol = SecurityProtocol.SASL_PLAINTEXT)
 ))
 def testSomething(): Unit = { ... }
 ```
