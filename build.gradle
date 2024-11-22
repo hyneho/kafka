@@ -114,18 +114,16 @@ ext {
 
   commitId = determineCommitId()
 
-  configureJavaCompiler = { name, options ->
+  isModuleNeedJava11 = { projectPath ->
+    def modulesNeedingJava11 = [":clients", ":streams"]
+    modulesNeedingJava11.any { projectPath.startsWith(it) }
+  }
+
+  configureJavaCompiler = { name, options, projectPath ->
     // -parameters generates arguments with parameter names in TestInfo#getDisplayName.
     // ref: https://github.com/junit-team/junit5/blob/4c0dddad1b96d4a20e92a2cd583954643ac56ac0/junit-jupiter-params/src/main/java/org/junit/jupiter/params/ParameterizedTest.java#L161-L164
 
-    def modulesNeedingJava17 = [
-        ":core", ":coordinator-common", ":generator", ":group-coordinator",
-        ":metadata", ":raft", ":server", ":server-common", ":share", ":storage",
-        ":share-coordinator", ":test-common", ":tools", ":transaction-coordinator"
-    ]
-
-    def releaseVersion = modulesNeedingJava17.any { project.path.startsWith(it) } ?
-        minServerJavaVersion : minClientJavaVersion
+    def releaseVersion = isModuleNeedJava11(projectPath) ? minClientJavaVersion : minServerJavaVersion
 
     options.compilerArgs << "-encoding" << "UTF-8"
     options.compilerArgs += ["--release", String.valueOf(releaseVersion)]
@@ -134,11 +132,6 @@ ext {
       options.compilerArgs << "-parameters"
     } else if (name in ["compileJava", "compileScala"]) {
       options.compilerArgs << "-Xlint:all"
-
-      if (!project.path.startsWith(":connect") && !project.path.startsWith(":storage")) {
-        options.compilerArgs << "-Xlint:-rawtypes"
-      }
-
       options.compilerArgs << "-Xlint:-serial"
       options.compilerArgs << "-Xlint:-try"
       options.compilerArgs << "-Werror"
@@ -333,7 +326,7 @@ subprojects {
   }
 
   tasks.withType(JavaCompile) {
-    configureJavaCompiler(name, options)
+    configureJavaCompiler(name, options, project.path)
   }
 
   if (shouldPublish) {
@@ -739,16 +732,9 @@ subprojects {
   }
 
   tasks.withType(ScalaCompile) {
-
-    def modulesNeedingJava17 = [
-        ":core", ":coordinator-common", "connect:runtime", "connect:mirror", "connect:test-plugins", "connect:file",
-        ":generator", ":group-coordinator", ":metadata", ":raft", ":server", ":server-common", ":share", ":storage",
-        ":share-coordinator", ":test-common", ":tools", ":transaction-coordinator"
-    ]
-
-    def releaseVersion = modulesNeedingJava17.any { project.path.startsWith(it) } ?
-        minServerJavaVersion : minClientJavaVersion
-
+    def modulesNeedingJava11 = [":clients", ":streams"]
+    def releaseVersion = modulesNeedingJava11.any { project.path.startsWith(it) } ?
+        minClientJavaVersion : minServerJavaVersion
     scalaCompileOptions.keepAliveMode = userKeepAliveMode
 
     scalaCompileOptions.additionalParameters = [
@@ -794,7 +780,7 @@ subprojects {
     scalaCompileOptions.additionalParameters += ["-Xfatal-warnings"]
     scalaCompileOptions.additionalParameters += ["--release", String.valueOf(releaseVersion)]
 
-    configureJavaCompiler(name, options)
+    configureJavaCompiler(name, options, project.path)
 
     configure(scalaCompileOptions.forkOptions) {
       memoryMaximumSize = defaultMaxHeapSize
@@ -2590,7 +2576,6 @@ project(':streams') {
     // testCompileOnly prevents streams from exporting a dependency on test-utils, which would cause a dependency cycle
     testCompileOnly project(':streams:test-utils')
 
-    testImplementation project(':metadata')
     testImplementation project(':clients').sourceSets.test.output
     testImplementation libs.reload4j
     testImplementation libs.junitJupiter
@@ -2599,7 +2584,6 @@ project(':streams') {
     testImplementation libs.mockitoCore
     testImplementation libs.mockitoJunitJupiter // supports MockitoExtension
     testImplementation libs.junitPlatformSuiteEngine // supports suite test
-    testImplementation project(':group-coordinator')
 
     testRuntimeOnly project(':streams:test-utils')
     testRuntimeOnly runtimeTestLibs
