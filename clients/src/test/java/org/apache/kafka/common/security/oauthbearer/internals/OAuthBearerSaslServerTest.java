@@ -54,7 +54,7 @@ public class OAuthBearerSaslServerTest {
     private static final String USER = "user";
     private static final String JAAS_CONFIG_TEXT = "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule Required"
                 + " unsecuredLoginStringClaim_sub=\"" + USER + "\";";
-    private static final Map<String, ?> CONFIGS = Map.<String, Object>of(SaslConfigs.SASL_JAAS_CONFIG, new Password(JAAS_CONFIG_TEXT));
+    private static final Map<String, ?> CONFIGS = Map.of(SaslConfigs.SASL_JAAS_CONFIG, new Password(JAAS_CONFIG_TEXT));
 
     private static final AuthenticateCallbackHandler LOGIN_CALLBACK_HANDLER;
     static {
