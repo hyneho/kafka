@@ -174,12 +174,11 @@ class ReassignPartitionsTest(ProduceConsumeValidateTest):
                                            # To avoid the reassignment behavior being affected by the `BuiltInPartitioner` (due to the key not being set),
                                            # we set a key for the message to ensure both even data distribution across all partitions.
                                            repeating_keys=100)
-        consumer_properties = consumer_group.maybe_set_group_protocol(group_protocol)
         self.consumer = ConsoleConsumer(self.test_context, self.num_consumers,
                                         self.kafka, self.topic,
                                         consumer_timeout_ms=60000,
                                         message_validator=is_int,
-                                        consumer_properties=consumer_properties)
+                                        consumer_properties=consumer_group.maybe_set_group_protocol(group_protocol))
 
         self.enable_idempotence=True
         self.run_produce_consume_validate(core_test_action=lambda: self.reassign_partitions(bounce_brokers))

@@ -16,6 +16,7 @@
 from ducktape.utils.util import wait_until
 
 from ducktape.mark import matrix
+from ducktape.mark import parametrize
 from ducktape.mark.resource import cluster
 
 from kafkatest.services.kafka import quorum
