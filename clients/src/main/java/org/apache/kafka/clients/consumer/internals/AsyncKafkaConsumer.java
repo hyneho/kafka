@@ -1869,18 +1869,18 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     /**
      * Subscribe to the RE2/J pattern. This will generate an event to update the pattern in the
      * subscription, so it's included in a next heartbeat request sent to the broker. No validation of the pattern is
-     * performed by the client.
+     * performed by the client (other than null/empty checks).
      */
     private void subscribeToRegex(SubscriptionPattern pattern,
                                   Optional<ConsumerRebalanceListener> listener) {
         maybeThrowInvalidGroupIdException();
-        throwIfNullOrEmpty(pattern);
+        throwIfSubscriptionPatternIsInvalid(pattern);
         log.info("Subscribing to regular expression {}", pattern);
 
         // TODO: generate event to update subscribed regex so it's included in the next HB.
     }
 
-    private void throwIfNullOrEmpty(SubscriptionPattern subscriptionPattern) {
+    private void throwIfSubscriptionPatternIsInvalid(SubscriptionPattern subscriptionPattern) {
         if (subscriptionPattern == null) {
             throw new IllegalArgumentException("Topic pattern to subscribe to cannot be null");
         }

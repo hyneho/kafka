@@ -16,8 +16,10 @@
  */
 package org.apache.kafka.clients.consumer;
 
+import java.util.Objects;
+
 /**
- * Represents a regular expression compatible with Google RE2/J, used to subscribe to topics .
+ * Represents a regular expression compatible with Google RE2/J, used to subscribe to topics.
  * This just keeps the String representation of the pattern, and all validations to ensure
  * it is RE2/J compatible are delegated to the broker.
  */
@@ -37,5 +39,21 @@ public class SubscriptionPattern {
      */
     public String pattern() {
         return this.pattern;
+    }
+
+    @Override
+    public String toString() {
+        return pattern;
+    }
+
+    @Override
+    public int hashCode() {
+        return pattern.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof SubscriptionPattern &&
+            Objects.equals(pattern, ((SubscriptionPattern) obj).pattern);
     }
 }
