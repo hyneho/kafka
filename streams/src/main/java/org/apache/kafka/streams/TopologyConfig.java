@@ -72,12 +72,15 @@ import static org.apache.kafka.streams.internals.StreamsConfigUtils.totalCacheSi
  * Streams configs that apply at the topology level. The values in the {@link StreamsConfig} parameter of the
  * {@link org.apache.kafka.streams.KafkaStreams} constructor or the {@link KafkaStreamsNamedTopologyWrapper} constructor (deprecated)
  * will determine the defaults, which can then be overridden for specific topologies by passing them in when creating the
- * topology builders via the {@link org.apache.kafka.streams.StreamsBuilder#StreamsBuilder(TopologyConfig) StreamsBuilder(TopologyConfig)} method
- * for DSL applications, or when creating a PAPI topology via the {@link Topology#Topology(TopologyConfig)} constructor.
+ * topology builders via the {@link StreamsBuilder#StreamsBuilder(TopologyConfig)} constructor for DSL applications,
+ * or the {@link Topology#Topology(TopologyConfig)} for PAPI applications.
  * <p>
- * Note that some configs that are only defined in the TopologyConfig and not in the StreamsConfig, such as the {@code processor.wrapper.class},
- * can only be applied by setting them in the TopologyConfig and passing this into the appropriate constructor for your application
- * (that is, the {@link StreamsBuilder} or {@link Topology} constructor that accepts a TopologyConfig parameter
+ * Note that some configs, such as the {@code processor.wrapper.class} config, can only take effect while the
+ * topology is being built, which means they have to be passed in as a TopologyConfig to the
+ * {@link Topology#Topology(TopologyConfig)} constructor (PAPI) or the
+ * {@link StreamsBuilder#StreamsBuilder(TopologyConfig)} constructor (DSL).
+ * If they are only set in the configs passed in to the KafkaStreams constructor, it will be too late for them
+ * to be applied and the config will be ignored.
  */
 @SuppressWarnings("deprecation")
 public final class TopologyConfig extends AbstractConfig {

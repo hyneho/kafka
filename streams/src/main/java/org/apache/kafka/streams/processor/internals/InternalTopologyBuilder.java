@@ -86,10 +86,11 @@ public class InternalTopologyBuilder {
                 topologyConfigs.originals()
             );
         } catch (final Exception e) {
-            log.error("Unable to instantiate ProcessorWrapper from value of config {}. "
-                          + "Please provide a valid class that implements the ProcessorWrapper interface. ",
-                      PROCESSOR_WRAPPER_CLASS_CONFIG);
-            throw new ConfigException("Invalid class for config " + PROCESSOR_WRAPPER_CLASS_CONFIG, e);
+            final String errorMessage = String.format(
+                "Unable to instantiate ProcessorWrapper from value of config %s. Please provide a valid class "
+                    + "that implements the ProcessorWrapper interface.", PROCESSOR_WRAPPER_CLASS_CONFIG);
+            log.error(errorMessage, e);
+            throw new ConfigException(errorMessage, e);
         }
     }
 
