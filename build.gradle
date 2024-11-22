@@ -3480,7 +3480,7 @@ project(':connect:json') {
 
     api libs.jacksonDatabind
     api libs.jacksonJDK8Datatypes
-    api libs.jacksonAfterburner
+    api libs.jacksonBlackbird
 
     implementation libs.slf4jApi
     runtimeOnly libs.log4j2Api
