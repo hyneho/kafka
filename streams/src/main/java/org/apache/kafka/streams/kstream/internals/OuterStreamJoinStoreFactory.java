@@ -71,9 +71,8 @@ public class OuterStreamJoinStoreFactory<K, V1, V2> extends AbstractConfigurable
         this.windows = windows;
         this.loggingEnabled = streamJoined.loggingEnabled();
     }
-
     @Override
-    public StateStore build() {
+    public StoreBuilder<?> getBuilder() {
         final Duration retentionPeriod = Duration.ofMillis(retentionPeriod());
         final Duration windowSize = Duration.ofMillis(windows.size());
         final String rpMsgPrefix = prepareMillisCheckFailMsgPrefix(retentionPeriod, "retentionPeriod");
@@ -89,8 +88,8 @@ public class OuterStreamJoinStoreFactory<K, V1, V2> extends AbstractConfigurable
         }
         if (windowSizeMs > retentionMs) {
             throw new IllegalArgumentException("The retention period of the window store "
-                    + name + " must be no smaller than its window size. Got size=["
-                    + windowSizeMs + "], retention=[" + retentionMs + "]");
+                                                   + name + " must be no smaller than its window size. Got size=["
+                                                   + windowSizeMs + "], retention=[" + retentionMs + "]");
         }
 
         final TimestampedKeyAndJoinSideSerde<K> timestampedKeyAndJoinSideSerde = new TimestampedKeyAndJoinSideSerde<>(streamJoined.keySerde());
@@ -121,13 +120,13 @@ public class OuterStreamJoinStoreFactory<K, V1, V2> extends AbstractConfigurable
         }
 
         final StoreBuilder<KeyValueStore<TimestampedKeyAndJoinSide<K>, LeftOrRightValue<V1, V2>>>
-                builder =
-                new ListValueStoreBuilder<>(
-                        supplier,
-                        timestampedKeyAndJoinSideSerde,
-                        leftOrRightValueSerde,
-                        Time.SYSTEM
-                );
+            builder =
+            new ListValueStoreBuilder<>(
+                supplier,
+                timestampedKeyAndJoinSideSerde,
+                leftOrRightValueSerde,
+                Time.SYSTEM
+            );
 
         if (loggingEnabled) {
             builder.withLoggingEnabled(streamJoined.logConfig());
@@ -135,7 +134,7 @@ public class OuterStreamJoinStoreFactory<K, V1, V2> extends AbstractConfigurable
             builder.withLoggingDisabled();
         }
 
-        return builder.build();
+        return  builder;
     }
 
     @Override

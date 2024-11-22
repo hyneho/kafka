@@ -30,12 +30,28 @@ public class TableProcessorNode<K, V> extends GraphNode {
     private final StoreFactory storeFactory;
     private final String[] storeNames;
 
+    /**
+     * Create a node representing a table processor,
+     * where the store needs to be built and registered as part of building this node.
+     */
     public TableProcessorNode(final String nodeName,
                               final ProcessorParameters<K, V, ?, ?> processorParameters,
                               final StoreFactory storeFactory) {
         this(nodeName, processorParameters, storeFactory, null);
     }
 
+    /**
+     * Create a node representing a table processor, where the named stores have already been registered.
+     */
+    public TableProcessorNode(final String nodeName,
+                              final ProcessorParameters<K, V, ?, ?> processorParameters) {
+        this(nodeName, processorParameters, null, null);
+    }
+
+    /**
+     * Create a node representing a table processor,
+     * where the store needs to be built and registered as part of building this node.
+     */
     public TableProcessorNode(final String nodeName,
                               final ProcessorParameters<K, V, ?, ?> processorParameters,
                               final StoreFactory storeFactory,
@@ -72,11 +88,8 @@ public class TableProcessorNode<K, V> extends GraphNode {
         final KTableSource<K, V> tableSource =  processorParameters.processorSupplier() instanceof KTableSource ?
                 (KTableSource<K, V>) processorParameters.processorSupplier() : null;
         if (tableSource != null) {
-            if (tableSource.materialized()) {
-                topologyBuilder.addStateStore(Objects.requireNonNull(storeFactory, "storeFactory was null"),
-                                              processorName);
-            }
         } else if (storeFactory != null) {
+            // TODO(sophie): convert this to use #stores for types other than KTableSource
             topologyBuilder.addStateStore(storeFactory, processorName);
         }
     }

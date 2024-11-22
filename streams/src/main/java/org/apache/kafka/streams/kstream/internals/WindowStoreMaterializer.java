@@ -56,7 +56,7 @@ public class WindowStoreMaterializer<K, V> extends MaterializedStoreFactory<K, V
     }
 
     @Override
-    public StateStore build() {
+    public StoreBuilder<?> getBuilder() {
         final WindowBytesStoreSupplier supplier = materialized.storeSupplier() == null
                 ? dslStoreSuppliers().windowStore(new DslWindowParams(
                         materialized.storeName(),
@@ -85,7 +85,7 @@ public class WindowStoreMaterializer<K, V> extends MaterializedStoreFactory<K, V
             builder.withCachingEnabled();
         }
 
-        return builder.build();
+        return builder;
     }
 
     @Override

@@ -16,10 +16,13 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
+import java.util.Properties;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
+import org.apache.kafka.common.utils.Utils;
+import org.apache.kafka.streams.ProcessorWrapper;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.TopologyConfig;
@@ -66,11 +69,18 @@ public class InternalTopologyBuilder {
 
     public InternalTopologyBuilder() {
         this.topologyName = null;
+        this.processorWrapper = new NoOpProcessorWrapper();
     }
 
     public InternalTopologyBuilder(final TopologyConfig topologyConfigs) {
         this.topologyConfigs = topologyConfigs;
         this.topologyName = topologyConfigs.topologyName;
+
+        processorWrapper = topologyConfigs.getConfiguredInstance(
+            StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG,
+            ProcessorWrapper.class,
+            topologyConfigs.originals()
+        );
     }
 
     private static final Logger log = LoggerFactory.getLogger(InternalTopologyBuilder.class);
@@ -142,6 +152,8 @@ public class InternalTopologyBuilder {
 
     // Used to capture subscribed topics via Patterns discovered during the partition assignment process.
     private final Set<String> subscriptionUpdates = new HashSet<>();
+
+    private final ProcessorWrapper processorWrapper;
 
     private String applicationId = null;
 
@@ -367,7 +379,10 @@ public class InternalTopologyBuilder {
 
     public final synchronized void setStreamsConfig(final StreamsConfig applicationConfig) {
         Objects.requireNonNull(applicationConfig, "config can't be null");
-        topologyConfigs = new TopologyConfig(applicationConfig);
+        final Properties topologyOverrides = topologyConfigs == null
+            ? new Properties()
+            : topologyConfigs.topologyOverrides;
+        topologyConfigs = new TopologyConfig(topologyName, applicationConfig, topologyOverrides);
     }
 
     @SuppressWarnings("deprecation")
@@ -528,6 +543,7 @@ public class InternalTopologyBuilder {
         Objects.requireNonNull(supplier, "supplier must not be null");
         Objects.requireNonNull(predecessorNames, "predecessor names must not be null");
         ApiUtils.checkSupplier(supplier);
+
         if (nodeFactories.containsKey(name)) {
             throw new TopologyException("Processor " + name + " is already added.");
         }
@@ -558,6 +574,7 @@ public class InternalTopologyBuilder {
         Objects.requireNonNull(supplier, "supplier must not be null");
         Objects.requireNonNull(predecessorNames, "predecessor names must not be null");
         ApiUtils.checkSupplier(supplier);
+
         if (nodeFactories.containsKey(name)) {
             throw new TopologyException("Processor " + name + " is already added.");
         }
@@ -583,20 +600,22 @@ public class InternalTopologyBuilder {
 
     public final void addStateStore(final StoreBuilder<?> storeBuilder,
                                     final String... processorNames) {
-        addStateStore(new StoreBuilderWrapper(storeBuilder), false, processorNames);
+        addStateStoreInternal(StoreBuilderWrapper.wrapStoreBuilder(storeBuilder), processorNames);
     }
 
     public final void addStateStore(final StoreFactory storeFactory,
                                     final String... processorNames) {
-        addStateStore(storeFactory, false, processorNames);
+        addStateStoreInternal(storeFactory, processorNames);
     }
 
-    public final void addStateStore(final StoreFactory storeFactory,
-                                    final boolean allowOverride,
-                                    final String... processorNames) {
+    // TODO(sophie): convert addStateStore calls into addProcessorAndStateStore
+    //  and enforce stateful processors to implement ProcessorSupplier#stores
+    //  (or be wrapped with something that does)
+    private void addStateStoreInternal(final StoreFactory storeFactory,
+                                       final String... processorNames) {
         Objects.requireNonNull(storeFactory, "stateStoreFactory can't be null");
         final StoreFactory stateFactory = stateFactories.get(storeFactory.name());
-        if (!allowOverride && stateFactory != null && !stateFactory.isCompatibleWith(storeFactory)) {
+        if (stateFactory != null && !stateFactory.isCompatibleWith(storeFactory)) {
             throw new TopologyException("A different StateStore has already been added with the name " + storeFactory.name());
         }
         if (globalStateBuilders.containsKey(storeFactory.name())) {
@@ -705,6 +724,7 @@ public class InternalTopologyBuilder {
         return changelogTopicToStore.get(topicName);
     }
 
+    // TODO(sophie): convert this stuff too?
     public void connectSourceStoreAndTopic(final String sourceStoreName,
                                            final String topic) {
         if (storeToChangelogTopic.containsKey(sourceStoreName)) {
@@ -2244,5 +2264,9 @@ public class InternalTopologyBuilder {
 
     public synchronized Map<String, StoreFactory> stateStores() {
         return stateFactories;
+    }
+
+    public ProcessorWrapper processorWrapper() {
+        return processorWrapper;
     }
 }

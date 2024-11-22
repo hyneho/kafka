@@ -58,7 +58,7 @@ public class SlidingWindowStoreMaterializer<K, V> extends MaterializedStoreFacto
     }
 
     @Override
-    public StateStore build() {
+    public StoreBuilder<?> getBuilder() {
         final WindowBytesStoreSupplier supplier = materialized.storeSupplier() == null
                 ? dslStoreSuppliers().windowStore(new DslWindowParams(
                         materialized.storeName(),
@@ -91,7 +91,7 @@ public class SlidingWindowStoreMaterializer<K, V> extends MaterializedStoreFacto
             builder.withCachingDisabled();
         }
 
-        return builder.build();
+        return builder;
     }
 
     @Override

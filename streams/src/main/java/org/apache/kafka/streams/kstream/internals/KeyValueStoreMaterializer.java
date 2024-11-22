@@ -37,29 +37,27 @@ import org.slf4j.LoggerFactory;
 public class KeyValueStoreMaterializer<K, V> extends MaterializedStoreFactory<K, V, KeyValueStore<Bytes, byte[]>> {
     private static final Logger LOG = LoggerFactory.getLogger(KeyValueStoreMaterializer.class);
 
-    public KeyValueStoreMaterializer(
-            final MaterializedInternal<K, V, KeyValueStore<Bytes, byte[]>> materialized
-    ) {
+    public KeyValueStoreMaterializer(final MaterializedInternal<K, V, KeyValueStore<Bytes, byte[]>> materialized) {
         super(materialized);
     }
 
     @Override
-    public StateStore build() {
+    public StoreBuilder<?> getBuilder() {
         final KeyValueBytesStoreSupplier supplier = materialized.storeSupplier() == null
-                ? dslStoreSuppliers().keyValueStore(new DslKeyValueParams(materialized.storeName(), true))
-                : (KeyValueBytesStoreSupplier) materialized.storeSupplier();
+            ? dslStoreSuppliers().keyValueStore(new DslKeyValueParams(materialized.storeName(), true))
+            : (KeyValueBytesStoreSupplier) materialized.storeSupplier();
 
         final StoreBuilder<?> builder;
         if (supplier instanceof VersionedBytesStoreSupplier) {
             builder = Stores.versionedKeyValueStoreBuilder(
-                    (VersionedBytesStoreSupplier) supplier,
-                    materialized.keySerde(),
-                    materialized.valueSerde());
+                (VersionedBytesStoreSupplier) supplier,
+                materialized.keySerde(),
+                materialized.valueSerde());
         } else {
             builder = Stores.timestampedKeyValueStoreBuilder(
-                    supplier,
-                    materialized.keySerde(),
-                    materialized.valueSerde());
+                supplier,
+                materialized.keySerde(),
+                materialized.valueSerde());
         }
 
         if (materialized.loggingEnabled()) {
@@ -75,9 +73,7 @@ public class KeyValueStoreMaterializer<K, V> extends MaterializedStoreFactory<K,
                 LOG.info("Not enabling caching for store '{}' as versioned stores do not support caching.", supplier.name());
             }
         }
-
-
-        return builder.build();
+        return builder;
     }
 
     @Override

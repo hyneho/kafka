@@ -116,20 +116,14 @@ public class TableSourceNode<K, V> extends SourceGraphNode<K, V> {
                                       consumedInternal().valueDeserializer(),
                                       topicName);
 
-            topologyBuilder.addProcessor(processorParameters.processorName(), processorParameters.processorSupplier(), sourceName);
+            processorParameters.addProcessorTo(topologyBuilder, new String[]{sourceName});
 
             // only add state store if the source KTable should be materialized
             final KTableSource<K, V> tableSource = (KTableSource<K, V>) processorParameters.processorSupplier();
-            if (tableSource.materialized()) {
-                topologyBuilder.addStateStore(storeFactory, nodeName());
-
-                if (shouldReuseSourceTopicForChangelog) {
-                    storeFactory.withLoggingDisabled();
-                    topologyBuilder.connectSourceStoreAndTopic(storeFactory.name(), topicName);
-                }
+            if (shouldReuseSourceTopicForChangelog) {
+                tableSource.reuseSourceTopicForChangelog(topologyBuilder, topicName);
             }
         }
-
     }
 
     public static final class TableSourceNodeBuilder<K, V> {

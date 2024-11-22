@@ -16,13 +16,21 @@
  */
 package org.apache.kafka.streams.kstream.internals;
 
+import java.util.Collections;
+import java.util.Set;
 import org.apache.kafka.common.metrics.Sensor;
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.api.RecordMetadata;
+import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
+import org.apache.kafka.streams.processor.internals.StoreFactory;
+import org.apache.kafka.streams.processor.internals.StoreFactory.FactoryWrappingStoreBuilder;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
+import org.apache.kafka.streams.state.KeyValueStore;
+import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.ValueAndTimestamp;
 import org.apache.kafka.streams.state.internals.KeyValueStoreWrapper;
 
@@ -39,14 +47,17 @@ public class KTableSource<KIn, VIn> implements ProcessorSupplier<KIn, VIn, KIn, 
 
     private static final Logger LOG = LoggerFactory.getLogger(KTableSource.class);
 
+    private final StoreFactory storeFactory;
     private final String storeName;
     private String queryableName;
     private boolean sendOldValues;
 
-    public KTableSource(final String storeName, final String queryableName) {
+    public KTableSource(final MaterializedInternal<KIn, VIn, KeyValueStore<Bytes, byte[]>> materialized,
+                        final String queryableName) {
+        this.storeName = materialized.storeName();
         Objects.requireNonNull(storeName, "storeName can't be null");
 
-        this.storeName = storeName;
+        this.storeFactory = new KeyValueStoreMaterializer<>(materialized);
         this.queryableName = queryableName;
         this.sendOldValues = false;
     }
@@ -60,11 +71,27 @@ public class KTableSource<KIn, VIn> implements ProcessorSupplier<KIn, VIn, KIn, 
         return new KTableSourceProcessor();
     }
 
+    @Override
+    public Set<StoreBuilder<?>> stores() {
+        if (materialized()) {
+            return Collections.singleton(new FactoryWrappingStoreBuilder<>(storeFactory));
+        } else {
+            return Collections.emptySet();
+        }
+    }
+
     // when source ktable requires sending old values, we just
     // need to set the queryable name as the store name to enforce materialization
     public void enableSendingOldValues() {
         this.sendOldValues = true;
         this.queryableName = storeName;
+    }
+
+    public void reuseSourceTopicForChangelog(final InternalTopologyBuilder topologyBuilder, final String topicName) {
+        if (materialized()) {
+            storeFactory.withLoggingDisabled();
+            topologyBuilder.connectSourceStoreAndTopic(storeFactory.name(), topicName);
+        }
     }
 
     // when the source ktable requires materialization from downstream, we just

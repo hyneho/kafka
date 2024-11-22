@@ -81,10 +81,6 @@ public class StatefulProcessorNode<K, V> extends ProcessorGraphNode<K, V> {
     public void writeToTopology(final InternalTopologyBuilder topologyBuilder) {
         processorParameters().addProcessorTo(topologyBuilder, parentNodeNames());
 
-        if (storeNames != null && storeNames.length > 0) {
-            topologyBuilder.connectProcessorAndStateStores(processorParameters().processorName(), storeNames);
-        }
-
         if (storeFactory != null) {
             topologyBuilder.addStateStore(storeFactory, processorParameters().processorName());
         }

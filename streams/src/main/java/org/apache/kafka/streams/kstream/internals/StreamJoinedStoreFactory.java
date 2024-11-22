@@ -81,7 +81,7 @@ public class StreamJoinedStoreFactory<K, V1, V2> extends AbstractConfigurableSto
     }
 
     @Override
-    public StateStore build() {
+    public StoreBuilder<?> getBuilder() {
         final WindowBytesStoreSupplier supplier = storeSupplier == null
                 ? dslStoreSuppliers().windowStore(new DslWindowParams(
                         this.name,
@@ -106,7 +106,7 @@ public class StreamJoinedStoreFactory<K, V1, V2> extends AbstractConfigurableSto
             builder.withLoggingDisabled();
         }
 
-        return builder.build();
+        return builder;
     }
 
     @Override

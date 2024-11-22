@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.streams.kstream.internals;
 
+import java.util.Collections;
+import java.util.Set;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.ValueJoinerWithKey;
@@ -25,7 +27,10 @@ import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.api.Record;
+import org.apache.kafka.streams.processor.internals.StoreFactory;
+import org.apache.kafka.streams.processor.internals.StoreFactory.FactoryWrappingStoreBuilder;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
+import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.WindowStore;
 import org.apache.kafka.streams.state.WindowStoreIterator;
 
@@ -44,13 +49,15 @@ class KStreamKStreamSelfJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1
     private final long joinOtherAfterMs;
     private final long retentionPeriod;
     private final ValueJoinerWithKey<? super K, ? super V1, ? super V2, ? extends VOut> joinerThis;
+    private final StoreFactory thisWindowStoreFactory;
 
     KStreamKStreamSelfJoin(
         final String windowName,
         final JoinWindowsInternal windows,
         final ValueJoinerWithKey<? super K, ? super V1, ? super V2, ? extends VOut> joinerThis,
-        final long retentionPeriod) {
-
+        final long retentionPeriod,
+        final StoreFactory thisWindowStoreFactory
+    ) {
         this.windowName = windowName;
         this.joinThisBeforeMs = windows.beforeMs;
         this.joinThisAfterMs = windows.afterMs;
@@ -58,11 +65,17 @@ class KStreamKStreamSelfJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1
         this.joinOtherAfterMs = windows.beforeMs;
         this.joinerThis = joinerThis;
         this.retentionPeriod = retentionPeriod;
+        this.thisWindowStoreFactory = thisWindowStoreFactory;
     }
 
     @Override
     public Processor<K, V1, K, VOut> get() {
         return new KStreamKStreamSelfJoinProcessor();
+    }
+
+    @Override
+    public Set<StoreBuilder<?>> stores() {
+        return Collections.singleton(new FactoryWrappingStoreBuilder<>(thisWindowStoreFactory));
     }
 
     private class KStreamKStreamSelfJoinProcessor extends ContextualProcessor<K, V1, K, VOut> {

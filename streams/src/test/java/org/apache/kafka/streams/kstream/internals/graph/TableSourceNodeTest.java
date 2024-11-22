@@ -41,7 +41,7 @@ public class TableSourceNodeTest {
     private static final String STORE_NAME = "store-name";
     private static final String TOPIC = "input-topic";
 
-    private InternalTopologyBuilder topologyBuilder = mock(InternalTopologyBuilder.class);
+    private final InternalTopologyBuilder topologyBuilder = mock(InternalTopologyBuilder.class);
 
     @Test
     public void shouldConnectStateStoreToInputTopicIfInputTopicIsUsedAsChangelog() {
@@ -59,12 +59,13 @@ public class TableSourceNodeTest {
 
     private void buildTableSourceNode(final boolean shouldReuseSourceTopicForChangelog) {
         final TableSourceNodeBuilder<String, String> tableSourceNodeBuilder = TableSourceNode.tableSourceNodeBuilder();
+        final MaterializedInternal materializedInternal = new MaterializedInternal<>(Materialized.as(STORE_NAME));
         final TableSourceNode<String, String> tableSourceNode = tableSourceNodeBuilder
             .withTopic(TOPIC)
-            .withMaterializedInternal(new MaterializedInternal<>(Materialized.as(STORE_NAME)))
+            .withMaterializedInternal(materializedInternal)
             .withConsumedInternal(new ConsumedInternal<>(Consumed.as("node-name")))
             .withProcessorParameters(
-                new ProcessorParameters<>(new KTableSource<>(STORE_NAME, STORE_NAME), null))
+                new ProcessorParameters<>(new KTableSource<>(materializedInternal, STORE_NAME), null))
             .build();
         tableSourceNode.reuseSourceTopicForChangeLog(shouldReuseSourceTopicForChangelog);
 
