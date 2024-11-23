@@ -254,7 +254,7 @@ class PartitionGroup extends AbstractPartitionGroup {
             record = queue.poll(wallClockTime);
 
             if (record != null) {
-                totalBuffered -= (oldSize - queue.size());
+                totalBuffered -= oldSize - queue.size();
 
                 if (queue.isEmpty()) {
                     // if a certain queue has been drained, reset the flag
