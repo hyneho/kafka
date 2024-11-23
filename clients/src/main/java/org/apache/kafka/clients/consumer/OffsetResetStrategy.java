@@ -18,6 +18,10 @@ package org.apache.kafka.clients.consumer;
 
 import java.util.Locale;
 
+/**
+ * @deprecated Since 4.0.
+ */
+@Deprecated
 public enum OffsetResetStrategy {
     LATEST, EARLIEST, NONE;
 
