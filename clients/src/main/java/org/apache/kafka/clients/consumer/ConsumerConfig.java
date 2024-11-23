@@ -731,7 +731,7 @@ public class ConsumerConfig extends AbstractConfig {
         Optional<String> groupId = Optional.ofNullable(getString(CommonClientConfigs.GROUP_ID_CONFIG));
         Map<String, Object> originals = originals();
         boolean enableAutoCommit = originals.containsKey(ENABLE_AUTO_COMMIT_CONFIG) ? getBoolean(ENABLE_AUTO_COMMIT_CONFIG) : false;
-        if (!groupId.isPresent()) { // overwrite in case of default group id where the config is not explicitly provided
+        if (groupId.isEmpty()) { // overwrite in case of default group id where the config is not explicitly provided
             if (!originals.containsKey(ENABLE_AUTO_COMMIT_CONFIG)) {
                 configs.put(ENABLE_AUTO_COMMIT_CONFIG, false);
             } else if (enableAutoCommit) {

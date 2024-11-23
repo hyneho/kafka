@@ -225,6 +225,7 @@
     <allow pkg="org.apache.kafka.common" />
     <allow pkg="org.apache.kafka.clients" exact-match="true"/>
     <allow pkg="org.apache.kafka.test" />
+    <allow class="org.apache.log4j.Level" />
 
     <subpackage name="consumer">
       <allow pkg="org.apache.kafka.clients.consumer" />
@@ -379,6 +380,7 @@
     <allow pkg="net.sourceforge.argparse4j" />
     <allow pkg="org.apache.kafka.message" />
     <allow pkg="org.apache.message" />
+    <allow pkg="org.eclipse.jgit" />
   </subpackage>
 
   <subpackage name="streams">
