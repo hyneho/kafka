@@ -104,6 +104,7 @@ public enum Features {
         PRODUCTION_FEATURE_NAMES = PRODUCTION_FEATURES.stream().map(feature ->
                 feature.name).collect(Collectors.toList());
 
+        validateDefaultValueAndLatestProductionValue(TEST_VERSION);
         for (Features feature : PRODUCTION_FEATURES) {
             validateDefaultValueAndLatestProductionValue(feature);
         }
