@@ -19,44 +19,42 @@ package unit.kafka.server
 
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterInstance, ClusterTest, ClusterTestDefaults, ClusterTestExtensions, Type}
 import kafka.server.GroupCoordinatorBaseRequestTest
-import org.apache.kafka.clients.admin.{Admin, NewTopic}
-import org.apache.kafka.clients.consumer.{ConsumerGroupMetadata, OffsetAndMetadata}
+import kafka.utils.TestUtils
+import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig}
 import org.apache.kafka.clients.producer.{Producer, ProducerConfig}
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.requests.JoinGroupRequest
-import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
+import org.apache.kafka.common.utils.Bytes
+import org.apache.kafka.coordinator.group.{GroupCoordinatorConfig, GroupCoordinatorRecordSerde}
+import org.apache.kafka.coordinator.group.generated.{OffsetCommitKey, OffsetCommitValue}
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
 import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.extension.ExtendWith
 
+import java.nio.ByteBuffer
+import java.time.Duration
+import java.util
 import java.util.Collections
-import java.util.Collections.singleton
+import scala.jdk.CollectionConverters.IterableHasAsScala
 
 @ExtendWith(value = Array(classOf[ClusterTestExtensions]))
-@ClusterTestDefaults(types = Array(Type.KRAFT))
+@ClusterTestDefaults(types = Array(Type.KRAFT), serverProperties = Array(
+    new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
+    new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
+    new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG, value = "1"),
+    new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
+  )
+)
 class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinatorBaseRequestTest(cluster) {
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-    )
-  )
+  @ClusterTest
   def testTxnOffsetCommitWithNewConsumerGroupProtocolAndNewGroupCoordinator(): Unit = {
     testTxnOffsetCommit(true)
   }
 
-  @ClusterTest(
-    serverProperties = Array(
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-    )
-  )
+  @ClusterTest
   def testTxnOffsetCommitWithOldConsumerGroupProtocolAndNewGroupCoordinator(): Unit = {
     testTxnOffsetCommit(false)
   }
@@ -65,11 +63,8 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
     serverProperties = Array(
       new ClusterConfigProperty(key = GroupCoordinatorConfig.NEW_GROUP_COORDINATOR_ENABLE_CONFIG, value = "false"),
       new ClusterConfigProperty(key = GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, value = "classic"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-      new ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-  ))
+    )
+  )
   def testTxnOffsetCommitWithOldConsumerGroupProtocolAndOldGroupCoordinator(): Unit = {
     testTxnOffsetCommit(false)
   }
@@ -92,23 +87,22 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
     // a session long enough for the duration of the test.
     joinConsumerGroup(groupId, useNewProtocol)
 
-    var adminClient: Admin = null
+    var consumer: Consumer[Bytes, Bytes] = null
     var producer: Producer[String, String] = null
-
     try {
-      adminClient = cluster.admin()
-      adminClient.createTopics(singleton(new NewTopic(topic, 1, 1.toShort)))
+      createTopic(topic, 1)
 
       producer = cluster.producer(Collections.singletonMap(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId))
-
       producer.initTransactions()
       producer.beginTransaction()
-      // add this line to avoid error INVALID_TXN_STATE
-      producer.sendOffsetsToTransaction(
-        Collections.singletonMap(new TopicPartition("topic", 0), new OffsetAndMetadata(5)),
-        new ConsumerGroupMetadata(groupId))
+      addOffsetsToTxn(groupId, 0, 0.toShort, transactionalId, ApiKeys.ADD_OFFSETS_TO_TXN.latestVersion())
 
-      // verify that the TXN_OFFSET_COMMIT request is processed correctly when member id is UNKNOWN_MEMBER_ID
+      val consumerConfigs = new util.HashMap[String, Object]()
+      consumerConfigs.put(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG, "false")
+      consumer = cluster.consumer(consumerConfigs)
+      consumer.assign(Collections.singletonList(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0)))
+
+      // Verify that the TXN_OFFSET_COMMIT request is processed correctly when member id is UNKNOWN_MEMBER_ID
       // and generation id is UNKNOWN_GENERATION_ID under all api versions
       for (version <- 0 to ApiKeys.TXN_OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)) {
         commitTxnOffset(
@@ -120,14 +114,36 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
           transactionalId = transactionalId,
           topic = topic,
           partition = partition,
-          offset = 100L,
+          offset = 100 + version,
           expectedError = Errors.NONE,
           version = version.toShort,
         )
+
+        TestUtils.waitUntilTrue(() => {
+          consumer.poll(Duration.ofSeconds(5)).asScala
+            .filter(record => record.key() != null && record.value() != null)
+            .map(record => new GroupCoordinatorRecordSerde()
+              .deserialize(ByteBuffer.wrap(record.key().get()), ByteBuffer.wrap(record.value().get())))
+            .filter(coordinatorRecord =>
+              coordinatorRecord.key().message().isInstanceOf[OffsetCommitKey] &&
+              coordinatorRecord.value().message().isInstanceOf[OffsetCommitValue])
+            .exists(coordinatorRecord => {
+              val offsetCommitKey = coordinatorRecord.key().message().asInstanceOf[OffsetCommitKey]
+              val offsetCommitValue = coordinatorRecord.value().message().asInstanceOf[OffsetCommitValue]
+              offsetCommitKey.group() == groupId &&
+                offsetCommitKey.topic() == topic &&
+                offsetCommitKey.partition == partition &&
+                offsetCommitValue.offset() == 100 + version
+            })
+        }, "Txn offset commit not found")
       }
     } finally {
-      adminClient.close()
-      producer.close()
+      if (consumer != null) consumer.close()
+      if (producer != null) {
+        // Make test end faster
+        producer.abortTransaction()
+        producer.close()
+      }
     }
   }
 }

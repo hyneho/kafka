@@ -515,9 +515,8 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         // the request can commit offsets if the group is empty.
         if (memberEpoch < 0 && members().isEmpty()) return;
 
-        // TxnOffsetCommitRequest versions v0-v2 do not include a member ID.
-        // And we can still send UNKNOWN_GENERATION_ID and UNKNOWN_MEMBER_ID through Producer#sendOffsetsToTransaction.
-        // Therefore, we should not throw exception in these cases.
+        // The TxnOffsetCommit API does not require the member id, the generation id and the group instance id fields.
+        // Hence, they are only validated if any of them is provided
         if (isTransactional && memberEpoch == JoinGroupRequest.UNKNOWN_GENERATION_ID &&
             memberId.equals(JoinGroupRequest.UNKNOWN_MEMBER_ID) && groupInstanceId == null)
             return;
