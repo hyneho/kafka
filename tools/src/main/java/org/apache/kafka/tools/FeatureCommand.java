@@ -302,7 +302,7 @@ public class FeatureCommand {
             }
             try {
                 for (Features feature : Features.PRODUCTION_FEATURES) {
-                    short featureLevel = feature.defaultValue(metadataVersion);
+                    short featureLevel = feature.defaultLevel(metadataVersion);
                     // Don't send a request to upgrade a feature to 0.
                     if (upgradeType != FeatureUpdate.UpgradeType.UPGRADE || featureLevel > 0) {
                         updates.put(feature.featureName(), new FeatureUpdate(featureLevel, upgradeType));
@@ -368,7 +368,7 @@ public class FeatureCommand {
             System.out.printf("metadata.version=%d (%s)%n", metadataVersionLevel, releaseVersion);
 
             for (Features feature : validFeatures) {
-                short featureLevel = feature.defaultValue(version);
+                short featureLevel = feature.defaultLevel(version);
                 System.out.printf("%s=%d%n", feature.featureName(), featureLevel);
             }
         } catch (IllegalArgumentException e) {

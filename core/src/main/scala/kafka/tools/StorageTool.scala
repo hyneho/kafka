@@ -181,7 +181,7 @@ object StorageTool extends Logging {
       printStream.print(f"metadata.version=$metadataVersionLevel%d ($releaseVersion%s)%n")
 
       for (feature <- validFeatures.asScala) {
-        val featureLevel = feature.defaultValue(metadataVersion)
+        val featureLevel = feature.defaultLevel(metadataVersion)
         printStream.print(f"${feature.featureName}%s=$featureLevel%d%n")
       }
     } catch {

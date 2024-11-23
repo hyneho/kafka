@@ -258,7 +258,7 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                 Features.PRODUCTION_FEATURES.forEach(supportedFeature -> {
                     if (!newFeatureLevels.containsKey(supportedFeature.featureName())) {
                         newFeatureLevels.put(supportedFeature.featureName(),
-                            supportedFeature.defaultValue(clusterConfig.metadataVersion()));
+                            supportedFeature.defaultLevel(clusterConfig.metadataVersion()));
                     }
                 });
 

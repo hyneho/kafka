@@ -61,7 +61,7 @@ public class QuorumFeaturesTest {
             MetadataVersion.MINIMUM_KRAFT_VERSION.featureLevel(),
             MetadataVersion.LATEST_PRODUCTION.featureLevel()));
         for (Features feature : Features.PRODUCTION_FEATURES) {
-            short maxVersion = feature.defaultValue(MetadataVersion.LATEST_PRODUCTION);
+            short maxVersion = feature.defaultLevel(MetadataVersion.LATEST_PRODUCTION);
             if (maxVersion > 0) {
                 expectedFeatures.put(feature.featureName(), VersionRange.of(
                     feature.minimumProduction(),
@@ -79,7 +79,7 @@ public class QuorumFeaturesTest {
             MetadataVersion.MINIMUM_KRAFT_VERSION.featureLevel(),
             MetadataVersion.latestTesting().featureLevel()));
         for (Features feature : Features.PRODUCTION_FEATURES) {
-            short maxVersion = feature.defaultValue(MetadataVersion.latestTesting());
+            short maxVersion = feature.defaultLevel(MetadataVersion.latestTesting());
             if (maxVersion > 0) {
                 expectedFeatures.put(feature.featureName(), VersionRange.of(
                     feature.minimumProduction(),

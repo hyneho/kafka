@@ -24,21 +24,34 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.kafka.server.common.Features.validateDefaultValueAndLatestProductionValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class FeaturesTest {
     @ParameterizedTest
-    @EnumSource(Features.class)
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
     public void testV0SupportedInEarliestMV(Features feature) {
         assertTrue(feature.featureVersions().length >= 1);
         assertEquals(MetadataVersion.MINIMUM_KRAFT_VERSION,
-                feature.featureVersions()[0].bootstrapMetadataVersion());
+            feature.featureVersions()[0].bootstrapMetadataVersion());
     }
 
     @ParameterizedTest
-    @EnumSource(Features.class)
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
     public void testFromFeatureLevelAllFeatures(Features feature) {
         FeatureVersion[] featureImplementations = feature.featureVersions();
         int numFeatures = featureImplementations.length;
@@ -56,7 +69,13 @@ public class FeaturesTest {
     }
 
     @ParameterizedTest
-    @EnumSource(Features.class)
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
     public void testValidateVersionAllFeatures(Features feature) {
         for (FeatureVersion featureImpl : feature.featureVersions()) {
             // Ensure the minimum bootstrap metadata version is included if no metadata version dependency.
@@ -100,11 +119,17 @@ public class FeaturesTest {
     }
 
     @ParameterizedTest
-    @EnumSource(Features.class)
-    public void testDefaultValueAllFeatures(Features feature) {
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+    public void testDefaultLevelAllFeatures(Features feature) {
         for (FeatureVersion featureImpl : feature.featureVersions()) {
             // If features have the same bootstrapMetadataVersion, the highest level feature should be chosen.
-            short defaultLevel = feature.defaultValue(featureImpl.bootstrapMetadataVersion());
+            short defaultLevel = feature.defaultLevel(featureImpl.bootstrapMetadataVersion());
             if (defaultLevel != featureImpl.featureLevel()) {
                 FeatureVersion otherFeature = feature.fromFeatureLevel(defaultLevel, true);
                 assertEquals(featureImpl.bootstrapMetadataVersion(), otherFeature.bootstrapMetadataVersion());
@@ -114,9 +139,63 @@ public class FeaturesTest {
     }
 
     @ParameterizedTest
-    @EnumSource(Features.class)
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+    public void testLatestProductionIsOneOfFeatureValues(Features features) {
+        assertTrue(features.hasFeatureVersion(features.latestProduction));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
     public void testLatestProductionIsNotBehindLatestMetadataVersion(Features features) {
-        assertTrue(features.latestProduction() >= features.defaultValue(MetadataVersion.latestProduction()));
+        assertTrue(features.latestProduction() >= features.defaultLevel(MetadataVersion.latestProduction()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+    public void testLatestProductionDependencyIsProductionReady(Features features) {
+        for (Map.Entry<String, Short> dependency: features.latestProduction.dependencies().entrySet()) {
+            String featureName = dependency.getKey();
+            if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
+                Features dependencyFeature = Features.featureFromName(featureName);
+                assertTrue(dependencyFeature.isProductionReady(dependency.getValue()));
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Features.class, names = {
+        "UNIT_TEST_VERSION_0",
+        "UNIT_TEST_VERSION_1",
+        "UNIT_TEST_VERSION_2",
+        "UNIT_TEST_VERSION_3",
+        "UNIT_TEST_VERSION_4",
+        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+    public void testDefaultVersionDependencyIsProductionReady(Features features) {
+        for (Map.Entry<String, Short> dependency: features.defaultVersion(MetadataVersion.LATEST_PRODUCTION).dependencies().entrySet()) {
+            String featureName = dependency.getKey();
+            if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
+                Features dependencyFeature = Features.featureFromName(featureName);
+                assertTrue(dependency.getValue() <= dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION));
+            }
+        }
     }
 
     @ParameterizedTest
@@ -130,7 +209,7 @@ public class FeaturesTest {
         } else {
             expectedVersion = 0;
         }
-        assertEquals(expectedVersion, Features.TEST_VERSION.defaultValue(metadataVersion));
+        assertEquals(expectedVersion, Features.TEST_VERSION.defaultLevel(metadataVersion));
     }
 
     @Test
@@ -142,5 +221,38 @@ public class FeaturesTest {
                 Features.TEST_VERSION.fromFeatureLevel(Features.TEST_VERSION.latestTesting(), false));
         }
         Features.TEST_VERSION.fromFeatureLevel(Features.TEST_VERSION.latestTesting(), true);
+    }
+
+    @Test
+    public void testValidateDefaultValueAndLatestProductionLevelWithNonExistentLatestProduction() {
+        assertThrows(IllegalArgumentException.class, () ->
+            validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_0),
+            "Feature UNIT_TEST_VERSION_0 has latest production version " +
+                "unit.test.feature.version=1 which is not one of its feature versions");
+    }
+
+    @Test
+    public void testValidateDefaultValueAndLatestProductionLevelWithLaggingLatestProduction() {
+        assertThrows(IllegalArgumentException.class, () ->
+            validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_1),
+            "Feature UNIT_TEST_VERSION_1 has latest production value 0 smaller than its default value 1");
+    }
+
+    @Test
+    public void testValidateDefaultValueAndLatestProductionLevelWithDependencyNotProductionReady() {
+        assertThrows(IllegalArgumentException.class, () ->
+                validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_3),
+            "Latest production FeatureVersion UNIT_TEST_VERSION_3=1 has a dependency " +
+                "UNIT_TEST_VERSION_2=1 that is not production ready. (UNIT_TEST_VERSION_2 latest production: 0)");
+    }
+
+    @Test
+    public void testValidateDefaultValueAndLatestProductionValueWithDefaultValueDependencyAheadOfItsDefaultLevel() {
+        if (MetadataVersion.latestProduction().isLessThan(MetadataVersion.latestTesting())) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_5),
+                "Default FeatureVersion UNIT_TEST_VERSION_5=1 has a dependency " +
+                    "UNIT_TEST_VERSION_4=1 that is ahead of its default value 0");
+        }
     }
 }

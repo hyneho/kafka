@@ -386,7 +386,7 @@ public class FeatureCommandTest {
             "Output did not contain expected Metadata Version: " + versionMappingOutput);
 
         for (Features feature : Features.values()) {
-            int featureLevel = feature.defaultValue(metadataVersion);
+            int featureLevel = feature.defaultLevel(metadataVersion);
             assertTrue(versionMappingOutput.contains(feature.featureName() + "=" + featureLevel),
                 "Output did not contain expected feature mapping: " + versionMappingOutput);
         }
@@ -410,7 +410,7 @@ public class FeatureCommandTest {
             "Output did not contain expected Metadata Version: " + versionMappingOutput);
 
         for (Features feature : Features.values()) {
-            int featureLevel = feature.defaultValue(metadataVersion);
+            int featureLevel = feature.defaultLevel(metadataVersion);
             assertTrue(versionMappingOutput.contains(feature.featureName() + "=" + featureLevel),
                 "Output did not contain expected feature mapping: " + versionMappingOutput);
         }
