@@ -218,7 +218,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(final SyncCommitEvent event) {
-        
         if (requestManagers.commitRequestManager.isEmpty()) {
             event.future().completeExceptionally(new KafkaException("Unable to sync commit " +
                 "offset because the CommitRequestManager is not available. Check if group.id was set correctly"));
@@ -589,5 +588,4 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     int metadataVersionSnapshot() {
         return metadataVersionSnapshot;
     }
-    
 }
