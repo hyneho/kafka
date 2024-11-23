@@ -33,7 +33,7 @@ public class CheckAndUpdatePositionsEvent extends CompletableApplicationEvent<Bo
         super(Type.CHECK_AND_UPDATE_POSITIONS, deadlineMs);
     }
 
-    public CheckAndUpdatePositionsEvent(long deadlineMs, boolean isCompletedByFuture) {
-        super(Type.CHECK_AND_UPDATE_POSITIONS, deadlineMs, isCompletedByFuture);
+    public CheckAndUpdatePositionsEvent(long deadlineMs, boolean isPassedByErrorEvent) {
+        super(Type.CHECK_AND_UPDATE_POSITIONS, deadlineMs, isPassedByErrorEvent);
     }
 }

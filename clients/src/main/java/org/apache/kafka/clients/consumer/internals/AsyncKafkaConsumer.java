@@ -1683,10 +1683,10 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      * @throws NoOffsetForPartitionException If no offset is stored for a given partition and no offset reset policy is
      *                                       defined
      */
-    private boolean updateFetchPositions(final Timer timer, final boolean isCompletedBuFuture) {
+    private boolean updateFetchPositions(final Timer timer, final boolean isPassedByErrorEvent) {
         cachedSubscriptionHasAllFetchPositions = false;
         try {
-            CheckAndUpdatePositionsEvent checkAndUpdatePositionsEvent = new CheckAndUpdatePositionsEvent(calculateDeadlineMs(timer), isCompletedBuFuture);
+            CheckAndUpdatePositionsEvent checkAndUpdatePositionsEvent = new CheckAndUpdatePositionsEvent(calculateDeadlineMs(timer), isPassedByErrorEvent);
             wakeupTrigger.setActiveTask(checkAndUpdatePositionsEvent.future());
             cachedSubscriptionHasAllFetchPositions = applicationEventHandler.addAndGet(checkAndUpdatePositionsEvent);
         } catch (TimeoutException e) {

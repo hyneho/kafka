@@ -159,7 +159,7 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
         if (networkClientDelegate.metadataError().isPresent()) {
             Throwable metadataError = networkClientDelegate.metadataError().get();
             completableEvents.stream()
-                    .filter(event -> !(event instanceof CompletableApplicationEvent && ((CompletableApplicationEvent<?>) event).isCompletedByFuture()))
+                    .filter(event -> !(event instanceof CompletableApplicationEvent && ((CompletableApplicationEvent<?>) event).isPassedByErrorEvent()))
                     .forEach(event -> event.future().completeExceptionally(metadataError));
             networkClientDelegate.clearMetadataError();
         }
