@@ -18,6 +18,13 @@
 package kafka.server
 
 import kafka.controller.ControllerEventManager
+
+import java.io.File
+import java.net.InetSocketAddress
+import java.util
+import java.util.{Collections, Locale, Optional, OptionalInt, Properties, stream}
+import java.util.concurrent.{CompletableFuture, TimeUnit}
+import javax.security.auth.login.Configuration
 import kafka.utils.{CoreUtils, Logging, TestInfoUtils, TestUtils}
 import kafka.zk.{AdminZkClient, EmbeddedZookeeper, KafkaZkClient}
 import org.apache.kafka.clients.admin.AdminClientUnitTestEnv
@@ -35,24 +42,18 @@ import org.apache.kafka.metadata.storage.Formatter
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.queue.KafkaEventQueue
 import org.apache.kafka.raft.QuorumConfig
+import org.apache.kafka.server.{ClientMetricsManager, ServerSocketFactory}
 import org.apache.kafka.server.common.{MetadataVersion, TransactionVersion}
 import org.apache.kafka.server.config.{KRaftConfigs, ServerConfigs, ServerLogConfigs}
 import org.apache.kafka.server.fault.{FaultHandler, MockFaultHandler}
 import org.apache.kafka.server.util.timer.SystemTimer
-import org.apache.kafka.server.{ClientMetricsManager, ServerSocketFactory}
 import org.apache.zookeeper.client.ZKClientConfig
 import org.apache.zookeeper.{WatchedEvent, Watcher, ZooKeeper}
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api._
+import org.junit.jupiter.api.{AfterAll, AfterEach, BeforeAll, BeforeEach, Tag, TestInfo}
 import org.junit.jupiter.params.provider.Arguments
 
-import java.io.File
-import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
-import java.util
-import java.util.concurrent.{CompletableFuture, TimeUnit}
-import java.util.{Collections, Locale, Optional, OptionalInt, Properties, stream}
-import javax.security.auth.login.Configuration
 import scala.collection.Seq
 import scala.jdk.CollectionConverters._
 import scala.jdk.OptionConverters.RichOptional
