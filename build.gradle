@@ -49,6 +49,8 @@ ext {
   gradleVersion = versions.gradle
   minClientJavaVersion = 11
   minServerJavaVersion = 17
+  modulesNeedingJava11 = [":clients", ":streams", ":streams:test-utils", ":streams-scala"]
+
   buildVersionFileName = "kafka-version.properties"
 
   defaultMaxHeapSize = "2g"
@@ -114,16 +116,11 @@ ext {
 
   commitId = determineCommitId()
 
-  isModuleNeedJava11 = { projectPath ->
-    def modulesNeedingJava11 = [":clients", ":streams", ":streams:test-utils", ":streams-scala"]
-    modulesNeedingJava11.any { projectPath.equals(it) }
-  }
-
   configureJavaCompiler = { name, options, projectPath ->
     // -parameters generates arguments with parameter names in TestInfo#getDisplayName.
     // ref: https://github.com/junit-team/junit5/blob/4c0dddad1b96d4a20e92a2cd583954643ac56ac0/junit-jupiter-params/src/main/java/org/junit/jupiter/params/ParameterizedTest.java#L161-L164
 
-    def releaseVersion = isModuleNeedJava11(projectPath) ? minClientJavaVersion : minServerJavaVersion
+    def releaseVersion = modulesNeedingJava11.any { projectPath == it } ? minClientJavaVersion : minServerJavaVersion
 
     options.compilerArgs << "-encoding" << "UTF-8"
     options.compilerArgs += ["--release", String.valueOf(releaseVersion)]
@@ -734,9 +731,7 @@ subprojects {
   }
 
   tasks.withType(ScalaCompile) {
-    def modulesNeedingJava11 = [":clients", ":streams", ":streams:test-utils", ":streams-scala"]
-    def releaseVersion = modulesNeedingJava11.any { project.path.equals(it) } ?
-        minClientJavaVersion : minServerJavaVersion
+    def releaseVersion = modulesNeedingJava11.any { project.path == it } ? minClientJavaVersion : minServerJavaVersion
     scalaCompileOptions.keepAliveMode = userKeepAliveMode
 
     scalaCompileOptions.additionalParameters = [
