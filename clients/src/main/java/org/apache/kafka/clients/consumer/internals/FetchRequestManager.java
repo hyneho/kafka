@@ -198,7 +198,21 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         Set<TopicPartition> unbuffered = Set.copyOf(subscriptions.fetchablePartitions(tp -> !buffered.contains(tp)));
 
         // The first loop is the same logic as in the ClassicKafkaConsumer.
-        addFetchables(unbuffered, currentTimeMs, fetchable, topicIds);
+        for (TopicPartition partition : unbuffered) {
+            SubscriptionState.FetchPosition position = subscriptions.position(partition);
+
+            if (position == null)
+                throw new IllegalStateException("Missing position for fetchable partition " + partition);
+
+            Optional<Node> nodeOpt = maybeFetchingNode(currentTimeMs, partition, position);
+
+            if (nodeOpt.isEmpty())
+                continue;
+
+            Node node = nodeOpt.get();
+            FetchSessionHandler.Builder builder = fetchSessionHandlerBuilder(fetchable, node);
+            addFetchable(builder, topicIds, node, partition, position, fetchConfig.fetchSize);
+        }
 
         // In the second loop, the AsyncKafkaConsumer does something a little different from the
         // ClassicKafkaConsumer...
@@ -218,24 +232,58 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
             }
 
             SubscriptionState.FetchPosition position = subscriptions.position(partition);
-            Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (leaderOpt.isEmpty())
+            // This shouldn't be possible, but since SubscriptionState is currently shared in more than one
+            // thread, caution should be exercised.
+            if (position == null)
                 continue;
 
-            // Use the preferred read replica if set, otherwise the partition's leader
-            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+            Optional<Node> nodeOpt = maybeFetchingNode(fetchable, currentTimeMs, partition, position);
+
+            if (nodeOpt.isEmpty())
+                continue;
+
+            Node node = nodeOpt.get();
             FetchSessionHandler fsh = sessionHandler(node.id());
 
-            if (!isUnavailable(node) &&
-                fetchable.containsKey(node) &&
-                fsh != null &&
-                fsh.sessionId() != FetchMetadata.INVALID_SESSION_ID) {
-                addFetchable(fetchable, topicIds, node, partition, position, 1);
-            }
+            // If there isn't a valid session for the node in question, there's no need to add the "nominal fetch"
+            // in the request. It's OK to skip this node
+            if (fsh == null || fsh.sessionId() == FetchMetadata.INVALID_SESSION_ID)
+                continue;
+
+            FetchSessionHandler.Builder builder = fetchSessionHandlerBuilder(fetchable, node);
+            addFetchable(builder, topicIds, node, partition, position, 1);
         }
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
+    }
+
+    /**
+     * This version of {@code maybeFetchingNode} is used for buffered data and is a bit different from
+     * {@link #maybeFetchingNode(long, TopicPartition, SubscriptionState.FetchPosition)}. Firstly, the
+     * {@link ConsumerMetadata} metadata is not refreshed if the leader isn't present. Second, there's no check
+     * to see if the node is {@link #isUnavailable(Node)} or if it already has an inflight fetch request.
+     * The check primarily determines if the consumer is including the given {@link Node} in the current fetch
+     * request. If it is, the "nominal" fetch (of "fetch size" 1) needs to be included. If no fetch request was
+     * created for the given node, then there's no need to create one just to include a "nominal" fetch for the
+     * buffered data.
+     */
+    private Optional<Node> maybeFetchingNode(final Map<Node, FetchSessionHandler.Builder> fetchable,
+                                             final long currentTimeMs,
+                                             final TopicPartition partition,
+                                             final SubscriptionState.FetchPosition position) {
+        Optional<Node> leaderOpt = position.currentLeader.leader;
+
+        if (leaderOpt.isEmpty())
+            return Optional.empty();
+
+        // Use the preferred read replica if set, otherwise the partition's leader
+        Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+
+        if (!fetchable.containsKey(node))
+            return Optional.empty();
+
+        return Optional.of(node);
     }
 
     /**
