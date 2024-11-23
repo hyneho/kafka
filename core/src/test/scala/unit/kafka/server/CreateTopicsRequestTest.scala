@@ -155,7 +155,7 @@ class CreateTopicsRequestTest extends AbstractCreateTopicsRequestTest {
     // behavior of returning NOT_CONTROLLER. Instead, the request is forwarded.
     val req = topicsReq(Seq(topicReq("topic1")))
     val response = sendCreateTopicRequest(req, notControllerSocketServer)
-    val error = if (isZkMigrationTest()) Errors.NONE else Errors.NOT_CONTROLLER
+    val error = Errors.NOT_CONTROLLER
     assertEquals(1, response.errorCounts().get(error))
   }
 
