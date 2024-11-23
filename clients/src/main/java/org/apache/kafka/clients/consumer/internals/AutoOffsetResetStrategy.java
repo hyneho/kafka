@@ -16,13 +16,13 @@
  */
 package org.apache.kafka.clients.consumer.internals;
 
-import java.util.Arrays;
-import java.util.Locale;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
-
-import java.util.Objects;
 import org.apache.kafka.common.utils.Utils;
+
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Objects;
 
 public class AutoOffsetResetStrategy {
     private enum StrategyType {
