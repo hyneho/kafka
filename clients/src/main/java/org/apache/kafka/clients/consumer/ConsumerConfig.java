@@ -19,7 +19,6 @@ package org.apache.kafka.clients.consumer;
 import org.apache.kafka.clients.ClientDnsLookup;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.MetadataRecoveryStrategy;
-import org.apache.kafka.clients.consumer.internals.AbstractPartitionAssignor;
 import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -378,27 +377,21 @@ public class ConsumerConfig extends AbstractConfig {
     private static final String SECURITY_PROVIDERS_DOC = SecurityConfig.SECURITY_PROVIDERS_DOC;
 
     private static final AtomicInteger CONSUMER_CLIENT_ID_SEQUENCE = new AtomicInteger(1);
-    private static final List<Class<? extends AbstractPartitionAssignor>> PARTITION_ASSIGNOR_DEFAULT_VALUE =
-            List.of(RangeAssignor.class, CooperativeStickyAssignor.class);
 
     /**
-     * A list of configuration keys for CLASSIC protocol not supported. we should check the input string and clean up the
-     * default value.
+     * A list of configuration keys for CLASSIC protocol not supported.
      */
     private static final List<String> CLASSIC_PROTOCOL_UNSUPPORTED_CONFIGS = Collections.singletonList(
             GROUP_REMOTE_ASSIGNOR_CONFIG
     );
 
     /**
-     * A list of configuration keys for consumer protocol not supported. we should check the input string and clean up the
-     * default value.
+     * A list of configuration keys for consumer protocol not supported.
      */
     private static final List<String> CONSUMER_PROTOCOL_UNSUPPORTED_CONFIGS = List.of(
             PARTITION_ASSIGNMENT_STRATEGY_CONFIG, 
             HEARTBEAT_INTERVAL_MS_CONFIG, 
-            SESSION_TIMEOUT_MS_CONFIG,
-            "group.max.session.timeout.ms",
-            "group.mix.session.timeout.ms"
+            SESSION_TIMEOUT_MS_CONFIG
     );
     
     static {
@@ -434,7 +427,7 @@ public class ConsumerConfig extends AbstractConfig {
                                         HEARTBEAT_INTERVAL_MS_DOC)
                                 .define(PARTITION_ASSIGNMENT_STRATEGY_CONFIG,
                                         Type.LIST,
-                                        PARTITION_ASSIGNOR_DEFAULT_VALUE,
+                                        List.of(RangeAssignor.class, CooperativeStickyAssignor.class),
                                         new ConfigDef.NonNullValidator(),
                                         Importance.MEDIUM,
                                         PARTITION_ASSIGNMENT_STRATEGY_DOC)
@@ -741,13 +734,18 @@ public class ConsumerConfig extends AbstractConfig {
     }
 
     private void checkUnsupportedConfigs(GroupProtocol groupProtocol, List<String> unsupportedConfigs) {
+        StringBuilder unsupportedConfigsStr = new StringBuilder();
         if (getString(GROUP_PROTOCOL_CONFIG).equalsIgnoreCase(groupProtocol.name())) {
             unsupportedConfigs.forEach(configName -> {
                 Object config = originals().get(configName);
                 if (config != null && !Utils.isBlank(config.toString())) {
-                    throw new ConfigException(configName + " cannot be set when " + GROUP_PROTOCOL_CONFIG + "=" + groupProtocol.name());
+                    unsupportedConfigsStr.append(configName).append(", ");
                 }
             });
+            if (unsupportedConfigsStr.length() > 0) {
+                unsupportedConfigsStr.setLength(unsupportedConfigsStr.length() - 2);
+                throw new ConfigException(unsupportedConfigsStr + " cannot be set when " + GROUP_PROTOCOL_CONFIG + "=" + groupProtocol.name());
+            }
         }
     }
 
