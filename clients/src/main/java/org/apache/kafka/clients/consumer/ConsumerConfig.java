@@ -34,6 +34,7 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.utils.Utils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -734,17 +735,17 @@ public class ConsumerConfig extends AbstractConfig {
     }
 
     private void checkUnsupportedConfigs(GroupProtocol groupProtocol, List<String> unsupportedConfigs) {
-        StringBuilder unsupportedConfigsStr = new StringBuilder();
+        List<String> invalidConfigs = new ArrayList<>();
         if (getString(GROUP_PROTOCOL_CONFIG).equalsIgnoreCase(groupProtocol.name())) {
             unsupportedConfigs.forEach(configName -> {
                 Object config = originals().get(configName);
                 if (config != null && !Utils.isBlank(config.toString())) {
-                    unsupportedConfigsStr.append(configName).append(", ");
+                    invalidConfigs.add(configName);
                 }
             });
-            if (unsupportedConfigsStr.length() > 0) {
-                unsupportedConfigsStr.setLength(unsupportedConfigsStr.length() - 2);
-                throw new ConfigException(unsupportedConfigsStr + " cannot be set when " + GROUP_PROTOCOL_CONFIG + "=" + groupProtocol.name());
+            if (!invalidConfigs.isEmpty()) {
+                throw new ConfigException(String.join(", ", invalidConfigs) + 
+                        " cannot be set when " + GROUP_PROTOCOL_CONFIG + "=" + groupProtocol.name());
             }
         }
     }
