@@ -28,6 +28,7 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
 
     private final CompletableFuture<T> future;
     private final long deadlineMs;
+    private boolean isCompletedByFuture = false;
 
     /**
      * <em>Note</em>: the {@code deadlineMs} is the future time of expiration, <em>not</em> a timeout.
@@ -36,6 +37,13 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
         super(type);
         this.future = new CompletableFuture<>();
         this.deadlineMs = deadlineMs;
+    }
+
+    protected CompletableApplicationEvent(final Type type, final long deadlineMs, final boolean isCompletedByFuture) {
+        super(type);
+        this.future = new CompletableFuture<>();
+        this.deadlineMs = deadlineMs;
+        this.isCompletedByFuture = isCompletedByFuture;
     }
 
     @Override
@@ -51,5 +59,9 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
     @Override
     protected String toStringBase() {
         return super.toStringBase() + ", future=" + future + ", deadlineMs=" + deadlineMs;
+    }
+    
+    public boolean isCompletedByFuture() {
+        return isCompletedByFuture;
     }
 }

@@ -20,6 +20,7 @@ import org.apache.kafka.clients.KafkaClient;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEvent;
+import org.apache.kafka.clients.consumer.internals.events.CompletableApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableEventReaper;
 import org.apache.kafka.common.internals.IdempotentCloser;
@@ -157,7 +158,9 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
         
         if (networkClientDelegate.metadataError().isPresent()) {
             Throwable metadataError = networkClientDelegate.metadataError().get();
-            completableEvents.forEach(event -> event.future().completeExceptionally(metadataError));
+            completableEvents.stream()
+                    .filter(event -> !(event instanceof CompletableApplicationEvent && ((CompletableApplicationEvent<?>) event).isCompletedByFuture()))
+                    .forEach(event -> event.future().completeExceptionally(metadataError));
             networkClientDelegate.clearMetadataError();
         }
     }
