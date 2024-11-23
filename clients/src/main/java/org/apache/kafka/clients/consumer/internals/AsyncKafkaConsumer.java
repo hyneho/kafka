@@ -34,6 +34,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.SubscriptionPattern;
 import org.apache.kafka.clients.consumer.internals.events.AllTopicsMetadataEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEventHandler;
@@ -612,7 +613,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             groupRebalanceConfig.groupId,
             groupRebalanceConfig.groupInstanceId
         );
-        if (!groupMetadata.isPresent()) {
+        if (groupMetadata.isEmpty()) {
             config.ignore(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG);
             config.ignore(THROW_ON_FETCH_STABLE_OFFSET_UNSUPPORTED);
         }
@@ -951,7 +952,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void maybeThrowInvalidGroupIdException() {
-        if (!groupMetadata.get().isPresent()) {
+        if (groupMetadata.get().isEmpty()) {
             throw new InvalidGroupIdException("To use the group management or offset commit APIs, you must " +
                 "provide a valid " + ConsumerConfig.GROUP_ID_CONFIG + " in the consumer configuration.");
         }
@@ -1349,7 +1350,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void autoCommitOnClose(final Timer timer) {
-        if (!groupMetadata.get().isPresent())
+        if (groupMetadata.get().isEmpty())
             return;
 
         if (autoCommitEnabled)
@@ -1389,7 +1390,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void leaveGroupOnClose(final Timer timer) {
-        if (!groupMetadata.get().isPresent())
+        if (groupMetadata.get().isEmpty())
             return;
 
         log.debug("Leaving the consumer group during consumer close");
@@ -1489,7 +1490,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public Uuid clientInstanceId(Duration timeout) {
-        if (!clientTelemetryReporter.isPresent()) {
+        if (clientTelemetryReporter.isEmpty()) {
             throw new IllegalStateException("Telemetry is not enabled. Set config `" + ConsumerConfig.ENABLE_METRICS_PUSH_CONFIG + "` to `true`.");
         }
 
@@ -1796,6 +1797,16 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     @Override
+    public void subscribe(SubscriptionPattern pattern, ConsumerRebalanceListener callback) {
+        subscribeToRegex(pattern, Optional.ofNullable(callback));
+    }
+
+    @Override
+    public void subscribe(SubscriptionPattern pattern) {
+        subscribeToRegex(pattern, Optional.empty());
+    }
+
+    @Override
     public void subscribe(Pattern pattern, ConsumerRebalanceListener listener) {
         if (listener == null)
             throw new IllegalArgumentException("RebalanceListener cannot be null");
@@ -1854,6 +1865,29 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 pattern, listener, calculateDeadlineMs(time.timer(defaultApiTimeoutMs))));
         } finally {
             release();
+        }
+    }
+
+    /**
+     * Subscribe to the RE2/J pattern. This will generate an event to update the pattern in the
+     * subscription, so it's included in a next heartbeat request sent to the broker. No validation of the pattern is
+     * performed by the client (other than null/empty checks).
+     */
+    private void subscribeToRegex(SubscriptionPattern pattern,
+                                  Optional<ConsumerRebalanceListener> listener) {
+        maybeThrowInvalidGroupIdException();
+        throwIfSubscriptionPatternIsInvalid(pattern);
+        log.info("Subscribing to regular expression {}", pattern);
+
+        // TODO: generate event to update subscribed regex so it's included in the next HB.
+    }
+
+    private void throwIfSubscriptionPatternIsInvalid(SubscriptionPattern subscriptionPattern) {
+        if (subscriptionPattern == null) {
+            throw new IllegalArgumentException("Topic pattern to subscribe to cannot be null");
+        }
+        if (subscriptionPattern.pattern().isEmpty()) {
+            throw new IllegalArgumentException("Topic pattern to subscribe to cannot be empty");
         }
     }
 

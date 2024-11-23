@@ -20,6 +20,7 @@ import org.apache.kafka.clients.ClientRequest;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.KafkaClient;
 import org.apache.kafka.clients.MockClient;
+import org.apache.kafka.clients.NetworkClient;
 import org.apache.kafka.clients.NodeApiVersions;
 import org.apache.kafka.clients.consumer.internals.AsyncKafkaConsumer;
 import org.apache.kafka.clients.consumer.internals.ClassicKafkaConsumer;
@@ -1968,11 +1969,11 @@ public class KafkaConsumerTest {
         }
 
         try (KafkaConsumer<byte[], byte[]> consumer = newConsumer(groupProtocol, null)) {
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitAsync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitAsync);
         }
 
         try (KafkaConsumer<byte[], byte[]> consumer = newConsumer(groupProtocol, null)) {
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitSync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitSync);
         }
     }
 
@@ -1983,8 +1984,8 @@ public class KafkaConsumerTest {
             consumer.assign(singleton(tp0));
 
             assertThrows(InvalidGroupIdException.class, () -> consumer.committed(Collections.singleton(tp0)).get(tp0));
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitAsync());
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitSync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitAsync);
+            assertThrows(InvalidGroupIdException.class, consumer::commitSync);
         }
     }
 
@@ -2667,7 +2668,7 @@ public class KafkaConsumerTest {
 
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
-    public void testListOffsetShouldUpdateSubscriptions(GroupProtocol groupProtocol) throws InterruptedException {
+    public void testListOffsetShouldUpdateSubscriptions(GroupProtocol groupProtocol) {
         final ConsumerMetadata metadata = createMetadata(subscription);
         final MockClient client = new MockClient(time, metadata);
 
@@ -3607,6 +3608,17 @@ public void testClosingConsumerUnregistersConsumerMetrics(GroupProtocol groupPro
                 requestGenerated(client, ApiKeys.JOIN_GROUP) :
                 requestGenerated(client, ApiKeys.CONSUMER_GROUP_HEARTBEAT),
                 "Expected " + (groupProtocol == GroupProtocol.CLASSIC ? "JoinGroup" : "Heartbeat") + " request");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = GroupProtocol.class, names = "CLASSIC")
+    public void testSubscribeToRe2jPatternNotSupportedForClassicConsumer(GroupProtocol groupProtocol) {
+        KafkaConsumer<String, String> consumer = newConsumerNoAutoCommit(groupProtocol, time, mock(NetworkClient.class), subscription,
+            mock(ConsumerMetadata.class));
+        assertThrows(UnsupportedOperationException.class, () ->
+            consumer.subscribe(new SubscriptionPattern("t*")));
+        assertThrows(UnsupportedOperationException.class, () ->
+            consumer.subscribe(new SubscriptionPattern("t*"), mock(ConsumerRebalanceListener.class)));
     }
 
     private boolean requestGenerated(MockClient client, ApiKeys apiKey) {
