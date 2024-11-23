@@ -39,7 +39,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -57,7 +56,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     private final SubscriptionState subscriptions;
     private final RequestManagers requestManagers;
     private int metadataVersionSnapshot;
-    private Optional<Throwable> metadataError;
 
     public ApplicationEventProcessor(final LogContext logContext,
                                      final RequestManagers requestManagers,
@@ -68,7 +66,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         this.metadata = metadata;
         this.subscriptions = subscriptions;
         this.metadataVersionSnapshot = metadata.updateVersion();
-        this.metadataError = Optional.empty();
     }
 
     @SuppressWarnings({"CyclomaticComplexity"})
@@ -221,10 +218,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(final SyncCommitEvent event) {
-        if (metadataError.isPresent()) {
-            event.future().completeExceptionally(metadataError.get());
-            return;
-        }
         
         if (requestManagers.commitRequestManager.isEmpty()) {
             event.future().completeExceptionally(new KafkaException("Unable to sync commit " +
@@ -426,7 +419,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * Process event that indicates the consumer acknowledged delivery of records synchronously.
      */
     private void process(final ShareAcknowledgeSyncEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             return;
         }
 
@@ -440,7 +433,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * Process event that indicates the consumer acknowledged delivery of records asynchronously.
      */
     private void process(final ShareAcknowledgeAsyncEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             return;
         }
 
@@ -454,7 +447,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * it is already a member.
      */
     private void process(final ShareSubscriptionChangeEvent event) {
-        if (!requestManagers.shareHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.shareHeartbeatRequestManager.isEmpty()) {
             KafkaException error = new KafkaException("Group membership manager not present when processing a subscribe event");
             event.future().completeExceptionally(error);
             return;
@@ -477,7 +470,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      *              the group is sent out.
      */
     private void process(final ShareUnsubscribeEvent event) {
-        if (!requestManagers.shareHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.shareHeartbeatRequestManager.isEmpty()) {
             KafkaException error = new KafkaException("Group membership manager not present when processing an unsubscribe event");
             event.future().completeExceptionally(error);
             return;
@@ -498,7 +491,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      *              the acknowledgements have responses.
      */
     private void process(final ShareAcknowledgeOnCloseEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             KafkaException error = new KafkaException("Group membership manager not present when processing an acknowledge-on-close event");
             event.future().completeExceptionally(error);
             return;
@@ -515,7 +508,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * @param event Event containing a boolean to indicate if the callback handler is configured or not.
      */
     private void process(final ShareAcknowledgementCommitCallbackRegistrationEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             return;
         }
 
@@ -540,7 +533,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
                                                                final ConsumerMetadata metadata,
                                                                final SubscriptionState subscriptions,
                                                                final Supplier<RequestManagers> requestManagersSupplier) {
-        return new CachedSupplier<ApplicationEventProcessor>() {
+        return new CachedSupplier<>() {
             @Override
             protected ApplicationEventProcessor create() {
                 RequestManagers requestManagers = requestManagersSupplier.get();
@@ -597,7 +590,4 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         return metadataVersionSnapshot;
     }
     
-    public void setMetadataError(Throwable metadataError) {
-        this.metadataError = Optional.of(metadataError);
-    }
 }
