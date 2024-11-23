@@ -16,50 +16,60 @@
  */
 package org.apache.kafka.clients.consumer.internals;
 
+import java.util.Arrays;
+import java.util.Locale;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 
 import java.util.Objects;
+import org.apache.kafka.common.utils.Utils;
 
 public class AutoOffsetResetStrategy {
-    private static final String EARLIEST_STRATEGY_NAME = "earliest";
-    private static final String LATEST_STRATEGY_NAME = "latest";
-    private static final String NONE_STRATEGY_NAME = "none";
+    private enum StrategyType {
+        LATEST, EARLIEST, NONE;
 
-    public static final AutoOffsetResetStrategy EARLIEST = new AutoOffsetResetStrategy(EARLIEST_STRATEGY_NAME);
-    public static final AutoOffsetResetStrategy LATEST = new AutoOffsetResetStrategy(LATEST_STRATEGY_NAME);
-    public static final AutoOffsetResetStrategy NONE = new AutoOffsetResetStrategy(NONE_STRATEGY_NAME);
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase(Locale.ROOT);
+        }
+    }
 
-    private final String name;
+    public static final AutoOffsetResetStrategy EARLIEST = new AutoOffsetResetStrategy(StrategyType.EARLIEST);
+    public static final AutoOffsetResetStrategy LATEST = new AutoOffsetResetStrategy(StrategyType.LATEST);
+    public static final AutoOffsetResetStrategy NONE = new AutoOffsetResetStrategy(StrategyType.NONE);
 
-    private AutoOffsetResetStrategy(String name) {
-        this.name = name;
+    private final StrategyType type;
+
+    private AutoOffsetResetStrategy(StrategyType type) {
+        this.type = type;
     }
 
     public static boolean isValid(String offsetStrategy) {
-        return EARLIEST_STRATEGY_NAME.equals(offsetStrategy) ||
-                LATEST_STRATEGY_NAME.equals(offsetStrategy) ||
-                NONE_STRATEGY_NAME.equals(offsetStrategy);
+        return Arrays.asList(Utils.enumOptions(StrategyType.class)).contains(offsetStrategy);
     }
 
     public static AutoOffsetResetStrategy fromString(String offsetStrategy) {
-        if (offsetStrategy == null) {
-            throw new IllegalArgumentException("auto offset reset strategy is null");
+        if (offsetStrategy == null || !isValid(offsetStrategy)) {
+            throw new IllegalArgumentException("Unknown auto offset reset strategy: " + offsetStrategy);
         }
-        switch (offsetStrategy) {
-            case EARLIEST_STRATEGY_NAME:
+        StrategyType type = StrategyType.valueOf(offsetStrategy.toUpperCase(Locale.ROOT));
+        switch (type) {
+            case EARLIEST:
                 return EARLIEST;
-            case LATEST_STRATEGY_NAME:
+            case LATEST:
                 return LATEST;
-            case NONE_STRATEGY_NAME:
+            case NONE:
                 return NONE;
             default:
                 throw new IllegalArgumentException("Unknown auto offset reset strategy: " + offsetStrategy);
         }
     }
 
+    /**
+     * Returns the name of the offset reset strategy.
+     */
     public String name() {
-        return name;
+        return type.toString();
     }
 
     @Override
@@ -67,18 +77,18 @@ public class AutoOffsetResetStrategy {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoOffsetResetStrategy that = (AutoOffsetResetStrategy) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(type, that.type);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(name);
+        return Objects.hashCode(type);
     }
 
     @Override
     public String toString() {
         return "AutoOffsetResetStrategy{" +
-                "name='" + name + '\'' +
+                "type='" + type + '\'' +
                 '}';
     }
 
