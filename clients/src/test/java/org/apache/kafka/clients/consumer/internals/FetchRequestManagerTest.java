@@ -3459,7 +3459,7 @@ public class FetchRequestManagerTest {
     }
 
     @Test
-    public void testFetchSessionTest1() {
+    public void testFetchSessionTestEviction() {
         buildFetcher();
 
         Set<TopicPartition> partitions = Set.of(tp0, tp1, tp2, tp3);
