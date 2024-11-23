@@ -17,8 +17,13 @@
 package org.apache.kafka.clients.consumer.internals;
 
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.requests.ListOffsetsRequest;
 
 import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,7 +39,12 @@ public class AutoOffsetResetStrategyTest {
         assertTrue(AutoOffsetResetStrategy.isValid("earliest"));
         assertTrue(AutoOffsetResetStrategy.isValid("latest"));
         assertTrue(AutoOffsetResetStrategy.isValid("none"));
+        assertTrue(AutoOffsetResetStrategy.isValid("by_duration:PT1H"));
         assertFalse(AutoOffsetResetStrategy.isValid("invalid"));
+        assertFalse(AutoOffsetResetStrategy.isValid("by_duration:invalid"));
+        assertFalse(AutoOffsetResetStrategy.isValid("by_duration:-PT1H"));
+        assertFalse(AutoOffsetResetStrategy.isValid("by_duration:"));
+        assertFalse(AutoOffsetResetStrategy.isValid("by_duration"));
         assertFalse(AutoOffsetResetStrategy.isValid("LATEST"));
         assertFalse(AutoOffsetResetStrategy.isValid(""));
         assertFalse(AutoOffsetResetStrategy.isValid(null));
@@ -46,9 +56,16 @@ public class AutoOffsetResetStrategyTest {
         assertEquals(AutoOffsetResetStrategy.LATEST, AutoOffsetResetStrategy.fromString("latest"));
         assertEquals(AutoOffsetResetStrategy.NONE, AutoOffsetResetStrategy.fromString("none"));
         assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("invalid"));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("by_duration:invalid"));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("by_duration:-PT1H"));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("by_duration:"));
+        assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("by_duration"));
         assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString("LATEST"));
         assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString(""));
         assertThrows(IllegalArgumentException.class, () -> AutoOffsetResetStrategy.fromString(null));
+
+        AutoOffsetResetStrategy strategy = AutoOffsetResetStrategy.fromString("by_duration:PT1H");
+        assertEquals("by_duration", strategy.name());
     }
 
     @Test
@@ -57,7 +74,12 @@ public class AutoOffsetResetStrategyTest {
         assertDoesNotThrow(() -> validator.ensureValid("test", "earliest"));
         assertDoesNotThrow(() -> validator.ensureValid("test", "latest"));
         assertDoesNotThrow(() -> validator.ensureValid("test", "none"));
+        assertDoesNotThrow(() -> validator.ensureValid("test", "by_duration:PT1H"));
         assertThrows(ConfigException.class, () -> validator.ensureValid("test", "invalid"));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("test", "by_duration:invalid"));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("test", "by_duration:-PT1H"));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("test", "by_duration:"));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("test", "by_duration"));
         assertThrows(ConfigException.class, () -> validator.ensureValid("test", "LATEST"));
         assertThrows(ConfigException.class, () -> validator.ensureValid("test", ""));
         assertThrows(ConfigException.class, () -> validator.ensureValid("test", null));
@@ -65,13 +87,36 @@ public class AutoOffsetResetStrategyTest {
 
     @Test
     public void testEqualsAndHashCode() {
-        AutoOffsetResetStrategy strategy1 = AutoOffsetResetStrategy.fromString("earliest");
-        AutoOffsetResetStrategy strategy2 = AutoOffsetResetStrategy.fromString("earliest");
-        AutoOffsetResetStrategy strategy3 = AutoOffsetResetStrategy.fromString("latest");
+        AutoOffsetResetStrategy earliest1 = AutoOffsetResetStrategy.fromString("earliest");
+        AutoOffsetResetStrategy earliest2 = AutoOffsetResetStrategy.fromString("earliest");
+        AutoOffsetResetStrategy latest1 = AutoOffsetResetStrategy.fromString("latest");
 
-        assertEquals(strategy1, strategy2);
-        assertNotEquals(strategy1, strategy3);
-        assertEquals(strategy1.hashCode(), strategy2.hashCode());
-        assertNotEquals(strategy1.hashCode(), strategy3.hashCode());
+        AutoOffsetResetStrategy duration1 = AutoOffsetResetStrategy.fromString("by_duration:P2D");
+        AutoOffsetResetStrategy duration2 = AutoOffsetResetStrategy.fromString("by_duration:P2D");
+
+        assertEquals(earliest1, earliest2);
+        assertNotEquals(earliest1, latest1);
+        assertEquals(earliest1.hashCode(), earliest2.hashCode());
+        assertNotEquals(earliest1.hashCode(), latest1.hashCode());
+
+        assertNotEquals(latest1, duration2);
+        assertEquals(duration1, duration2);
+    }
+
+    @Test
+    public void testTimestamp() {
+        AutoOffsetResetStrategy earliest = AutoOffsetResetStrategy.fromString("earliest");
+        assertEquals(Optional.of(ListOffsetsRequest.EARLIEST_TIMESTAMP), earliest.timestamp());
+
+        AutoOffsetResetStrategy latest = AutoOffsetResetStrategy.fromString("latest");
+        assertEquals(Optional.of(ListOffsetsRequest.LATEST_TIMESTAMP), latest.timestamp());
+
+        AutoOffsetResetStrategy none = AutoOffsetResetStrategy.fromString("none");
+        assertFalse(none.timestamp().isPresent());
+
+        AutoOffsetResetStrategy byDuration = AutoOffsetResetStrategy.fromString("by_duration:PT1H");
+        Optional<Long> timestamp = byDuration.timestamp();
+        assertTrue(timestamp.isPresent());
+        assertTrue(timestamp.get() <= Instant.now().toEpochMilli() - Duration.ofHours(1).toMillis());
     }
 }

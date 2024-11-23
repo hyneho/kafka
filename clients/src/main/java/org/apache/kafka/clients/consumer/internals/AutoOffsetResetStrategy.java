@@ -18,15 +18,19 @@ package org.apache.kafka.clients.consumer.internals;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.requests.ListOffsetsRequest;
 import org.apache.kafka.common.utils.Utils;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 public class AutoOffsetResetStrategy {
     private enum StrategyType {
-        LATEST, EARLIEST, NONE;
+        LATEST, EARLIEST, NONE, BY_DURATION;
 
         @Override
         public String toString() {
@@ -39,29 +43,67 @@ public class AutoOffsetResetStrategy {
     public static final AutoOffsetResetStrategy NONE = new AutoOffsetResetStrategy(StrategyType.NONE);
 
     private final StrategyType type;
+    private final Optional<Duration> duration;
 
     private AutoOffsetResetStrategy(StrategyType type) {
+        this(type, Optional.empty());
+    }
+
+    private AutoOffsetResetStrategy(StrategyType type, Optional<Duration> duration) {
         this.type = type;
+        this.duration = duration;
     }
 
+    /**
+     * Returns true if the given string is a valid auto offset reset strategy.
+     */
     public static boolean isValid(String offsetStrategy) {
-        return Arrays.asList(Utils.enumOptions(StrategyType.class)).contains(offsetStrategy);
+        if (offsetStrategy == null) {
+            return false;
+        } else if (StrategyType.BY_DURATION.toString().equals(offsetStrategy)) {
+            return false;
+        } else if (Arrays.asList(Utils.enumOptions(StrategyType.class)).contains(offsetStrategy)) {
+            return true;
+        } else if (offsetStrategy.startsWith(StrategyType.BY_DURATION + ":")) {
+            String isoDuration = offsetStrategy.substring(StrategyType.BY_DURATION.toString().length() + 1);
+            try {
+                Duration duration = Duration.parse(isoDuration);
+                return !duration.isNegative();
+            } catch (Exception e) {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
+    /**
+     *  Returns the AutoOffsetResetStrategy from the given string.
+     */
     public static AutoOffsetResetStrategy fromString(String offsetStrategy) {
-        if (offsetStrategy == null || !isValid(offsetStrategy)) {
+        if (!isValid(offsetStrategy)) {
             throw new IllegalArgumentException("Unknown auto offset reset strategy: " + offsetStrategy);
         }
-        StrategyType type = StrategyType.valueOf(offsetStrategy.toUpperCase(Locale.ROOT));
-        switch (type) {
-            case EARLIEST:
-                return EARLIEST;
-            case LATEST:
-                return LATEST;
-            case NONE:
-                return NONE;
-            default:
-                throw new IllegalArgumentException("Unknown auto offset reset strategy: " + offsetStrategy);
+
+        if (offsetStrategy.startsWith(StrategyType.BY_DURATION + ":")) {
+            String isoDuration = offsetStrategy.substring(StrategyType.BY_DURATION.toString().length() + 1);
+            return new AutoOffsetResetStrategy(StrategyType.BY_DURATION, Optional.of(Duration.parse(isoDuration)));
+        }
+
+        try {
+            StrategyType type = StrategyType.valueOf(offsetStrategy.toUpperCase(Locale.ROOT));
+            switch (type) {
+                case EARLIEST:
+                    return EARLIEST;
+                case LATEST:
+                    return LATEST;
+                case NONE:
+                    return NONE;
+                default:
+                    throw new IllegalArgumentException("Unknown auto offset reset strategy: " + offsetStrategy);
+            }
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown auto offset reset strategy: " + offsetStrategy, e);
         }
     }
 
@@ -72,23 +114,42 @@ public class AutoOffsetResetStrategy {
         return type.toString();
     }
 
+    /**
+     * Return the timestamp to be used for the ListOffsetsRequest.
+     * @return the timestamp for the OffsetResetStrategy,
+     * if the strategy is EARLIEST or LATEST or duration is provided
+     * else return Optional.empty()
+     */
+    public Optional<Long> timestamp() {
+        if (type == StrategyType.EARLIEST)
+            return Optional.of(ListOffsetsRequest.EARLIEST_TIMESTAMP);
+        else if (type == StrategyType.LATEST)
+            return Optional.of(ListOffsetsRequest.LATEST_TIMESTAMP);
+        else if (duration.isPresent()) {
+            Instant now = Instant.now();
+            return Optional.of(now.minus(duration.get()).toEpochMilli());
+        } else
+            return Optional.empty();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoOffsetResetStrategy that = (AutoOffsetResetStrategy) o;
-        return Objects.equals(type, that.type);
+        return type == that.type && Objects.equals(duration, that.duration);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(type);
+        return Objects.hash(type, duration);
     }
 
     @Override
     public String toString() {
         return "AutoOffsetResetStrategy{" +
-                "type='" + type + '\'' +
+                "type=" + type +
+                ", duration=" + duration +
                 '}';
     }
 
@@ -98,7 +159,7 @@ public class AutoOffsetResetStrategy {
             String strategy = (String) value;
             if (!AutoOffsetResetStrategy.isValid(strategy)) {
                 throw new ConfigException(name, value, "Invalid value " + strategy + " for configuration " +
-                        name + ": the value must be either 'earliest', 'latest', or 'none'.");
+                        name + ": the value must be either 'earliest', 'latest', or 'none' or of the format 'by_duration:<PnDTnHnMn.nS.>'.");
             }
         }
     }
