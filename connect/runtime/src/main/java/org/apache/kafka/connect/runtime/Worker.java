@@ -659,9 +659,9 @@ public class Worker {
 
             connectorStatusMetricsGroup.recordTaskAdded(id);
 
-            final ClassLoader connectorLoader;
+            final Connector connector;
             try {
-                connectorLoader = instantiateConnectorClassLoader(connProps);
+                connector = instantiateConnector(connProps);
             } catch (ConnectException e) {
                 log.error(e.getMessage(), e);
                 connectorStatusMetricsGroup.recordTaskRemoved(id);
@@ -669,6 +669,7 @@ public class Worker {
                 return false;
             }
 
+            ClassLoader connectorLoader = connector.getClass().getClassLoader();
             try (LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
                 final ConnectorConfig connConfig = new ConnectorConfig(plugins, connProps);
 

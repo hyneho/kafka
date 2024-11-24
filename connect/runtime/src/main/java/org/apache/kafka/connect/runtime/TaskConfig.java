@@ -39,9 +39,6 @@ public class TaskConfig extends AbstractConfig {
 
     private static final ConfigDef CONFIG;
 
-    private final String connectorClass;
-    private final String connectorVersion;
-    private final ConnectorType connectorType;
 
     static {
         CONFIG = new ConfigDef()
@@ -49,29 +46,10 @@ public class TaskConfig extends AbstractConfig {
     }
 
     public TaskConfig() {
-        this(new HashMap<String, String>(), null, null, ConnectorType.UNKNOWN);
+        this(new HashMap<String, String>());
     }
 
     public TaskConfig(Map<String, ?> props) {
-        this(props, null, null, ConnectorType.UNKNOWN);
-    }
-
-    public TaskConfig(Map<String, ?> props, String connectorClass, String connectorVersion, ConnectorType connectorType) {
         super(CONFIG, props, true);
-        this.connectorClass = connectorClass;
-        this.connectorVersion = connectorVersion;
-        this.connectorType = connectorType;
-    }
-
-    public String connectorClass() {
-        return connectorClass;
-    }
-
-    public String connectorVersion() {
-        return connectorVersion;
-    }
-
-    public ConnectorType connectorType() {
-        return connectorType;
     }
 }
