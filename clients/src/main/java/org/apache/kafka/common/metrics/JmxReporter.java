@@ -69,7 +69,9 @@ public class JmxReporter implements MetricsReporter {
     private final Map<String, KafkaMbean> mbeans = new HashMap<>();
     private Predicate<String> mbeanPredicate = s -> true;
 
-    public JmxReporter() {}
+    public JmxReporter() {
+        this.prefix = "";
+    }
 
     @Override
     public void configure(Map<String, ?> configs) {
