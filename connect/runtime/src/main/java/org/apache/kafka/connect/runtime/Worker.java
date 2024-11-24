@@ -93,7 +93,6 @@ import org.apache.kafka.connect.storage.OffsetUtils;
 import org.apache.kafka.connect.util.*;
 
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
-import org.apache.maven.artifact.versioning.VersionRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -738,7 +737,7 @@ public class Worker {
                         .withKeyConverter(keyConverter)
                         .withValueConverter(valueConverter)
                         .withHeaderConverter(headerConverter)
-                        .withClassloader(connectorLoader)
+                        .forConnector(connector)
                         .build();
 
                 workerTask.initialize(taskConfig);
@@ -1791,6 +1790,7 @@ public class Worker {
         private Converter valueConverter = null;
         private HeaderConverter headerConverter = null;
         private ClassLoader classLoader = null;
+        private Connector connector = null;
 
         public TaskBuilder(ConnectorTaskId id,
                            ClusterConfigState configState,
@@ -1827,12 +1827,15 @@ public class Worker {
             return this;
         }
 
-        public TaskBuilder<T, R> withClassloader(ClassLoader classLoader) {
-            this.classLoader = classLoader;
+        public TaskBuilder<T, R> forConnector(Connector connector) {
+            this.classLoader = connector.getClass().getClassLoader();
+            this.connector = connector;
             return this;
         }
 
+
         public WorkerTask<T, R> build() {
+            Objects.requireNonNull(connector, "Connector cannot be null");
             Objects.requireNonNull(task, "Task cannot be null");
             Objects.requireNonNull(connectorConfig, "Connector config used by task cannot be null");
             Objects.requireNonNull(keyConverter, "Key converter used by task cannot be null");
@@ -1849,10 +1852,15 @@ public class Worker {
             TransformationChain<T, R> transformationChain = new TransformationChain<>(connectorConfig.<R>transformationStages(plugins), retryWithToleranceOperator);
             log.info("Initializing: {}", transformationChain);
 
-            return doBuild(task, id, configState, statusListener, initialState,
+            RequiredPluginsMetadata requiredPluginsMetadata = new RequiredPluginsMetadata(
+                    connector, task, keyConverter, valueConverter, headerConverter, transformationChain.transformationStageInfo());
+            WorkerTask<T, R> workerTask = doBuild(task, id, configState, statusListener, initialState,
                     connectorConfig, keyConverter, valueConverter, headerConverter, classLoader,
                     retryWithToleranceOperator, transformationChain,
                     errorHandlingMetrics, connectorClass);
+
+            workerTask.addPluginsMetrics(requiredPluginsMetadata);
+            return workerTask;
         }
 
         abstract WorkerTask<T, R> doBuild(

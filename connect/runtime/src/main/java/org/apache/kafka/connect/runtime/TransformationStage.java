@@ -25,6 +25,8 @@ import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
 import org.apache.kafka.connect.util.PluginVersionUtils;
 
+import java.util.Objects;
+
 /**
  * Wrapper for a {@link Transformation} and corresponding optional {@link Predicate}
  * which applies the transformation when the {@link Predicate} is true (or false, according to {@code negate}).
@@ -123,6 +125,21 @@ public class TransformationStage<R extends ConnectRecord<R>> implements AutoClos
 
         public String version() {
             return version;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AliasedPluginInfo that = (AliasedPluginInfo) o;
+            return Objects.equals(alias, that.alias) &&
+                    Objects.equals(className, that.className) &&
+                    Objects.equals(version, that.version);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(alias, className, version);
         }
     }
 

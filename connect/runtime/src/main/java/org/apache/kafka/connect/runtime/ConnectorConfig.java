@@ -361,7 +361,7 @@ public class ConnectorConfig extends AbstractConfig {
             try {
                 @SuppressWarnings("unchecked") final Transformation<R> transformation = Utils.newInstance(getClass(prefix + "type"), Transformation.class);
                 Map<String, Object> configs = originalsWithPrefix(prefix);
-                Object predicateAlias = configs.remove(TransformationStage.PREDICATE_CONFIG);
+                String predicateAlias = (String) configs.remove(TransformationStage.PREDICATE_CONFIG);
                 Object negate = configs.remove(TransformationStage.NEGATE_CONFIG);
                 transformation.configure(configs);
                 if (predicateAlias != null) {
@@ -393,7 +393,7 @@ public class ConnectorConfig extends AbstractConfig {
                 final String versionConfig = prefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
                 @SuppressWarnings("unchecked") final Transformation<R> transformation = getTransformationOrPredicate(plugins, typeConfig, versionConfig, Transformation.class);
                 Map<String, Object> configs = originalsWithPrefix(prefix);
-                Object predicateAlias = configs.remove(TransformationStage.PREDICATE_CONFIG);
+                String predicateAlias = (String) configs.remove(TransformationStage.PREDICATE_CONFIG);
                 Object negate = configs.remove(TransformationStage.NEGATE_CONFIG);
                 transformation.configure(configs);
                 if (predicateAlias != null) {
@@ -403,9 +403,9 @@ public class ConnectorConfig extends AbstractConfig {
                     @SuppressWarnings("unchecked")
                     Predicate<R> predicate = getTransformationOrPredicate(plugins, predicateTypeConfig, predicateVersionConfig, Predicate.class);
                     predicate.configure(originalsWithPrefix(predicatePrefix));
-                    transformations.add(new TransformationStage<>(predicate, negate != null && Boolean.parseBoolean(negate.toString()), transformation));
+                    transformations.add(new TransformationStage<>(predicate, predicateAlias, negate != null && Boolean.parseBoolean(negate.toString()), transformation, alias));
                 } else {
-                    transformations.add(new TransformationStage<>(transformation));
+                    transformations.add(new TransformationStage<>(transformation, alias));
                 }
             } catch (Exception e) {
                 throw new ConnectException(e);

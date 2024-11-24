@@ -37,7 +37,7 @@ public class ConnectMetricsRegistry {
     public static final String WORKER_GROUP_NAME = "connect-worker-metrics";
     public static final String WORKER_REBALANCE_GROUP_NAME = "connect-worker-rebalance-metrics";
     public static final String TASK_ERROR_HANDLING_GROUP_NAME = "task-error-metrics";
-    public static final String TRANSFORMATION_GROUP = "connect-transform-metrics";
+    public static final String TRANSFORMS_GROUP = "connect-transform-metrics";
     public static final String PREDICATES_GROUP = "connect-predicate-metrics";
     public static final String TRANSFORM_TAG_NAME = "transform";
     public static final String PREDICATE_TAG_NAME = "predicate";
@@ -129,6 +129,10 @@ public class ConnectMetricsRegistry {
     public final MetricNameTemplate transactionSizeMin;
     public final MetricNameTemplate transactionSizeMax;
     public final MetricNameTemplate transactionSizeAvg;
+    public final MetricNameTemplate transformClass;
+    public final MetricNameTemplate transformVersion;
+    public final MetricNameTemplate predicateClass;
+    public final MetricNameTemplate predicateVersion;
 
     public Map<MetricNameTemplate, TaskStatus.State> connectorStatusMetrics;
 
@@ -411,6 +415,19 @@ public class ConnectMetricsRegistry {
                 "The number of failed writes to the dead letter queue.", taskErrorHandlingTags);
         lastErrorTimestamp = createTemplate("last-error-timestamp", TASK_ERROR_HANDLING_GROUP_NAME,
                 "The epoch timestamp when this task last encountered an error.", taskErrorHandlingTags);
+
+        /* Transformation Metrics */
+        transformClass = createTemplate("transform-class", TRANSFORMS_GROUP,
+                "The class name of the transformation class", tags);
+        transformVersion = createTemplate("transform-version", TRANSFORMS_GROUP,
+                "The version of the transformation class", tags);
+
+        /* Predicate Metrics */
+        predicateClass = createTemplate("predicate-class", PREDICATES_GROUP,
+                "The class name of the predicate class", tags);
+        predicateVersion = createTemplate("predicate-version", PREDICATES_GROUP,
+                "The version of the predicate class", tags);
+
     }
 
     private MetricNameTemplate createTemplate(String name, String group, String doc, Set<String> tags) {
@@ -460,14 +477,14 @@ public class ConnectMetricsRegistry {
     }
 
     public String transformsGroupName() {
-        return TRANSFORMATION_GROUP;
+        return TRANSFORMS_GROUP;
     }
 
     public String transformsTagName() {
         return TRANSFORM_TAG_NAME;
     }
 
-    public String predicateGroupName() {
+    public String predicatesGroupName() {
         return PREDICATES_GROUP;
     }
 

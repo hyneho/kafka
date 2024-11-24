@@ -38,9 +38,9 @@ import org.apache.kafka.connect.util.LoggingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -160,6 +160,10 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
         } catch (InterruptedException e) {
             return false;
         }
+    }
+
+    public void addPluginsMetrics(RequiredPluginsMetadata pluginsMetadata) {
+        taskMetricsGroup.addPluginInfoMetric(pluginsMetadata);
     }
 
     /**
@@ -388,6 +392,8 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
     static class TaskMetricsGroup implements TaskStatus.Listener {
         private final TaskStatus.Listener delegateListener;
         private final MetricGroup metricGroup;
+        private final List<MetricGroup> transformationGroups = new ArrayList<>();
+        private final List<MetricGroup> predicateGroups = new ArrayList<>();
         private final Time time;
         private final StateTracker taskStateTimer;
         private final Sensor commitTime;
@@ -438,42 +444,51 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
                     taskStateTimer.durationRatio(matchingState, now));
         }
 
-        public void addPluginInfoMetric(String connectorClass,
-                                        String connectorVersion,
-                                        String connectorType,
-                                        String taskVersion,
-                                        String keyConverterClass,
-                                        String keyConverterVersion,
-                                        String valueConverterClass,
-                                        String valueConverterVersion,
-                                        String headerConverterClass,
-                                        String headerConverterVersion,
-                                        Map<String, String> transformationsWitVersions,
-                                        Map<String, String> predicatesWithVersions) {
+        public void addPluginInfoMetric(RequiredPluginsMetadata pluginsMetadata) {
             ConnectMetricsRegistry registry = connectMetrics.registry();
-            metricGroup.addValueMetric(registry.taskConnectorClass, now -> connectorClass);
-            metricGroup.addValueMetric(registry.taskConnectorClassVersion, now -> connectorVersion);
-            metricGroup.addValueMetric(registry.taskConnectorType, now -> connectorType);
-            metricGroup.addValueMetric(registry.taskVersion, now -> taskVersion);
-            metricGroup.addValueMetric(registry.taskKeyConverterClass, now -> keyConverterClass);
-            metricGroup.addValueMetric(registry.taskKeyConverterVersion, now -> keyConverterVersion);
-            metricGroup.addValueMetric(registry.taskValueConverterClass, now -> valueConverterClass);
-            metricGroup.addValueMetric(registry.taskValueConverterVersion, now -> valueConverterVersion);
-            metricGroup.addValueMetric(registry.taskHeaderConverterClass, now -> headerConverterClass);
-            metricGroup.addValueMetric(registry.taskHeaderConverterVersion, now -> headerConverterVersion);
+            metricGroup.addValueMetric(registry.taskConnectorClass, now -> pluginsMetadata.connectorClass());
+            metricGroup.addValueMetric(registry.taskConnectorClassVersion, now -> pluginsMetadata.connectorVersion());
+            metricGroup.addValueMetric(registry.taskConnectorType, now -> pluginsMetadata.connectorType());
+            metricGroup.addValueMetric(registry.taskVersion, now -> pluginsMetadata.taskVersion());
+            metricGroup.addValueMetric(registry.taskKeyConverterClass, now -> pluginsMetadata.keyConverterClass());
+            metricGroup.addValueMetric(registry.taskKeyConverterVersion, now -> pluginsMetadata.keyConverterVersion());
+            metricGroup.addValueMetric(registry.taskValueConverterClass, now -> pluginsMetadata.valueConverterClass());
+            metricGroup.addValueMetric(registry.taskValueConverterVersion, now -> pluginsMetadata.valueConverterVersion());
+            metricGroup.addValueMetric(registry.taskHeaderConverterClass, now -> pluginsMetadata.headerConverterClass());
+            metricGroup.addValueMetric(registry.taskHeaderConverterVersion, now -> pluginsMetadata.headerConverterVersion());
 
-            if (!transformationsWitVersions.isEmpty()) {
-                for (Map.Entry<String, String> entry : transformationsWitVersions.entrySet()) {
+            if (!pluginsMetadata.transformations().isEmpty()) {
+                this.transformationGroups.clear();
+                for (TransformationStage.AliasedPluginInfo entry : pluginsMetadata.transformations()) {
                     MetricGroup transformationGroup = connectMetrics.group(registry.transformsGroupName(),
                             registry.connectorTagName(), id.connector(),
                             registry.taskTagName(), Integer.toString(id.task()),
-                            registry.transformsTagName(), );
+                            registry.transformsTagName(), entry.alias());
+                    transformationGroup.close();
+                    transformationGroup.addValueMetric(registry.transformClass, now -> entry.className());
+                    transformationGroup.addValueMetric(registry.transformVersion, now -> entry.version());
+                }
+            }
+
+            if (!pluginsMetadata.predicates().isEmpty()) {
+                this.predicateGroups.clear();
+                for (TransformationStage.AliasedPluginInfo entry : pluginsMetadata.predicates()) {
+                    MetricGroup predicateGroup = connectMetrics.group(registry.predicatesGroupName(),
+                            registry.connectorTagName(), id.connector(),
+                            registry.taskTagName(), Integer.toString(id.task()),
+                            registry.predicateTagName(), entry.alias());
+                    predicateGroup.close();
+                    predicateGroup.addValueMetric(registry.predicateClass, now -> entry.className());
+                    predicateGroup.addValueMetric(registry.predicateVersion, now -> entry.version());
+                    this.predicateGroups.add(predicateGroup);
                 }
             }
         }
 
         void close() {
             metricGroup.close();
+            transformationGroups.forEach(MetricGroup::close);
+            predicateGroups.forEach(MetricGroup::close);
         }
 
         void recordCommit(long duration, boolean success, Throwable error) {

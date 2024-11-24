@@ -91,7 +91,7 @@ public class TransformationChain<T, R extends ConnectRecord<R>> implements AutoC
         return chain.toString();
     }
 
-    public List<TransformationStage.StageInfo> transformations() {
+    public List<TransformationStage.StageInfo> transformationStageInfo() {
         return transformationStages.stream().map(TransformationStage::info).collect(Collectors.toList());
     }
 }
