@@ -28,6 +28,10 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
 
     private final CompletableFuture<T> future;
     private final long deadlineMs;
+    // this property is used to indicate that how the application thread is got the exception from background thread
+    // there are two cases:
+    // 1. the application thread uses the `blocking` method to get the result from the background thread
+    // 2. the application thread uses the queue to get the ErrorEvent from the background thread
     private boolean isPassedByErrorEvent = false;
 
     /**

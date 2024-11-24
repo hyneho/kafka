@@ -156,6 +156,7 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
 
         List<CompletableEvent<?>> completableEvents = reapExpiredApplicationEvents(currentTimeMs);
         
+        // If there is a metadata error, complete the completable events which are not passed by error event with the metadata error
         if (networkClientDelegate.metadataError().isPresent()) {
             Throwable metadataError = networkClientDelegate.metadataError().get();
             completableEvents.stream()
