@@ -20,6 +20,7 @@ import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigDef.Type;
+import org.apache.kafka.connect.runtime.rest.entities.ConnectorType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,16 +39,39 @@ public class TaskConfig extends AbstractConfig {
 
     private static final ConfigDef CONFIG;
 
+    private final String connectorClass;
+    private final String connectorVersion;
+    private final ConnectorType connectorType;
+
     static {
         CONFIG = new ConfigDef()
                 .define(TASK_CLASS_CONFIG, Type.CLASS, Importance.HIGH, TASK_CLASS_DOC);
     }
 
     public TaskConfig() {
-        this(new HashMap<String, String>());
+        this(new HashMap<String, String>(), null, null, ConnectorType.UNKNOWN);
     }
 
     public TaskConfig(Map<String, ?> props) {
+        this(props, null, null, ConnectorType.UNKNOWN);
+    }
+
+    public TaskConfig(Map<String, ?> props, String connectorClass, String connectorVersion, ConnectorType connectorType) {
         super(CONFIG, props, true);
+        this.connectorClass = connectorClass;
+        this.connectorVersion = connectorVersion;
+        this.connectorType = connectorType;
+    }
+
+    public String connectorClass() {
+        return connectorClass;
+    }
+
+    public String connectorVersion() {
+        return connectorVersion;
+    }
+
+    public ConnectorType connectorType() {
+        return connectorType;
     }
 }
