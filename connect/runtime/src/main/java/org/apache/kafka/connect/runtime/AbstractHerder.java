@@ -984,14 +984,14 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         return new ConfigValueInfo(configValue.name(), value, recommendedValues, configValue.errorMessages(), configValue.visible());
     }
 
-    protected Connector getConnector(String connType, VersionRange range) {
+    protected Connector getConnector(String connClass, VersionRange range) {
 
-        SortedMap<ArtifactVersion, Connector> connectors = tempConnectors.computeIfAbsent(connType, k -> {
-            SortedMap<ArtifactVersion, Connector> inner = new TreeMap<>();
-            for (PluginDesc<SourceConnector> desc: plugins().sourceConnectors(connType)) {
+        SortedMap<ArtifactVersion, Connector> connectors = tempConnectors.computeIfAbsent(connClass, k -> {
+            SortedMap<ArtifactVersion, Connector> inner = Collections.synchronizedSortedMap(new TreeMap<>());
+            for (PluginDesc<SourceConnector> desc: plugins().sourceConnectors(connClass)) {
                 inner.put(desc.encodedVersion(), null);
             }
-            for (PluginDesc<SinkConnector> desc: plugins().sinkConnectors(connType)) {
+            for (PluginDesc<SinkConnector> desc: plugins().sinkConnectors(connClass)) {
                 inner.put(desc.encodedVersion(), null);
             }
             return inner;
@@ -1004,13 +1004,13 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
 
         if (required != null) {
             final VersionRange requiredVersionRange = VersionRange.createFromVersion(required.toString());
-            connectors.computeIfAbsent(required, k -> plugins().newConnector(connType, requiredVersionRange));
+            connectors.computeIfAbsent(required, k -> plugins().newConnector(connClass, requiredVersionRange));
         } else {
             // since the connectors map already contains all the possible version, if no version match is found
-            // we should through an exception. To keep things consistent the error we get should be the same as
+            // we should throw an exception. To keep things consistent the error we get should be the same as
             // what the plugins interface returns if we try to load a connector version that is not available
             // hence we call the following method which will throw the appropriate exception
-            plugins().newConnector(connType, range);
+            plugins().newConnector(connClass, range);
         }
 
         return connectors.get(required);
@@ -1035,8 +1035,9 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             return ConnectorType.UNKNOWN;
         }
         try {
-            return ConnectorType.from(getConnector(connClass).getClass());
-        } catch (ConnectException e) {
+            VersionRange range = PluginVersionUtils.connectorVersionRequirement(connConfig.get(CONNECTOR_VERSION));
+            return ConnectorType.from(getConnector(connClass, range).getClass());
+        } catch (ConnectException | InvalidVersionSpecificationException e) {
             log.warn("Unable to retrieve connector type", e);
             return ConnectorType.UNKNOWN;
         }
