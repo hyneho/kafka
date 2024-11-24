@@ -401,7 +401,7 @@ public class ConnectorConfig extends AbstractConfig {
                     final String predicateTypeConfig = predicatePrefix + "type";
                     final String predicateVersionConfig = predicatePrefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
                     @SuppressWarnings("unchecked")
-                    Predicate<R> predicate = getTransformationOrPredicate(plugins, typeConfig, versionConfig, Predicate.class);
+                    Predicate<R> predicate = getTransformationOrPredicate(plugins, predicateTypeConfig, predicateVersionConfig, Predicate.class);
                     predicate.configure(originalsWithPrefix(predicatePrefix));
                     transformations.add(new TransformationStage<>(predicate, negate != null && Boolean.parseBoolean(negate.toString()), transformation));
                 } else {
