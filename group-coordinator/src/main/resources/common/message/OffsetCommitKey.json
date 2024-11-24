@@ -20,10 +20,10 @@
   "flexibleVersions": "none",
   "fields": [
     { "name": "group", "type": "string", "versions": "0-1",
-    "about": "The consumer group id."},
+      "about": "The consumer group id."},
     { "name": "topic", "type": "string", "versions": "0-1",
-    "about": "The topic name."},
+      "about": "The topic name."},
     { "name": "partition", "type": "int32", "versions": "0-1",
-    "about": "The topic partition id."}
+      "about": "The topic partition id."}
   ]
 }

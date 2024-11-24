@@ -36,9 +36,9 @@
       "about": "TransactionState the transaction is in."},
     { "name": "TransactionPartitions", "type": "[]PartitionsSchema", "versions": "0+", "nullableVersions": "0+", "fields": [
       { "name": "Topic", "type": "string", "versions": "0+",
-      "about": "Topic involved in the transaction."},
+        "about": "Topic involved in the transaction."},
       { "name": "PartitionIds", "type": "[]int32", "versions": "0+",
-      "about": "Partition ids involved in the transaction."}],
+        "about": "Partition ids involved in the transaction."}],
       "about": "Partitions involved in the transaction."},
     { "name": "TransactionLastUpdateTimestampMs", "type": "int64", "versions": "0+",
       "about": "Time the transaction was last updated."},

@@ -41,21 +41,21 @@
       "versions": "0+",
       "fields": [
         { "name": "memberId", "versions": "0+", "type": "string",
-        "about": "The member id."},
+          "about": "The member id."},
         { "name": "groupInstanceId", "versions": "3+", "type": "string", "default": "null", "nullableVersions": "3+", "ignorable": true,
-        "about": "The group instance id."},
+          "about": "The group instance id."},
         { "name": "clientId", "versions": "0+", "type": "string",
-        "about": "The client id."},
+          "about": "The client id."},
         { "name": "clientHost", "versions": "0+", "type": "string",
-        "about": "The client host."},
+          "about": "The client host."},
         { "name": "rebalanceTimeout", "versions": "1+", "type": "int32", "default": -1, "ignorable": true,
-        "about": "The rebalance timeout."},
+          "about": "The rebalance timeout."},
         { "name": "sessionTimeout", "versions": "0+", "type": "int32",
-        "about": "The session timeout."},
+          "about": "The session timeout."},
         { "name": "subscription", "versions": "0+", "type": "bytes",
-        "about": "The subscription."},
+          "about": "The subscription."},
         { "name": "assignment", "versions": "0+", "type": "bytes",
-        "about": "The assignment."}
+          "about": "The assignment."}
       ]
     }
   ]
