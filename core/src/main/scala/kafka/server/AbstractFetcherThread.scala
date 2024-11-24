@@ -946,9 +946,9 @@ object PartitionFetchState {
 /**
  * case class to keep partition offset and its state(truncatingLog, delayed)
  * This represents a partition as being either:
- * (1) Truncating its log, for example having recently become a follower
- * (2) Delayed, for example due to an error, where we subsequently back off a bit
- * (3) ReadyForFetch, the is the active state where the thread is actively fetching data.
+ * (1) Truncating its log, for example, having recently become a follower
+ * (2) Delayed, for example, due to an error, where we subsequently back off a bit
+ * (3) ReadyForFetch, the active state where the thread is actively fetching data.
  */
 case class PartitionFetchState(topicId: Option[Uuid],
                                fetchOffset: Long,
