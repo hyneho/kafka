@@ -22,6 +22,7 @@ import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor.Assignment;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
 import org.apache.kafka.common.ConsumerGroupState;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
@@ -164,7 +165,9 @@ public class DescribeConsumerGroupsHandlerTest {
             Optional.of(new MemberAssignment(Set.of(
                 new TopicPartition("foo", 1),
                 new TopicPartition("bar",  2)
-            )))
+            ))),
+            Optional.of(10),
+            false
         ));
         ConsumerGroupDescription expected = new ConsumerGroupDescription(
             groupId1,
@@ -172,9 +175,11 @@ public class DescribeConsumerGroupsHandlerTest {
             members,
             "range",
             GroupType.CONSUMER,
-            ConsumerGroupState.STABLE,
+            GroupState.STABLE,
             coordinator,
-            Collections.emptySet()
+            Collections.emptySet(),
+            Optional.of(10),
+            Optional.of(10)
         );
         AdminApiHandler.ApiResult<CoordinatorKey, ConsumerGroupDescription> result = handler.handleResponse(
             coordinator,
@@ -221,6 +226,7 @@ public class DescribeConsumerGroupsHandlerTest {
                                                 .setTopicName("bar")
                                                 .setPartitions(Collections.singletonList(2))
                                         )))
+                                    .setIsClassic(false)
                             ))
                     ))
             )
@@ -232,9 +238,12 @@ public class DescribeConsumerGroupsHandlerTest {
     public void testSuccessfulHandleClassicGroupResponse() {
         Collection<MemberDescription> members = singletonList(new MemberDescription(
                 "memberId",
+                Optional.empty(),
                 "clientId",
                 "host",
-                new MemberAssignment(tps)));
+                new MemberAssignment(tps),
+                Optional.empty(),
+                true));
         ConsumerGroupDescription expected = new ConsumerGroupDescription(
                 groupId1,
                 true,

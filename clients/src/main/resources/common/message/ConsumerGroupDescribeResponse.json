@@ -17,7 +17,7 @@
   "apiKey": 69,
   "type": "response",
   "name": "ConsumerGroupDescribeResponse",
-  "validVersions": "0",
+  "validVersions": "0-1",
   "flexibleVersions": "0+",
   // Supported errors:
   // - GROUP_AUTHORIZATION_FAILED (version 0+)
@@ -69,7 +69,9 @@
             { "name": "Assignment", "type": "Assignment", "versions": "0+",
               "about": "The current assignment." },
             { "name": "TargetAssignment", "type": "Assignment", "versions": "0+",
-              "about": "The target assignment." }
+              "about": "The target assignment." },
+            { "name": "IsClassic", "type": "bool", "versions": "1+", "ignorable": true,
+              "about": "True for classic member." }
           ]},
         { "name": "AuthorizedOperations", "type": "int32", "versions": "0+", "default": "-2147483648",
           "about": "32-bit bitfield to represent authorized operations for this group." }

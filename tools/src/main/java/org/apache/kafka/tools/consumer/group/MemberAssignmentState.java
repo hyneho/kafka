@@ -16,9 +16,12 @@
  */
 package org.apache.kafka.tools.consumer.group;
 
+import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.common.TopicPartition;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 class MemberAssignmentState {
     final String group;
@@ -28,9 +31,14 @@ class MemberAssignmentState {
     final String groupInstanceId;
     final int numPartitions;
     final List<TopicPartition> assignment;
+    final List<TopicPartition> targetAssignment;
+    final Optional<Integer> currentEpoch;
+    final Optional<Integer> targetEpoch;
+    final Boolean isClassic;
 
     MemberAssignmentState(String group, String consumerId, String host, String clientId, String groupInstanceId,
-                                 int numPartitions, List<TopicPartition> assignment) {
+                          int numPartitions, List<TopicPartition> assignment, Optional<MemberAssignment> targetAssignment,
+                          Optional<Integer> currentEpoch, Optional<Integer> targetEpoch, Boolean isClassic) {
         this.group = group;
         this.consumerId = consumerId;
         this.host = host;
@@ -38,5 +46,10 @@ class MemberAssignmentState {
         this.groupInstanceId = groupInstanceId;
         this.numPartitions = numPartitions;
         this.assignment = assignment;
+        this.targetAssignment = targetAssignment.isPresent() ?
+            new ArrayList<>(targetAssignment.get().topicPartitions()) : List.of();
+        this.currentEpoch = currentEpoch;
+        this.targetEpoch = targetEpoch;
+        this.isClassic = isClassic;
     }
 }

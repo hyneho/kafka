@@ -4103,14 +4103,18 @@ public class KafkaAdminClientTest {
                         ),
                         Optional.of(new MemberAssignment(
                             Collections.singleton(new TopicPartition("foo", 1))
-                        ))
+                        )),
+                        Optional.of(10),
+                        false
                     )
                 ),
                 "range",
                 GroupType.CONSUMER,
                 GroupState.STABLE,
                 env.cluster().controller(),
-                Collections.emptySet()
+                Collections.emptySet(),
+                Optional.of(10),
+                Optional.of(10)
             ));
             expectedResult.put("grp2", new ConsumerGroupDescription(
                 "grp2",
@@ -4123,14 +4127,18 @@ public class KafkaAdminClientTest {
                         "clientHost",
                         new MemberAssignment(
                             Collections.singleton(new TopicPartition("bar", 0))
-                        )
+                        ),
+                        Optional.empty(),
+                        true
                     )
                 ),
                 "range",
                 GroupType.CLASSIC,
                 GroupState.STABLE,
                 env.cluster().controller(),
-                Collections.emptySet()
+                Collections.emptySet(),
+                Optional.empty(),
+                Optional.empty()
             ));
 
             assertEquals(expectedResult, result.all().get());
@@ -8608,7 +8616,9 @@ public class KafkaAdminClientTest {
                                      Optional.ofNullable(member.groupInstanceId()),
                                      member.clientId(),
                                      member.clientHost(),
-                                     assignment);
+                                     assignment,
+                                     Optional.empty(),
+                                     false);
     }
 
     private static MemberDescription convertToMemberDescriptions(ShareGroupDescribeResponseData.Member member,
@@ -8617,7 +8627,9 @@ public class KafkaAdminClientTest {
                                      Optional.empty(),
                                      member.clientId(),
                                      member.clientHost(),
-                                     assignment);
+                                     assignment,
+                                     Optional.empty(),
+                                     false);
     }
 
     @Test

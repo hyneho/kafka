@@ -30,13 +30,17 @@ public class MemberDescription {
     private final String host;
     private final MemberAssignment assignment;
     private final Optional<MemberAssignment> targetAssignment;
+    private final Optional<Integer> memberEpoch;
+    private final Boolean isClassic;
 
     public MemberDescription(String memberId,
         Optional<String> groupInstanceId,
         String clientId,
         String host,
         MemberAssignment assignment,
-        Optional<MemberAssignment> targetAssignment
+        Optional<MemberAssignment> targetAssignment,
+        Optional<Integer> memberEpoch,
+        Boolean isClassic
     ) {
         this.memberId = memberId == null ? "" : memberId;
         this.groupInstanceId = groupInstanceId;
@@ -45,6 +49,8 @@ public class MemberDescription {
         this.assignment = assignment == null ?
             new MemberAssignment(Collections.emptySet()) : assignment;
         this.targetAssignment = targetAssignment;
+        this.memberEpoch = memberEpoch;
+        this.isClassic = isClassic;
     }
 
     public MemberDescription(
@@ -52,7 +58,9 @@ public class MemberDescription {
         Optional<String> groupInstanceId,
         String clientId,
         String host,
-        MemberAssignment assignment
+        MemberAssignment assignment,
+        Optional<Integer> memberEpoch,
+        Boolean isClassic
     ) {
         this(
             memberId,
@@ -60,7 +68,9 @@ public class MemberDescription {
             clientId,
             host,
             assignment,
-            Optional.empty()
+            Optional.empty(),
+            memberEpoch,
+            isClassic
         );
     }
 
@@ -68,7 +78,7 @@ public class MemberDescription {
                              String clientId,
                              String host,
                              MemberAssignment assignment) {
-        this(memberId, Optional.empty(), clientId, host, assignment);
+        this(memberId, Optional.empty(), clientId, host, assignment, Optional.empty(), false);
     }
 
     @Override
@@ -81,12 +91,14 @@ public class MemberDescription {
             clientId.equals(that.clientId) &&
             host.equals(that.host) &&
             assignment.equals(that.assignment) &&
-            targetAssignment.equals(that.targetAssignment);
+            targetAssignment.equals(that.targetAssignment) &&
+            memberEpoch.equals(that.memberEpoch) &&
+            isClassic.equals(that.isClassic);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(memberId, groupInstanceId, clientId, host, assignment, targetAssignment);
+        return Objects.hash(memberId, groupInstanceId, clientId, host, assignment, targetAssignment, memberEpoch, isClassic);
     }
 
     /**
@@ -131,6 +143,20 @@ public class MemberDescription {
         return targetAssignment;
     }
 
+    /**
+     * The epoch of the group member.
+     */
+    public Optional<Integer> memberEpoch() {
+        return memberEpoch;
+    }
+
+    /**
+     * The flag indicating whether a member is classic.
+     */
+    public Boolean isClassic() {
+        return isClassic;
+    }
+
     @Override
     public String toString() {
         return "(memberId=" + memberId +
@@ -138,6 +164,9 @@ public class MemberDescription {
             ", clientId=" + clientId +
             ", host=" + host +
             ", assignment=" + assignment +
-            ", targetAssignment=" + targetAssignment + ")";
+            ", targetAssignment=" + targetAssignment +
+            ", memberEpoch=" + memberEpoch.orElse(null) +
+            ", isClassic=" + isClassic +
+            ")";
     }
 }
