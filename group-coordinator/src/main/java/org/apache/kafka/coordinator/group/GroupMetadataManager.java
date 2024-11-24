@@ -27,6 +27,7 @@ import org.apache.kafka.common.errors.GroupIdNotFoundException;
 import org.apache.kafka.common.errors.GroupMaxSizeReachedException;
 import org.apache.kafka.common.errors.IllegalGenerationException;
 import org.apache.kafka.common.errors.InconsistentGroupProtocolException;
+import org.apache.kafka.common.errors.InvalidRegularExpression;
 import org.apache.kafka.common.errors.InvalidRequestException;
 import org.apache.kafka.common.errors.RebalanceInProgressException;
 import org.apache.kafka.common.errors.UnknownMemberIdException;
@@ -81,6 +82,8 @@ import org.apache.kafka.coordinator.group.generated.ConsumerGroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupMetadataValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupPartitionMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupPartitionMetadataValue;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegularExpressionKey;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegularExpressionValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMetadataKey;
@@ -108,6 +111,7 @@ import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
 import org.apache.kafka.coordinator.group.modern.consumer.CurrentAssignmentBuilder;
+import org.apache.kafka.coordinator.group.modern.consumer.ResolvedRegularExpression;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroup;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupAssignmentBuilder;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupMember;
@@ -117,6 +121,9 @@ import org.apache.kafka.image.TopicImage;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineHashSet;
+
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 import org.slf4j.Logger;
 
@@ -724,7 +731,7 @@ public class GroupMetadataManager {
                 ClassicGroup group = classicGroup(groupId, committedOffset);
 
                 if (group.isInState(STABLE)) {
-                    if (!group.protocolName().isPresent()) {
+                    if (group.protocolName().isEmpty()) {
                         throw new IllegalStateException("Invalid null group protocol for stable group");
                     }
 
@@ -744,7 +751,7 @@ public class GroupMetadataManager {
                         .setGroupState(group.stateAsString())
                         .setProtocolType(group.protocolType().orElse(""))
                         .setMembers(group.allMembers().stream()
-                            .map(member -> member.describeNoMetadata())
+                            .map(ClassicGroupMember::describeNoMetadata)
                             .collect(Collectors.toList())
                         )
                     );
@@ -1312,7 +1319,6 @@ public class GroupMetadataManager {
         throwIfEmptyString(request.groupId(), "GroupId can't be empty.");
         throwIfEmptyString(request.instanceId(), "InstanceId can't be empty.");
         throwIfEmptyString(request.rackId(), "RackId can't be empty.");
-        throwIfNotNull(request.subscribedTopicRegex(), "SubscribedTopicRegex is not supported yet.");
 
         if (request.memberEpoch() == 0) {
             if (request.rebalanceTimeoutMs() == -1) {
@@ -1321,8 +1327,10 @@ public class GroupMetadataManager {
             if (request.topicPartitions() == null || !request.topicPartitions().isEmpty()) {
                 throw new InvalidRequestException("TopicPartitions must be empty when (re-)joining.");
             }
-            if (request.subscribedTopicNames() == null || request.subscribedTopicNames().isEmpty()) {
-                throw new InvalidRequestException("SubscribedTopicNames must be set in first request.");
+            boolean hasSubscribedTopicNames = request.subscribedTopicNames() != null && !request.subscribedTopicNames().isEmpty();
+            boolean hasSubscribedTopicRegex = request.subscribedTopicRegex() != null && !request.subscribedTopicRegex().isEmpty();
+            if (!hasSubscribedTopicNames && !hasSubscribedTopicRegex) {
+                throw new InvalidRequestException("SubscribedTopicNames or SubscribedTopicRegex must be set in first request.");
             }
         } else if (request.memberEpoch() == LEAVE_GROUP_STATIC_MEMBER_EPOCH) {
             throwIfNull(request.instanceId(), "InstanceId can't be null.");
@@ -1639,6 +1647,24 @@ public class GroupMetadataManager {
                 String.format("A new rebalance is triggered in group %s and member %s should rejoin to catch up.",
                     group.groupId(), member.memberId())
             );
+        }
+    }
+
+    /**
+     * Validates if the provided regular expression is valid.
+     *
+     * @param regex The regular expression to validate.
+     * @throws InvalidRegularExpression if the regular expression is invalid.
+     */
+    private static void throwIfRegularExpressionIsInvalid(
+        String regex
+    ) throws InvalidRegularExpression {
+        try {
+            Pattern.compile(regex);
+        } catch (PatternSyntaxException ex) {
+            throw new InvalidRegularExpression(
+                String.format("SubscribedTopicRegex `%s` is not a valid regular expression: %s.",
+                    regex, ex.getDescription()));
         }
     }
 
@@ -2390,13 +2416,14 @@ public class GroupMetadataManager {
      * @param records       The list to accumulate any new records.
      * @return A boolean indicating whether the updatedMember has a different
      *         subscribedTopicNames/subscribedTopicRegex from the old member.
+     * @throws InvalidRegularExpression if the regular expression is invalid.
      */
     private boolean hasMemberSubscriptionChanged(
         String groupId,
         ConsumerGroupMember member,
         ConsumerGroupMember updatedMember,
         List<CoordinatorRecord> records
-    ) {
+    ) throws InvalidRegularExpression {
         String memberId = updatedMember.memberId();
         if (!updatedMember.equals(member)) {
             records.add(newConsumerGroupMemberSubscriptionRecord(groupId, updatedMember));
@@ -2410,6 +2437,11 @@ public class GroupMetadataManager {
             if (!updatedMember.subscribedTopicRegex().equals(member.subscribedTopicRegex())) {
                 log.debug("[GroupId {}] Member {} updated its subscribed regex to: {}.",
                     groupId, memberId, updatedMember.subscribedTopicRegex());
+                // If the regular expression has changed, we compile it to ensure that
+                // its syntax is valid.
+                if (updatedMember.subscribedTopicRegex() != null) {
+                    throwIfRegularExpressionIsInvalid(updatedMember.subscribedTopicRegex());
+                }
                 return true;
             }
         }
@@ -2574,8 +2606,8 @@ public class GroupMetadataManager {
             updatedMember
         ).orElse(defaultConsumerGroupAssignor.name());
         try {
-            TargetAssignmentBuilder<ConsumerGroupMember> assignmentResultBuilder =
-                new TargetAssignmentBuilder<ConsumerGroupMember>(group.groupId(), groupEpoch, consumerGroupAssignors.get(preferredServerAssignor))
+            TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder assignmentResultBuilder =
+                new TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder(group.groupId(), groupEpoch, consumerGroupAssignors.get(preferredServerAssignor))
                     .withMembers(group.members())
                     .withStaticMembers(group.staticMembers())
                     .withSubscriptionMetadata(subscriptionMetadata)
@@ -2583,6 +2615,7 @@ public class GroupMetadataManager {
                     .withTargetAssignment(group.targetAssignment())
                     .withInvertedTargetAssignment(group.invertedTargetAssignment())
                     .withTopicsImage(metadataImage.topics())
+                    .withResolvedRegularExpressions(group.resolvedRegularExpressions())
                     .addOrUpdateMember(updatedMember.memberId(), updatedMember);
 
             // If the instance id was associated to a different member, it means that the
@@ -2641,16 +2674,14 @@ public class GroupMetadataManager {
         List<CoordinatorRecord> records
     ) {
         try {
-            TargetAssignmentBuilder<ShareGroupMember> assignmentResultBuilder =
-                new TargetAssignmentBuilder<ShareGroupMember>(group.groupId(), groupEpoch, shareGroupAssignor)
+            TargetAssignmentBuilder.ShareTargetAssignmentBuilder assignmentResultBuilder =
+                new TargetAssignmentBuilder.ShareTargetAssignmentBuilder(group.groupId(), groupEpoch, shareGroupAssignor)
                     .withMembers(group.members())
                     .withSubscriptionMetadata(subscriptionMetadata)
                     .withSubscriptionType(subscriptionType)
                     .withTargetAssignment(group.targetAssignment())
                     .withInvertedTargetAssignment(group.invertedTargetAssignment())
                     .withTopicsImage(metadataImage.topics())
-                    .withTargetAssignmentRecordBuilder(GroupCoordinatorRecordHelpers::newShareGroupTargetAssignmentRecord)
-                    .withTargetAssignmentEpochRecordBuilder(GroupCoordinatorRecordHelpers::newShareGroupTargetAssignmentEpochRecord)
                     .addOrUpdateMember(updatedMember.memberId(), updatedMember);
 
             long startTimeMs = time.milliseconds();
@@ -3580,6 +3611,40 @@ public class GroupMetadataManager {
     }
 
     /**
+     * Replays ConsumerGroupRegularExpressionKey/Value to update the hard state of
+     * the consumer group.
+     *
+     * @param key   A ConsumerGroupRegularExpressionKey key.
+     * @param value A ConsumerGroupRegularExpressionValue record.
+     */
+    public void replay(
+        ConsumerGroupRegularExpressionKey key,
+        ConsumerGroupRegularExpressionValue value
+    ) {
+        String groupId = key.groupId();
+        String regex = key.regularExpression();
+
+        if (value != null) {
+            ConsumerGroup group = getOrMaybeCreatePersistedConsumerGroup(groupId, true);
+            group.updateResolvedRegularExpression(
+                regex,
+                new ResolvedRegularExpression(
+                    new HashSet<>(value.topics()),
+                    value.version(),
+                    value.timestamp()
+                )
+            );
+        } else {
+            try {
+                ConsumerGroup group = getOrMaybeCreatePersistedConsumerGroup(groupId, false);
+                group.removeResolvedRegularExpression(regex);
+            } catch (GroupIdNotFoundException ex) {
+                // If the group does not exist, we can ignore the tombstone.
+            }
+        }
+    }
+
+    /**
      * Replays ShareGroupMemberMetadataKey/Value to update the hard state of
      * the share group. It updates the subscription part of the member or
      * delete the member.
@@ -3672,9 +3737,9 @@ public class GroupMetadataManager {
 
         if (value != null) {
             Map<String, TopicMetadata> subscriptionMetadata = new HashMap<>();
-            value.topics().forEach(topicMetadata -> {
-                subscriptionMetadata.put(topicMetadata.topicName(), TopicMetadata.fromRecord(topicMetadata));
-            });
+            value.topics().forEach(topicMetadata ->
+                subscriptionMetadata.put(topicMetadata.topicName(), TopicMetadata.fromRecord(topicMetadata))
+            );
             group.setSubscriptionMetadata(subscriptionMetadata);
         } else {
             group.setSubscriptionMetadata(Collections.emptyMap());
@@ -3882,19 +3947,19 @@ public class GroupMetadataManager {
                         case DEAD:
                             break;
                         case PREPARING_REBALANCE:
-                            classicGroup.allMembers().forEach(member -> {
+                            classicGroup.allMembers().forEach(member ->
                                 classicGroup.completeJoinFuture(member, new JoinGroupResponseData()
                                     .setMemberId(member.memberId())
-                                    .setErrorCode(NOT_COORDINATOR.code()));
-                            });
+                                    .setErrorCode(NOT_COORDINATOR.code()))
+                            );
 
                             break;
                         case COMPLETING_REBALANCE:
                         case STABLE:
-                            classicGroup.allMembers().forEach(member -> {
+                            classicGroup.allMembers().forEach(member ->
                                 classicGroup.completeSyncFuture(member, new SyncGroupResponseData()
-                                    .setErrorCode(NOT_COORDINATOR.code()));
-                            });
+                                    .setErrorCode(NOT_COORDINATOR.code()))
+                            );
                     }
                     break;
                 case SHARE:
@@ -6021,7 +6086,7 @@ public class GroupMetadataManager {
         if (isEmptyClassicGroup(group)) {
             // Delete the classic group by adding tombstones.
             // There's no need to remove the group as the replay of tombstones removes it.
-            if (group != null) createGroupTombstoneRecords(group, records);
+            createGroupTombstoneRecords(group, records);
             return true;
         }
         return false;

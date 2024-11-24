@@ -32,6 +32,9 @@
                         <li>The <code>auto.include.jmx.reporter</code> configuration was removed. The <code>metric.reporters</code> configuration
                             is now set to <code>org.apache.kafka.common.metrics.JmxReporter</code> by default.
                         </li>
+                        <li>The <code>bufferpool-wait-time-total</code>, <code>io-waittime-total</code>, and <code>iotime-total</code> metrics were removed.
+                            Please use <code>bufferpool-wait-time-ns-total</code>, <code>io-wait-time-ns-total</code>, and <code>io-time-ns-total</code> metrics as replacements, respectively.
+                        </li>
                     </ul>
                 </li>
                 <li><b>Broker</b>
@@ -130,10 +133,21 @@
                         </li>
                     </ul>
                 </li>
+                <li><b>Producer</b>
+                    <ul>
+                        <li>The <code>enable.idempotence</code> configuration will no longer automatically fall back when the <code>max.in.flight.requests.per.connection</code> value exceeds 5.
+                        </li>
+                        <li>The deprecated <code>sendOffsetsToTransaction(Map&lt;TopicPartition, OffsetAndMetadata&gt;, String)</code> method has been removed from the Producer API.
+                        </li>
+                    </ul>
+                </li>
             </ul>
         </li>
         <li>Other changes:
             <ul>
+                <li>
+                    Java 23 support has been added in Apache Kafka 4.0
+                </li>
                 <li>
                     Scala 2.12 support has been removed in Apache Kafka 4.0
                     See <a href="https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=181308218">KIP-751</a> for more details
@@ -147,6 +161,12 @@
                     See <a href="https://logging.apache.org/log4j/2.x/manual/appenders.html#KafkaAppender">KafkaAppender</a> for more details
                 </li>
                 <li>The <code>--delete-config</code> option in the <code>kafka-topics</code> command line tool has been deprecated.
+                </li>
+                <li>
+                    For implementors of RemoteLogMetadataManager (RLMM), a new API `nextSegmentWithTxnIndex` is
+                    introduced in RLMM to allow the implementation to return the next segment metadata with a transaction
+                    index. This API is used when the consumers are enabled with isolation level as READ_COMMITTED.
+                    See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-1058:+Txn+consumer+exerts+pressure+on+remote+storage+when+collecting+aborted+transactions">KIP-1058</a> for more details.
                 </li>
             </ul>
         </li>
@@ -963,7 +983,7 @@
 <h5><a id="upgrade_310_notable" href="#upgrade_310_notable">Notable changes in 3.1.0</a></h5>
 <ul>
     <li>Apache Kafka supports Java 17.</li>
-    <li>The following metrics have been deprecated: <code>bufferpool-wait-time-total</code>, <code>io-waittime-total</code>,
+    <li>The following metrics have been deprecated and will be removed in Apache Kafka 4.0: <code>bufferpool-wait-time-total</code>, <code>io-waittime-total</code>,
         and <code>iotime-total</code>. Please use <code>bufferpool-wait-time-ns-total</code>, <code>io-wait-time-ns-total</code>,
         and <code>io-time-ns-total</code> instead. See <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-773%3A+Differentiate+consistently+metric+latency+measured+in+millis+and+nanos">KIP-773</a>
         for more details.</li>

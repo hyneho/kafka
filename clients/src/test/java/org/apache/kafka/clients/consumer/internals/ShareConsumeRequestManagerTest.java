@@ -124,13 +124,13 @@ public class ShareConsumeRequestManagerTest {
     private final String groupId = "test-group";
     private final Uuid topicId = Uuid.randomUuid();
     private final Uuid topicId2 = Uuid.randomUuid();
-    private final Map<String, Uuid> topicIds = new HashMap<String, Uuid>() {
+    private final Map<String, Uuid> topicIds = new HashMap<>() {
         {
             put(topicName, topicId);
             put(topicName2, topicId2);
         }
     };
-    private final Map<String, Integer> topicPartitionCounts = new HashMap<String, Integer>() {
+    private final Map<String, Integer> topicPartitionCounts = new HashMap<>() {
         {
             put(topicName, 2);
             put(topicName2, 1);
@@ -452,6 +452,45 @@ public class ShareConsumeRequestManagerTest {
     }
 
     @Test
+    public void testAcknowledgeOnCloseWithPendingCommitSync() {
+        buildRequestManager();
+        // Enabling the config so that background event is sent when the acknowledgement response is received.
+        shareConsumeRequestManager.setAcknowledgementCommitCallbackRegistered(true);
+
+        assignFromSubscribed(Collections.singleton(tp0));
+
+        // normal fetch
+        assertEquals(1, sendFetches());
+        assertFalse(shareConsumeRequestManager.hasCompletedFetches());
+
+        client.prepareResponse(fullFetchResponse(tip0, records, acquiredRecords, Errors.NONE));
+        networkClientDelegate.poll(time.timer(0));
+        assertTrue(shareConsumeRequestManager.hasCompletedFetches());
+
+        Acknowledgements acknowledgements = Acknowledgements.empty();
+        acknowledgements.add(1L, AcknowledgeType.ACCEPT);
+        acknowledgements.add(2L, AcknowledgeType.ACCEPT);
+        acknowledgements.add(3L, AcknowledgeType.REJECT);
+
+        shareConsumeRequestManager.commitSync(Collections.singletonMap(tip0, acknowledgements),
+                calculateDeadlineMs(time.timer(100)));
+        shareConsumeRequestManager.acknowledgeOnClose(Collections.emptyMap(),
+                calculateDeadlineMs(time.timer(100)));
+
+        assertEquals(1, shareConsumeRequestManager.sendAcknowledgements());
+
+        client.prepareResponse(fullAcknowledgeResponse(tip0, Errors.NONE));
+        networkClientDelegate.poll(time.timer(0));
+
+        client.prepareResponse(emptyAcknowledgeResponse());
+        networkClientDelegate.poll(time.timer(0));
+        assertTrue(shareConsumeRequestManager.hasCompletedFetches());
+
+        assertEquals(Collections.singletonMap(tip0, acknowledgements), completedAcknowledgements.get(0));
+        completedAcknowledgements.clear();
+    }
+
+    @Test
     public void testBatchingAcknowledgeRequestStates() {
         buildRequestManager();
 
@@ -599,7 +638,108 @@ public class ShareConsumeRequestManagerTest {
     }
 
     @Test
-    public void testRetryAcknowledgementsWithLeaderChange() throws InterruptedException {
+    public void testPiggybackAcknowledgementsInFlight() {
+        buildRequestManager();
+
+        assignFromSubscribed(Collections.singleton(tp0));
+
+        // normal fetch
+        assertEquals(1, sendFetches());
+        assertFalse(shareConsumeRequestManager.hasCompletedFetches());
+
+        client.prepareResponse(fullFetchResponse(tip0, records, acquiredRecords, Errors.NONE));
+        networkClientDelegate.poll(time.timer(0));
+        assertTrue(shareConsumeRequestManager.hasCompletedFetches());
+
+        Acknowledgements acknowledgements = Acknowledgements.empty();
+        acknowledgements.add(1L, AcknowledgeType.ACCEPT);
+        acknowledgements.add(2L, AcknowledgeType.ACCEPT);
+
+        // Reading records from the share fetch buffer.
+        fetchRecords();
+
+        // Piggyback acknowledgements
+        shareConsumeRequestManager.fetch(Collections.singletonMap(tip0, acknowledgements));
+
+        assertEquals(1, sendFetches());
+        assertFalse(shareConsumeRequestManager.hasCompletedFetches());
+
+        assertEquals(2.0,
+                metrics.metrics().get(metrics.metricInstance(shareFetchMetricsRegistry.acknowledgementSendTotal)).metricValue());
+
+        Acknowledgements acknowledgements2 = Acknowledgements.empty();
+        acknowledgements2.add(3L, AcknowledgeType.ACCEPT);
+        shareConsumeRequestManager.fetch(Collections.singletonMap(tip0, acknowledgements2));
+
+        client.prepareResponse(fullFetchResponse(tip0, records, acquiredRecords, Errors.NONE));
+        networkClientDelegate.poll(time.timer(0));
+        assertTrue(shareConsumeRequestManager.hasCompletedFetches());
+
+        fetchRecords();
+
+        assertEquals(1, sendFetches());
+        assertFalse(shareConsumeRequestManager.hasCompletedFetches());
+        assertEquals(3.0,
+                metrics.metrics().get(metrics.metricInstance(shareFetchMetricsRegistry.acknowledgementSendTotal)).metricValue());
+    }
+
+    @Test
+    public void testCommitAsyncWithSubscriptionChange() {
+        buildRequestManager();
+
+        assignFromSubscribed(singleton(tp0));
+
+        assertEquals(1, sendFetches());
+        assertFalse(shareConsumeRequestManager.hasCompletedFetches());
+
+        client.prepareResponse(fullFetchResponse(tip0, records, acquiredRecords, Errors.NONE));
+        networkClientDelegate.poll(time.timer(0));
+        assertTrue(shareConsumeRequestManager.hasCompletedFetches());
+
+        Acknowledgements acknowledgements = Acknowledgements.empty();
+        acknowledgements.add(1L, AcknowledgeType.ACCEPT);
+        acknowledgements.add(2L, AcknowledgeType.ACCEPT);
+        acknowledgements.add(3L, AcknowledgeType.REJECT);
+
+        assignFromSubscribed(singleton(tp1));
+
+        shareConsumeRequestManager.commitAsync(Collections.singletonMap(tip0, acknowledgements));
+
+        assertEquals(1, shareConsumeRequestManager.sendAcknowledgements());
+    }
+
+    @Test
+    public void testShareFetchWithSubscriptionChange() {
+        buildRequestManager();
+
+        assignFromSubscribed(singleton(tp0));
+
+        assertEquals(1, sendFetches());
+        assertFalse(shareConsumeRequestManager.hasCompletedFetches());
+
+        client.prepareResponse(fullFetchResponse(tip0, records, acquiredRecords, Errors.NONE));
+        networkClientDelegate.poll(time.timer(0));
+        assertTrue(shareConsumeRequestManager.hasCompletedFetches());
+
+        Acknowledgements acknowledgements = Acknowledgements.empty();
+        acknowledgements.add(0L, AcknowledgeType.ACCEPT);
+        acknowledgements.add(1L, AcknowledgeType.RELEASE);
+        acknowledgements.add(2L, AcknowledgeType.ACCEPT);
+
+        // Send acknowledgements via ShareFetch
+        shareConsumeRequestManager.fetch(Collections.singletonMap(tip0, acknowledgements));
+        fetchRecords();
+        // Subscription changes.
+        assignFromSubscribed(singleton(tp1));
+
+        assertEquals(1, sendFetches());
+        assertFalse(shareConsumeRequestManager.hasCompletedFetches());
+        assertEquals(3.0,
+                metrics.metrics().get(metrics.metricInstance(shareFetchMetricsRegistry.acknowledgementSendTotal)).metricValue());
+    }
+
+    @Test
+    public void testRetryAcknowledgementsWithLeaderChange() {
         buildRequestManager();
 
         subscriptions.subscribeToShareGroup(Collections.singleton(topicName));
@@ -1333,7 +1473,7 @@ public class ShareConsumeRequestManagerTest {
     }
 
     /**
-     * Assert that the {@link ShareFetchCollector#collect(ShareFetchBuffer)} latest fetch} does not contain any
+     * Assert that the {@link ShareFetchCollector#collect(ShareFetchBuffer) latest fetch} does not contain any
      * {@link ShareFetch#records() user-visible records}, and is {@link ShareFetch#isEmpty() empty}.
      *
      * @param reason the reason to include for assertion methods such as {@link org.junit.jupiter.api.Assertions#assertTrue(boolean, String)}

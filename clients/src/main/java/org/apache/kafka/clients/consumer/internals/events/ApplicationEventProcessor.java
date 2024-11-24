@@ -136,6 +136,10 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
                 process((CommitOnCloseEvent) event);
                 return;
 
+            case LEAVE_GROUP_ON_CLOSE:
+                process((LeaveGroupOnCloseEvent) event);
+                return;
+
             case CREATE_FETCH_REQUESTS:
                 process((CreateFetchRequestsEvent) event);
                 return;
@@ -198,29 +202,41 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(final AsyncCommitEvent event) {
-        if (!requestManagers.commitRequestManager.isPresent()) {
+        if (requestManagers.commitRequestManager.isEmpty()) {
+            event.future().completeExceptionally(new KafkaException("Unable to async commit " +
+                "offset because the CommitRequestManager is not available. Check if group.id was set correctly"));
             return;
         }
 
-        CommitRequestManager manager = requestManagers.commitRequestManager.get();
-        CompletableFuture<Void> future = manager.commitAsync(event.offsets());
-        future.whenComplete(complete(event.future()));
+        try {
+            CommitRequestManager manager = requestManagers.commitRequestManager.get();
+            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = manager.commitAsync(event.offsets());
+            future.whenComplete(complete(event.future()));
+        } catch (Exception e) {
+            event.future().completeExceptionally(e);
+        }
     }
 
     private void process(final SyncCommitEvent event) {
-        if (!requestManagers.commitRequestManager.isPresent()) {
+        if (requestManagers.commitRequestManager.isEmpty()) {
+            event.future().completeExceptionally(new KafkaException("Unable to sync commit " +
+                "offset because the CommitRequestManager is not available. Check if group.id was set correctly"));
             return;
         }
 
-        CommitRequestManager manager = requestManagers.commitRequestManager.get();
-        CompletableFuture<Void> future = manager.commitSync(event.offsets(), event.deadlineMs());
-        future.whenComplete(complete(event.future()));
+        try {
+            CommitRequestManager manager = requestManagers.commitRequestManager.get();
+            CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = manager.commitSync(event.offsets(), event.deadlineMs());
+            future.whenComplete(complete(event.future()));
+        } catch (Exception e) {
+            event.future().completeExceptionally(e);
+        }
     }
 
     private void process(final FetchCommittedOffsetsEvent event) {
-        if (!requestManagers.commitRequestManager.isPresent()) {
+        if (requestManagers.commitRequestManager.isEmpty()) {
             event.future().completeExceptionally(new KafkaException("Unable to fetch committed " +
-                    "offset because the CommittedRequestManager is not available. Check if group.id was set correctly"));
+                    "offset because the CommitRequestManager is not available. Check if group.id was set correctly"));
             return;
         }
         CommitRequestManager manager = requestManagers.commitRequestManager.get();
@@ -265,7 +281,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * it is already a member on the next poll.
      */
     private void process(final TopicSubscriptionChangeEvent event) {
-        if (!requestManagers.consumerHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.consumerHeartbeatRequestManager.isEmpty()) {
             log.warn("Group membership manager not present when processing a subscribe event");
             event.future().complete(null);
             return;
@@ -365,7 +381,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(final ConsumerRebalanceListenerCallbackCompletedEvent event) {
-        if (!requestManagers.consumerHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.consumerHeartbeatRequestManager.isEmpty()) {
             log.warn(
                 "An internal error occurred; the group membership manager was not present, so the notification of the {} callback execution could not be sent",
                 event.methodName()
@@ -376,10 +392,19 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     }
 
     private void process(@SuppressWarnings("unused") final CommitOnCloseEvent event) {
-        if (!requestManagers.commitRequestManager.isPresent())
+        if (requestManagers.commitRequestManager.isEmpty())
             return;
         log.debug("Signal CommitRequestManager closing");
         requestManagers.commitRequestManager.get().signalClose();
+    }
+
+    private void process(final LeaveGroupOnCloseEvent event) {
+        if (requestManagers.consumerMembershipManager.isEmpty())
+            return;
+
+        log.debug("Signal the ConsumerMembershipManager to leave the consumer group since the consumer is closing");
+        CompletableFuture<Void> future = requestManagers.consumerMembershipManager.get().leaveGroupOnClose();
+        future.whenComplete(complete(event.future()));
     }
 
     /**
@@ -393,7 +418,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * Process event that indicates the consumer acknowledged delivery of records synchronously.
      */
     private void process(final ShareAcknowledgeSyncEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             return;
         }
 
@@ -407,7 +432,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * Process event that indicates the consumer acknowledged delivery of records asynchronously.
      */
     private void process(final ShareAcknowledgeAsyncEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             return;
         }
 
@@ -421,7 +446,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * it is already a member.
      */
     private void process(final ShareSubscriptionChangeEvent event) {
-        if (!requestManagers.shareHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.shareHeartbeatRequestManager.isEmpty()) {
             KafkaException error = new KafkaException("Group membership manager not present when processing a subscribe event");
             event.future().completeExceptionally(error);
             return;
@@ -444,7 +469,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      *              the group is sent out.
      */
     private void process(final ShareUnsubscribeEvent event) {
-        if (!requestManagers.shareHeartbeatRequestManager.isPresent()) {
+        if (requestManagers.shareHeartbeatRequestManager.isEmpty()) {
             KafkaException error = new KafkaException("Group membership manager not present when processing an unsubscribe event");
             event.future().completeExceptionally(error);
             return;
@@ -465,7 +490,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      *              the acknowledgements have responses.
      */
     private void process(final ShareAcknowledgeOnCloseEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             KafkaException error = new KafkaException("Group membership manager not present when processing an acknowledge-on-close event");
             event.future().completeExceptionally(error);
             return;
@@ -482,7 +507,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * @param event Event containing a boolean to indicate if the callback handler is configured or not.
      */
     private void process(final ShareAcknowledgementCommitCallbackRegistrationEvent event) {
-        if (!requestManagers.shareConsumeRequestManager.isPresent()) {
+        if (requestManagers.shareConsumeRequestManager.isEmpty()) {
             return;
         }
 
@@ -507,7 +532,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
                                                                final ConsumerMetadata metadata,
                                                                final SubscriptionState subscriptions,
                                                                final Supplier<RequestManagers> requestManagersSupplier) {
-        return new CachedSupplier<ApplicationEventProcessor>() {
+        return new CachedSupplier<>() {
             @Override
             protected ApplicationEventProcessor create() {
                 RequestManagers requestManagers = requestManagersSupplier.get();
@@ -523,6 +548,7 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
 
     private void process(final SeekUnvalidatedEvent event) {
         try {
+            event.offsetEpoch().ifPresent(epoch -> metadata.updateLastSeenEpochIfNewer(event.partition(), epoch));
             SubscriptionState.FetchPosition newPosition = new SubscriptionState.FetchPosition(
                     event.offset(),
                     event.offsetEpoch(),
