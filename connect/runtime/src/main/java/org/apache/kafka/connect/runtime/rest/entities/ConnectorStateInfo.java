@@ -100,6 +100,7 @@ public class ConnectorStateInfo {
     }
 
     public static class ConnectorState extends AbstractState {
+
         @JsonCreator
         public ConnectorState(@JsonProperty("state") String state,
                               @JsonProperty("worker_id") String worker,
@@ -108,10 +109,7 @@ public class ConnectorStateInfo {
             super(state, worker, msg, version);
         }
 
-        @JsonCreator
-        public ConnectorState(@JsonProperty("state") String state,
-                              @JsonProperty("worker_id") String worker,
-                              @JsonProperty("trace") String trace) {
+        public ConnectorState(String state, String worker,String trace) {
             super(state, worker, trace, null);
         }
     }
@@ -129,11 +127,7 @@ public class ConnectorStateInfo {
             this.id = id;
         }
 
-        @JsonCreator
-        public TaskState(@JsonProperty("id") int id,
-                         @JsonProperty("state") String state,
-                         @JsonProperty("worker_id") String worker,
-                         @JsonProperty("trace") String trace) {
+        public TaskState(int id, String state, String worker, String trace) {
             super(state, worker, trace, null);
             this.id = id;
         }

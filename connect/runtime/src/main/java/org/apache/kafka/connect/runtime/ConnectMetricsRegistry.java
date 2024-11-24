@@ -59,6 +59,16 @@ public class ConnectMetricsRegistry {
     public final MetricNameTemplate taskBatchSizeAvg;
     public final MetricNameTemplate taskCommitFailurePercentage;
     public final MetricNameTemplate taskCommitSuccessPercentage;
+    public final MetricNameTemplate taskConnectorClass;
+    public final MetricNameTemplate taskConnectorClassVersion;
+    public final MetricNameTemplate taskConnectorType;
+    public final MetricNameTemplate taskVersion;
+    public final MetricNameTemplate taskKeyConverterClass;
+    public final MetricNameTemplate taskValueConverterClass;
+    public final MetricNameTemplate taskKeyConverterVersion;
+    public final MetricNameTemplate taskValueConverterVersion;
+    public final MetricNameTemplate taskHeaderConverterClass;
+    public final MetricNameTemplate taskHeaderConverterVersion;
     public final MetricNameTemplate sourceRecordPollRate;
     public final MetricNameTemplate sourceRecordPollTotal;
     public final MetricNameTemplate sourceRecordWriteRate;
@@ -164,6 +174,24 @@ public class ConnectMetricsRegistry {
         taskCommitSuccessPercentage = createTemplate("offset-commit-success-percentage", TASK_GROUP_NAME,
                                                      "The average percentage of this task's offset commit attempts that succeeded.",
                                                      workerTaskTags);
+        taskConnectorClass = createTemplate("connector-class", TASK_GROUP_NAME, "The name of the connector class.", workerTaskTags);
+        taskConnectorClassVersion = createTemplate("connector-version", TASK_GROUP_NAME,
+                                                   "The version of the connector class, as reported by the connector.", workerTaskTags);
+        taskConnectorType = createTemplate("connector-type", TASK_GROUP_NAME, "The type of the connector. One of 'source' or 'sink'.",
+                                           workerTaskTags);
+        taskVersion = createTemplate("task-version", TASK_GROUP_NAME, "The version of the task.", workerTaskTags);
+        taskKeyConverterClass = createTemplate("key-converter-class", TASK_GROUP_NAME,
+                                            "The fully qualified class name from key.converter", workerTaskTags);
+        taskValueConverterClass = createTemplate("value-converter-class", TASK_GROUP_NAME,
+                                            "The fully qualified class name from value.converter", workerTaskTags);
+        taskKeyConverterVersion = createTemplate("key-converter-version", TASK_GROUP_NAME,
+                                            "The version instantiated for key.converter. May be undefined", workerTaskTags);
+        taskValueConverterVersion = createTemplate("value-converter-version", TASK_GROUP_NAME,
+                                                "The version instantiated for value.converter. May be undefined", workerTaskTags);
+        taskHeaderConverterClass = createTemplate("header-converter-class", TASK_GROUP_NAME,
+                                                "The fully qualified class name from header.converter", workerTaskTags);
+        taskHeaderConverterVersion = createTemplate("header-converter-version", TASK_GROUP_NAME,
+                                                    "The version instantiated for header.converter. May be undefined", workerTaskTags);
 
         /* Source worker task level */
         Set<String> sourceTaskTags = new LinkedHashSet<>(tags);
