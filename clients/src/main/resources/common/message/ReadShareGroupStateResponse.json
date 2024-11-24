@@ -43,7 +43,7 @@
         { "name": "StartOffset", "type": "int64", "versions": "0+",
           "about": "The share-partition start offset, which can be -1 if it is not yet initialized." },
         { "name": "StateBatches", "type": "[]StateBatch", "versions": "0+",
-          "about": "The state batches for this partition.", "fields":[
+          "about": "The state batches for this share-partition.", "fields":[
           { "name": "FirstOffset", "type": "int64", "versions": "0+",
             "about": "The base offset of this state batch." },
           { "name": "LastOffset", "type": "int64", "versions": "0+",
