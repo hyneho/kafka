@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -392,9 +393,14 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
         private final Sensor commitTime;
         private final Sensor batchSize;
         private final Sensor commitAttempts;
+        private final ConnectMetrics connectMetrics;
+        private final ConnectorTaskId id;
 
         public TaskMetricsGroup(ConnectorTaskId id, ConnectMetrics connectMetrics, TaskStatus.Listener statusListener) {
             delegateListener = statusListener;
+            this.connectMetrics = connectMetrics;
+            this.id = id;
+
             time = connectMetrics.time();
             taskStateTimer = new StateTracker();
             ConnectMetricsRegistry registry = connectMetrics.registry();
@@ -430,6 +436,40 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
             MetricName metricName = metricGroup.metricName(template);
             metricGroup.metrics().addMetricIfAbsent(metricName, null, (Gauge<Double>) (config, now) ->
                     taskStateTimer.durationRatio(matchingState, now));
+        }
+
+        public void addPluginInfoMetric(String connectorClass,
+                                        String connectorVersion,
+                                        String connectorType,
+                                        String taskVersion,
+                                        String keyConverterClass,
+                                        String keyConverterVersion,
+                                        String valueConverterClass,
+                                        String valueConverterVersion,
+                                        String headerConverterClass,
+                                        String headerConverterVersion,
+                                        Map<String, String> transformationsWitVersions,
+                                        Map<String, String> predicatesWithVersions) {
+            ConnectMetricsRegistry registry = connectMetrics.registry();
+            metricGroup.addValueMetric(registry.taskConnectorClass, now -> connectorClass);
+            metricGroup.addValueMetric(registry.taskConnectorClassVersion, now -> connectorVersion);
+            metricGroup.addValueMetric(registry.taskConnectorType, now -> connectorType);
+            metricGroup.addValueMetric(registry.taskVersion, now -> taskVersion);
+            metricGroup.addValueMetric(registry.taskKeyConverterClass, now -> keyConverterClass);
+            metricGroup.addValueMetric(registry.taskKeyConverterVersion, now -> keyConverterVersion);
+            metricGroup.addValueMetric(registry.taskValueConverterClass, now -> valueConverterClass);
+            metricGroup.addValueMetric(registry.taskValueConverterVersion, now -> valueConverterVersion);
+            metricGroup.addValueMetric(registry.taskHeaderConverterClass, now -> headerConverterClass);
+            metricGroup.addValueMetric(registry.taskHeaderConverterVersion, now -> headerConverterVersion);
+
+            if (!transformationsWitVersions.isEmpty()) {
+                for (Map.Entry<String, String> entry : transformationsWitVersions.entrySet()) {
+                    MetricGroup transformationGroup = connectMetrics.group(registry.transformsGroupName(),
+                            registry.connectorTagName(), id.connector(),
+                            registry.taskTagName(), Integer.toString(id.task()),
+                            registry.transformsTagName(), );
+                }
+            }
         }
 
         void close() {

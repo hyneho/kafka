@@ -2,8 +2,10 @@ package org.apache.kafka.connect.util;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.connect.components.Versioned;
 import org.apache.kafka.connect.connector.Connector;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
+import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
 import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorType;
@@ -23,6 +25,8 @@ import java.util.stream.Collectors;
 public class PluginVersionUtils {
 
     private static Plugins plugins = null;
+
+    public static final String UNDEFINED_VERSION = "undefined";
 
     public static void setPlugins(Plugins plugins) {
         PluginVersionUtils.plugins = plugins;
@@ -56,6 +60,18 @@ public class PluginVersionUtils {
             }
         }
 
+    }
+
+    public static <T> String getVersionOrUndefined(T obj) {
+        if (obj == null) {
+            return UNDEFINED_VERSION;
+        }
+        try (LoaderSwap swap = Plugins.swapLoader(obj.getClass().getClassLoader())) {
+            if (obj instanceof Versioned) {
+                return ((Versioned) obj).version();
+            }
+        }
+        return UNDEFINED_VERSION;
     }
 
     public static class ConnectorPluginVersionRecommender implements ConfigDef.Recommender {

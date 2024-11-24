@@ -37,6 +37,10 @@ public class ConnectMetricsRegistry {
     public static final String WORKER_GROUP_NAME = "connect-worker-metrics";
     public static final String WORKER_REBALANCE_GROUP_NAME = "connect-worker-rebalance-metrics";
     public static final String TASK_ERROR_HANDLING_GROUP_NAME = "task-error-metrics";
+    public static final String TRANSFORMATION_GROUP = "connect-transform-metrics";
+    public static final String PREDICATES_GROUP = "connect-predicate-metrics";
+    public static final String TRANSFORM_TAG_NAME = "transform";
+    public static final String PREDICATE_TAG_NAME = "predicate";
 
     private final List<MetricNameTemplate> allTemplates = new ArrayList<>();
     public final MetricNameTemplate connectorStatus;
@@ -453,5 +457,21 @@ public class ConnectMetricsRegistry {
 
     public String taskErrorHandlingGroupName() {
         return TASK_ERROR_HANDLING_GROUP_NAME;
+    }
+
+    public String transformsGroupName() {
+        return TRANSFORMATION_GROUP;
+    }
+
+    public String transformsTagName() {
+        return TRANSFORM_TAG_NAME;
+    }
+
+    public String predicateGroupName() {
+        return PREDICATES_GROUP;
+    }
+
+    public String predicateTagName() {
+        return PREDICATE_TAG_NAME;
     }
 }

@@ -369,9 +369,9 @@ public class ConnectorConfig extends AbstractConfig {
                     @SuppressWarnings("unchecked")
                     Predicate<R> predicate = Utils.newInstance(getClass(predicatePrefix + "type"), Predicate.class);
                     predicate.configure(originalsWithPrefix(predicatePrefix));
-                    transformations.add(new TransformationStage<>(predicate, negate != null && Boolean.parseBoolean(negate.toString()), transformation));
+                    transformations.add(new TransformationStage<>(predicate, predicateAlias, negate != null && Boolean.parseBoolean(negate.toString()), transformation, alias));
                 } else {
-                    transformations.add(new TransformationStage<>(transformation));
+                    transformations.add(new TransformationStage<>(transformation, alias));
                 }
             } catch (Exception e) {
                 throw new ConnectException(e);

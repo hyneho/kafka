@@ -23,6 +23,7 @@ import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
+import org.apache.kafka.connect.util.PluginVersionUtils;
 
 /**
  * Wrapper for a {@link Transformation} and corresponding optional {@link Predicate}
@@ -37,15 +38,32 @@ public class TransformationStage<R extends ConnectRecord<R>> implements AutoClos
     private final Predicate<R> predicate;
     private final Transformation<R> transformation;
     private final boolean negate;
+    private final String transformAlias;
+    private final String predicateAlias;
 
     TransformationStage(Transformation<R> transformation) {
         this(null, false, transformation);
     }
 
+    TransformationStage(Transformation<R> transformation, String transformAlias) {
+        this(null, null, false, transformation, transformAlias);
+    }
+
     TransformationStage(Predicate<R> predicate, boolean negate, Transformation<R> transformation) {
+        this(predicate, null, negate, transformation, null);
+    }
+
+    TransformationStage(Predicate<R> predicate, String predicateAlias, boolean negate, Transformation<R> transformation) {
+        this(predicate, predicateAlias, negate, transformation, null);
+    }
+
+    TransformationStage(Predicate<R> predicate, String predicateAlias, boolean negate,
+                        Transformation<R> transform, String transformAlias) {
         this.predicate = predicate;
         this.negate = negate;
-        this.transformation = transformation;
+        this.transformation = transform;
+        this.transformAlias = transformAlias;
+        this.predicateAlias = predicateAlias;
     }
 
     public Class<? extends Transformation<R>> transformClass() {
@@ -82,5 +100,55 @@ public class TransformationStage<R extends ConnectRecord<R>> implements AutoClos
                 ", transformation=" + transformation +
                 ", negate=" + negate +
                 '}';
+    }
+
+    public static class AliasedPluginInfo {
+        private final String alias;
+        private final String className;
+        private final String version;
+
+        private AliasedPluginInfo(String alias, String className, String version) {
+            this.alias = alias;
+            this.className = className;
+            this.version = version;
+        }
+
+        public String alias() {
+            return alias;
+        }
+
+        public String className() {
+            return className;
+        }
+
+        public String version() {
+            return version;
+        }
+    }
+
+    public static class StageInfo {
+        private final AliasedPluginInfo transform;
+        private final AliasedPluginInfo predicate;
+
+        private StageInfo(AliasedPluginInfo transform, AliasedPluginInfo predicate) {
+            this.transform = transform;
+            this.predicate = predicate;
+        }
+
+        public AliasedPluginInfo transform() {
+            return transform;
+        }
+
+        public AliasedPluginInfo predicate() {
+            return predicate;
+        }
+    }
+
+    public StageInfo info() {
+        AliasedPluginInfo transformInfo = new AliasedPluginInfo(transformAlias,
+                transformation.getClass().getName(), PluginVersionUtils.getVersionOrUndefined(transformation));
+        AliasedPluginInfo predicateInfo = predicate != null ? new AliasedPluginInfo(predicateAlias,
+                predicate.getClass().getName(), PluginVersionUtils.getVersionOrUndefined(predicate)) : null;
+        return new StageInfo(transformInfo, predicateInfo);
     }
 }
