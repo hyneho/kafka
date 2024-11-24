@@ -427,7 +427,7 @@ class StreamsSmokeTestDriverService(StreamsSmokeTestBaseService):
         args['disable_auto_terminate'] = self.DISABLE_AUTO_TERMINATE
         args['kafka_run_class'] = self.path.script("kafka-run-class.sh", node)
 
-        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\";" \
+        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\"; " \
               "INCLUDE_TEST_JARS=true %(kafka_run_class)s %(streams_class_name)s " \
               " %(config_file)s %(user_test_args1)s %(disable_auto_terminate)s" \
               " & echo $! >&3 ) 1>> %(stdout)s 2>> %(stderr)s 3> %(pidfile)s" % args
@@ -504,7 +504,7 @@ class StreamsBrokerDownResilienceService(StreamsTestBaseService):
         args['log4j'] = self.LOG4J_CONFIG_FILE
         args['kafka_run_class'] = self.path.script("kafka-run-class.sh", node)
 
-        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\";" \
+        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\"; " \
               "INCLUDE_TEST_JARS=true %(kafka_run_class)s %(streams_class_name)s " \
               " %(config_file)s %(user_test_args1)s %(user_test_args2)s %(user_test_args3)s" \
               " %(user_test_args4)s & echo $! >&3 ) 1>> %(stdout)s 2>> %(stderr)s 3> %(pidfile)s" % args
@@ -546,7 +546,7 @@ class StreamsResetter(StreamsTestBaseService):
         args['input.topics'] = self.topic
         args['kafka_run_class'] = self.path.script("kafka-run-class.sh", node)
 
-        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\";" \
+        cmd = "(export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\";" \
               "%(kafka_run_class)s %(streams_class_name)s " \
               "--bootstrap-server %(bootstrap.servers)s " \
               "--force " \
@@ -641,7 +641,7 @@ class StreamsUpgradeTestJobRunnerService(StreamsTestBaseService):
         args['version'] = self.KAFKA_STREAMS_VERSION
         args['kafka_run_class'] = self.path.script("kafka-run-class.sh", node)
 
-        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\";" \
+        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\"; " \
               "INCLUDE_TEST_JARS=true UPGRADE_KAFKA_STREAMS_TEST_VERSION=%(version)s " \
               " %(kafka_run_class)s %(streams_class_name)s %(config_file)s " \
               " & echo $! >&3 ) 1>> %(stdout)s 2>> %(stderr)s 3> %(pidfile)s" % args
@@ -742,7 +742,7 @@ class CooperativeRebalanceUpgradeService(StreamsTestBaseService):
         args['version'] = self.KAFKA_STREAMS_VERSION
         args['kafka_run_class'] = self.path.script("kafka-run-class.sh", node)
 
-        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\";" \
+        cmd = "( export KAFKA_LOG4J_OPTS=\"%(log4j_param)s%(log4j)s\"; " \
               "INCLUDE_TEST_JARS=true UPGRADE_KAFKA_STREAMS_TEST_VERSION=%(version)s " \
               " %(kafka_run_class)s %(streams_class_name)s %(config_file)s " \
               " & echo $! >&3 ) 1>> %(stdout)s 2>> %(stderr)s 3> %(pidfile)s" % args

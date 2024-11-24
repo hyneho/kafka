@@ -20,11 +20,6 @@ Configuration:
         value: "[%d] %p %m (%c)%n"
 
   Appenders:
-    Console:
-      name: STDOUT
-      PatternLayout:
-        pattern: "${logPattern}"
-
     File:
       - name: FILE
         fileName: {{ log_file }}
