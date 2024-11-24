@@ -14,23 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.tools.consumer.group;
 
-import org.apache.kafka.common.ConsumerGroupState;
-import org.apache.kafka.common.Node;
+package org.apache.kafka.streams.processor.api;
 
-class GroupState {
-    final String group;
-    final Node coordinator;
-    final String assignmentStrategy;
-    final ConsumerGroupState state;
-    final int numMembers;
+/**
+ * Marker interface for classes implementing {@link ProcessorSupplier}
+ * that have been wrapped via a {@link ProcessorWrapper}.
+ * <p>
+ * To convert a {@link ProcessorSupplier} instance into a {@link WrappedProcessorSupplier},
+ * use the {@link ProcessorWrapper#asWrapped(ProcessorSupplier)} method
+ */
+public interface WrappedProcessorSupplier<KIn, VIn, KOut, VOut> extends ProcessorSupplier<KIn, VIn, KOut, VOut> {
 
-    GroupState(String group, Node coordinator, String assignmentStrategy, ConsumerGroupState state, int numMembers) {
-        this.group = group;
-        this.coordinator = coordinator;
-        this.assignmentStrategy = assignmentStrategy;
-        this.state = state;
-        this.numMembers = numMembers;
-    }
 }

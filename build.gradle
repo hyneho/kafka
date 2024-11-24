@@ -141,6 +141,7 @@ ext {
   runtimeTestLibs = [
     libs.slf4jReload4j,
     libs.junitPlatformLanucher,
+    project(":test-common:test-common-runtime")
   ]
 }
 
@@ -489,6 +490,8 @@ subprojects {
 
     // KAFKA-17433 Used by deflake.yml github action to repeat individual tests
     systemProperty("kafka.cluster.test.repeat", project.findProperty("kafka.cluster.test.repeat"))
+    systemProperty("kafka.test.catalog.file", project.findProperty("kafka.test.catalog.file"))
+    systemProperty("kafka.test.run.quarantined", "false")
 
     testLogging {
       events = userTestLoggingEvents ?: testLoggingEvents
@@ -559,6 +562,8 @@ subprojects {
 
     // KAFKA-17433 Used by deflake.yml github action to repeat individual tests
     systemProperty("kafka.cluster.test.repeat", project.findProperty("kafka.cluster.test.repeat"))
+    systemProperty("kafka.test.catalog.file", project.findProperty("kafka.test.catalog.file"))
+    systemProperty("kafka.test.run.quarantined", "true")
 
     testLogging {
       events = userTestLoggingEvents ?: testLoggingEvents
@@ -570,7 +575,6 @@ subprojects {
 
     useJUnitPlatform {
       includeEngines 'junit-jupiter'
-      includeTags 'flaky'
     }
 
     develocity {
@@ -950,7 +954,7 @@ project(':server') {
     testImplementation libs.junitJupiter
     testImplementation libs.slf4jReload4j
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   task createVersionFile() {
@@ -1009,7 +1013,7 @@ project(':share') {
     testImplementation libs.mockitoCore
     testImplementation libs.slf4jReload4j
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   checkstyle {
@@ -1119,7 +1123,7 @@ project(':core') {
     testImplementation libs.slf4jReload4j
     testImplementation libs.caffeine
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   if (userEnableTestCoverage) {
@@ -1372,7 +1376,7 @@ project(':metadata') {
     testImplementation project(':raft').sourceSets.test.output
     testImplementation project(':server-common').sourceSets.test.output
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
 
     generator project(':generator')
   }
@@ -1541,6 +1545,7 @@ project(':group-coordinator') {
 }
 
 project(':test-common') {
+  // Test framework stuff. Implementations that support test-common-api
   base {
     archivesName = "kafka-test-common"
   }
@@ -1569,10 +1574,10 @@ project(':test-common') {
 }
 
 project(':test-common:test-common-api') {
+  // Interfaces, config classes, and other test APIs
   base {
     archivesName = "kafka-test-common-api"
   }
-
 
   dependencies {
     implementation project(':clients')
@@ -1590,6 +1595,28 @@ project(':test-common:test-common-api') {
     testImplementation libs.mockitoCore
 
     testRuntimeOnly runtimeTestLibs
+  }
+
+  checkstyle {
+    configProperties = checkstyleConfigProperties("import-control-test-common-api.xml")
+  }
+
+  javadoc {
+    enabled = false
+  }
+}
+
+project(':test-common:test-common-runtime') {
+  // Runtime-only test code including JUnit extentions
+  base {
+    archivesName = "kafka-test-common-runtime"
+  }
+
+  dependencies {
+    implementation libs.slf4jApi
+    implementation libs.junitPlatformLanucher
+    implementation libs.junitJupiterApi
+    implementation libs.junitJupiter
   }
 
   checkstyle {
@@ -1792,9 +1819,16 @@ project(':generator') {
     implementation libs.jacksonDatabind
     implementation libs.jacksonJDK8Datatypes
     implementation libs.jacksonJaxrsJsonProvider
+
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.4.0.202211300538-r'
+    // SSH support for JGit based on Apache MINA sshd
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.ssh.apache:6.4.0.202211300538-r'
+    // GPG support for JGit based on BouncyCastle (commit signing)
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.gpg.bc:6.4.0.202211300538-r'
+
     testImplementation libs.junitJupiter
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   javadoc {
@@ -2099,7 +2133,6 @@ project(':server-common') {
     testImplementation libs.mockitoCore
 
     testRuntimeOnly runtimeTestLibs
-    testRuntimeOnly project(":test-common")
   }
 
   task createVersionFile() {
@@ -2330,7 +2363,7 @@ project(':tools:tools-api') {
   dependencies {
     implementation project(':clients')
     testImplementation libs.junitJupiter
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   task createVersionFile() {
@@ -2430,9 +2463,8 @@ project(':tools') {
     testImplementation libs.apachedsProtocolLdap
     testImplementation libs.apachedsLdifPartition
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
     testRuntimeOnly libs.hamcrest
-    testRuntimeOnly project(':test-common')
   }
 
   javadoc {
@@ -2700,6 +2732,7 @@ project(':streams') {
             ':streams:upgrade-system-tests-36:test',
             ':streams:upgrade-system-tests-37:test',
             ':streams:upgrade-system-tests-38:test',
+            ':streams:upgrade-system-tests-39:test',
             ':streams:examples:test'
     ]
   )
@@ -2861,7 +2894,7 @@ project(':streams:examples') {
     testImplementation libs.junitJupiter
     testImplementation libs.hamcrest
 
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   javadoc {
@@ -3247,6 +3280,21 @@ project(':streams:upgrade-system-tests-38') {
   }
 }
 
+project(':streams:upgrade-system-tests-39') {
+  base {
+    archivesName = "kafka-streams-upgrade-system-tests-39"
+  }
+
+  dependencies {
+    testImplementation libs.kafkaStreams_39
+    testRuntimeOnly libs.junitJupiter
+  }
+
+  systemTestLibs {
+    dependsOn testJar
+  }
+}
+
 project(':jmh-benchmarks') {
 
   apply plugin: 'io.github.goooler.shadow'
@@ -3401,7 +3449,7 @@ project(':connect:json') {
 
     api libs.jacksonDatabind
     api libs.jacksonJDK8Datatypes
-    api libs.jacksonAfterburner
+    api libs.jacksonBlackbird
 
     implementation libs.slf4jApi
     runtimeOnly libs.reload4j
