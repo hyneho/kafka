@@ -18,12 +18,15 @@ package org.apache.kafka.streams.utils;
 
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.processor.api.FixedKeyProcessor;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
+import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorWrapper;
 import org.apache.kafka.streams.processor.api.WrappedFixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.WrappedProcessorSupplier;
-
+import org.apache.kafka.streams.state.StoreBuilder;
+import org.apache.kafka.streams.utils.TestUtils.RecordingProcessorWrapper.WrapperRecorder;
 import org.junit.jupiter.api.TestInfo;
 
 import java.lang.reflect.Method;
@@ -34,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.StreamsConfig.APPLICATION_ID_CONFIG;
@@ -43,7 +47,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestUtils {
 
-    public static final String PROCESSOR_WRAPPER_COUNTER_CONFIG = "wrapped.processor.count";
+    public static final String PROCESSOR_WRAPPER_COUNTER_CONFIG = "wrapped.counter";
 
     /**
      * Waits for the given {@link KafkaStreams} instances to all be in a specific {@link KafkaStreams.State}.
@@ -119,29 +123,127 @@ public class TestUtils {
      */
     public static class RecordingProcessorWrapper implements ProcessorWrapper {
 
-        private Set<String> wrappedProcessorNames;
+        private WrapperRecorder recorder;
 
         @Override
         public void configure(final Map<String, ?> configs) {
             if (configs.containsKey(PROCESSOR_WRAPPER_COUNTER_CONFIG)) {
-                wrappedProcessorNames = (Set<String>) configs.get(PROCESSOR_WRAPPER_COUNTER_CONFIG);
+                recorder = (WrapperRecorder) configs.get(PROCESSOR_WRAPPER_COUNTER_CONFIG);
             } else {
-                wrappedProcessorNames = Collections.synchronizedSet(new HashSet<>());
+                recorder = new WrapperRecorder();
             }
+        }
+
+        public static class WrapperRecorder {
+            private final AtomicInteger wrappedStateStoresCount = new AtomicInteger();
+            private final Set<String> processorStoresCounted = new HashSet<>();
+            private final Set<String> wrappedProcessorNames = Collections.synchronizedSet(new HashSet<>());
+
+            public void wrapProcessorSupplier(final String name) {
+                wrappedProcessorNames.add(name);
+            }
+
+            public void wrapStateStore(final String processorName, final String storeName) {
+                final String key = processorName + storeName;
+                if (!processorStoresCounted.contains(key)) {
+                    processorStoresCounted.add(key);
+                    wrappedStateStoresCount.incrementAndGet();
+                }
+            }
+
+            public int numWrappedProcessors() {
+                return wrappedProcessorNames.size();
+            }
+
+            public int numWrappedStateStores() {
+                return wrappedStateStoresCount.get();
+            }
+
+            public Set<String> wrappedProcessorNames() {
+                return wrappedProcessorNames;
+            }
+
         }
 
         @Override
         public <KIn, VIn, KOut, VOut> WrappedProcessorSupplier<KIn, VIn, KOut, VOut> wrapProcessorSupplier(final String processorName,
                                                                                                            final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier) {
-            wrappedProcessorNames.add(processorName);
-            return ProcessorWrapper.asWrapped(processorSupplier);
+
+            return new CountingDelegatingProcessorSupplier<>(recorder, processorName, processorSupplier);
         }
 
         @Override
         public <KIn, VIn, VOut> WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> wrapFixedKeyProcessorSupplier(final String processorName,
                                                                                                                final FixedKeyProcessorSupplier<KIn, VIn, VOut> processorSupplier) {
-            wrappedProcessorNames.add(processorName);
-            return ProcessorWrapper.asWrappedFixedKey(processorSupplier);
+            return new CountingDelegatingFixedKeyProcessorSupplier<>(recorder, processorName, processorSupplier);
+        }
+    }
+
+    private static class CountingDelegatingProcessorSupplier<KIn, VIn, KOut, VOut>
+        implements WrappedProcessorSupplier<KIn, VIn, KOut, VOut> {
+
+        private final WrapperRecorder counter;
+        private final String processorName;
+        private final ProcessorSupplier<KIn, VIn, KOut, VOut> delegate;
+
+        public CountingDelegatingProcessorSupplier(final WrapperRecorder counter,
+                                                   final String processorName,
+                                                   final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier) {
+            this.counter = counter;
+            this.processorName = processorName;
+            this.delegate = processorSupplier;
+
+            counter.wrapProcessorSupplier(processorName);
+        }
+
+        @Override
+        public Set<StoreBuilder<?>> stores() {
+            final Set<StoreBuilder<?>> stores = delegate.stores();
+            if (stores != null) {
+                for (final StoreBuilder<?> store : stores) {
+                    counter.wrapStateStore(processorName, store.name());
+                }
+            }
+            return stores;
+        }
+
+        @Override
+        public Processor<KIn, VIn, KOut, VOut> get() {
+            return delegate.get();
+        }
+    }
+
+    private static class CountingDelegatingFixedKeyProcessorSupplier<KIn, VIn, VOut>
+        implements WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> {
+
+        private final WrapperRecorder counter;
+        private final String processorName;
+        private final FixedKeyProcessorSupplier<KIn, VIn, VOut> delegate;
+
+        public CountingDelegatingFixedKeyProcessorSupplier(final WrapperRecorder counter,
+                                                           final String processorName,
+                                                           final FixedKeyProcessorSupplier<KIn, VIn, VOut> processorSupplier) {
+            this.counter = counter;
+            this.processorName = processorName;
+            this.delegate = processorSupplier;
+
+            counter.wrapProcessorSupplier(processorName);
+        }
+
+        @Override
+        public Set<StoreBuilder<?>> stores() {
+            final Set<StoreBuilder<?>> stores = delegate.stores();
+            if (stores != null) {
+                for (final StoreBuilder<?> store : stores) {
+                    counter.wrapStateStore(processorName, store.name());
+                }
+            }
+            return stores;
+        }
+
+        @Override
+        public FixedKeyProcessor<KIn, VIn, VOut> get() {
+            return delegate.get();
         }
     }
 }
