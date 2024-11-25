@@ -1766,13 +1766,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     @Override
     public boolean updateAssignmentMetadataIfNeeded(Timer timer) {
         offsetCommitCallbackInvoker.executeCallbacks();
-        try {
-            applicationEventHandler.addAndGet(new UpdatePatternSubscriptionEvent(calculateDeadlineMs(timer)));
-        } catch (TimeoutException e) {
-            return false;
-        } finally {
-            timer.update();
-        }
+        applicationEventHandler.add(new UpdatePatternSubscriptionEvent(calculateDeadlineMs(timer)));
         processBackgroundEvents();
 
         return updateFetchPositions(timer);
