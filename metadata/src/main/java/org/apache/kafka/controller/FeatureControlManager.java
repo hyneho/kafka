@@ -462,4 +462,10 @@ public class FeatureControlManager {
     boolean isControllerId(int nodeId) {
         return quorumFeatures.isControllerId(nodeId);
     }
+
+    boolean isElrFeatureEnabled() {
+        return metadataVersion().isElrSupported() &&
+            latestFinalizedFeatures().versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0) >=
+            EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
+    }
 }

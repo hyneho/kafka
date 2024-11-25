@@ -1016,8 +1016,7 @@ public class ReplicationControlManager {
     }
 
     boolean isElrEnabled() {
-        return featureControl.metadataVersion().isElrSupported() && featureControl.latestFinalizedFeatures().
-            versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0) >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
+        return featureControl.isElrFeatureEnabled();
     }
 
     ControllerResult<AlterPartitionResponseData> alterPartition(

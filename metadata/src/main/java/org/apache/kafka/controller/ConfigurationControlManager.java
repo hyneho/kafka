@@ -518,15 +518,20 @@ public class ConfigurationControlManager {
         return results;
     }
 
+    // The function is used when enabling ELR. It will create a new cluster level min ISR config if there is not any.
+    // Also, it will remove all the broker level min ISR config records.
     void maybeResetMinIsrConfig(List<ApiMessageAndVersion> outputRecords) {
-        if (clusterConfig().containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+        if (!clusterConfig().containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
             String minIsrDefaultConfigValue = configSchema.getStaticOrDefaultConfig(MIN_IN_SYNC_REPLICAS_CONFIG, staticConfig);
-                incrementalAlterConfigResource(
-                    DEFAULT_NODE,
-                    Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(SET, minIsrDefaultConfigValue)),
-                    true,
-                    outputRecords
-                );
+            ApiError error = incrementalAlterConfigResource(
+                DEFAULT_NODE,
+                Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(SET, minIsrDefaultConfigValue)),
+                true,
+                outputRecords
+            );
+            if (error.isFailure()) {
+                log.error("Fail to update cluster level min ISR config during the min ISR config reset: " + error);
+            }
         }
 
         Set<Integer> nodes = clusterControl.brokerRegistrations().keySet();
@@ -534,12 +539,16 @@ public class ConfigurationControlManager {
             ConfigResource resource = new ConfigResource(Type.BROKER, node.toString());
             Map<String, String> result = configData.get(resource);
             if (result != null && result.containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
-                incrementalAlterConfigResource(
+                ApiError error = incrementalAlterConfigResource(
                     resource,
                     Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(DELETE, null)),
                     true,
                     outputRecords
                 );
+                if (error.isFailure()) {
+                    log.error("Fail to remove broker level min ISR config during the min ISR config reset for " +
+                        "node " + node + ": " + error);
+                }
             }
         });
     }

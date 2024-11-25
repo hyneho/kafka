@@ -230,6 +230,7 @@ public class KafkaConfigSchema {
     ) {
         ConfigDef configDef = configDefs.getOrDefault(ConfigResource.Type.BROKER, EMPTY_CONFIG_DEF);
         ConfigDef.ConfigKey configKey = configDef.configKeys().get(configName);
+        if (configKey == null) return null;
         List<ConfigSynonym> synonyms = logConfigSynonyms.getOrDefault(configKey.name, emptyList());
         for (ConfigSynonym synonym : synonyms) {
             if (staticNodeConfig.containsKey(synonym.name())) {
