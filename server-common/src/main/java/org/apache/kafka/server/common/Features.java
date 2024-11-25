@@ -17,6 +17,7 @@
 package org.apache.kafka.server.common;
 
 import org.apache.kafka.common.feature.SupportedVersionRange;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
