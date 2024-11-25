@@ -15439,7 +15439,7 @@ public class GroupMetadataManagerTest {
     }
 
     @Test
-    public void testConsumerGroupMemberJoinsRefreshesExpiredRegexes() {
+    public void testConsumerGroupMemberJoinRefreshesExpiredRegexes() {
         String groupId = "fooup";
         String memberId1 = Uuid.randomUuid().toString();
         String memberId2 = Uuid.randomUuid().toString();
@@ -15538,7 +15538,7 @@ public class GroupMetadataManagerTest {
         List<MockCoordinatorExecutor.ExecutorResult<CoordinatorRecord>> tasks = context.processTasks();
         assertEquals(1, tasks.size());
 
-        // The pending task was a no-op.
+        // Execute pending tasks.
         MockCoordinatorExecutor.ExecutorResult<CoordinatorRecord> task = tasks.get(0);
         assertEquals(groupId + "-regex", task.key);
 
