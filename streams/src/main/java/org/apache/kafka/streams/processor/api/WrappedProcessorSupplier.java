@@ -14,19 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.clients.consumer;
 
-import java.util.Locale;
+package org.apache.kafka.streams.processor.api;
 
 /**
- * @deprecated Since 4.0. Use {@link org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy instead.}
+ * Marker interface for classes implementing {@link ProcessorSupplier}
+ * that have been wrapped via a {@link ProcessorWrapper}.
+ * <p>
+ * To convert a {@link ProcessorSupplier} instance into a {@link WrappedProcessorSupplier},
+ * use the {@link ProcessorWrapper#asWrapped(ProcessorSupplier)} method
  */
-@Deprecated
-public enum OffsetResetStrategy {
-    LATEST, EARLIEST, NONE;
+public interface WrappedProcessorSupplier<KIn, VIn, KOut, VOut> extends ProcessorSupplier<KIn, VIn, KOut, VOut> {
 
-    @Override
-    public String toString() {
-        return super.toString().toLowerCase(Locale.ROOT);
-    }
 }
