@@ -91,22 +91,16 @@ class ConsumerWithLegacyMessageFormatIntegrationTest extends AbstractConsumerTes
     assertEquals(20, timestampTopic1P1.timestamp)
     assertEquals(Optional.of(0), timestampTopic1P1.leaderEpoch)
 
-    if (!isKRaftTest()) {
-      assertNull(timestampOffsets.get(new TopicPartition(topic2, 0)), "null should be returned when message format is 0.9.0")
-      assertNull(timestampOffsets.get(new TopicPartition(topic2, 1)), "null should be returned when message format is 0.9.0")
-    }
-    else {
-      // legacy message formats are supported for IBP version < 3.0 and KRaft runs on minimum version 3.0-IV1
-      val timestampTopic2P0 = timestampOffsets.get(new TopicPartition(topic2, 0))
-      assertEquals(40, timestampTopic2P0.offset)
-      assertEquals(40, timestampTopic2P0.timestamp)
-      assertEquals(Optional.of(0), timestampTopic2P0.leaderEpoch)
+    // legacy message formats are supported for IBP version < 3.0 and KRaft runs on minimum version 3.0-IV1
+    val timestampTopic2P0 = timestampOffsets.get(new TopicPartition(topic2, 0))
+    assertEquals(40, timestampTopic2P0.offset)
+    assertEquals(40, timestampTopic2P0.timestamp)
+    assertEquals(Optional.of(0), timestampTopic2P0.leaderEpoch)
 
-      val timestampTopic2P1 = timestampOffsets.get(new TopicPartition(topic2, 1))
-      assertEquals(60, timestampTopic2P1.offset)
-      assertEquals(60, timestampTopic2P1.timestamp)
-      assertEquals(Optional.of(0), timestampTopic2P1.leaderEpoch)
-    }
+    val timestampTopic2P1 = timestampOffsets.get(new TopicPartition(topic2, 1))
+    assertEquals(60, timestampTopic2P1.offset)
+    assertEquals(60, timestampTopic2P1.timestamp)
+    assertEquals(Optional.of(0), timestampTopic2P1.leaderEpoch)
 
     val timestampTopic3P0 = timestampOffsets.get(new TopicPartition(topic3, 0))
     assertEquals(80, timestampTopic3P0.offset)
