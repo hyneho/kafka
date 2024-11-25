@@ -136,10 +136,6 @@ public class GroupCoordinatorConfig {
             ConsumerGroupMigrationPolicy.DOWNGRADE + ": only downgrade from consumer group to classic group is enabled, " +
             ConsumerGroupMigrationPolicy.DISABLED + ": neither upgrade nor downgrade is enabled.";
 
-    public static final String CONSUMER_GROUP_REGEX_REFRESH_INTERVAL_MS_CONFIG = "group.consumer.regex.refresh.interval.ms";
-    public static final int CONSUMER_GROUP_REGEX_REFRESH_INTERVAL_MS_DEFAULT = 5 * 60 * 1000;
-    public static final String CONSUMER_GROUP_REGEX_REFRESH_INTERVAL_MS_DOC = "The interval at which the regular expressions within the group are refreshed.";
-
     /** Share group configs */
     public static final String SHARE_GROUP_MAX_SIZE_CONFIG = "group.share.max.size";
     public static final int SHARE_GROUP_MAX_SIZE_DEFAULT = 200;

@@ -483,7 +483,7 @@ public class GroupMetadataManager {
     private MetadataImage metadataImage;
 
     /**
-     * This tracks the version (of the offset) of the last metadata image
+     * This tracks the version (or the offset) of the last metadata image
      * with newly created topics.
      */
     private long lastMetadataImageWithNewTopics = -1L;
