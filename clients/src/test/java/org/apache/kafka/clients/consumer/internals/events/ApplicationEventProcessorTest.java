@@ -19,8 +19,8 @@ package org.apache.kafka.clients.consumer.internals.events;
 import org.apache.kafka.clients.Metadata;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.consumer.SubscriptionPattern;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.clients.consumer.internals.CommitRequestManager;
 import org.apache.kafka.clients.consumer.internals.ConsumerHeartbeatRequestManager;
 import org.apache.kafka.clients.consumer.internals.ConsumerMembershipManager;
@@ -193,7 +193,7 @@ public class ApplicationEventProcessorTest {
     @Test
     public void testResetOffsetEvent() {
         Collection<TopicPartition> tp = Collections.singleton(new TopicPartition("topic", 0));
-        OffsetResetStrategy strategy = OffsetResetStrategy.LATEST;
+        AutoOffsetResetStrategy strategy = AutoOffsetResetStrategy.LATEST;
         ResetOffsetEvent event = new ResetOffsetEvent(tp, strategy, 12345);
 
         setupProcessor(false);
@@ -289,7 +289,7 @@ public class ApplicationEventProcessorTest {
 
     @Test
     public void testTopicSubscriptionChangeEventWithIllegalSubscriptionState() {
-        subscriptionState = new SubscriptionState(new LogContext(), OffsetResetStrategy.EARLIEST);
+        subscriptionState = new SubscriptionState(new LogContext(), AutoOffsetResetStrategy.EARLIEST);
         Optional<ConsumerRebalanceListener> listener = Optional.of(new MockRebalanceListener());
         TopicSubscriptionChangeEvent event = new TopicSubscriptionChangeEvent(
             Set.of("topic1", "topic2"), listener, 12345);
@@ -336,7 +336,7 @@ public class ApplicationEventProcessorTest {
 
     @Test
     public void testTopicPatternSubscriptionChangeEventWithIllegalSubscriptionState() {
-        subscriptionState = new SubscriptionState(new LogContext(), OffsetResetStrategy.EARLIEST);
+        subscriptionState = new SubscriptionState(new LogContext(), AutoOffsetResetStrategy.EARLIEST);
         Optional<ConsumerRebalanceListener> listener = Optional.of(new MockRebalanceListener());
         TopicPatternSubscriptionChangeEvent event = new TopicPatternSubscriptionChangeEvent(
             Pattern.compile("topic.*"), listener, 12345);
