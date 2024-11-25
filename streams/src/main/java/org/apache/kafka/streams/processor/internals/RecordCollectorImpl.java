@@ -362,8 +362,9 @@ public class RecordCollectorImpl implements RecordCollector {
             );
         }
 
-        if (!response.deadLetterQueueRecords.isEmpty()) {
-            for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : response.deadLetterQueueRecords) {
+        final List<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords = response.drainDeadLetterQueueRecords();
+        if (!deadLetterQueueRecords.isEmpty()) {
+            for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : deadLetterQueueRecords) {
                 this.send(
                         deadLetterQueueRecord.key(),
                         deadLetterQueueRecord.value(),
@@ -490,8 +491,9 @@ public class RecordCollectorImpl implements RecordCollector {
                 return;
             }
 
-            if (!response.deadLetterQueueRecords.isEmpty()) {
-                for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : response.deadLetterQueueRecords) {
+            final List<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords = response.drainDeadLetterQueueRecords();
+            if (!deadLetterQueueRecords.isEmpty()) {
+                for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : deadLetterQueueRecords) {
                     this.send(
                             deadLetterQueueRecord.key(),
                             deadLetterQueueRecord.value(),

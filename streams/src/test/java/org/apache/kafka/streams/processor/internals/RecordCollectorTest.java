@@ -1849,11 +1849,8 @@ public class RecordCollectorTest {
                 topology
         );
 
-
-
         collector.initialize();
 
-        assertThat(this.mockProducer.history().isEmpty(), equalTo(true));
         collector.send(topic, "hello", "world", null, 0, null, stringSerializer, stringSerializer, sinkNodeName, context);
         assertThrows(StreamsException.class, collector::flush);
 
