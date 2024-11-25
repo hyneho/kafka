@@ -102,7 +102,6 @@ class ConsumerWithLegacyMessageFormatIntegrationTest extends AbstractConsumerTes
     assertEquals(60, timestampTopic2P1.timestamp)
     assertEquals(Optional.of(0), timestampTopic2P1.leaderEpoch)
 
-
     val timestampTopic3P0 = timestampOffsets.get(new TopicPartition(topic3, 0))
     assertEquals(80, timestampTopic3P0.offset)
     assertEquals(80, timestampTopic3P0.timestamp)

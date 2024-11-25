@@ -35,6 +35,7 @@ import kafka.network.{DataPlaneAcceptor, Processor, RequestChannel}
 import kafka.security.JaasTestUtils
 import kafka.utils._
 import kafka.utils.Implicits._
+import kafka.zk.ConfigEntityChangeNotificationZNode
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.admin.AlterConfigOp.OpType
 import org.apache.kafka.clients.admin.ConfigEntry.{ConfigSource, ConfigSynonym}
@@ -59,7 +60,7 @@ import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializ
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.security.{PasswordEncoder, PasswordEncoderConfigs}
-import org.apache.kafka.server.config.{ConfigType, ReplicationConfigs, ServerConfigs, ServerLogConfigs, ServerTopicConfigSynonyms}
+import org.apache.kafka.server.config.{ConfigType, ReplicationConfigs, ServerConfigs, ServerLogConfigs, ServerTopicConfigSynonyms, ZkConfigs}
 import org.apache.kafka.server.metrics.{KafkaYammerMetrics, MetricConfigs}
 import org.apache.kafka.server.record.BrokerCompressionType
 import org.apache.kafka.server.util.ShutdownableThread
@@ -115,9 +116,13 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
 
     (0 until numServers).foreach { brokerId =>
 
-      val props = {
+      val props = if (isKRaftTest()) {
         val properties = TestUtils.createBrokerConfig(brokerId, null)
         properties.put(SocketServerConfigs.ADVERTISED_LISTENERS_CONFIG, s"$SecureInternal://localhost:0, $SecureExternal://localhost:0")
+        properties
+      } else {
+        val properties = TestUtils.createBrokerConfig(brokerId, zkConnect)
+        properties.put(ZkConfigs.ZK_ENABLE_SECURE_ACLS_CONFIG, "true")
         properties
       }
       props ++= securityProps(sslProperties1, TRUSTSTORE_PROPS)
@@ -144,6 +149,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       props ++= securityProps(sslProperties1, KEYSTORE_PROPS, listenerPrefix(SecureExternal))
 
       val kafkaConfig = KafkaConfig.fromProps(props)
+      if (!isKRaftTest()) {
+        configureDynamicKeystoreInZooKeeper(kafkaConfig, sslProperties1)
+      }
 
       servers += createBroker(kafkaConfig)
     }
@@ -1560,6 +1568,40 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
   }
 
   private def listenerPrefix(name: String): String = new ListenerName(name).configPrefix
+
+  private def configureDynamicKeystoreInZooKeeper(kafkaConfig: KafkaConfig, sslProperties: Properties): Unit = {
+    val externalListenerPrefix = listenerPrefix(SecureExternal)
+    val sslStoreProps = new Properties
+    sslStoreProps ++= securityProps(sslProperties, KEYSTORE_PROPS, externalListenerPrefix)
+    sslStoreProps.put(PasswordEncoderConfigs.PASSWORD_ENCODER_SECRET_CONFIG, kafkaConfig.passwordEncoderSecret.map(_.value).orNull)
+    zkClient.makeSurePersistentPathExists(ConfigEntityChangeNotificationZNode.path)
+
+    val entityType = ConfigType.BROKER
+    val entityName = kafkaConfig.brokerId.toString
+
+    val passwordConfigs = sslStoreProps.asScala.keySet.filter(DynamicBrokerConfig.isPasswordConfig)
+    val passwordEncoder = createPasswordEncoder(kafkaConfig, kafkaConfig.passwordEncoderSecret)
+
+    if (passwordConfigs.nonEmpty) {
+      passwordConfigs.foreach { configName =>
+        val encodedValue = passwordEncoder.encode(new Password(sslStoreProps.getProperty(configName)))
+        sslStoreProps.setProperty(configName, encodedValue)
+      }
+    }
+    sslStoreProps.remove(PasswordEncoderConfigs.PASSWORD_ENCODER_SECRET_CONFIG)
+    adminZkClient.changeConfigs(entityType, entityName, sslStoreProps)
+
+    val brokerProps = adminZkClient.fetchEntityConfig("brokers", kafkaConfig.brokerId.toString)
+    assertEquals(4, brokerProps.size)
+    assertEquals(sslProperties.get(SSL_KEYSTORE_TYPE_CONFIG),
+      brokerProps.getProperty(s"$externalListenerPrefix$SSL_KEYSTORE_TYPE_CONFIG"))
+    assertEquals(sslProperties.get(SSL_KEYSTORE_LOCATION_CONFIG),
+      brokerProps.getProperty(s"$externalListenerPrefix$SSL_KEYSTORE_LOCATION_CONFIG"))
+    assertEquals(sslProperties.get(SSL_KEYSTORE_PASSWORD_CONFIG),
+      passwordEncoder.decode(brokerProps.getProperty(s"$externalListenerPrefix$SSL_KEYSTORE_PASSWORD_CONFIG")))
+    assertEquals(sslProperties.get(SSL_KEY_PASSWORD_CONFIG),
+      passwordEncoder.decode(brokerProps.getProperty(s"$externalListenerPrefix$SSL_KEY_PASSWORD_CONFIG")))
+  }
 
   private def createPasswordEncoder(config: KafkaConfig, secret: Option[Password]): PasswordEncoder = {
     val encoderSecret = secret.getOrElse(throw new IllegalStateException("Password encoder secret not configured"))

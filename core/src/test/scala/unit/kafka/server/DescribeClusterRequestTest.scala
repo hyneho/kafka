@@ -88,7 +88,6 @@ class DescribeClusterRequestTest extends BaseRequestTest {
       val describeClusterResponse = sentDescribeClusterRequest(describeClusterRequest)
 
       assertTrue(0 to brokerCount contains describeClusterResponse.data.controllerId)
-
       assertEquals(expectedClusterId, describeClusterResponse.data.clusterId)
       assertEquals(expectedClusterAuthorizedOperations, describeClusterResponse.data.clusterAuthorizedOperations)
       assertEquals(expectedBrokers, describeClusterResponse.data.brokers.asScala.toSet)
