@@ -16,17 +16,20 @@
  */
 package org.apache.kafka.coordinator.group;
 
+import org.apache.kafka.common.errors.ApiException;
 import org.apache.kafka.common.errors.GroupIdNotFoundException;
 import org.apache.kafka.common.message.ListGroupsResponseData;
 import org.apache.kafka.common.requests.RequestContext;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.group.modern.ModernGroup;
+import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup;
 import org.apache.kafka.image.MetadataDelta;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.image.TopicImage;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineHashSet;
+import org.slf4j.Logger;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -41,6 +44,11 @@ import static org.apache.kafka.coordinator.group.Group.GroupType.CONSUMER;
 import static org.apache.kafka.coordinator.group.Group.GroupType.SHARE;
 
 public class GroupStore {
+
+    /**
+     * The snapshot registry.
+     */
+    private SnapshotRegistry snapshotRegistry;
 
     /**
      * The classic and consumer groups keyed by their name.
@@ -58,6 +66,7 @@ public class GroupStore {
     private MetadataImage metadataImage;
 
     public GroupStore(SnapshotRegistry snapshotRegistry, MetadataImage metadataImage) {
+        this.snapshotRegistry = snapshotRegistry;
         this.groups = new TimelineHashMap<>(snapshotRegistry, 0);
         this.groupsByTopics = new TimelineHashMap<>(snapshotRegistry, 0);
         this.metadataImage = metadataImage;
@@ -68,6 +77,15 @@ public class GroupStore {
      */
     public MetadataImage image() {
         return metadataImage;
+    }
+
+    /**
+     * Returns the snapshot registry.
+     *
+     * @return The snapshot registry.
+     */
+    public SnapshotRegistry snapshotRegistry() {
+        return snapshotRegistry;
     }
 
     /**
@@ -225,8 +243,71 @@ public class GroupStore {
         return Collections.unmodifiableSet(this.groups.keySet());
     }
 
-    /* For testing purpose */
+    /**
+     * Adds a new group to the group store.
+     *
+     * @param groupId The groupId of the group to be added.
+     * @param group The group to be added.
+     */
     public void addGroup(String groupId, Group group) {
         groups.put(groupId, group);
+    }
+
+    /**
+     * Subscribes a group to a topic.
+     *
+     * @param groupId   The group id.
+     * @param topicName The topic name.
+     */
+    public void subscribeGroupToTopic(
+        String groupId,
+        String topicName
+    ) {
+        groupsByTopics
+            .computeIfAbsent(topicName, __ -> new TimelineHashSet<>(snapshotRegistry, 1))
+            .add(groupId);
+    }
+
+    /**
+     * Unsubscribes a group from a topic.
+     *
+     * @param groupId   The group id.
+     * @param topicName The topic name.
+     */
+    public void unsubscribeGroupFromTopic(
+        String groupId,
+        String topicName
+    ) {
+        groupsByTopics.computeIfPresent(topicName, (__, groupIds) -> {
+            groupIds.remove(groupId);
+            return groupIds.isEmpty() ? null : groupIds;
+        });
+    }
+
+    /**
+     * Removes the group.
+     *
+     * @param groupId The group id.
+     *
+     * @return The type of the removed group.
+     */
+    public Group removeGroup(
+        String groupId
+    ) {
+        Group group = groups.remove(groupId);
+        if (group != null) {
+            return group;
+        }
+        return null;
+    }
+
+    /**
+     * Validates the DeleteGroups request.
+     *
+     * @param groupId The id of the group to be deleted.
+     */
+    void validateDeleteGroup(String groupId) throws ApiException {
+        Group group = group(groupId);
+        group.validateDeleteGroup();
     }
 }
