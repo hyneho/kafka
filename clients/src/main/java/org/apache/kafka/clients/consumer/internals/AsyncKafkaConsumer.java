@@ -33,7 +33,6 @@ import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.clients.consumer.OffsetCommitCallback;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.consumer.SubscriptionPattern;
 import org.apache.kafka.clients.consumer.internals.events.AllTopicsMetadataEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEvent;
@@ -613,7 +612,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             groupRebalanceConfig.groupId,
             groupRebalanceConfig.groupInstanceId
         );
-        if (!groupMetadata.isPresent()) {
+        if (groupMetadata.isEmpty()) {
             config.ignore(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG);
             config.ignore(THROW_ON_FETCH_STABLE_OFFSET_UNSUPPORTED);
         }
@@ -864,15 +863,15 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public void seekToBeginning(Collection<TopicPartition> partitions) {
-        seek(partitions, OffsetResetStrategy.EARLIEST);
+        seek(partitions, AutoOffsetResetStrategy.EARLIEST);
     }
 
     @Override
     public void seekToEnd(Collection<TopicPartition> partitions) {
-        seek(partitions, OffsetResetStrategy.LATEST);
+        seek(partitions, AutoOffsetResetStrategy.LATEST);
     }
 
-    private void seek(Collection<TopicPartition> partitions, OffsetResetStrategy offsetResetStrategy) {
+    private void seek(Collection<TopicPartition> partitions, AutoOffsetResetStrategy offsetResetStrategy) {
         if (partitions == null)
             throw new IllegalArgumentException("Partitions collection cannot be null");
 
@@ -952,7 +951,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void maybeThrowInvalidGroupIdException() {
-        if (!groupMetadata.get().isPresent()) {
+        if (groupMetadata.get().isEmpty()) {
             throw new InvalidGroupIdException("To use the group management or offset commit APIs, you must " +
                 "provide a valid " + ConsumerConfig.GROUP_ID_CONFIG + " in the consumer configuration.");
         }
@@ -1350,7 +1349,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void autoCommitOnClose(final Timer timer) {
-        if (!groupMetadata.get().isPresent())
+        if (groupMetadata.get().isEmpty())
             return;
 
         if (autoCommitEnabled)
@@ -1390,7 +1389,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void leaveGroupOnClose(final Timer timer) {
-        if (!groupMetadata.get().isPresent())
+        if (groupMetadata.get().isEmpty())
             return;
 
         log.debug("Leaving the consumer group during consumer close");
@@ -1490,7 +1489,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public Uuid clientInstanceId(Duration timeout) {
-        if (!clientTelemetryReporter.isPresent()) {
+        if (clientTelemetryReporter.isEmpty()) {
             throw new IllegalStateException("Telemetry is not enabled. Set config `" + ConsumerConfig.ENABLE_METRICS_PUSH_CONFIG + "` to `true`.");
         }
 
@@ -1766,12 +1765,14 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     @Override
     public boolean updateAssignmentMetadataIfNeeded(Timer timer) {
         offsetCommitCallbackInvoker.executeCallbacks();
-        try {
-            applicationEventHandler.addAndGet(new UpdatePatternSubscriptionEvent(calculateDeadlineMs(timer)));
-        } catch (TimeoutException e) {
-            return false;
-        } finally {
-            timer.update();
+        if (subscriptions.hasPatternSubscription()) {
+            try {
+                applicationEventHandler.addAndGet(new UpdatePatternSubscriptionEvent(calculateDeadlineMs(timer)));
+            } catch (TimeoutException e) {
+                return false;
+            } finally {
+                timer.update();
+            }
         }
         processBackgroundEvents();
 

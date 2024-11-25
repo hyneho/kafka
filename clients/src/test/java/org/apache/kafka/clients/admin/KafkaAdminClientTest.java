@@ -20,6 +20,7 @@ import org.apache.kafka.clients.ClientDnsLookup;
 import org.apache.kafka.clients.ClientRequest;
 import org.apache.kafka.clients.ClientUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.MetadataRecoveryStrategy;
 import org.apache.kafka.clients.MockClient;
 import org.apache.kafka.clients.NodeApiVersions;
 import org.apache.kafka.clients.admin.DeleteAclsResult.FilterResults;
@@ -882,18 +883,32 @@ public class KafkaAdminClientTest {
 
     @Test
     public void testUnreachableBootstrapServer() throws Exception {
+        verifyUnreachableBootstrapServer(MetadataRecoveryStrategy.REBOOTSTRAP);
+    }
+
+    @Test
+    public void testUnreachableBootstrapServerNoRebootstrap() throws Exception {
+        verifyUnreachableBootstrapServer(MetadataRecoveryStrategy.NONE);
+    }
+
+    private void verifyUnreachableBootstrapServer(MetadataRecoveryStrategy metadataRecoveryStrategy) throws Exception {
         // This tests the scenario in which the bootstrap server is unreachable for a short while,
         // which prevents AdminClient from being able to send the initial metadata request
 
         Cluster cluster = Cluster.bootstrap(singletonList(new InetSocketAddress("localhost", 8121)));
         Map<Node, Long> unreachableNodes = Collections.singletonMap(cluster.nodes().get(0), 200L);
         try (final AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(Time.SYSTEM, cluster,
-                AdminClientUnitTestEnv.clientConfigs(), unreachableNodes)) {
+                AdminClientUnitTestEnv.clientConfigs(AdminClientConfig.METADATA_RECOVERY_STRATEGY_CONFIG, metadataRecoveryStrategy.name), unreachableNodes)) {
             Cluster discoveredCluster = mockCluster(3, 0);
             env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
             env.kafkaClient().prepareResponse(body -> body instanceof MetadataRequest,
                     RequestTestUtils.metadataResponse(discoveredCluster.nodes(), discoveredCluster.clusterResource().clusterId(),
                             1, Collections.emptyList()));
+            if (metadataRecoveryStrategy == MetadataRecoveryStrategy.REBOOTSTRAP) {
+                env.kafkaClient().prepareResponse(body -> body instanceof MetadataRequest,
+                        RequestTestUtils.metadataResponse(discoveredCluster.nodes(),
+                                discoveredCluster.clusterResource().clusterId(), 1, Collections.emptyList()));
+            }
             env.kafkaClient().prepareResponse(body -> body instanceof CreateTopicsRequest,
                 prepareCreateTopicsResponse("myTopic", Errors.NONE));
 
@@ -3206,7 +3221,7 @@ public class KafkaAdminClientTest {
     }
 
     @Test
-    public void testListGroupsWithTypesOlderBrokerVersion() throws Exception {
+    public void testListGroupsWithTypesOlderBrokerVersion() {
         ApiVersion listGroupV4 = new ApiVersion()
             .setApiKey(ApiKeys.LIST_GROUPS.id)
             .setMinVersion((short) 0)
@@ -5221,14 +5236,14 @@ public class KafkaAdminClientTest {
                         .setGroups(Collections.emptyList())),
                 env.cluster().nodeById(3));
 
-            final ListShareGroupsResult result = env.adminClient().listShareGroups();
+            final ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
             TestUtils.assertFutureError(result.all(), UnknownServerException.class);
 
-            Collection<ShareGroupListing> listings = result.valid().get();
+            Collection<GroupListing> listings = result.valid().get();
             assertEquals(4, listings.size());
 
             Set<String> groupIds = new HashSet<>();
-            for (ShareGroupListing listing : listings) {
+            for (GroupListing listing : listings) {
                 groupIds.add(listing.groupId());
                 assertTrue(listing.groupState().isPresent());
             }
@@ -5256,7 +5271,7 @@ public class KafkaAdminClientTest {
                     -1,
                     Collections.emptyList()));
 
-            final ListShareGroupsResult result = env.adminClient().listShareGroups();
+            final ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
             TestUtils.assertFutureError(result.all(), KafkaException.class);
         }
     }
@@ -5275,28 +5290,29 @@ public class KafkaAdminClientTest {
                             new ListGroupsResponseData.ListedGroup()
                                 .setGroupId("share-group-1")
                                 .setGroupType(GroupType.SHARE.toString())
+                                .setProtocolType("share")
                                 .setGroupState("Stable"),
                             new ListGroupsResponseData.ListedGroup()
                                 .setGroupId("share-group-2")
                                 .setGroupType(GroupType.SHARE.toString())
+                                .setProtocolType("share")
                                 .setGroupState("Empty")))),
                     env.cluster().nodeById(0));
 
-            final ListShareGroupsOptions options = new ListShareGroupsOptions();
-            final ListShareGroupsResult result = env.adminClient().listShareGroups(options);
-            Collection<ShareGroupListing> listings = result.valid().get();
+            final ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
+            Collection<GroupListing> listings = result.valid().get();
 
             assertEquals(2, listings.size());
-            List<ShareGroupListing> expected = new ArrayList<>();
-            expected.add(new ShareGroupListing("share-group-1", Optional.of(GroupState.STABLE)));
-            expected.add(new ShareGroupListing("share-group-2", Optional.of(GroupState.EMPTY)));
+            List<GroupListing> expected = new ArrayList<>();
+            expected.add(new GroupListing("share-group-1", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE)));
+            expected.add(new GroupListing("share-group-2", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.EMPTY)));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }
     }
 
     @Test
-    public void testListShareGroupsWithStatesOlderBrokerVersion() throws Exception {
+    public void testListShareGroupsWithStatesOlderBrokerVersion() {
         ApiVersion listGroupV4 = new ApiVersion()
             .setApiKey(ApiKeys.LIST_GROUPS.id)
             .setMinVersion((short) 0)
@@ -5314,8 +5330,7 @@ public class KafkaAdminClientTest {
                         new ListGroupsResponseData.ListedGroup()
                             .setGroupId("share-group-1")))),
                 env.cluster().nodeById(0));
-            ListShareGroupsOptions options = new ListShareGroupsOptions();
-            ListShareGroupsResult result = env.adminClient().listShareGroups(options);
+            ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
             TestUtils.assertFutureThrows(result.all(), UnsupportedVersionException.class);
         }
     }
@@ -6548,7 +6563,7 @@ public class KafkaAdminClientTest {
                     .noneMatch(p -> p.timestamp() == ListOffsetsRequest.MAX_TIMESTAMP),
                 new ListOffsetsResponse(responseData), node);
 
-            ListOffsetsResult result = env.adminClient().listOffsets(new HashMap<TopicPartition, OffsetSpec>() {{
+            ListOffsetsResult result = env.adminClient().listOffsets(new HashMap<>() {{
                     put(tp0, OffsetSpec.maxTimestamp());
                     put(tp1, OffsetSpec.latest());
                 }});
@@ -6609,7 +6624,7 @@ public class KafkaAdminClientTest {
                     new ListOffsetsResponse(responseDataWithError), node);
             }
             ListOffsetsResult result = env.adminClient().listOffsets(
-                new HashMap<TopicPartition, OffsetSpec>() {
+                new HashMap<>() {
                     {
                         put(tp0, OffsetSpec.latest());
                         put(tp1, OffsetSpec.latest());
@@ -6632,7 +6647,7 @@ public class KafkaAdminClientTest {
             env.kafkaClient().prepareResponseFrom(
                 request -> request instanceof ListOffsetsRequest, new ListOffsetsResponse(responseData), node);
             result = env.adminClient().listOffsets(
-                new HashMap<TopicPartition, OffsetSpec>() {
+                new HashMap<>() {
                     {
                         put(tp0, OffsetSpec.latest());
                         put(tp1, OffsetSpec.latest());
