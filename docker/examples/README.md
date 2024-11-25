@@ -16,9 +16,8 @@ Kafka server can be started using following ways:
 Running on default configs
 --------------------------
 
-If no user provided configuration file is passed to the Docker container, or the file is empty, the default KRaft configuration for single combined-mode node will be used.
+If no user provided configuration (file input or environment variables) is passed to the Docker container, the default KRaft configuration for single combined-mode node will be used.
 This default configuration is packaged in the Kafka tarball.
-If any user provided config (file input or environment variables) is provided, the default configuration will not be used.
 
 Use input file for providing configs 
 ------------------------------------
@@ -31,8 +30,8 @@ Use input file for providing configs
 Using Environment Variables
 ---------------------------
 
-One limitation of the environment variables approach it that you need to set all properties required to start the KRaft node.
-The recommended way to use environment variables is via Docker Compose, which allows users to set all the properties that are needed.
+When using the environment variables, you need to set all properties required to start the KRaft node.
+Therefore, the recommended way to use environment variables is via Docker Compose, which allows users to set all the properties that are needed.
 It is also possible to use the input file to have a common set of configurations, and then override specific node properties using the environment variables.
 
 - Kafka property defined via environment variables will override the value of that property defined in the user provided property file.
