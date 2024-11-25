@@ -56,9 +56,25 @@ abstract class BaseRequestTest extends IntegrationTestHarness {
     }.map(_.socketServer).getOrElse(throw new IllegalStateException("No live broker is available"))
   }
 
-  def controllerSocketServer: SocketServer = controllerServer.socketServer
+  def controllerSocketServer: SocketServer = {
+    if (isKRaftTest()) {
+     controllerServer.socketServer
+    } else {
+      servers.find { server =>
+        server.kafkaController.isActive
+      }.map(_.socketServer).getOrElse(throw new IllegalStateException("No controller broker is available"))
+    }
+  }
 
-  def notControllerSocketServer: SocketServer = anySocketServer
+  def notControllerSocketServer: SocketServer = {
+    if (isKRaftTest()) {
+      anySocketServer
+    } else {
+      servers.find { server =>
+        !server.kafkaController.isActive
+      }.map(_.socketServer).getOrElse(throw new IllegalStateException("No non-controller broker is available"))
+    }
+  }
 
   def brokerSocketServer(brokerId: Int): SocketServer = {
     brokers.find { broker =>
@@ -72,7 +88,13 @@ abstract class BaseRequestTest extends IntegrationTestHarness {
    * For KRaft clusters that is any broker as the broker will forward the request to the active
    * controller. For Legacy clusters that is the controller broker.
    */
-  def adminSocketServer: SocketServer = anySocketServer
+  def adminSocketServer: SocketServer = {
+    if (isKRaftTest()) {
+      anySocketServer
+    } else {
+      controllerSocketServer
+    }
+  }
 
   def connect(socketServer: SocketServer = anySocketServer,
               listenerName: ListenerName = listenerName): Socket = {

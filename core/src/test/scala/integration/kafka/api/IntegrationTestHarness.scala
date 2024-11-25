@@ -78,7 +78,7 @@ abstract class IntegrationTestHarness extends KafkaServerTestHarness {
     if(isKRaftTest()) {
       cfgs.foreach(_.setProperty(KRaftConfigs.METADATA_LOG_DIR_CONFIG, TestUtils.tempDir().getAbsolutePath))
     }
-    
+
     insertControllerListenersIfNeeded(cfgs)
     cfgs.map(KafkaConfig.fromProps)
   }
