@@ -16,10 +16,11 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
-import java.util.Set;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.state.StoreBuilder;
+
+import java.util.Set;
 
 public class StoreDelegatingProcessorSupplier<KIn, VIn, KOut, VOut> implements ProcessorSupplier<KIn, VIn, KOut, VOut> {
 
