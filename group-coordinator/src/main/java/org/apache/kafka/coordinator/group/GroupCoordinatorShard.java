@@ -223,7 +223,6 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 .withConsumerGroupMaxSize(config.consumerGroupMaxSize())
                 .withConsumerGroupSessionTimeout(config.consumerGroupSessionTimeoutMs())
                 .withConsumerGroupHeartbeatInterval(config.consumerGroupHeartbeatIntervalMs())
-                .withConsumerGroupRegularExpressionRefreshInternalMs(config.consumerGroupRegexRefreshIntervalMs())
                 .withClassicGroupMaxSize(config.classicGroupMaxSize())
                 .withClassicGroupInitialRebalanceDelayMs(config.classicGroupInitialRebalanceDelayMs())
                 .withClassicGroupNewMemberJoinTimeoutMs(config.classicGroupNewMemberJoinTimeoutMs())

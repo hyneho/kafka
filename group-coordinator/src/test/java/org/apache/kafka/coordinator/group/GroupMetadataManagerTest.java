@@ -15455,7 +15455,6 @@ public class GroupMetadataManagerTest {
         assignor.prepareGroupAssignment(new GroupAssignment(Collections.emptyMap()));
 
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
-            .withConsumerGroupRegularExpressionRefreshInternalMs(1000)
             .withConsumerGroupAssignors(Collections.singletonList(assignor))
             .withMetadataImage(new MetadataImageBuilder()
                 .addTopic(fooTopicId, fooTopicName, 6)

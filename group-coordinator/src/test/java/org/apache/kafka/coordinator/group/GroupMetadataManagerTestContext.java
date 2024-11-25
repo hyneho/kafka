@@ -410,7 +410,6 @@ public class GroupMetadataManagerTestContext {
         private final List<ConsumerGroupBuilder> consumerGroupBuilders = new ArrayList<>();
         private int consumerGroupMaxSize = Integer.MAX_VALUE;
         private int consumerGroupMetadataRefreshIntervalMs = Integer.MAX_VALUE;
-        private int consumerGroupRegularExpressionRefreshInternalMs = 5000;
         private int classicGroupMaxSize = Integer.MAX_VALUE;
         private int classicGroupInitialRebalanceDelayMs = 3000;
         private final int classicGroupNewMemberJoinTimeoutMs = 5 * 60 * 1000;
@@ -445,11 +444,6 @@ public class GroupMetadataManagerTestContext {
 
         public Builder withConsumerGroupMetadataRefreshIntervalMs(int consumerGroupMetadataRefreshIntervalMs) {
             this.consumerGroupMetadataRefreshIntervalMs = consumerGroupMetadataRefreshIntervalMs;
-            return this;
-        }
-
-        public Builder withConsumerGroupRegularExpressionRefreshInternalMs(int consumerGroupRegularExpressionRefreshInternalMs) {
-            this.consumerGroupRegularExpressionRefreshInternalMs = consumerGroupRegularExpressionRefreshInternalMs;
             return this;
         }
 
@@ -516,7 +510,6 @@ public class GroupMetadataManagerTestContext {
                     .withConsumerGroupMaxSize(consumerGroupMaxSize)
                     .withConsumerGroupAssignors(consumerGroupAssignors)
                     .withConsumerGroupMetadataRefreshIntervalMs(consumerGroupMetadataRefreshIntervalMs)
-                    .withConsumerGroupRegularExpressionRefreshInternalMs(consumerGroupRegularExpressionRefreshInternalMs)
                     .withClassicGroupMaxSize(classicGroupMaxSize)
                     .withClassicGroupMinSessionTimeoutMs(classicGroupMinSessionTimeoutMs)
                     .withClassicGroupMaxSessionTimeoutMs(classicGroupMaxSessionTimeoutMs)

@@ -208,7 +208,6 @@ public class GroupMetadataManager {
         private int consumerGroupMaxSize = Integer.MAX_VALUE;
         private int consumerGroupHeartbeatIntervalMs = 5000;
         private int consumerGroupMetadataRefreshIntervalMs = Integer.MAX_VALUE;
-        private int consumerGroupRegularExpressionRefreshInternalMs = 5 * 60 * 1000;
         private MetadataImage metadataImage = null;
         private int consumerGroupSessionTimeoutMs = 45000;
         private int classicGroupMaxSize = Integer.MAX_VALUE;
@@ -276,11 +275,6 @@ public class GroupMetadataManager {
 
         Builder withConsumerGroupMetadataRefreshIntervalMs(int consumerGroupMetadataRefreshIntervalMs) {
             this.consumerGroupMetadataRefreshIntervalMs = consumerGroupMetadataRefreshIntervalMs;
-            return this;
-        }
-
-        Builder withConsumerGroupRegularExpressionRefreshInternalMs(int consumerGroupRegularExpressionRefreshInternalMs) {
-            this.consumerGroupRegularExpressionRefreshInternalMs = consumerGroupRegularExpressionRefreshInternalMs;
             return this;
         }
 
@@ -382,7 +376,6 @@ public class GroupMetadataManager {
                 consumerGroupSessionTimeoutMs,
                 consumerGroupHeartbeatIntervalMs,
                 consumerGroupMetadataRefreshIntervalMs,
-                consumerGroupRegularExpressionRefreshInternalMs,
                 classicGroupMaxSize,
                 classicGroupInitialRebalanceDelayMs,
                 classicGroupNewMemberJoinTimeoutMs,
@@ -485,11 +478,6 @@ public class GroupMetadataManager {
     private final int consumerGroupMetadataRefreshIntervalMs;
 
     /**
-     * The regular expressions refresh interval.
-     */
-    private final int consumerGroupRegularExpressionRefreshInternalMs;
-
-    /**
      * The metadata image.
      */
     private MetadataImage metadataImage;
@@ -578,7 +566,6 @@ public class GroupMetadataManager {
         int consumerGroupSessionTimeoutMs,
         int consumerGroupHeartbeatIntervalMs,
         int consumerGroupMetadataRefreshIntervalMs,
-        int consumerGroupRegularExpressionRefreshInternalMs,
         int classicGroupMaxSize,
         int classicGroupInitialRebalanceDelayMs,
         int classicGroupNewMemberJoinTimeoutMs,
@@ -608,7 +595,6 @@ public class GroupMetadataManager {
         this.consumerGroupSessionTimeoutMs = consumerGroupSessionTimeoutMs;
         this.consumerGroupHeartbeatIntervalMs = consumerGroupHeartbeatIntervalMs;
         this.consumerGroupMetadataRefreshIntervalMs = consumerGroupMetadataRefreshIntervalMs;
-        this.consumerGroupRegularExpressionRefreshInternalMs = consumerGroupRegularExpressionRefreshInternalMs;
         this.classicGroupMaxSize = classicGroupMaxSize;
         this.classicGroupInitialRebalanceDelayMs = classicGroupInitialRebalanceDelayMs;
         this.classicGroupNewMemberJoinTimeoutMs = classicGroupNewMemberJoinTimeoutMs;
