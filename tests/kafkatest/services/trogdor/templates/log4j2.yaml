@@ -25,10 +25,9 @@ Configuration:
       PatternLayout:
         pattern: "${logPattern}"
 
-    RollingFile:
+    File:
       - name: FILE
         fileName: {{ log_file }}
-        filePattern: "${sys:kafka.logs.dir}/connect-%d{yyyy-MM-dd-HH}.log"
         PatternLayout:
           pattern: "${logPattern}"
   Loggers:
@@ -36,21 +35,13 @@ Configuration:
       level: DEBUG
       AppenderRef:
         - ref: MyFileLogger
+
     Logger:
       - name: kafka
         level: DEBUG
-        additivity: false
-        AppenderRef:
-          - ref: MyFileLogger
 
       - name: org.apache.kafka
         level: DEBUG
-        additivity: false
-        AppenderRef:
-          - ref: MyFileLogger
 
       - name: org.eclipse
-        level: DEBUG
-        additivity: false
-        AppenderRef:
-          - ref: MyFileLogger
+        level: INFO

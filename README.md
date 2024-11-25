@@ -55,7 +55,7 @@ Follow instructions in https://kafka.apache.org/quickstart
 By default, there will be only small number of logs output while testing. You can adjust it by changing the `log4j2.yml` file in the module's `src/test/resources` directory.
 
 For example, if you want to see more logs for clients project tests, you can modify [the line](https://github.com/apache/kafka/blob/trunk/clients/src/test/resources/log4j2.yml#L35) in `clients/src/test/resources/log4j2.yml` 
-to `log4j.logger.org.apache.kafka=INFO` and then run:
+to `level: INFO` and then run:
     
     ./gradlew cleanTest clients:test --tests NetworkClientTest   
 
