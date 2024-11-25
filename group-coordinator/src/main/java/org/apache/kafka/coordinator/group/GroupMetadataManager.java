@@ -119,6 +119,7 @@ import org.apache.kafka.coordinator.group.modern.share.ShareGroupMember;
 import org.apache.kafka.image.MetadataDelta;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.image.TopicImage;
+import org.apache.kafka.image.TopicsDelta;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineHashSet;
@@ -398,6 +399,12 @@ public class GroupMetadataManager {
     }
 
     /**
+     * The minimum amount of time between two consecutive refreshes of
+     * the regular expressions within a single group.
+     */
+    private static final long REGEX_BATCH_REFRESH_INTERVAL_MS = 10_000L;
+
+    /**
      * The log context.
      */
     private final LogContext logContext;
@@ -486,6 +493,12 @@ public class GroupMetadataManager {
      * The metadata image.
      */
     private MetadataImage metadataImage;
+
+    /**
+     * This tracks the version (of the offset) of the last metadata image
+     * with newly created topics.
+     */
+    private long lastMetadataImageWithNewTopics = -1L;
 
     /**
      * An empty result returned to the state machine. This means that
@@ -2544,6 +2557,12 @@ public class GroupMetadataManager {
             return bumpGroupEpoch;
         }
 
+        // If a refresh happened within the last 10 seconds, we wait.
+        long lastRefreshTimeMs = group.lastResolvedRegularExpressionRefreshTimeMs();
+        if (time.milliseconds() <= lastRefreshTimeMs + REGEX_BATCH_REFRESH_INTERVAL_MS) {
+            return bumpGroupEpoch;
+        }
+
         // Adjust the count to account for the updated member.
         Map<String, Integer> subscribedRegularExpressions = new HashMap<>(group.subscribedRegularExpressions());
         if (oldSubscribedTopicRegex != null) {
@@ -2557,10 +2576,9 @@ public class GroupMetadataManager {
         // we must trigger a refresh.
         requireRefresh |= subscribedRegularExpressions.size() != group.numResolvedRegularExpressions();
 
-        // If the last time that regexes were refreshed is older than the refresh interval,
-        // we must trigger a refresh.
-        requireRefresh |= time.milliseconds() >
-            group.lastResolvedRegularExpressionRefreshTimeMs() + consumerGroupRegularExpressionRefreshInternalMs;
+        // If the version of the last resolved regular expressions is smaller than the version
+        // of the last metadata image with new topics, we must trigger a refresh.
+        requireRefresh |= group.lastResolvedRegularExpressionVersion() < lastMetadataImageWithNewTopics;
 
         if (requireRefresh) {
             Set<String> regexes = subscribedRegularExpressions.keySet();
@@ -4114,24 +4132,35 @@ public class GroupMetadataManager {
     public void onNewMetadataImage(MetadataImage newImage, MetadataDelta delta) {
         metadataImage = newImage;
 
+        // Initialize the last offset if it was not yet.
+        if (lastMetadataImageWithNewTopics == -1L) {
+            lastMetadataImageWithNewTopics = metadataImage.provenance().lastContainedOffset();
+        }
+
+        TopicsDelta topicsDelta = delta.topicsDelta();
+        if (topicsDelta == null) return;
+
+        // Updated the last offset of the image with newly created topics.
+        if (!topicsDelta.createdTopicIds().isEmpty()) {
+            lastMetadataImageWithNewTopics = metadataImage.provenance().lastContainedOffset();
+        }
+
         // Notify all the groups subscribed to the created, updated or
         // deleted topics.
-        Optional.ofNullable(delta.topicsDelta()).ifPresent(topicsDelta -> {
-            Set<String> allGroupIds = new HashSet<>();
-            topicsDelta.changedTopics().forEach((topicId, topicDelta) -> {
-                String topicName = topicDelta.name();
-                allGroupIds.addAll(groupsSubscribedToTopic(topicName));
-            });
-            topicsDelta.deletedTopicIds().forEach(topicId -> {
-                TopicImage topicImage = delta.image().topics().getTopic(topicId);
-                allGroupIds.addAll(groupsSubscribedToTopic(topicImage.name()));
-            });
-            allGroupIds.forEach(groupId -> {
-                Group group = groups.get(groupId);
-                if (group != null && (group.type() == CONSUMER || group.type() == SHARE)) {
-                    ((ModernGroup<?>) group).requestMetadataRefresh();
-                }
-            });
+        Set<String> allGroupIds = new HashSet<>();
+        topicsDelta.changedTopics().forEach((topicId, topicDelta) -> {
+            String topicName = topicDelta.name();
+            allGroupIds.addAll(groupsSubscribedToTopic(topicName));
+        });
+        topicsDelta.deletedTopicIds().forEach(topicId -> {
+            TopicImage topicImage = delta.image().topics().getTopic(topicId);
+            allGroupIds.addAll(groupsSubscribedToTopic(topicImage.name()));
+        });
+        allGroupIds.forEach(groupId -> {
+            Group group = groups.get(groupId);
+            if (group != null && (group.type() == CONSUMER || group.type() == SHARE)) {
+                ((ModernGroup<?>) group).requestMetadataRefresh();
+            }
         });
     }
 

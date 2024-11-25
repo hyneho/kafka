@@ -379,7 +379,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
-     * @return The last time resolved regular expressions were refresh or Long.MAX_VALUE if
+     * @return The last time resolved regular expressions were refresh or zero if
      * there are no resolved regular expression. Note that we use the timestamp of the first
      * entry as a proxy for all of them. They are always resolved together.
      */
@@ -388,7 +388,19 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         if (iterator.hasNext()) {
             return iterator.next().timestamp;
         } else {
-            return Long.MAX_VALUE;
+            return 0L;
+        }
+    }
+
+    /**
+     * @return The version of the regular expressions or Zero there are no resolved regular expression.
+     */
+    public long lastResolvedRegularExpressionVersion() {
+        Iterator<ResolvedRegularExpression> iterator = resolvedRegularExpressions.values().iterator();
+        if (iterator.hasNext()) {
+            return iterator.next().version;
+        } else {
+            return 0L;
         }
     }
 

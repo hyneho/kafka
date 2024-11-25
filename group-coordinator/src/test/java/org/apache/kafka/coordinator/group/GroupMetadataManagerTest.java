@@ -15460,7 +15460,7 @@ public class GroupMetadataManagerTest {
             .withMetadataImage(new MetadataImageBuilder()
                 .addTopic(fooTopicId, fooTopicName, 6)
                 .addTopic(barTopicId, barTopicName, 3)
-                .build(12345L))
+                .build(1L))
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
                 .withMember(new ConsumerGroupMember.Builder(memberId1)
                     .setState(MemberState.STABLE)
@@ -15500,15 +15500,25 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
-        // Advance past the refresh interval.
-        context.sleep(2000L);
+        // A member heartbeats.
+        context.consumerGroupHeartbeat(
+            new ConsumerGroupHeartbeatRequestData()
+                .setGroupId(groupId)
+                .setMemberId(memberId1)
+                .setMemberEpoch(10));
+
+        // The task is NOT scheduled.
+        assertFalse(context.executor.isScheduled(groupId + "-regex"));
+
+        // Advance past the batching interval.
+        context.sleep(11L);
 
         // Update metadata image.
         MetadataImage newImage = new MetadataImageBuilder()
             .addTopic(fooTopicId, fooTopicName, 6)
             .addTopic(barTopicId, barTopicName, 3)
             .addTopic(foooTopicId, foooTopicName, 1)
-            .build(6789L);
+            .build(2L);
 
         context.groupMetadataManager.onNewMetadataImage(
             newImage,
@@ -15539,7 +15549,7 @@ public class GroupMetadataManagerTest {
                 "foo*",
                 new ResolvedRegularExpression(
                     Set.of(fooTopicName, foooTopicName),
-                    6789L,
+                    2L,
                     context.time.milliseconds()
                 )
             ),
@@ -15548,7 +15558,7 @@ public class GroupMetadataManagerTest {
                 "bar*",
                 new ResolvedRegularExpression(
                     Set.of(barTopicName),
-                    6789L,
+                    2L,
                     context.time.milliseconds()
                 )
             ),
