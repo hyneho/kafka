@@ -204,7 +204,8 @@ public class AsyncKafkaConsumerTest {
             a -> backgroundEventReaper,
             (a, b, c, d, e, f, g) -> fetchCollector,
             (a, b, c, d) -> metadata,
-            backgroundEventQueue
+            backgroundEventQueue,
+                Optional.empty()
         );
     }
 
@@ -219,7 +220,7 @@ public class AsyncKafkaConsumerTest {
             (a, b, c, d, e, f, g) -> fetchCollector,
             (a, b, c, d) -> metadata,
             backgroundEventQueue,
-            Optional.empty()
+                Optional.empty()
         );
     }
 

@@ -276,7 +276,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         }
     };
 
-   public AsyncKafkaConsumer(final ConsumerConfig config,
+    public AsyncKafkaConsumer(final ConsumerConfig config,
                               final Deserializer<K> keyDeserializer,
                               final Deserializer<V> valueDeserializer,
                               final Optional<StreamsAssignmentInterface> streamsAssignmentInterface) {
@@ -373,7 +373,6 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                     metrics,
                     offsetCommitCallbackInvoker,
                     memberStateListener,
-                    this::updateGroupMetadata,
                     streamsAssignmentInterface
             );
             final Supplier<ApplicationEventProcessor> applicationEventProcessorSupplier = ApplicationEventProcessor.supplier(logContext,
@@ -548,7 +547,6 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             metrics,
             offsetCommitCallbackInvoker,
             memberStateListener,
-            this::updateGroupMetadata,
             streamsInstanceMetadata
         );
         Supplier<ApplicationEventProcessor> applicationEventProcessorSupplier = ApplicationEventProcessor.supplier(
