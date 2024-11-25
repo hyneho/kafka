@@ -1304,7 +1304,7 @@ public class StreamThread extends Thread implements ProcessingThread {
                 } else if (offsetResetStrategy == AutoOffsetResetStrategy.LATEST) {
                     addToResetList(partition, seekToEnd, "Setting topic '{}' to consume from {} offset", "latest", loggedTopics);
                 } else if (offsetResetStrategy == AutoOffsetResetStrategy.NONE) {
-                    AutoOffsetResetStrategy autoOffsetResetStrategy = AutoOffsetResetStrategy.fromString(originalReset);
+                    final AutoOffsetResetStrategy autoOffsetResetStrategy = AutoOffsetResetStrategy.fromString(originalReset);
                     if (AutoOffsetResetStrategy.EARLIEST == autoOffsetResetStrategy) {
                         addToResetList(partition, seekToBeginning, "No custom setting defined for topic '{}' using original config '{}' for offset reset", "earliest", loggedTopics);
                     } else if (AutoOffsetResetStrategy.LATEST == autoOffsetResetStrategy) {
