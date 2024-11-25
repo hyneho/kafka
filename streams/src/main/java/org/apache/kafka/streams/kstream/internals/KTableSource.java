@@ -33,6 +33,7 @@ import org.apache.kafka.streams.state.internals.KeyValueStoreWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.Set;
 
 import static org.apache.kafka.streams.processor.internals.metrics.TaskMetrics.droppedRecordsSensor;
@@ -51,6 +52,7 @@ public class KTableSource<KIn, VIn> implements ProcessorSupplier<KIn, VIn, KIn, 
     public KTableSource(
             final MaterializedInternal<KIn, VIn, KeyValueStore<Bytes, byte[]>> materialized) {
         this.storeName = materialized.storeName();
+        Objects.requireNonNull(storeName, "storeName can't be null");
         this.queryableName = materialized.queryableStoreName();
         this.sendOldValues = false;
         this.storeFactory = new KeyValueStoreMaterializer<>(materialized);

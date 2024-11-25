@@ -384,7 +384,8 @@ public class StreamsBuilder {
         final MaterializedInternal<K, V, KeyValueStore<Bytes, byte[]>> materializedInternal =
             new MaterializedInternal<>(
                 Materialized.with(consumedInternal.keySerde(), consumedInternal.valueSerde()),
-                internalStreamsBuilder, topic + "-",
+                internalStreamsBuilder,
+                topic + "-",
                 true /* force materializing global tables */);
 
         return internalStreamsBuilder.globalTable(topic, consumedInternal, materializedInternal);

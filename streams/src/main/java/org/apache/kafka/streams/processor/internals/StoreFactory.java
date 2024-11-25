@@ -114,7 +114,8 @@ public interface StoreFactory {
 
         @Override
         public StoreBuilder<T> withCachingDisabled() {
-            throw new IllegalStateException("Should not try to modify StoreBuilder wrapper");
+            storeFactory.withCachingDisabled();
+            return this;
         }
 
         @Override
