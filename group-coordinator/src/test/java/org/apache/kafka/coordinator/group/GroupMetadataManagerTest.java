@@ -15454,12 +15454,14 @@ public class GroupMetadataManagerTest {
         MockPartitionAssignor assignor = new MockPartitionAssignor("range");
         assignor.prepareGroupAssignment(new GroupAssignment(Collections.emptyMap()));
 
+        MetadataImage image = new MetadataImageBuilder()
+            .addTopic(fooTopicId, fooTopicName, 6)
+            .addTopic(barTopicId, barTopicName, 3)
+            .build(1L);
+
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
             .withConsumerGroupAssignors(Collections.singletonList(assignor))
-            .withMetadataImage(new MetadataImageBuilder()
-                .addTopic(fooTopicId, fooTopicName, 6)
-                .addTopic(barTopicId, barTopicName, 3)
-                .build(1L))
+            .withMetadataImage(image)
             .withConsumerGroup(new ConsumerGroupBuilder(groupId, 10)
                 .withMember(new ConsumerGroupMember.Builder(memberId1)
                     .setState(MemberState.STABLE)
@@ -15499,6 +15501,18 @@ public class GroupMetadataManagerTest {
                 .withAssignmentEpoch(10))
             .build();
 
+        // Update metadata image.
+        MetadataImage newImage = new MetadataImageBuilder(image)
+            .addTopic(fooTopicId, fooTopicName, 6)
+            .addTopic(barTopicId, barTopicName, 3)
+            .addTopic(foooTopicId, foooTopicName, 1)
+            .build(2L);
+
+        context.groupMetadataManager.onNewMetadataImage(
+            newImage,
+            new MetadataDelta(newImage)
+        );
+
         // A member heartbeats.
         context.consumerGroupHeartbeat(
             new ConsumerGroupHeartbeatRequestData()
@@ -15510,19 +15524,7 @@ public class GroupMetadataManagerTest {
         assertFalse(context.executor.isScheduled(groupId + "-regex"));
 
         // Advance past the batching interval.
-        context.sleep(11L);
-
-        // Update metadata image.
-        MetadataImage newImage = new MetadataImageBuilder()
-            .addTopic(fooTopicId, fooTopicName, 6)
-            .addTopic(barTopicId, barTopicName, 3)
-            .addTopic(foooTopicId, foooTopicName, 1)
-            .build(2L);
-
-        context.groupMetadataManager.onNewMetadataImage(
-            newImage,
-            new MetadataDelta(newImage)
-        );
+        context.sleep(11000L);
 
         // A member heartbeats.
         context.consumerGroupHeartbeat(

@@ -379,7 +379,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
-     * @return The last time resolved regular expressions were refresh or zero if
+     * @return The last time resolved regular expressions were refresh or Long.MIN_VALUE if
      * there are no resolved regular expression. Note that we use the timestamp of the first
      * entry as a proxy for all of them. They are always resolved together.
      */
@@ -388,7 +388,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         if (iterator.hasNext()) {
             return iterator.next().timestamp;
         } else {
-            return 0L;
+            return Long.MIN_VALUE;
         }
     }
 
@@ -787,11 +787,11 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         ConsumerGroupMember newMember
     ) {
         // Decrement the count of the old regex.
-        if (oldMember != null && oldMember.subscribedTopicRegex() != null) {
+        if (oldMember != null && oldMember.subscribedTopicRegex() != null && !oldMember.subscribedTopicRegex().isEmpty()) {
             subscribedRegularExpressions.compute(oldMember.subscribedTopicRegex(), Utils::decValue);
         }
         // Increment the count of the new regex.
-        if (newMember != null && newMember.subscribedTopicRegex() != null) {
+        if (newMember != null && newMember.subscribedTopicRegex() != null && !newMember.subscribedTopicRegex().isEmpty()) {
             subscribedRegularExpressions.compute(newMember.subscribedTopicRegex(), Utils::incValue);
         }
     }

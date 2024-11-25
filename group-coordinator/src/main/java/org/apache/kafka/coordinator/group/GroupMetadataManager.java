@@ -2509,6 +2509,7 @@ public class GroupMetadataManager {
         boolean bumpGroupEpoch = false;
         boolean requireRefresh = false;
 
+        // Check whether the member has changed its subscribed regex.
         if (!Objects.equals(oldSubscribedTopicRegex, newSubscribedTopicRegex)) {
             log.debug("[GroupId {}] Member {} updated its subscribed regex to: {}.",
                 groupId, memberId, newSubscribedTopicRegex);
@@ -2536,38 +2537,48 @@ public class GroupMetadataManager {
             }
         }
 
-        String key = group.groupId() + "-regex";
+        // Conditions to trigger a refresh:
+        // 0. The group is subscribed to regular expressions.
+        // 1. There is no ongoing refresh for the group.
+        // 2. The last refresh is older than 10s.
+        // 3. The group has unresolved regular expressions.
+        // 4. The metadata image has new topics.
 
-        // If a refresh is already inflight, we can not schedule a new one so we stop here.
+        // 0. The group is subscribed to regular expressions. We also take the one
+        //    that the current may have just introduced.
+        if (!requireRefresh && group.subscribedRegularExpressions().isEmpty()) {
+            return bumpGroupEpoch;
+        }
+
+        // 1. There is no ongoing refresh for the group.
+        String key = group.groupId() + "-regex";
         if (executor.isScheduled(key)) {
             return bumpGroupEpoch;
         }
 
-        // If a refresh happened within the last 10 seconds, we wait.
+        // 2. The last refresh is older than 10s. If the group does not have any regular
+        //    expressions but the current member just brought a new one, we should continue.
         long lastRefreshTimeMs = group.lastResolvedRegularExpressionRefreshTimeMs();
         if (time.milliseconds() <= lastRefreshTimeMs + REGEX_BATCH_REFRESH_INTERVAL_MS) {
             return bumpGroupEpoch;
         }
 
-        // Adjust the count to account for the updated member.
+        // 3. The group has unresolved regular expressions.
         Map<String, Integer> subscribedRegularExpressions = new HashMap<>(group.subscribedRegularExpressions());
-        if (oldSubscribedTopicRegex != null) {
+        if (isNotEmpty(oldSubscribedTopicRegex)) {
             subscribedRegularExpressions.compute(oldSubscribedTopicRegex, Utils::decValue);
         }
-        if (newSubscribedTopicRegex != null) {
+        if (isNotEmpty(newSubscribedTopicRegex)) {
             subscribedRegularExpressions.compute(newSubscribedTopicRegex, Utils::incValue);
         }
 
-        // If the number of subscribed regexes is different from the number of resolved ones,
-        // we must trigger a refresh.
         requireRefresh |= subscribedRegularExpressions.size() != group.numResolvedRegularExpressions();
 
-        // If the version of the last resolved regular expressions is smaller than the version
-        // of the last metadata image with new topics, we must trigger a refresh.
+        // 4. The metadata has new topics that we must consider.
         requireRefresh |= group.lastResolvedRegularExpressionVersion() < lastMetadataImageWithNewTopics;
 
-        if (requireRefresh) {
-            Set<String> regexes = subscribedRegularExpressions.keySet();
+        if (requireRefresh && !subscribedRegularExpressions.isEmpty()) {
+            Set<String> regexes = Collections.unmodifiableSet(subscribedRegularExpressions.keySet());
             executor.schedule(
                 key,
                 () -> refreshRegularExpressions(groupId, log, time, metadataImage, regexes),
@@ -2599,7 +2610,9 @@ public class GroupMetadataManager {
         MetadataImage image,
         Set<String> regexes
     ) {
+        long startTimeMs = time.milliseconds();
         log.debug("[GroupId {}] Refreshing regular expressions: {}", groupId, regexes);
+
         Map<String, Set<String>> resolvedRegexes = new HashMap<>(regexes.size());
         List<Pattern> compiledRegexes = new ArrayList<>(regexes.size());
         for (String regex : regexes) {
@@ -2624,14 +2637,17 @@ public class GroupMetadataManager {
         }
 
         long version = image.provenance().lastContainedOffset();
-        long currentTimeMs = time.milliseconds();
         Map<String, ResolvedRegularExpression> result = new HashMap<>(resolvedRegexes.size());
         for (Map.Entry<String, Set<String>> resolvedRegex : resolvedRegexes.entrySet()) {
             result.put(
                 resolvedRegex.getKey(),
-                new ResolvedRegularExpression(resolvedRegex.getValue(), version, currentTimeMs)
+                new ResolvedRegularExpression(resolvedRegex.getValue(), version, startTimeMs)
             );
         }
+
+        log.info("[GroupId {}] Scanned {} topics to refresh regular expressions {} in {}ms.",
+            groupId, image.topics().topicsByName().size(), resolvedRegexes.keySet(),
+            time.milliseconds() - startTimeMs);
 
         return result;
     }
