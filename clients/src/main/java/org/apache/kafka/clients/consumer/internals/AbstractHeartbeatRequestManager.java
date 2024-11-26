@@ -406,6 +406,12 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
                 heartbeatRequestState.reset();
                 break;
 
+            case INVALID_REGULAR_EXPRESSION:
+                logger.error("{} failed due to {}: {}", heartbeatRequestName(), error, errorMessage);
+                handleFatalFailure(error.exception("The SubscriptionPattern provided in the call to subscribe is not " +
+                    "a valid RE2J regular expression."));
+                break;
+
             default:
                 if (!handleSpecificError(response, currentTimeMs)) {
                     // If the manager receives an unknown error - there could be a bug in the code or a new error code
