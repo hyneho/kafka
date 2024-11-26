@@ -1825,25 +1825,27 @@ public interface Admin extends AutoCloseable {
     }
 
     /**
-     * List the share groups available in the cluster.
+     * Describe some classic groups in the cluster.
      *
-     * @param options The options to use when listing the share groups.
-     * @return The ListShareGroupsResult.
+     * @param groupIds The IDs of the groups to describe.
+     * @param options  The options to use when describing the groups.
+     * @return The DescribeClassicGroupsResult.
      */
-    ListShareGroupsResult listShareGroups(ListShareGroupsOptions options);
+    DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds,
+                                                      DescribeClassicGroupsOptions options);
 
     /**
-     * List the share groups available in the cluster with the default options.
+     * Describe some classic groups in the cluster, with the default options.
      * <p>
-     * This is a convenience method for {@link #listShareGroups(ListShareGroupsOptions)} with default options.
-     * See the overload for more details.
+     * This is a convenience method for {@link #describeClassicGroups(Collection, DescribeClassicGroupsOptions)}
+     * with default options. See the overload for more details.
      *
-     * @return The ListShareGroupsResult.
+     * @param groupIds The IDs of the groups to describe.
+     * @return The DescribeClassicGroupsResult.
      */
-    default ListShareGroupsResult listShareGroups() {
-        return listShareGroups(new ListShareGroupsOptions());
+    default DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds) {
+        return describeClassicGroups(groupIds, new DescribeClassicGroupsOptions());
     }
-
 
     /**
      * Add the provided application metric for subscription.
