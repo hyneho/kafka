@@ -16,6 +16,9 @@
  */
 package org.apache.kafka.common.compress;
 
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.utils.BufferSupplier;
 import org.apache.kafka.common.utils.ByteBufferOutputStream;
@@ -28,31 +31,57 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class SnappyCompressionTest {
 
     @Test
     public void testCompressionDecompression() throws IOException {
-        SnappyCompression compression = Compression.snappy().build();
         byte[] data = String.join("", Collections.nCopies(256, "data")).getBytes(StandardCharsets.UTF_8);
 
         for (byte magic : Arrays.asList(RecordBatch.MAGIC_VALUE_V0, RecordBatch.MAGIC_VALUE_V1, RecordBatch.MAGIC_VALUE_V2)) {
-            ByteBufferOutputStream bufferStream = new ByteBufferOutputStream(4);
-            try (OutputStream out = compression.wrapForOutput(bufferStream, magic)) {
-                out.write(data);
-                out.flush();
-            }
-            bufferStream.buffer().flip();
+            for (int blockSize : new Random().ints(4, CompressionType.SNAPPY_MIN_BLOCK, CompressionType.SNAPPY_MAX_BLOCK).toArray()) {
+                SnappyCompression compression = Compression.snappy().blockSize(blockSize).build();
+                ByteBufferOutputStream bufferStream = new ByteBufferOutputStream(4);
+                try (OutputStream out = compression.wrapForOutput(bufferStream, magic)) {
+                    out.write(data);
+                    out.flush();
+                }
+                bufferStream.buffer().flip();
 
-            try (InputStream inputStream = compression.wrapForInput(bufferStream.buffer(), magic, BufferSupplier.create())) {
-                byte[] result = new byte[data.length];
-                int read = inputStream.read(result);
-                assertEquals(data.length, read);
-                assertArrayEquals(data, result);
+                try (InputStream inputStream = compression.wrapForInput(bufferStream.buffer(), magic, BufferSupplier.create())) {
+                    byte[] result = new byte[data.length];
+                    int read = inputStream.read(result);
+                    assertEquals(data.length, read);
+                    assertArrayEquals(data, result);
+                }
             }
         }
+    }
+
+    @Test
+    public void testCompressionBlockSizes() {
+        SnappyCompression.Builder builder = Compression.snappy();
+
+        assertThrows(IllegalArgumentException.class, () -> builder.blockSize(CompressionType.SNAPPY_MIN_BLOCK - 1));
+        assertThrows(IllegalArgumentException.class, () -> builder.blockSize(CompressionType.SNAPPY_MAX_BLOCK + 1));
+
+        builder.blockSize(CompressionType.SNAPPY_MIN_BLOCK);
+        builder.blockSize(CompressionType.SNAPPY_MAX_BLOCK);
+    }
+
+    @Test
+    public void testBlockSizeValidator() {
+        ConfigDef.Validator validator = CompressionType.SNAPPY_BLOCK_VALIDATOR;
+        for (int blockSize : new Random().ints(32, CompressionType.SNAPPY_MIN_BLOCK, CompressionType.SNAPPY_MAX_BLOCK).toArray()) {
+            validator.ensureValid("", blockSize);
+        }
+        validator.ensureValid("", CompressionType.SNAPPY_DEFAULT_BLOCK);
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.SNAPPY_MIN_BLOCK - 1));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.SNAPPY_MAX_BLOCK + 1));
     }
 }

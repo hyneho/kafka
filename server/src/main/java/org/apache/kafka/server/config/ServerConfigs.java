@@ -88,10 +88,23 @@ public class ServerConfigs {
 
     public static final String COMPRESSION_GZIP_LEVEL_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_GZIP_LEVEL_CONFIG);
     public static final String COMPRESSION_GZIP_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to 'gzip'.";
+    public static final String COMPRESSION_GZIP_BUFFER_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_GZIP_BUFFER_CONFIG);
+    public static final String COMPRESSION_GZIP_BUFFER_DOC = "The compression buffer size to use in bytes if " + COMPRESSION_TYPE_CONFIG + " is set to <code>gzip</code>." +
+        "The greater the buffer size is, the more data is compressed at once. Available values are: [1, 2147483647]. Default: 8192 (=8KB).";
+    public static final String COMPRESSION_SNAPPY_BLOCK_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_SNAPPY_BLOCK_CONFIG);
+    public static final String COMPRESSION_SNAPPY_BLOCK_DOC = "The block size to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>snappy</code>." +
+        "The uncompressed content is divided by this amount to be compressed. Available values are: [1024, 2147483647]. Default: 32768 (=32KB).";
     public static final String COMPRESSION_LZ4_LEVEL_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_LZ4_LEVEL_CONFIG);
-    public static final String COMPRESSION_LZ4_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to 'lz4'.";
+    public static final String COMPRESSION_LZ4_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>lz4</code>.";
+    public static final String COMPRESSION_LZ4_BLOCK_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_LZ4_BLOCK_CONFIG);
+    public static final String COMPRESSION_LZ4_BLOCK_DOC = "The block size to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>lz4</code>." +
+        "The uncompressed content is divided by this amount to be compressed. Available values are: 4 (=64KB, default), 5 (=256KB), 6 (=1MB), 7 (=4MB).";
     public static final String COMPRESSION_ZSTD_LEVEL_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_ZSTD_LEVEL_CONFIG);
     public static final String COMPRESSION_ZSTD_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to 'zstd'.";
+    public static final String COMPRESSION_ZSTD_WINDOW_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_ZSTD_WINDOW_CONFIG);
+    public static final String COMPRESSION_ZSTD_WINDOW_DOC = "The compression window size to use if " + COMPRESSION_TYPE_CONFIG + " is set to <code>zstd</code>." +
+        "If 0 (default), zstd disables LDM (Long Distance Mode). If set to a value in [10, 32], zstd enables LDM and compresses with a window whose size is 2^{compression.zstd.window} bytes. " +
+        "(For Example, if set to 27 zstd uses 128MB window.) Note: if set to greater than 27, some systems may fail to decompress the message due to lack of memory.";
 
     /***************** rack configuration *************/
     public static final String BROKER_RACK_CONFIG = "broker.rack";
@@ -160,9 +173,13 @@ public class ServerConfigs {
             .define(CONTROLLED_SHUTDOWN_ENABLE_CONFIG, BOOLEAN, CONTROLLED_SHUTDOWN_ENABLE_DEFAULT, MEDIUM, CONTROLLED_SHUTDOWN_ENABLE_DOC)
             .define(DELETE_TOPIC_ENABLE_CONFIG, BOOLEAN, DELETE_TOPIC_ENABLE_DEFAULT, HIGH, DELETE_TOPIC_ENABLE_DOC)
             .define(COMPRESSION_TYPE_CONFIG, STRING, LogConfig.DEFAULT_COMPRESSION_TYPE, ConfigDef.ValidString.in(BrokerCompressionType.names().toArray(new String[0])), HIGH, COMPRESSION_TYPE_DOC)
-            .define(COMPRESSION_GZIP_LEVEL_CONFIG, INT, CompressionType.GZIP.defaultLevel(), CompressionType.GZIP.levelValidator(), MEDIUM, COMPRESSION_GZIP_LEVEL_DOC)
-            .define(COMPRESSION_LZ4_LEVEL_CONFIG, INT, CompressionType.LZ4.defaultLevel(), CompressionType.LZ4.levelValidator(), MEDIUM, COMPRESSION_LZ4_LEVEL_DOC)
-            .define(COMPRESSION_ZSTD_LEVEL_CONFIG, INT, CompressionType.ZSTD.defaultLevel(), CompressionType.ZSTD.levelValidator(), MEDIUM, COMPRESSION_ZSTD_LEVEL_DOC)
+            .define(COMPRESSION_GZIP_LEVEL_CONFIG, INT, CompressionType.GZIP_DEFAULT_LEVEL, CompressionType.GZIP_LEVEL_VALIDATOR, MEDIUM, COMPRESSION_GZIP_LEVEL_DOC)
+            .define(COMPRESSION_GZIP_BUFFER_CONFIG, INT, CompressionType.GZIP_DEFAULT_BUFFER, CompressionType.GZIP_BUFFER_VALIDATOR, MEDIUM, COMPRESSION_GZIP_BUFFER_DOC)
+            .define(COMPRESSION_SNAPPY_BLOCK_CONFIG, INT, CompressionType.SNAPPY_DEFAULT_BLOCK, CompressionType.SNAPPY_BLOCK_VALIDATOR, MEDIUM, COMPRESSION_SNAPPY_BLOCK_DOC)
+            .define(COMPRESSION_LZ4_LEVEL_CONFIG, INT, CompressionType.LZ4_DEFAULT_LEVEL, CompressionType.LZ4_LEVEL_VALIDATOR, MEDIUM, COMPRESSION_LZ4_LEVEL_DOC)
+            .define(COMPRESSION_LZ4_BLOCK_CONFIG, INT, CompressionType.LZ4_DEFAULT_BLOCK, CompressionType.LZ4_BLOCK_VALIDATOR, MEDIUM, COMPRESSION_LZ4_BLOCK_DOC)
+            .define(COMPRESSION_ZSTD_LEVEL_CONFIG, INT, CompressionType.ZSTD_DEFAULT_LEVEL, CompressionType.ZSTD_LEVEL_VALIDATOR, MEDIUM, COMPRESSION_ZSTD_LEVEL_DOC)
+            .define(COMPRESSION_ZSTD_WINDOW_CONFIG, INT, CompressionType.ZSTD_DEFAULT_WINDOW, CompressionType.ZSTD_WINDOW_VALIDATOR, MEDIUM, COMPRESSION_ZSTD_WINDOW_DOC)
             /** ********* Fetch Configuration **************/
             .define(MAX_INCREMENTAL_FETCH_SESSION_CACHE_SLOTS_CONFIG, INT, MAX_INCREMENTAL_FETCH_SESSION_CACHE_SLOTS_DEFAULT, atLeast(0), MEDIUM, MAX_INCREMENTAL_FETCH_SESSION_CACHE_SLOTS_DOC)
             .define(FETCH_MAX_BYTES_CONFIG, INT, FETCH_MAX_BYTES_DEFAULT, atLeast(1024), MEDIUM, FETCH_MAX_BYTES_DOC)

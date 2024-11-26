@@ -33,13 +33,13 @@ public class BrokerCompressionTypeTest {
 
     @Test
     public void testTargetCompressionType() {
-        GzipCompression gzipWithLevel = Compression.gzip().level(CompressionType.GZIP.maxLevel()).build();
+        GzipCompression gzipWithLevel = Compression.gzip().level(CompressionType.GZIP_MAX_LEVEL).build();
         assertEquals(gzipWithLevel, BrokerCompressionType.targetCompression(Optional.of(gzipWithLevel), CompressionType.ZSTD));
         SnappyCompression snappy = Compression.snappy().build();
         assertEquals(snappy, BrokerCompressionType.targetCompression(Optional.of(snappy), CompressionType.LZ4));
-        Lz4Compression lz4WithLevel = Compression.lz4().level(CompressionType.LZ4.maxLevel()).build();
+        Lz4Compression lz4WithLevel = Compression.lz4().level(CompressionType.LZ4_MAX_LEVEL).build();
         assertEquals(lz4WithLevel, BrokerCompressionType.targetCompression(Optional.of(lz4WithLevel), CompressionType.ZSTD));
-        ZstdCompression zstdWithLevel = Compression.zstd().level(CompressionType.ZSTD.maxLevel()).build();
+        ZstdCompression zstdWithLevel = Compression.zstd().level(CompressionType.ZSTD_MAX_LEVEL).build();
         assertEquals(zstdWithLevel, BrokerCompressionType.targetCompression(Optional.of(zstdWithLevel), CompressionType.GZIP));
 
         GzipCompression gzip = Compression.gzip().build();

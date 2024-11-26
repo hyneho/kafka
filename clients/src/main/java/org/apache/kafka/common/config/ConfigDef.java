@@ -29,6 +29,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -981,6 +983,13 @@ public class ConfigDef {
             return new Range(min, max);
         }
 
+        /**
+         * A numeric range that checks one point only
+         */
+        public static Range of(Number point) {
+            return new Range(point, point);
+        }
+
         public void ensureValid(String name, Object o) {
             if (o == null)
                 throw new ConfigException(name, null, "Value must be non-null");
@@ -1146,6 +1155,45 @@ public class ConfigDef {
             for (Validator v: validators) {
                 if (desc.length() > 0) {
                     desc.append(',').append(' ');
+                }
+                desc.append(v);
+            }
+            return desc.toString();
+        }
+    }
+
+    public static class Either implements Validator {
+        private final List<Validator> validators;
+
+        private Either(List<Validator> validators) {
+            this.validators = Collections.unmodifiableList(validators);
+        }
+
+        public static Either of(Validator... validators) {
+            return new Either(Arrays.asList(validators));
+        }
+
+        @Override
+        public void ensureValid(String name, Object value) {
+            Optional<Validator> validatorOptional = validators.stream().map(validator -> {
+                try {
+                    validator.ensureValid(name, value);
+                    return validator;
+                } catch (ConfigException e) {
+                    return null;
+                }
+            }).filter(Objects::nonNull).findAny();
+
+            validatorOptional.orElseThrow(() -> new ConfigException(name, value, "None of the given validators has succeeded: " + this));
+        }
+
+        @Override
+        public String toString() {
+            if (validators == null) return "";
+            StringBuilder desc = new StringBuilder();
+            for (Validator v: validators) {
+                if (desc.length() > 0) {
+                    desc.append(" or ");
                 }
                 desc.append(v);
             }

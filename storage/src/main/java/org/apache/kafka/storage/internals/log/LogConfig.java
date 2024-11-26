@@ -300,12 +300,20 @@ public class LogConfig extends AbstractConfig {
                         TopicConfig.MIN_IN_SYNC_REPLICAS_DOC)
                 .define(TopicConfig.COMPRESSION_TYPE_CONFIG, STRING, DEFAULT_COMPRESSION_TYPE, in(BrokerCompressionType.names().toArray(new String[0])),
                         MEDIUM, TopicConfig.COMPRESSION_TYPE_DOC)
-                .define(TopicConfig.COMPRESSION_GZIP_LEVEL_CONFIG, INT, CompressionType.GZIP.defaultLevel(),
-                        CompressionType.GZIP.levelValidator(), MEDIUM, TopicConfig.COMPRESSION_GZIP_LEVEL_DOC)
-                .define(TopicConfig.COMPRESSION_LZ4_LEVEL_CONFIG, INT, CompressionType.LZ4.defaultLevel(),
-                        CompressionType.LZ4.levelValidator(), MEDIUM, TopicConfig.COMPRESSION_LZ4_LEVEL_DOC)
-                .define(TopicConfig.COMPRESSION_ZSTD_LEVEL_CONFIG, INT, CompressionType.ZSTD.defaultLevel(),
-                        CompressionType.ZSTD.levelValidator(), MEDIUM, TopicConfig.COMPRESSION_ZSTD_LEVEL_DOC)
+                .define(TopicConfig.COMPRESSION_GZIP_LEVEL_CONFIG, INT, CompressionType.GZIP_DEFAULT_LEVEL,
+                        CompressionType.GZIP_LEVEL_VALIDATOR, MEDIUM, TopicConfig.COMPRESSION_GZIP_LEVEL_DOC)
+                .define(TopicConfig.COMPRESSION_GZIP_BUFFER_CONFIG, INT, CompressionType.GZIP_DEFAULT_BUFFER,
+                        CompressionType.GZIP_BUFFER_VALIDATOR, MEDIUM, TopicConfig.COMPRESSION_GZIP_BUFFER_DOC)
+                .define(TopicConfig.COMPRESSION_SNAPPY_BLOCK_CONFIG, INT, CompressionType.SNAPPY_DEFAULT_BLOCK,
+                        CompressionType.SNAPPY_BLOCK_VALIDATOR, MEDIUM, TopicConfig.COMPRESSION_SNAPPY_BLOCK_DOC)
+                .define(TopicConfig.COMPRESSION_LZ4_LEVEL_CONFIG, INT, CompressionType.LZ4_DEFAULT_LEVEL,
+                        CompressionType.LZ4_LEVEL_VALIDATOR, MEDIUM, TopicConfig.COMPRESSION_LZ4_LEVEL_DOC)
+                .define(TopicConfig.COMPRESSION_LZ4_BLOCK_CONFIG, INT, CompressionType.LZ4_DEFAULT_BLOCK,
+                        CompressionType.LZ4_BLOCK_VALIDATOR, MEDIUM, TopicConfig.COMPRESSION_LZ4_BLOCK_DOC)
+                .define(TopicConfig.COMPRESSION_ZSTD_LEVEL_CONFIG, INT, CompressionType.ZSTD_DEFAULT_LEVEL,
+                        CompressionType.ZSTD_LEVEL_VALIDATOR, MEDIUM, TopicConfig.COMPRESSION_ZSTD_LEVEL_DOC)
+                .define(TopicConfig.COMPRESSION_ZSTD_WINDOW_CONFIG, INT, CompressionType.ZSTD_DEFAULT_WINDOW,
+                        CompressionType.ZSTD_WINDOW_VALIDATOR, MEDIUM, TopicConfig.COMPRESSION_ZSTD_WINDOW_DOC)
                 .define(TopicConfig.PREALLOCATE_CONFIG, BOOLEAN, DEFAULT_PREALLOCATE, MEDIUM, TopicConfig.PREALLOCATE_DOC)
                 .define(MESSAGE_FORMAT_VERSION_CONFIG, STRING, DEFAULT_MESSAGE_FORMAT_VERSION, new MetadataVersionValidator(), MEDIUM,
                         MESSAGE_FORMAT_VERSION_DOC)
@@ -435,17 +443,22 @@ public class LogConfig extends AbstractConfig {
             case GZIP:
                 return Optional.of(Compression.gzip()
                         .level(getInt(TopicConfig.COMPRESSION_GZIP_LEVEL_CONFIG))
+                        .bufferSize(getInt(TopicConfig.COMPRESSION_GZIP_BUFFER_CONFIG))
+                        .build());
+            case SNAPPY:
+                return Optional.of(Compression.snappy()
+                        .blockSize(getInt(TopicConfig.COMPRESSION_SNAPPY_BLOCK_CONFIG))
                         .build());
             case LZ4:
                 return Optional.of(Compression.lz4()
                         .level(getInt(TopicConfig.COMPRESSION_LZ4_LEVEL_CONFIG))
+                        .blockSize(getInt(TopicConfig.COMPRESSION_LZ4_BLOCK_CONFIG))
                         .build());
             case ZSTD:
                 return Optional.of(Compression.zstd()
                         .level(getInt(TopicConfig.COMPRESSION_ZSTD_LEVEL_CONFIG))
+                        .windowSize(getInt(TopicConfig.COMPRESSION_ZSTD_WINDOW_CONFIG))
                         .build());
-            case SNAPPY:
-                return Optional.of(Compression.snappy().build());
             case UNCOMPRESSED:
                 return Optional.of(Compression.NONE);
             case PRODUCER:

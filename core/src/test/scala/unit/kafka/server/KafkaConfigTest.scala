@@ -771,7 +771,7 @@ class KafkaConfigTest {
   def testInvalidGzipCompressionLevel(): Unit = {
     val props = TestUtils.createBrokerConfig(0, TestUtils.MockZkConnect, port = 8181)
     props.setProperty(ServerConfigs.COMPRESSION_TYPE_CONFIG, "gzip")
-    props.setProperty(ServerConfigs.COMPRESSION_GZIP_LEVEL_CONFIG, (CompressionType.GZIP.maxLevel() + 1).toString)
+    props.setProperty(ServerConfigs.COMPRESSION_GZIP_LEVEL_CONFIG, (CompressionType.GZIP_MAX_LEVEL + 1).toString)
     assertThrows(classOf[ConfigException], () => KafkaConfig.fromProps(props))
   }
 
@@ -779,7 +779,7 @@ class KafkaConfigTest {
   def testInvalidLz4CompressionLevel(): Unit = {
     val props = TestUtils.createBrokerConfig(0, TestUtils.MockZkConnect, port = 8181)
     props.setProperty(ServerConfigs.COMPRESSION_TYPE_CONFIG, "lz4")
-    props.setProperty(ServerConfigs.COMPRESSION_LZ4_LEVEL_CONFIG, (CompressionType.LZ4.maxLevel() + 1).toString)
+    props.setProperty(ServerConfigs.COMPRESSION_LZ4_LEVEL_CONFIG, (CompressionType.LZ4_MAX_LEVEL + 1).toString)
     assertThrows(classOf[ConfigException], () => KafkaConfig.fromProps(props))
   }
 
@@ -787,7 +787,7 @@ class KafkaConfigTest {
   def testInvalidZstdCompressionLevel(): Unit = {
     val props = TestUtils.createBrokerConfig(0, TestUtils.MockZkConnect, port = 8181)
     props.setProperty(ServerConfigs.COMPRESSION_TYPE_CONFIG, "zstd")
-    props.setProperty(ServerConfigs.COMPRESSION_ZSTD_LEVEL_CONFIG, (CompressionType.ZSTD.maxLevel() + 1).toString)
+    props.setProperty(ServerConfigs.COMPRESSION_ZSTD_LEVEL_CONFIG, (CompressionType.ZSTD_MAX_LEVEL + 1).toString)
     assertThrows(classOf[ConfigException], () => KafkaConfig.fromProps(props))
   }
 
@@ -1000,7 +1000,7 @@ class KafkaConfigTest {
 
         case ServerConfigs.COMPRESSION_GZIP_LEVEL_CONFIG => assertPropertyInvalid(baseProperties, name, "not_a_number", "0")
         case ServerConfigs.COMPRESSION_LZ4_LEVEL_CONFIG => assertPropertyInvalid(baseProperties, name, "not_a_number", "0")
-        case ServerConfigs.COMPRESSION_ZSTD_LEVEL_CONFIG => assertPropertyInvalid(baseProperties, name, "not_a_number", CompressionType.ZSTD.maxLevel() + 1)
+        case ServerConfigs.COMPRESSION_ZSTD_LEVEL_CONFIG => assertPropertyInvalid(baseProperties, name, "not_a_number", CompressionType.ZSTD_MAX_LEVEL + 1)
 
         //SSL Configs
         case BrokerSecurityConfigs.PRINCIPAL_BUILDER_CLASS_CONFIG =>
@@ -1185,10 +1185,18 @@ class KafkaConfigTest {
           assertDynamic(kafkaConfigProp, "lz4", () => config.compressionType)
         case TopicConfig.COMPRESSION_GZIP_LEVEL_CONFIG =>
           assertDynamic(kafkaConfigProp, "5", () => config.gzipCompressionLevel)
+        case TopicConfig.COMPRESSION_GZIP_BUFFER_CONFIG =>
+          assertDynamic(kafkaConfigProp, 512 + 1, () => config.gzipCompressionBuffer)
+        case TopicConfig.COMPRESSION_SNAPPY_BLOCK_CONFIG =>
+          assertDynamic(kafkaConfigProp, 32768 + 1, () => config.snappyCompressionBlock)
         case TopicConfig.COMPRESSION_LZ4_LEVEL_CONFIG =>
           assertDynamic(kafkaConfigProp, "5", () => config.lz4CompressionLevel)
+        case TopicConfig.COMPRESSION_LZ4_BLOCK_CONFIG =>
+          assertDynamic(kafkaConfigProp, 4 + 1, () => config.lz4CompressionBlock)
         case TopicConfig.COMPRESSION_ZSTD_LEVEL_CONFIG =>
           assertDynamic(kafkaConfigProp, "5", () => config.zstdCompressionLevel)
+        case TopicConfig.COMPRESSION_ZSTD_WINDOW_CONFIG =>
+          assertDynamic(kafkaConfigProp, 10, () => config.zstdCompressionWindow)
         case TopicConfig.SEGMENT_BYTES_CONFIG =>
           assertDynamic(kafkaConfigProp, 10000, () => config.logSegmentBytes)
         case TopicConfig.SEGMENT_MS_CONFIG =>

@@ -28,25 +28,25 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import static org.apache.kafka.common.record.CompressionType.LZ4;
-
 public class Lz4Compression implements Compression {
 
     private final int level;
+    private final int blockSize;
 
-    private Lz4Compression(int level) {
+    private Lz4Compression(int level, int blockSize) {
         this.level = level;
+        this.blockSize = blockSize;
     }
 
     @Override
     public CompressionType type() {
-        return LZ4;
+        return CompressionType.LZ4;
     }
 
     @Override
     public OutputStream wrapForOutput(ByteBufferOutputStream buffer, byte messageVersion) {
         try {
-            return new Lz4BlockOutputStream(buffer, level, messageVersion == RecordBatch.MAGIC_VALUE_V0);
+            return new Lz4BlockOutputStream(buffer, blockSize, level, messageVersion == RecordBatch.MAGIC_VALUE_V0);
         } catch (Throwable e) {
             throw new KafkaException(e);
         }
@@ -76,19 +76,20 @@ public class Lz4Compression implements Compression {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Lz4Compression that = (Lz4Compression) o;
-        return level == that.level;
+        return level == that.level && blockSize == that.blockSize;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(level);
+        return Objects.hash(level, blockSize);
     }
 
     public static class Builder implements Compression.Builder<Lz4Compression> {
-        private int level = LZ4.defaultLevel();
+        private int level = CompressionType.LZ4_DEFAULT_LEVEL;
+        private int blockSize = CompressionType.LZ4_DEFAULT_BLOCK;
 
         public Builder level(int level) {
-            if (level < LZ4.minLevel() || LZ4.maxLevel() < level) {
+            if (level < CompressionType.LZ4_MIN_LEVEL || CompressionType.LZ4_MAX_LEVEL < level) {
                 throw new IllegalArgumentException("lz4 doesn't support given compression level: " + level);
             }
 
@@ -96,9 +97,18 @@ public class Lz4Compression implements Compression {
             return this;
         }
 
+        public Builder blockSize(int blockSize) {
+            if (blockSize < CompressionType.LZ4_MIN_BLOCK || CompressionType.LZ4_MAX_BLOCK < blockSize) {
+                throw new IllegalArgumentException("lz4 doesn't support given block size: " + blockSize);
+            }
+
+            this.blockSize = blockSize;
+            return this;
+        }
+
         @Override
         public Lz4Compression build() {
-            return new Lz4Compression(level);
+            return new Lz4Compression(level, blockSize);
         }
     }
 }

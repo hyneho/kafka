@@ -1745,11 +1745,11 @@ public class LogValidatorTest {
         );
 
         // Records from the producer were created with gzip max level
-        Compression gzipMax = Compression.gzip().level(CompressionType.GZIP.maxLevel()).build();
+        Compression gzipMax = Compression.gzip().level(CompressionType.GZIP_MAX_LEVEL).build();
         MemoryRecords recordsGzipMax = createRecords(records, RecordBatch.MAGIC_VALUE_V2, RecordBatch.NO_TIMESTAMP, gzipMax);
 
         // The topic is configured with gzip min level
-        Compression gzipMin = Compression.gzip().level(CompressionType.GZIP.minLevel()).build();
+        Compression gzipMin = Compression.gzip().level(CompressionType.GZIP_MIN_LEVEL).build();
         MemoryRecords recordsGzipMin = createRecords(records, RecordBatch.MAGIC_VALUE_V2, RecordBatch.NO_TIMESTAMP, gzipMin);
 
         // Ensure data compressed with gzip max and min is different
@@ -1787,11 +1787,11 @@ public class LogValidatorTest {
         );
 
         // Records from the producer were created with gzip max level
-        Compression gzipMax = Compression.gzip().level(CompressionType.GZIP.maxLevel()).build();
+        Compression gzipMax = Compression.gzip().level(CompressionType.GZIP_MAX_LEVEL).build();
         MemoryRecords recordsGzipMax = createRecords(records, RecordBatch.MAGIC_VALUE_V2, RecordBatch.NO_TIMESTAMP, gzipMax);
 
         // The topic is configured with lz4 min level
-        Compression lz4Min = Compression.lz4().level(CompressionType.GZIP.minLevel()).build();
+        Compression lz4Min = Compression.lz4().level(CompressionType.GZIP_MIN_LEVEL).build();
         MemoryRecords recordsLz4Min = createRecords(records, RecordBatch.MAGIC_VALUE_V2, RecordBatch.NO_TIMESTAMP, lz4Min);
 
         LogValidator validator = new LogValidator(recordsGzipMax,

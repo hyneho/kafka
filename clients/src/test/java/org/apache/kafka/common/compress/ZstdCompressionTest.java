@@ -16,6 +16,9 @@
  */
 package org.apache.kafka.common.compress;
 
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.utils.BufferSupplier;
 import org.apache.kafka.common.utils.ByteBufferOutputStream;
@@ -28,8 +31,8 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Random;
 
-import static org.apache.kafka.common.record.CompressionType.ZSTD;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -42,20 +45,22 @@ public class ZstdCompressionTest {
         byte[] data = String.join("", Collections.nCopies(256, "data")).getBytes(StandardCharsets.UTF_8);
 
         for (byte magic : Arrays.asList(RecordBatch.MAGIC_VALUE_V0, RecordBatch.MAGIC_VALUE_V1, RecordBatch.MAGIC_VALUE_V2)) {
-            for (int level : Arrays.asList(ZSTD.minLevel(), ZSTD.defaultLevel(), ZSTD.maxLevel())) {
-                ZstdCompression compression = builder.level(level).build();
-                ByteBufferOutputStream bufferStream = new ByteBufferOutputStream(4);
-                try (OutputStream out = compression.wrapForOutput(bufferStream, magic)) {
-                    out.write(data);
-                    out.flush();
-                }
-                bufferStream.buffer().flip();
+            for (int level : Arrays.asList(CompressionType.ZSTD_MIN_LEVEL, CompressionType.ZSTD_DEFAULT_LEVEL, CompressionType.ZSTD_MAX_LEVEL)) {
+                for (int windowSize : Arrays.asList(CompressionType.ZSTD_DEFAULT_WINDOW, CompressionType.ZSTD_MIN_WINDOW, CompressionType.ZSTD_MAX_WINDOW)) {
+                    ZstdCompression compression = builder.level(level).windowSize(windowSize).build();
+                    ByteBufferOutputStream bufferStream = new ByteBufferOutputStream(4);
+                    try (OutputStream out = compression.wrapForOutput(bufferStream, magic)) {
+                        out.write(data);
+                        out.flush();
+                    }
+                    bufferStream.buffer().flip();
 
-                try (InputStream inputStream = compression.wrapForInput(bufferStream.buffer(), magic, BufferSupplier.create())) {
-                    byte[] result = new byte[data.length];
-                    int read = inputStream.read(result);
-                    assertEquals(data.length, read);
-                    assertArrayEquals(data, result);
+                    try (InputStream inputStream = compression.wrapForInput(bufferStream.buffer(), magic, BufferSupplier.create())) {
+                        byte[] result = new byte[data.length];
+                        int read = inputStream.read(result);
+                        assertEquals(data.length, read);
+                        assertArrayEquals(data, result);
+                    }
                 }
             }
         }
@@ -65,10 +70,44 @@ public class ZstdCompressionTest {
     public void testCompressionLevels() {
         ZstdCompression.Builder builder = Compression.zstd();
 
-        assertThrows(IllegalArgumentException.class, () -> builder.level(ZSTD.minLevel() - 1));
-        assertThrows(IllegalArgumentException.class, () -> builder.level(ZSTD.maxLevel() + 1));
+        assertThrows(IllegalArgumentException.class, () -> builder.level(CompressionType.ZSTD_MIN_LEVEL - 1));
+        assertThrows(IllegalArgumentException.class, () -> builder.level(CompressionType.ZSTD_MAX_LEVEL + 1));
 
-        builder.level(ZSTD.minLevel());
-        builder.level(ZSTD.maxLevel());
+        builder.level(CompressionType.ZSTD_MIN_LEVEL);
+        builder.level(CompressionType.ZSTD_MAX_LEVEL);
+    }
+
+    @Test
+    public void testLevelValidator() {
+        ConfigDef.Validator validator = CompressionType.ZSTD_LEVEL_VALIDATOR;
+        for (int level = CompressionType.ZSTD_MIN_LEVEL; level <= CompressionType.ZSTD_MAX_LEVEL; level++) {
+            validator.ensureValid("", level);
+        }
+        validator.ensureValid("", CompressionType.ZSTD_DEFAULT_LEVEL);
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.ZSTD_MIN_LEVEL - 1));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.ZSTD_MAX_LEVEL + 1));
+    }
+
+    public void testCompressionWindows() {
+        ZstdCompression.Builder builder = Compression.zstd();
+
+        assertThrows(IllegalArgumentException.class, () -> builder.windowSize(CompressionType.ZSTD_MIN_WINDOW - 1));
+        assertThrows(IllegalArgumentException.class, () -> builder.windowSize(CompressionType.ZSTD_MAX_WINDOW + 1));
+
+        builder.windowSize(CompressionType.ZSTD_DEFAULT_WINDOW);
+        builder.windowSize(CompressionType.ZSTD_MIN_WINDOW);
+        builder.windowSize(CompressionType.ZSTD_MAX_WINDOW);
+    }
+
+    @Test
+    public void testWindowValidator() {
+        ConfigDef.Validator validator = CompressionType.ZSTD_WINDOW_VALIDATOR;
+
+        for (int windowSize : new Random().ints(4, CompressionType.ZSTD_MIN_WINDOW, CompressionType.ZSTD_MAX_WINDOW).toArray()) {
+            validator.ensureValid("", windowSize);
+        }
+        validator.ensureValid("", CompressionType.ZSTD_DEFAULT_WINDOW);
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.ZSTD_MIN_WINDOW - 1));
+        assertThrows(ConfigException.class, () -> validator.ensureValid("", CompressionType.ZSTD_MAX_WINDOW + 1));
     }
 }
