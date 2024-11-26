@@ -21,6 +21,7 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.server.share.SharePartitionKey;
 import org.apache.kafka.timeline.SnapshotRegistry;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,15 +58,12 @@ public class SharePartitionOffsetManagerTest {
 
     @Test
     public void testUpdateStateAddsToInternalState() {
-        SharePartitionKey key1 = SharePartitionKey.getInstance("gs1", Uuid.randomUuid(), 0);
-        SharePartitionKey key2 = SharePartitionKey.getInstance("gs1", Uuid.randomUuid(), 1);
+        assertEquals(Optional.empty(), manager.updateState(KEY1, 0L));
+        assertEquals(Optional.of(10L), manager.updateState(KEY1, 10L));
+        assertEquals(Optional.empty(), manager.updateState(KEY2, 15L));
 
-        assertEquals(Optional.empty(), manager.updateState(key1, 0L));
-        assertEquals(Optional.of(10L), manager.updateState(key1, 10L));
-        assertEquals(Optional.empty(), manager.updateState(key2, 15L));
-
-        assertEquals(10L, manager.offsets().get(key1));
-        assertEquals(15L, manager.offsets().get(key2));
+        assertEquals(10L, manager.offsets().get(KEY1));
+        assertEquals(15L, manager.offsets().get(KEY2));
     }
 
     private static class ShareOffsetTestHolder {
