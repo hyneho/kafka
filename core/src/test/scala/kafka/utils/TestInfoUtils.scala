@@ -45,14 +45,6 @@ object TestInfoUtils {
     }
   }
 
-  def isZkMigrationTest(testInfo: TestInfo): Boolean = {
-    if (!isKRaft(testInfo)) {
-      false
-    } else {
-      testInfo.getDisplayName.contains("quorum=zkMigration")
-    }
-  }
-
   final val TestWithParameterizedQuorumAndGroupProtocolNames = "{displayName}.quorum={0}.groupProtocol={1}"
 
   def isShareGroupTest(testInfo: TestInfo): Boolean = {
@@ -66,5 +58,13 @@ object TestInfoUtils {
       Some(GroupProtocol.CONSUMER)
     else
       None
+  }
+
+  /**
+   * Returns whether transaction version 2 is enabled.
+   * When no parameter is provided, the default returned is true.
+   */
+  def isTransactionV2Enabled(testInfo: TestInfo): Boolean = {
+    !testInfo.getDisplayName.contains("isTV2Enabled=false")
   }
 }

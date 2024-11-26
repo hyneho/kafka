@@ -16,8 +16,9 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.streams.StreamsConfig;
@@ -31,6 +32,9 @@ import org.apache.kafka.streams.processor.TimestampExtractor;
 import org.apache.kafka.streams.processor.TopicNameExtractor;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
+import org.apache.kafka.streams.processor.api.ProcessorWrapper;
+import org.apache.kafka.streams.processor.api.WrappedFixedKeyProcessorSupplier;
+import org.apache.kafka.streams.processor.api.WrappedProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.TopologyMetadata.Subtopology;
 import org.apache.kafka.streams.processor.internals.namedtopology.NamedTopology;
 import org.apache.kafka.streams.state.StoreBuilder;
@@ -52,25 +56,39 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.apache.kafka.clients.consumer.OffsetResetStrategy.EARLIEST;
-import static org.apache.kafka.clients.consumer.OffsetResetStrategy.LATEST;
-import static org.apache.kafka.clients.consumer.OffsetResetStrategy.NONE;
+import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
 
 public class InternalTopologyBuilder {
 
     public InternalTopologyBuilder() {
         this.topologyName = null;
+        this.processorWrapper = new NoOpProcessorWrapper();
     }
 
     public InternalTopologyBuilder(final TopologyConfig topologyConfigs) {
         this.topologyConfigs = topologyConfigs;
         this.topologyName = topologyConfigs.topologyName;
+
+        try {
+            processorWrapper = topologyConfigs.getConfiguredInstance(
+                PROCESSOR_WRAPPER_CLASS_CONFIG,
+                ProcessorWrapper.class,
+                topologyConfigs.originals()
+            );
+        } catch (final Exception e) {
+            final String errorMessage = String.format(
+                "Unable to instantiate ProcessorWrapper from value of config %s. Please provide a valid class "
+                    + "that implements the ProcessorWrapper interface.", PROCESSOR_WRAPPER_CLASS_CONFIG);
+            log.error(errorMessage, e);
+            throw new ConfigException(errorMessage, e);
+        }
     }
 
     private static final Logger log = LoggerFactory.getLogger(InternalTopologyBuilder.class);
@@ -142,6 +160,8 @@ public class InternalTopologyBuilder {
 
     // Used to capture subscribed topics via Patterns discovered during the partition assignment process.
     private final Set<String> subscriptionUpdates = new HashSet<>();
+
+    private final ProcessorWrapper processorWrapper;
 
     private String applicationId = null;
 
@@ -367,7 +387,11 @@ public class InternalTopologyBuilder {
 
     public final synchronized void setStreamsConfig(final StreamsConfig applicationConfig) {
         Objects.requireNonNull(applicationConfig, "config can't be null");
-        topologyConfigs = new TopologyConfig(applicationConfig);
+
+        final Properties topologyOverrides = topologyConfigs == null
+            ? new Properties()
+            : topologyConfigs.topologyOverrides;
+        topologyConfigs = new TopologyConfig(topologyName, applicationConfig, topologyOverrides);
     }
 
     @SuppressWarnings("deprecation")
@@ -1318,15 +1342,15 @@ public class InternalTopologyBuilder {
             && latestResetTopics.isEmpty() && latestResetPatterns.isEmpty());
     }
 
-    public OffsetResetStrategy offsetResetStrategy(final String topic) {
+    public AutoOffsetResetStrategy offsetResetStrategy(final String topic) {
         if (maybeDecorateInternalSourceTopics(earliestResetTopics).contains(topic) ||
             earliestResetPatterns.stream().anyMatch(p -> p.matcher(topic).matches())) {
-            return EARLIEST;
+            return AutoOffsetResetStrategy.EARLIEST;
         } else if (maybeDecorateInternalSourceTopics(latestResetTopics).contains(topic) ||
             latestResetPatterns.stream().anyMatch(p -> p.matcher(topic).matches())) {
-            return LATEST;
+            return AutoOffsetResetStrategy.LATEST;
         } else if (containsTopic(topic)) {
-            return NONE;
+            return AutoOffsetResetStrategy.NONE;
         } else {
             throw new IllegalStateException(String.format(
                 "Unable to lookup offset reset strategy for the following topic as it does not exist in the topology%s: %s",
@@ -2244,5 +2268,23 @@ public class InternalTopologyBuilder {
 
     public synchronized Map<String, StoreFactory> stateStores() {
         return stateFactories;
+    }
+
+    public <KIn, VIn, VOut> WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> wrapFixedKeyProcessorSupplier(
+        final String name,
+        final FixedKeyProcessorSupplier<KIn, VIn,  VOut> processorSupplier
+    ) {
+        return ProcessorWrapper.asWrappedFixedKey(
+            processorWrapper.wrapFixedKeyProcessorSupplier(name, processorSupplier)
+        );
+    }
+
+    public <KIn, VIn, KOut, VOut> WrappedProcessorSupplier<KIn, VIn, KOut, VOut> wrapProcessorSupplier(
+        final String name,
+        final ProcessorSupplier<KIn, VIn, KOut, VOut> processorSupplier
+    ) {
+        return ProcessorWrapper.asWrapped(
+            processorWrapper.wrapProcessorSupplier(name, processorSupplier)
+        );
     }
 }

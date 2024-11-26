@@ -77,7 +77,7 @@ import static org.apache.kafka.clients.consumer.internals.OffsetFetcherUtils.reg
  * {@link ConsumerMetadata}, so this implements {@link ClusterResourceListener} to get notified
  * when the cluster metadata is updated.
  */
-public class OffsetsRequestManager implements RequestManager, ClusterResourceListener {
+public final class OffsetsRequestManager implements RequestManager, ClusterResourceListener {
 
     private final ConsumerMetadata metadata;
     private final IsolationLevel isolationLevel;
@@ -109,7 +109,6 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
      */
     private PendingFetchCommittedRequest pendingOffsetFetchEvent;
 
-    @SuppressWarnings("this-escape")
     public OffsetsRequestManager(final SubscriptionState subscriptionState,
                                  final ConsumerMetadata metadata,
                                  final IsolationLevel isolationLevel,
@@ -895,7 +894,7 @@ public class OffsetsRequestManager implements RequestManager, ClusterResourceLis
             Long offset = entry.getValue();
             Metadata.LeaderAndEpoch leaderAndEpoch = metadata.currentLeader(tp);
 
-            if (!leaderAndEpoch.leader.isPresent()) {
+            if (leaderAndEpoch.leader.isEmpty()) {
                 log.debug("Leader for partition {} is unknown for fetching offset {}", tp, offset);
                 metadata.requestUpdate(true);
                 listOffsetsRequestState.ifPresent(offsetsRequestState -> offsetsRequestState.remainingToSearch.put(tp, offset));
