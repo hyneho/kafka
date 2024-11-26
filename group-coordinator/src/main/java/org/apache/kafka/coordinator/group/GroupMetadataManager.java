@@ -4142,7 +4142,11 @@ public class GroupMetadataManager {
         TopicsDelta topicsDelta = delta.topicsDelta();
         if (topicsDelta == null) return;
 
-        // Updated the last offset of the image with newly created topics.
+        // Updated the last offset of the image with newly created topics. This is used to
+        // trigger a refresh of all the regular expressions when topics are created. Note
+        // that we don't trigger a refresh when topics are deleted. Those are removed from
+        // the subscription metadata (and the assignment) via the above mechanism. The
+        // resolved regular expressions are cleaned up on the next refresh.
         if (!topicsDelta.createdTopicIds().isEmpty()) {
             lastMetadataImageWithNewTopics = metadataImage.provenance().lastContainedOffset();
         }
