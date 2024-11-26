@@ -131,7 +131,7 @@ public class ReplicationConfigs {
     public static final String INTER_BROKER_PROTOCOL_VERSION_DEFAULT = MetadataVersion.latestProduction().version();
     public static final String INTER_BROKER_PROTOCOL_VERSION_DOC = "Specify which version of the inter-broker protocol will be used.\n" +
            "This is typically bumped after all brokers were upgraded to a new version.\n" +
-           " Check MetadataVersion for the full list.\n" +
+           "Check MetadataVersion for the full list.\n" +
            "This configuration is only applicable in Zookeeper mode.";
 
     public static final String INTER_BROKER_SECURITY_PROTOCOL_CONFIG = "security.inter.broker.protocol";
