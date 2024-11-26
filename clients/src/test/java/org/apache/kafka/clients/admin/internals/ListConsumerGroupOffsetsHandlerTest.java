@@ -177,10 +177,10 @@ public class ListConsumerGroupOffsetsHandlerTest {
         Map<TopicPartition, OffsetAndMetadata> offsetAndMetadataMapTwo =
             Collections.singletonMap(t2p2, new OffsetAndMetadata(10L));
         Map<String, Map<TopicPartition, OffsetAndMetadata>> expectedResult =
-            new HashMap<String, Map<TopicPartition, OffsetAndMetadata>>() {{
-                put(groupZero, offsetAndMetadataMapZero);
-                put(groupOne, offsetAndMetadataMapOne);
-                put(groupTwo, offsetAndMetadataMapTwo);
+            new HashMap<>() {{
+                    put(groupZero, offsetAndMetadataMapZero);
+                    put(groupOne, offsetAndMetadataMapOne);
+                    put(groupTwo, offsetAndMetadataMapTwo);
             }};
 
         assertCompletedForMultipleGroups(
@@ -304,10 +304,10 @@ public class ListConsumerGroupOffsetsHandlerTest {
         responseDataTwo.put(t2p2, new OffsetFetchResponse.PartitionData(10, Optional.empty(), "", Errors.NONE));
 
         Map<String, Map<TopicPartition, PartitionData>> responseData =
-            new HashMap<String, Map<TopicPartition, PartitionData>>() {{
-                put(groupZero, responseDataZero);
-                put(groupOne, responseDataOne);
-                put(groupTwo, responseDataTwo);
+            new HashMap<>() {{
+                    put(groupZero, responseDataZero);
+                    put(groupOne, responseDataOne);
+                    put(groupTwo, responseDataTwo);
             }};
 
         Map<String, Errors> errorMap = errorMap(groups, Errors.NONE);

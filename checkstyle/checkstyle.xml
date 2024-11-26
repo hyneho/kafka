@@ -40,7 +40,7 @@
     <module name="SimplifyBooleanExpression"/>
     <module name="OneStatementPerLine"/>
     <module name="UnnecessaryParentheses">
-      <property name="tokens" value="BOR, BAND, BXOR" />
+      <property name="tokens" value="BOR, BAND, BXOR, QUESTION" />
     </module>
     <module name="SimplifyBooleanReturn"/>
 

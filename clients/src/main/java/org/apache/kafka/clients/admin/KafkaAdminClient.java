@@ -2896,8 +2896,8 @@ public class KafkaAdminClient extends AdminClient {
             } else
                 unifiedRequestResources.add(resource);
         }
-        if (!unifiedRequestResources.isEmpty())
-          allFutures.putAll(alterConfigs(configs, options, unifiedRequestResources, new LeastLoadedBrokerOrActiveKController()));
+        if (!unifiedRequestResources.isEmpty()) 
+            allFutures.putAll(alterConfigs(configs, options, unifiedRequestResources, new LeastLoadedBrokerOrActiveKController()));
         return new AlterConfigsResult(new HashMap<>(allFutures));
     }
 
@@ -5030,7 +5030,7 @@ public class KafkaAdminClient extends AdminClient {
                         setHost(endpoint.host()).
                         setPort(endpoint.port())));
                 return new AddRaftVoterRequest.Builder(
-                   new AddRaftVoterRequestData().
+                    new AddRaftVoterRequestData().
                        setClusterId(options.clusterId().orElse(null)).
                        setTimeoutMs(timeoutMs).
                        setVoterId(voterId) .
