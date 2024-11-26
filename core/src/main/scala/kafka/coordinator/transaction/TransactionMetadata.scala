@@ -488,10 +488,10 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
           // their updated start time is not equal to the current start time.
           val allowedEmptyAbort = toState == PrepareAbort && transitMetadata.clientTransactionVersion.supportsEpochBump() &&
             (state == Empty || state == CompleteCommit || state == CompleteAbort)
+          val validTimestamp = txnStartTimestamp == transitMetadata.txnStartTimestamp || allowedEmptyAbort
           if (!validProducerEpoch(transitMetadata) ||
             !topicPartitions.toSet.equals(transitMetadata.topicPartitions) ||
-            txnTimeoutMs != transitMetadata.txnTimeoutMs ||
-            txnStartTimestamp != transitMetadata.txnStartTimestamp && !allowedEmptyAbort) {
+            txnTimeoutMs != transitMetadata.txnTimeoutMs || !validTimestamp) {
 
             throwStateTransitionFailure(transitMetadata)
           } else if (transitMetadata.clientTransactionVersion.supportsEpochBump()) {
