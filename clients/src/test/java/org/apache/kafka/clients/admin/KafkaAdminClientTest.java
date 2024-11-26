@@ -3207,8 +3207,7 @@ public class KafkaAdminClientTest {
                     request -> request instanceof DescribeClusterRequest);
 
             final DescribeClusterResult result = env.adminClient().describeCluster(new DescribeClusterOptions().includeFencedBrokers(true));
-            TestUtils.assertFutureThrows(result.nodes(),
-                    UnsupportedVersionException.class, "Including fenced broker endpoints is not supported with version 1");
+            TestUtils.assertFutureThrows(result.nodes(), UnsupportedVersionException.class);
         }
     }
 

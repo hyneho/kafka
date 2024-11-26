@@ -2557,7 +2557,9 @@ public class KafkaAdminClient extends AdminClient {
                     return false;
                 }
 
-                if (exception.getMessage().contains("Including fenced broker endpoints is not supported with version")) {
+                // If unsupportedVersion exception was caused by the option to include fenced brokers (only supported for version 2+)
+                // then we should not fall back to the metadataRequest.
+                if (options.includeFencedBrokers()) {
                     return false;
                 }
 
