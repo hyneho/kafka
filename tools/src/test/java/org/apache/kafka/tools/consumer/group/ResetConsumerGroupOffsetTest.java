@@ -21,6 +21,7 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.GroupProtocol;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.RangeAssignor;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -70,6 +71,7 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_COMMIT_INTER
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_PROTOCOL_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.ACKS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG;
@@ -800,6 +802,9 @@ public class ResetConsumerGroupOffsetTest {
         configs.put(VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         configs.put(AUTO_COMMIT_INTERVAL_MS_CONFIG, 1000);
         configs.put(GROUP_INITIAL_REBALANCE_DELAY_MS_CONFIG, 1000);
+        if (GroupProtocol.CLASSIC == groupProtocol) {
+            configs.put(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RangeAssignor.class.getName());
+        }
         return configs;
     }
 

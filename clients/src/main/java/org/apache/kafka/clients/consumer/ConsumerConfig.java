@@ -380,14 +380,14 @@ public class ConsumerConfig extends AbstractConfig {
     private static final AtomicInteger CONSUMER_CLIENT_ID_SEQUENCE = new AtomicInteger(1);
 
     /**
-     * A list of configuration keys for CLASSIC protocol not supported.
+     * A list of configuration keys not supported for CLASSIC protocol.
      */
     private static final List<String> CLASSIC_PROTOCOL_UNSUPPORTED_CONFIGS = Collections.singletonList(
             GROUP_REMOTE_ASSIGNOR_CONFIG
     );
 
     /**
-     * A list of configuration keys for consumer protocol not supported.
+     * A list of configuration keys not supported for CONSUMER protocol.
      */
     private static final List<String> CONSUMER_PROTOCOL_UNSUPPORTED_CONFIGS = List.of(
             PARTITION_ASSIGNMENT_STRATEGY_CONFIG, 
