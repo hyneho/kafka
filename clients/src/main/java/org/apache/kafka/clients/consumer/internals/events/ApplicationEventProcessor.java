@@ -176,6 +176,18 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
                 process((SeekUnvalidatedEvent) event);
                 return;
 
+            case STREAMS_ON_TASKS_REVOKED_CALLBACK_COMPLETED:
+                process((StreamsOnTasksRevokedCallbackCompletedEvent) event);
+                return;
+
+            case STREAMS_ON_TASKS_ASSIGNED_CALLBACK_COMPLETED:
+                process((StreamsOnTasksAssignedCallbackCompletedEvent) event);
+                return;
+
+            case STREAMS_ON_ALL_TASKS_LOST_CALLBACK_COMPLETED:
+                process((StreamsOnAllTasksLostCallbackCompletedEvent) event);
+                return;
+
             default:
                 log.warn("Application event type {} was not expected", event.type());
         }
@@ -284,54 +296,19 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * consumer join the group if it is not part of it yet, or send the updated subscription if
      * it is already a member on the next poll.
      */
-    private void process(final TopicSubscriptionChangeEvent event) {
-        if (requestManagers.consumerHeartbeatRequestManager.isEmpty()) {
+    private void process(final TopicSubscriptionChangeEvent ignored) {
+        if (requestManagers.consumerMembershipManager.isPresent()) {
+            requestManagers.consumerMembershipManager.get().onSubscriptionUpdated();
+        } else if (requestManagers.streamsMembershipManager.isPresent()) {
+            requestManagers.streamsMembershipManager.get().onSubscriptionUpdated();
+        } else {
             log.warn("Group membership manager not present when processing a subscribe event");
-            event.future().complete(null);
-            return;
-        }
-
-        try {
-            if (subscriptions.subscribe(event.topics(), event.listener()))
-                this.metadataVersionSnapshot = metadata.requestUpdateForNewTopics();
-
-            // Join the group if not already part of it, or just send the new subscription to the broker on the next poll.
-            requestManagers.consumerHeartbeatRequestManager.get().membershipManager().onSubscriptionUpdated();
-            event.future().complete(null);
-        } catch (Exception e) {
-            event.future().completeExceptionally(e);
-        }
-    }
-
-    /**
-     * Process event that indicates that the subscription topic pattern changed. This will make the
-     * consumer join the group if it is not part of it yet, or send the updated subscription if
-     * it is already a member on the next poll.
-     */
-    private void process(final TopicPatternSubscriptionChangeEvent event) {
-        try {
-            subscriptions.subscribe(event.pattern(), event.listener());
-            metadata.requestUpdateForNewTopics();
-            updatePatternSubscription(metadata.fetch());
-            event.future().complete(null);
-        } catch (Exception e) {
-            event.future().completeExceptionally(e);
-        }
-    }
-
-    /**
-     * Process event that re-evaluates the subscribed regular expression using the latest topics from metadata, only if metadata changed.
-     * This will make the consumer send the updated subscription on the next poll.
-     */
-    private void process(final UpdatePatternSubscriptionEvent event) {
-        if (!subscriptions.hasPatternSubscription()) {
-            return;
         }
         if (this.metadataVersionSnapshot < metadata.updateVersion()) {
             this.metadataVersionSnapshot = metadata.updateVersion();
             updatePatternSubscription(metadata.fetch());
         }
-        event.future().complete(null);
+        ignored.future().complete(null);
     }
 
     /**
@@ -345,6 +322,9 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
     private void process(final UnsubscribeEvent event) {
         if (requestManagers.consumerMembershipManager.isPresent()) {
             CompletableFuture<Void> future = requestManagers.consumerMembershipManager.get().leaveGroup();
+            future.whenComplete(complete(event.future()));
+        } else if (requestManagers.streamsMembershipManager.isPresent()) {
+            CompletableFuture<Void> future = requestManagers.streamsMembershipManager.get().leaveGroup();
             future.whenComplete(complete(event.future()));
         } else {
             // If the consumer is not using the group management capabilities, we still need to clear all assignments it may have.
@@ -518,6 +498,33 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
 
         ShareConsumeRequestManager manager = requestManagers.shareConsumeRequestManager.get();
         manager.setAcknowledgementCommitCallbackRegistered(event.isCallbackRegistered());
+    }
+
+    private void process(final StreamsOnTasksRevokedCallbackCompletedEvent event) {
+        if (!requestManagers.streamsMembershipManager.isPresent()) {
+            log.warn("An internal error occurred; the Streams membership manager was not present, so the notification " +
+                "of the onTasksRevoked callback execution could not be sent");
+            return;
+        }
+        requestManagers.streamsMembershipManager.get().onTasksRevokedCallbackCompleted(event);
+    }
+
+    private void process(final StreamsOnTasksAssignedCallbackCompletedEvent event) {
+        if (!requestManagers.streamsMembershipManager.isPresent()) {
+            log.warn("An internal error occurred; the Streams membership manager was not present, so the notification " +
+                "of the onTasksAssigned callback execution could not be sent");
+            return;
+        }
+        requestManagers.streamsMembershipManager.get().onTasksAssignedCallbackCompleted(event);
+    }
+
+    private void process(final StreamsOnAllTasksLostCallbackCompletedEvent event) {
+        if (!requestManagers.streamsMembershipManager.isPresent()) {
+            log.warn("An internal error occurred; the Streams membership manager was not present, so the notification " +
+                "of the onAllTasksLost callback execution could not be sent");
+            return;
+        }
+        requestManagers.streamsMembershipManager.get().onAllTasksLostCallbackCompleted(event);
     }
 
     private <T> BiConsumer<? super T, ? super Throwable> complete(final CompletableFuture<T> b) {
