@@ -1154,11 +1154,14 @@ public class ValuesTest {
     }
     @Test
     public void avoidCpuAndMemoryIssuesConvertingExtremeBigDecimals() {
+    	long s = System.currentTimeMillis();
         String veryBig = "1e+100000000"; // new BigDecimal().setScale(0, RoundingMode.FLOOR) takes around two minutes and uses 3GB;
-        assertEquals(new SchemaAndValue(Schema.STRING_SCHEMA, veryBig), Values.parseString(veryBig));
+        System.out.println("time taken" + System.currentTimeMillis() - s)
+        assertEquals(new SchemaAndValue(Schema.BYTES_SCHEMA, veryBig), Values.parseString(veryBig));
 
         String verySmall = "1e-100000000";
         assertEquals(new SchemaAndValue(Schema.STRING_SCHEMA, verySmall), Values.parseString(verySmall));
+        assertFalse(true);
     }
     protected void assertParsed(String input) {
         assertParsed(input, input);

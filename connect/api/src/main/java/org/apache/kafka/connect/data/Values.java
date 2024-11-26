@@ -1041,34 +1041,34 @@ public class Values {
                 return new SchemaAndValue(schema, decimal);
             }
         }
+        
+    	public static boolean isBigInteger(BigDecimal bd) {
+    		return bd.signum() == 0 || bd.scale() <= 0 || bd.stripTrailingZeros().scale() <= 0;
+    	}        
 
         private static SchemaAndValue parseAsExactDecimal(BigDecimal decimal) {
             BigDecimal abs = decimal.abs();
-            if (abs.compareTo(TOO_BIG) > 0 || (abs.compareTo(TOO_SMALL) < 0 && BigDecimal.ZERO.compareTo(abs) != 0)) {
-                throw new NumberFormatException("outside efficient parsing range");
+            if (!isBigInteger(decimal)) {
+                return null;
             }
             BigDecimal ceil = decimal.setScale(0, RoundingMode.CEILING);
-            BigDecimal floor = decimal.setScale(0, RoundingMode.FLOOR);
-            if (ceil.equals(floor)) {
-                BigInteger num = ceil.toBigIntegerExact();
-                if (ceil.precision() >= 19 && (num.compareTo(LONG_MIN) < 0 || num.compareTo(LONG_MAX) > 0)) {
-                    return null;
-                }
-                long integral = num.longValue();
-                byte int8 = (byte) integral;
-                short int16 = (short) integral;
-                int int32 = (int) integral;
-                if (int8 == integral) {
-                    return new SchemaAndValue(Schema.INT8_SCHEMA, int8);
-                } else if (int16 == integral) {
-                    return new SchemaAndValue(Schema.INT16_SCHEMA, int16);
-                } else if (int32 == integral) {
-                    return new SchemaAndValue(Schema.INT32_SCHEMA, int32);
-                } else {
-                    return new SchemaAndValue(Schema.INT64_SCHEMA, integral);
-                }
+            BigInteger num = ceil.toBigIntegerExact();
+            if (ceil.precision() >= 19 && (num.compareTo(LONG_MIN) < 0 || num.compareTo(LONG_MAX) > 0)) {
+                return null;
             }
-            return null;
+            long integral = num.longValue();
+            byte int8 = (byte) integral;
+            short int16 = (short) integral;
+            int int32 = (int) integral;
+            if (int8 == integral) {
+                return new SchemaAndValue(Schema.INT8_SCHEMA, int8);
+            } else if (int16 == integral) {
+                return new SchemaAndValue(Schema.INT16_SCHEMA, int16);
+            } else if (int32 == integral) {
+                return new SchemaAndValue(Schema.INT32_SCHEMA, int32);
+            } else {
+                return new SchemaAndValue(Schema.INT64_SCHEMA, integral);
+            }
         }
 
         private static SchemaAndValue parseAsTemporal(String token) {
