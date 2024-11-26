@@ -1874,7 +1874,8 @@ project(':clients') {
 
     testRuntimeOnly libs.jacksonDatabind
     testRuntimeOnly libs.jacksonJDK8Datatypes
-    testRuntimeOnly runtimeTestLibs
+    testRuntimeOnly libs.slf4jReload4j
+    testRuntimeOnly libs.junitPlatformLanucher
 
     generator project(':generator')
   }
@@ -2616,7 +2617,8 @@ project(':streams') {
     testImplementation libs.junitPlatformSuiteEngine // supports suite test
 
     testRuntimeOnly project(':streams:test-utils')
-    testRuntimeOnly runtimeTestLibs
+    testRuntimeOnly libs.slf4jReload4j
+    testRuntimeOnly libs.junitPlatformLanucher
 
     generator project(':generator')
   }
@@ -2755,7 +2757,8 @@ project(':streams:streams-scala') {
 
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoJunitJupiter // supports MockitoExtension
-    testRuntimeOnly runtimeTestLibs
+    testRuntimeOnly libs.slf4jReload4j
+    testRuntimeOnly libs.junitPlatformLanucher
   }
 
   javadoc {
@@ -2856,7 +2859,8 @@ project(':streams:test-utils') {
     testImplementation libs.mockitoCore
     testImplementation libs.hamcrest
 
-    testRuntimeOnly runtimeTestLibs
+    testRuntimeOnly libs.slf4jReload4j
+    testRuntimeOnly libs.junitPlatformLanucher
   }
 
   tasks.create(name: "copyDependantLibs", type: Copy) {
