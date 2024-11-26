@@ -50,7 +50,7 @@ ext {
   minClientJavaVersion = 11
   minNonClientJavaVersion = 17
   // The connect:api module also belongs to the clients module, but it has already been bumped to JDK 17 as part of KIP-1032.
-  modulesNeedingJava11 = [":clients", ":streams", ":streams:test-utils", ":streams-scala"]
+  modulesNeedingJava11 = [":clients", ":streams", ":streams:test-utils", ":streams-scala", ":test-common:test-common-runtime"]
 
   buildVersionFileName = "kafka-version.properties"
 
@@ -1874,8 +1874,7 @@ project(':clients') {
 
     testRuntimeOnly libs.jacksonDatabind
     testRuntimeOnly libs.jacksonJDK8Datatypes
-    testRuntimeOnly libs.slf4jReload4j
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
 
     generator project(':generator')
   }
@@ -2617,8 +2616,7 @@ project(':streams') {
     testImplementation libs.junitPlatformSuiteEngine // supports suite test
 
     testRuntimeOnly project(':streams:test-utils')
-    testRuntimeOnly libs.slf4jReload4j
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
 
     generator project(':generator')
   }
@@ -2757,8 +2755,7 @@ project(':streams:streams-scala') {
 
     testImplementation libs.junitJupiter
     testImplementation libs.mockitoJunitJupiter // supports MockitoExtension
-    testRuntimeOnly libs.slf4jReload4j
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   javadoc {
@@ -2859,8 +2856,7 @@ project(':streams:test-utils') {
     testImplementation libs.mockitoCore
     testImplementation libs.hamcrest
 
-    testRuntimeOnly libs.slf4jReload4j
-    testRuntimeOnly libs.junitPlatformLanucher
+    testRuntimeOnly runtimeTestLibs
   }
 
   tasks.create(name: "copyDependantLibs", type: Copy) {
