@@ -387,15 +387,12 @@ class ControllerMutationQuotaTest extends BaseRequestTest {
 
   private def waitUserQuota(user: String, expectedQuota: Double): Unit = {
     val quotaManager = brokers.head.quotaManagers.controllerMutation
-    val controllerQuotaManager = Option(controllerServers.head.quotaManagers.controllerMutation)
+    val controllerQuotaManager = controllerServers.head.quotaManagers.controllerMutation
     var actualQuota = Double.MinValue
 
     TestUtils.waitUntilTrue(() => {
       actualQuota = quotaManager.quota(user, "").bound()
-      if (controllerQuotaManager.isDefined)
-        expectedQuota == actualQuota && expectedQuota == controllerQuotaManager.get.quota(user, "").bound()
-      else
-        expectedQuota == actualQuota
+      expectedQuota == actualQuota && expectedQuota == controllerQuotaManager.quota(user, "").bound()
     }, s"Quota of $user is not $expectedQuota but $actualQuota")
   }
 
