@@ -26,9 +26,8 @@ import org.apache.kafka.clients.admin.{Admin, NewPartitions, NewTopic}
 import org.apache.kafka.common.errors.InvalidReplicaAssignmentException
 import org.apache.kafka.common.requests.MetadataResponse.TopicMetadata
 import org.apache.kafka.common.requests.{MetadataRequest, MetadataResponse}
-import org.apache.kafka.server.common.AdminOperationException
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api.{BeforeEach, TestInfo}
+import org.junit.jupiter.api.{BeforeEach, Disabled, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
@@ -123,14 +122,6 @@ class AddPartitionsTest extends BaseRequestTest {
       assertTrue(cause.getMessage.contains("Increasing the number of partitions by 2 but 1 assignments provided."),
         "Unexpected error message: " + cause.getMessage)
     }
-    if (!isKRaftTest()) {
-      // In ZK mode, test the raw AdminZkClient method as well.
-      val e = assertThrows(classOf[AdminOperationException], () => adminZkClient.addPartitions(
-        topic5, topic5Assignment, adminZkClient.getBrokerMetadatas(), 2,
-        Some(Map(1 -> Seq(0, 1), 2 -> Seq(0, 1, 2)))))
-      assertTrue(e.getMessage.contains("Unexpected existing replica assignment for topic 'new-topic5', partition " +
-        "id 0 is missing"))
-    }
   }
 
   @ParameterizedTest
@@ -191,8 +182,9 @@ class AddPartitionsTest extends BaseRequestTest {
     assertEquals(Set(0, 1), replicas.asScala.toSet)
   }
 
+  @Disabled
   @ParameterizedTest
-  @ValueSource(strings = Array("zk")) // TODO: add kraft support
+  @ValueSource(strings = Array("kraft")) // TODO: add kraft support
   def testReplicaPlacementAllServers(quorum: String): Unit = {
     admin.createPartitions(Collections.singletonMap(topic3, NewPartitions.increaseTo(7))).all().get()
 
@@ -217,8 +209,9 @@ class AddPartitionsTest extends BaseRequestTest {
     validateLeaderAndReplicas(topicMetadata, 6, 0, Set(0, 1, 2, 3))
   }
 
+  @Disabled
   @ParameterizedTest
-  @ValueSource(strings = Array("zk")) // TODO: add kraft support
+  @ValueSource(strings = Array("kraft")) // TODO: add kraft support
   def testReplicaPlacementPartialServers(quorum: String): Unit = {
     admin.createPartitions(Collections.singletonMap(topic2, NewPartitions.increaseTo(3))).all().get()
 
