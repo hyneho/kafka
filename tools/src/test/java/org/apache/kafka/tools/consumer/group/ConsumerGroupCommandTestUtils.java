@@ -85,8 +85,8 @@ class ConsumerGroupCommandTestUtils {
                 .setServerProperties(serverProperties)
                 .setTags(Collections.singletonList("kraftGroupCoordinator"))
                 .setFeatures(Utils.mkMap(
-                    Utils.mkEntry(Features.TRANSACTION_VERSION, (short) 2),
-                    Utils.mkEntry(Features.GROUP_VERSION, (short) 1)))
+                    Map.entry(Features.TRANSACTION_VERSION, (short) 2),
+                    Map.entry(Features.GROUP_VERSION, (short) 1)))
                 .build());
     }
 
