@@ -586,7 +586,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
 
             val isRetry = retryOnEpochBump || retryOnOverflow
 
-            def generateTxnTransitMetadataForTxnCompletion(nextState: TransactionState, isEmptyAbort: Boolean): ApiResult[(Int, TxnTransitMetadata)] = {
+            def generateTxnTransitMetadataForTxnCompletion(nextState: TransactionState, noPartitionAdded: Boolean): ApiResult[(Int, TxnTransitMetadata)] = {
               // Maybe allocate new producer ID if we are bumping epoch and epoch is exhausted
               val nextProducerIdOrErrors =
                 if (clientTransactionVersion.supportsEpochBump() && !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.isProducerEpochExhausted) {
@@ -610,7 +610,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
 
               nextProducerIdOrErrors.flatMap {
                 nextProducerId =>
-                  Right(coordinatorEpoch, txnMetadata.prepareAbortOrCommit(nextState, clientTransactionVersion, nextProducerId.asInstanceOf[Long], time.milliseconds(), isEmptyAbort))
+                  Right(coordinatorEpoch, txnMetadata.prepareAbortOrCommit(nextState, clientTransactionVersion, nextProducerId.asInstanceOf[Long], time.milliseconds(), noPartitionAdded))
               }
             }
 

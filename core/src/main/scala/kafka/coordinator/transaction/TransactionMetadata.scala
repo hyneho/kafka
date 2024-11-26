@@ -333,7 +333,7 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       (topicPartitions ++ addedTopicPartitions).toSet, newTxnStartTimestamp, updateTimestamp)
   }
 
-  def prepareAbortOrCommit(newState: TransactionState, clientTransactionVersion: TransactionVersion, nextProducerId: Long, updateTimestamp: Long, isEmptyAbort: Boolean): TxnTransitMetadata = {
+  def prepareAbortOrCommit(newState: TransactionState, clientTransactionVersion: TransactionVersion, nextProducerId: Long, updateTimestamp: Long, noPartitionAdded: Boolean): TxnTransitMetadata = {
     val (updatedProducerEpoch, updatedLastProducerEpoch) = if (clientTransactionVersion.supportsEpochBump()) {
       // We already ensured that we do not overflow here. MAX_SHORT is the highest possible value.
       ((producerEpoch + 1).toShort, producerEpoch)
@@ -341,7 +341,9 @@ private[transaction] class TransactionMetadata(val transactionalId: String,
       (producerEpoch, lastProducerEpoch)
     }
 
-    val newTxnStartTimestamp = if (isEmptyAbort) updateTimestamp else txnStartTimestamp
+    // With transaction V2, it is allowed to abort the transaction without adding any partitions. Then, the transaction
+    // start time is uncertain but it is still required. So we can use the update time as the transaction start time.
+    val newTxnStartTimestamp = if (noPartitionAdded) updateTimestamp else txnStartTimestamp
     prepareTransitionTo(newState, producerId, nextProducerId, updatedProducerEpoch, updatedLastProducerEpoch, txnTimeoutMs, topicPartitions.toSet,
       newTxnStartTimestamp, updateTimestamp, clientTransactionVersion)
   }
