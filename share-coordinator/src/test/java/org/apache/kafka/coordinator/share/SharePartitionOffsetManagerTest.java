@@ -133,7 +133,7 @@ public class SharePartitionOffsetManagerTest {
                         "redundant state multiple keys",
                         // KEY1: 10 17
                         // KEY2: 11 16
-                        // KEY2: 15
+                        // KEY3: 15
                         Arrays.asList(
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.empty()),

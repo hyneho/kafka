@@ -24,6 +24,13 @@ import org.apache.kafka.timeline.TimelineHashMap;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Util class to track the offsets written into the internal topic
+ * per share partition key.
+ * It calculates the minimum offset globally up to which the records
+ * in the internal partition are redundant i.e. they have been overridden
+ * by newer records.
+ */
 public class SharePartitionOffsetManager {
 
     // map to store share partition key => current partition offset
@@ -45,7 +52,7 @@ public class SharePartitionOffsetManager {
      * below which all offsets are redundant. This value is then returned as
      * an optional.
      * <p>
-     * The value returned is exclusive, in that all offsets below it but non including
+     * The value returned is exclusive, in that all offsets below it but not including
      * it are redundant.
      *
      * @param key    - represents {@link SharePartitionKey} whose offset needs updating
@@ -63,6 +70,9 @@ public class SharePartitionOffsetManager {
 
     private Optional<Long> lastRedundantOffset() {
         long soFar = Long.MAX_VALUE;
+        if (offsets.isEmpty()) {
+            return Optional.empty();
+        }
 
         for (long offset : offsets.values()) {
             // get min offset among latest offsets
@@ -76,7 +86,7 @@ public class SharePartitionOffsetManager {
             // <p>
             // key1:1
             // key2:2 4 6
-            // key2:3 5 7
+            // key3:3 5 7
             // <p>
             // We can see in above that offsets 2, 4, 3, 5 are redundant,
             // but we do not have a contiguous prefix starting at minOffset
