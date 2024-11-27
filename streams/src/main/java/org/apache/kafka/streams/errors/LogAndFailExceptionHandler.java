@@ -33,7 +33,7 @@ import static org.apache.kafka.streams.errors.ExceptionHandlerUtils.maybeBuildDe
  */
 public class LogAndFailExceptionHandler implements DeserializationExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(LogAndFailExceptionHandler.class);
-    private String deadLetterQueueTopic;
+    private String deadLetterQueueTopic = null;
 
     @SuppressWarnings("deprecation")
     @Deprecated
@@ -73,6 +73,7 @@ public class LogAndFailExceptionHandler implements DeserializationExceptionHandl
 
     @Override
     public void configure(final Map<String, ?> configs) {
-        deadLetterQueueTopic = String.valueOf(configs.get(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG));
+        if (configs.get(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG) != null)
+            deadLetterQueueTopic = String.valueOf(configs.get(StreamsConfig.ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG));
     }
 }
