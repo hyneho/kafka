@@ -21,7 +21,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.message.ProduceResponseData;
 import org.apache.kafka.common.message.ProduceResponseData.LeaderIdAndEpoch;
 import org.apache.kafka.common.protocol.ApiKeys;
-import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.RecordBatch;
 
@@ -59,6 +58,8 @@ import java.util.stream.Collectors;
 public class ProduceResponse extends AbstractResponse {
     public static final long INVALID_OFFSET = -1L;
     private final ProduceResponseData data;
+
+    private static ProduceResponseParser produceResponseParser = ProduceResponseParserFactory.getProduceResponseParser();
 
     public ProduceResponse(ProduceResponseData produceResponseData) {
         super(ApiKeys.PRODUCE);
@@ -296,7 +297,7 @@ public class ProduceResponse extends AbstractResponse {
     }
 
     public static ProduceResponse parse(ByteBuffer buffer, short version) {
-        return new ProduceResponse(new ProduceResponseData(new ByteBufferAccessor(buffer), version));
+        return produceResponseParser.parse(buffer, version);
     }
 
     @Override

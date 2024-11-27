@@ -22,7 +22,6 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
-import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.protocol.ObjectSerializationCache;
 import org.apache.kafka.common.record.MemoryRecords;
@@ -71,6 +70,8 @@ public class FetchResponse extends AbstractResponse {
     public static final long INVALID_LAST_STABLE_OFFSET = -1L;
     public static final long INVALID_LOG_START_OFFSET = -1L;
     public static final int INVALID_PREFERRED_REPLICA_ID = -1;
+
+    private static FetchResponseParser fetchResponseParser = FetchResponseParserFactory.getFetchResponseParser();
 
     private final FetchResponseData data;
 
@@ -139,7 +140,7 @@ public class FetchResponse extends AbstractResponse {
     }
 
     public static FetchResponse parse(ByteBuffer buffer, short version) {
-        return new FetchResponse(new FetchResponseData(new ByteBufferAccessor(buffer), version));
+        return fetchResponseParser.parse(buffer, version);
     }
 
     // Fetch versions 13 and above should have topic IDs for all topics.
