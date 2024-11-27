@@ -538,7 +538,7 @@ public class KTableKTableForeignKeyJoinIntegrationTest {
             left.pipeInput("lhs1", "lhsValue1|rhs2", baseTimestamp + 1);
             assertThat(
                 outputTopic.readKeyValuesToMap(),
-                is(mkMap(Map.entry("lhs1", leftJoin ? "(lhsValue1|rhs2,null)" : null)))
+                is(mkMap(mkEntry("lhs1", leftJoin ? "(lhsValue1|rhs2,null)" : null)))
             );
             if (materialized) {
                 assertThat(
@@ -550,7 +550,7 @@ public class KTableKTableForeignKeyJoinIntegrationTest {
             left.pipeInput("lhs1", "lhsValue1|rhs3", baseTimestamp + 2);
             assertThat(
                 outputTopic.readKeyValuesToMap(),
-                is(mkMap(Map.entry("lhs1", leftJoin ? "(lhsValue1|rhs3,null)" : null)))
+                is(mkMap(mkEntry("lhs1", leftJoin ? "(lhsValue1|rhs3,null)" : null)))
             );
             if (materialized) {
                 assertThat(
@@ -597,7 +597,7 @@ public class KTableKTableForeignKeyJoinIntegrationTest {
             assertThat(
                 outputTopic.readKeyValuesToMap(),
                 is(mkMap(
-                    Map.entry("lhs1", leftJoin ? "(lhsValue1|rhs2,null)" : null)
+                    mkEntry("lhs1", leftJoin ? "(lhsValue1|rhs2,null)" : null)
                 ))
             );
             if (materialized) {
@@ -963,7 +963,7 @@ public class KTableKTableForeignKeyJoinIntegrationTest {
                 assertThat(
                         outputTopic.readKeyValuesToMap(),
                         is(mkMap(
-                                Map.entry("lhs2", null)
+                                mkEntry("lhs2", null)
                         ))
                 );
                 if (materialized) {
@@ -1028,7 +1028,7 @@ public class KTableKTableForeignKeyJoinIntegrationTest {
                 assertThat(
                         outputTopic.readKeyValuesToMap(),
                         is(mkMap(
-                                Map.entry("lhs1", null)
+                                mkEntry("lhs1", null)
                         ))
                 );
                 if (materialized) {
@@ -1134,8 +1134,8 @@ public class KTableKTableForeignKeyJoinIntegrationTest {
                     assertThat(
                             outputTopic.readKeyValuesToMap(),
                             is(mkMap(
-                                    Map.entry("lhs1", null),
-                                    Map.entry("lhs2", null)
+                                    mkEntry("lhs1", null),
+                                    mkEntry("lhs2", null)
                             ))
                     );
                     if (materialized) {
