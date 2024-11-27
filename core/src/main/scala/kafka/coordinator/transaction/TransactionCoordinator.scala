@@ -557,16 +557,15 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
             producerIdCopy = txnMetadata.producerId
             producerEpochCopy = txnMetadata.producerEpoch
             // PrepareEpochFence has slightly different epoch bumping logic so don't include it here.
-            val currentTxnMetadataIsAtLeastTransactionsV2 = !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.clientTransactionVersion.supportsEpochBump()
             val incomingEndTxnIsAtLeastTransactionsV2 = !txnMetadata.pendingState.contains(PrepareEpochFence) && clientTransactionVersion.supportsEpochBump()
             // True if the client used TV_2 and retried a request that had overflowed the epoch, and a new producer ID is stored in the txnMetadata
-            val retryOnOverflow = currentTxnMetadataIsAtLeastTransactionsV2 &&
+            val retryOnOverflow = incomingEndTxnIsAtLeastTransactionsV2 &&
               txnMetadata.previousProducerId == producerId && producerEpoch == Short.MaxValue - 1 && txnMetadata.producerEpoch == 0
             // True if the client used TV_2 and retried an endTxn request, and the bumped producer epoch is stored in the txnMetadata.
             val retryOnEpochBump = endTxnEpochBumped(txnMetadata, producerEpoch)
 
             val isValidEpoch = {
-              if (currentTxnMetadataIsAtLeastTransactionsV2) {
+              if (incomingEndTxnIsAtLeastTransactionsV2) {
                 // With transactions V2, state + same epoch is not sufficient to determine if a retry transition is valid. If the epoch is the
                 // same it actually indicates the next endTransaction call. Instead, we want to check the epoch matches with the epoch in the retry conditions.
                 // Return producer fenced even in the cases where the epoch is higher and could indicate an invalid state transition.
@@ -630,7 +629,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
 
                 generateTxnTransitMetadataForTxnCompletion(nextState, false)
               case CompleteCommit =>
-                if (currentTxnMetadataIsAtLeastTransactionsV2) {
+                if (incomingEndTxnIsAtLeastTransactionsV2) {
                   if (txnMarkerResult == TransactionResult.COMMIT) {
                     if (isRetry)
                       Left(Errors.NONE)
@@ -643,17 +642,14 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                       generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                   }
                 } else {
-                  // Transaction metadata is in V1, the incoming endTxn can be V1 or V2.
-                  if (txnMarkerResult == TransactionResult.COMMIT) {
+                  // Transaction V1.
+                  if (txnMarkerResult == TransactionResult.COMMIT)
                       Left(Errors.NONE)
-                  } else if (incomingEndTxnIsAtLeastTransactionsV2 && txnMarkerResult == TransactionResult.ABORT)
-                    // The retry case should be filtered by epoch with ProducerFenced. Here is the non-retry case.
-                    generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                   else
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                 }
               case CompleteAbort =>
-                if (currentTxnMetadataIsAtLeastTransactionsV2) {
+                if (incomingEndTxnIsAtLeastTransactionsV2) {
                   if (txnMarkerResult == TransactionResult.ABORT) {
                     if (isRetry)
                       Left(Errors.NONE)
@@ -663,14 +659,10 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                   }
                 } else {
-                  // Transaction metadata is in V1, the incoming endTxn can be V1 or V2.
-                  if (txnMarkerResult == TransactionResult.ABORT) {
-                    if (incomingEndTxnIsAtLeastTransactionsV2) {
-                      // The retry case should be filtered by epoch with ProducerFenced. Here is the non-retry case.
-                      generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
-                    } else
+                  // Transaction V1.
+                  if (txnMarkerResult == TransactionResult.ABORT)
                       Left(Errors.NONE)
-                  } else
+                  else
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                 }
               case PrepareCommit =>
@@ -684,13 +676,10 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                 else
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
               case Empty =>
-                if (txnMarkerResult == TransactionResult.ABORT && clientTransactionVersion.supportsEpochBump()) {
+                if (txnMarkerResult == TransactionResult.ABORT && incomingEndTxnIsAtLeastTransactionsV2) {
                   // If the client and server both use transaction V2, the client is allowed to abort
                   // transactions when the transaction state is Empty because the client can't be sure about the
                   // current transaction state.
-                  // Note that, we should not use txnMetadata info to check if the client is using V2 because the
-                  // only request received by server so far can be just InitProducerId request which does not tell whether
-                  // the client uses V2.
                   generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                 } else {
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
