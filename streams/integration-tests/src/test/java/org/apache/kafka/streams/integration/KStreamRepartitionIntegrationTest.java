@@ -29,7 +29,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.KafkaStreams;
-import org.apache.kafka.streams.KafkaStreams.State;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
@@ -42,6 +41,7 @@ import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Repartitioned;
 import org.apache.kafka.streams.processor.StreamPartitioner;
 import org.apache.kafka.test.TestUtils;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
