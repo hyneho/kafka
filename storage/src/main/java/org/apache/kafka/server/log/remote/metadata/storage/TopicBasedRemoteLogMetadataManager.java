@@ -492,7 +492,7 @@ public class TopicBasedRemoteLogMetadataManager implements RemoteLogMetadataMana
             }
             return description != null;
         } catch (ExecutionException | InterruptedException ex) {
-            log.info("Topic {} does not exist. Error: {}", topic, ex.getCause().getMessage());
+            log.info("Encountered error while describe topic {}. Error: {}", topic, ex.getCause().getMessage());
             return false;
         }
     }
