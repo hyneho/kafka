@@ -44,6 +44,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.apache.kafka.clients.consumer.CooperativeStickyAssignor.COOPERATIVE_STICKY_ASSIGNOR_NAME;
 import static org.apache.kafka.clients.consumer.RangeAssignor.RANGE_ASSIGNOR_NAME;
@@ -686,8 +687,7 @@ public class ConsumerConfig extends AbstractConfig {
         Map<String, Object> refinedConfigs = CommonClientConfigs.postProcessReconnectBackoffConfigs(this, parsedValues);
         maybeOverrideClientId(refinedConfigs);
         maybeOverrideEnableAutoCommit(refinedConfigs);
-        checkUnsupportedConfigs(GroupProtocol.CLASSIC, CLASSIC_PROTOCOL_UNSUPPORTED_CONFIGS);
-        checkUnsupportedConfigs(GroupProtocol.CONSUMER, CONSUMER_PROTOCOL_UNSUPPORTED_CONFIGS);
+        checkUnsupportedConfigs();
         return refinedConfigs;
     }
 
@@ -734,19 +734,25 @@ public class ConsumerConfig extends AbstractConfig {
         }
     }
 
-    private void checkUnsupportedConfigs(GroupProtocol groupProtocol, List<String> unsupportedConfigs) {
-        if (getString(GROUP_PROTOCOL_CONFIG).equalsIgnoreCase(groupProtocol.name())) {
-            List<String> invalidConfigs = new ArrayList<>();
-            unsupportedConfigs.forEach(configName -> {
-                Object config = originals().get(configName);
-                if (config != null && !Utils.isBlank(config.toString())) {
-                    invalidConfigs.add(configName);
-                }
-            });
-            if (!invalidConfigs.isEmpty()) {
-                throw new ConfigException(String.join(", ", invalidConfigs) + 
-                        " cannot be set when " + GROUP_PROTOCOL_CONFIG + "=" + groupProtocol.name());
-            }
+    private void checkUnsupportedConfigs() {
+        String groupProtocol = getString(GROUP_PROTOCOL_CONFIG);
+        if (GroupProtocol.CLASSIC.name().equalsIgnoreCase(groupProtocol)) {
+            checkUnsupportedConfigs(GroupProtocol.CLASSIC.name(), CLASSIC_PROTOCOL_UNSUPPORTED_CONFIGS);
+        } else if (GroupProtocol.CONSUMER.name().equalsIgnoreCase(groupProtocol)) {
+            checkUnsupportedConfigs(GroupProtocol.CONSUMER.name(), CONSUMER_PROTOCOL_UNSUPPORTED_CONFIGS);
+        }
+    }
+
+    private void checkUnsupportedConfigs(String groupProtocol, List<String> unsupportedConfigs) {
+        List<String> invalidConfigs = unsupportedConfigs.stream()
+                .filter(configName -> {
+                    Object config = originals().get(configName);
+                    return config != null && !Utils.isBlank(config.toString());
+                })
+                .collect(Collectors.toUnmodifiableList());
+        if (!invalidConfigs.isEmpty()) {
+            throw new ConfigException(String.join(", ", invalidConfigs) +
+                    " cannot be set when " + GROUP_PROTOCOL_CONFIG + "=" + groupProtocol);
         }
     }
 
