@@ -17,7 +17,7 @@
 
 package kafka.admin
 
-import java.util.{Collections}
+import java.util.Collections
 import kafka.controller.ReplicaAssignment
 import kafka.server.{BaseRequestTest, BrokerServer}
 import kafka.utils.TestUtils
