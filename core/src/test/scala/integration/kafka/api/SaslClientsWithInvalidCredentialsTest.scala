@@ -75,7 +75,7 @@ class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
     startSasl(jaasSections(kafkaServerSaslMechanisms, Some(kafkaClientSaslMechanism), Both,
       JaasTestUtils.KAFKA_SERVER_CONTEXT_NAME))
     super.setUp(testInfo)
-    Using(createPrivilegedAdminClient()) { superuserAdminClient =>
+    Using.resource(createPrivilegedAdminClient()) { superuserAdminClient =>
       TestUtils.createTopicWithAdmin(
         superuserAdminClient, topic, brokers, controllerServers, numPartitions
       )
