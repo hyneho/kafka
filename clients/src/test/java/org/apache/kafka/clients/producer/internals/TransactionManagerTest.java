@@ -172,11 +172,11 @@ public class TransactionManagerTest {
             new ApiVersion()
                 .setApiKey(ApiKeys.PRODUCE.id)
                 .setMinVersion((short) 0)
-                .setMaxVersion(transactionV2Enabled ? (short) 12 : (short) 11),
+                .setMaxVersion(transactionV2Enabled ? ApiKeys.PRODUCE.latestVersion() : (short) 11),
             new ApiVersion()
                 .setApiKey(ApiKeys.TXN_OFFSET_COMMIT.id)
                 .setMinVersion((short) 0)
-                .setMaxVersion(transactionV2Enabled ? (short) 5 : (short) 4)),
+                .setMaxVersion(transactionV2Enabled ? ApiKeys.TXN_OFFSET_COMMIT.latestVersion() : (short) 4)),
             Arrays.asList(new ApiVersionsResponseData.SupportedFeatureKey()
                 .setName("transaction.version")
                 .setMaxVersion(transactionV2Enabled ? (short) 2 : (short) 1)
@@ -3178,10 +3178,10 @@ public class TransactionManagerTest {
         doInitTransactions(producerId, epoch);
 
         transactionManager.beginTransaction();
+        transactionManager.maybeAddPartition(tp0);
 
         // Append record with initial producer ID and epoch.
         Future<RecordMetadata> responseFuture = appendToAccumulator(tp0);
-        transactionManager.maybeAddPartition(tp0);
         prepareProduceResponse(Errors.NONE, producerId, epoch);
         runUntil(responseFuture::isDone);
 

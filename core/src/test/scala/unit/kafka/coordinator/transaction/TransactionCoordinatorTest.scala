@@ -566,6 +566,34 @@ class TransactionCoordinatorTest {
   }
 
   @ParameterizedTest
+  @ValueSource(booleans = Array(false, true))
+  def testEndTxnWhenStatusIsCompleteAbortInV1AndResultIsAbortInV2(isRetry: Boolean): Unit = {
+    val txnMetadata = new TransactionMetadata(transactionalId, producerId, producerId, RecordBatch.NO_PRODUCER_ID,
+      producerEpoch, (producerEpoch - 1).toShort, 1, CompleteAbort, collection.mutable.Set.empty[TopicPartition], 0, time.milliseconds(), TransactionVersion.fromFeatureLevel(1))
+    when(transactionManager.getTransactionState(ArgumentMatchers.eq(transactionalId)))
+      .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, txnMetadata))))
+
+    val nextProducerEpoch = if (isRetry) producerEpoch - 1 else producerEpoch
+    coordinator.handleEndTransaction(transactionalId, producerId, nextProducerEpoch.toShort , TransactionResult.ABORT, TransactionVersion.fromFeatureLevel(2), endTxnCallback)
+    if (isRetry) {
+      assertEquals(Errors.PRODUCER_FENCED, error)
+    } else {
+      val newMetadata = ArgumentCaptor.forClass(classOf[TxnTransitMetadata]);
+      verify(transactionManager).appendTransactionToLog(
+        ArgumentMatchers.eq(transactionalId),
+        ArgumentMatchers.any(),
+        newMetadata.capture(),
+        ArgumentMatchers.any(),
+        ArgumentMatchers.any(),
+        ArgumentMatchers.any()
+      )
+      assertEquals(producerEpoch + 1, newMetadata.getValue.asInstanceOf[TxnTransitMetadata].producerEpoch, newMetadata.getValue.asInstanceOf[TxnTransitMetadata].toString)
+      assertEquals(time.milliseconds(), newMetadata.getValue.asInstanceOf[TxnTransitMetadata].txnStartTimestamp, newMetadata.getValue.asInstanceOf[TxnTransitMetadata].toString)
+    }
+    verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
+  }
+
+  @ParameterizedTest
   @ValueSource(shorts = Array(0, 2))
   def shouldReturnInvalidTxnRequestOnEndTxnRequestWhenStatusIsCompleteAbortAndResultIsNotAbort(transactionVersion: Short): Unit = {
     val clientTransactionVersion = TransactionVersion.fromFeatureLevel(transactionVersion)
@@ -575,19 +603,6 @@ class TransactionCoordinatorTest {
       .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, txnMetadata))))
 
     coordinator.handleEndTransaction(transactionalId, producerId, requestEpoch(clientTransactionVersion), TransactionResult.COMMIT, clientTransactionVersion, endTxnCallback)
-    assertEquals(Errors.INVALID_TXN_STATE, error)
-    verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
-  }
-
-  @Test
-  def shouldReturnInvalidTxnRequestOnEndTxnRequestWhenStatusIsCompleteCommitAndResultIsNotCommit(): Unit = {
-    val clientTransactionVersion = TransactionVersion.fromFeatureLevel(0)
-    val txnMetadata = new TransactionMetadata(transactionalId, producerId, producerId, RecordBatch.NO_PRODUCER_ID,
-      producerEpoch, (producerEpoch - 1).toShort,1, CompleteCommit, collection.mutable.Set.empty[TopicPartition], 0, time.milliseconds(), clientTransactionVersion)
-    when(transactionManager.getTransactionState(ArgumentMatchers.eq(transactionalId)))
-      .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, txnMetadata))))
-
-    coordinator.handleEndTransaction(transactionalId, producerId, producerEpoch, TransactionResult.ABORT, clientTransactionVersion, endTxnCallback)
     assertEquals(Errors.INVALID_TXN_STATE, error)
     verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
   }
@@ -624,6 +639,35 @@ class TransactionCoordinatorTest {
     coordinator.handleEndTransaction(transactionalId, producerId, epoch.toShort, TransactionResult.ABORT, clientTransactionVersion, endTxnCallback)
     if (isRetry) {
       assertEquals(Errors.INVALID_TXN_STATE, error)
+    } else {
+      assertEquals(Errors.NONE, error)
+      val newMetadata = ArgumentCaptor.forClass(classOf[TxnTransitMetadata]);
+      verify(transactionManager).appendTransactionToLog(
+        ArgumentMatchers.eq(transactionalId),
+        ArgumentMatchers.any(),
+        newMetadata.capture(),
+        ArgumentMatchers.any(),
+        ArgumentMatchers.any(),
+        ArgumentMatchers.any()
+      )
+      assertEquals(producerEpoch + 1, newMetadata.getValue.asInstanceOf[TxnTransitMetadata].producerEpoch, newMetadata.getValue.asInstanceOf[TxnTransitMetadata].toString)
+      assertEquals(time.milliseconds(), newMetadata.getValue.asInstanceOf[TxnTransitMetadata].txnStartTimestamp, newMetadata.getValue.asInstanceOf[TxnTransitMetadata].toString)
+    }
+    verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = Array(false, true))
+  def testEndTxnRequestWhenStatusIsCompleteCommitInV1AndResultIsAbortInV2(isRetry: Boolean): Unit = {
+    val txnMetadata = new TransactionMetadata(transactionalId, producerId, producerId, RecordBatch.NO_PRODUCER_ID,
+      producerEpoch, (producerEpoch - 1).toShort, 1, CompleteCommit, collection.mutable.Set.empty[TopicPartition], 0, time.milliseconds(), TransactionVersion.fromFeatureLevel(1))
+    when(transactionManager.getTransactionState(ArgumentMatchers.eq(transactionalId)))
+      .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, txnMetadata))))
+
+    val epoch = if (isRetry) producerEpoch - 1 else producerEpoch
+    coordinator.handleEndTransaction(transactionalId, producerId, epoch.toShort, TransactionResult.ABORT, TransactionVersion.fromFeatureLevel(2), endTxnCallback)
+    if (isRetry) {
+      assertEquals(Errors.PRODUCER_FENCED, error)
     } else {
       assertEquals(Errors.NONE, error)
       val newMetadata = ArgumentCaptor.forClass(classOf[TxnTransitMetadata]);
@@ -1001,6 +1045,7 @@ class TransactionCoordinatorTest {
       .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, txnMetadata))))
       .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch, bumpedTxnMetadata))))
 
+    when(transactionManager.transactionVersionLevel()).thenReturn(TV_0)
     coordinator.handleInitProducerId(transactionalId, txnTimeoutMs, None, initProducerIdMockCallback)
 
     assertEquals(InitProducerIdResult(-1, -1, Errors.PRODUCER_FENCED), result)
