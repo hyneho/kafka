@@ -30,6 +30,7 @@ import org.apache.kafka.common.requests.FetchMetadata;
 import org.apache.kafka.common.requests.FetchRequest;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
+
 import org.slf4j.Logger;
 
 import java.util.Collections;
@@ -46,14 +47,13 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.clients.consumer.internals.AbstractMembershipManager.TOPIC_PARTITION_COMPARATOR;
-import static org.apache.kafka.clients.consumer.internals.TempFetchMode.SKIP_BUFFERED;
-import static org.apache.kafka.clients.consumer.internals.TempFetchMode.SKIP_FETCH;
 
 /**
  * {@code FetchRequestManager} is responsible for generating {@link FetchRequest} that represent the
  * {@link SubscriptionState#fetchablePartitions(Predicate)} based on the user's topic subscription/partition
  * assignment.
  */
+@SuppressWarnings("NPathComplexity")
 public class FetchRequestManager extends AbstractFetch implements RequestManager {
 
     private final Logger log;
