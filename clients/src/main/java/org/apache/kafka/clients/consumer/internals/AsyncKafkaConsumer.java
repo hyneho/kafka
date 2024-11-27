@@ -349,8 +349,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                     apiVersions,
                     metrics,
                     fetchMetricsManager.throttleTimeSensor(),
-                    clientTelemetryReporter.map(ClientTelemetryReporter::telemetrySender).orElse(null),
-                    backgroundEventHandler);
+                    clientTelemetryReporter.map(ClientTelemetryReporter::telemetrySender).orElse(null));
             this.offsetCommitCallbackInvoker = new OffsetCommitCallbackInvoker(interceptors);
             this.groupMetadata.set(initializeGroupMetadata(config, groupRebalanceConfig));
             final Supplier<RequestManagers> requestManagersSupplier = RequestManagers.supplier(time,
@@ -520,8 +519,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             config,
             logContext,
             client,
-            metadata,
-            backgroundEventHandler
+            metadata
         );
         this.offsetCommitCallbackInvoker = new OffsetCommitCallbackInvoker(interceptors);
         Supplier<RequestManagers> requestManagersSupplier = RequestManagers.supplier(
@@ -904,7 +902,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 if (position != null)
                     return position.offset;
 
-                updateFetchPositions(timer, false);
+                updateFetchPositions(timer);
                 timer.update();
                 wakeupTrigger.maybeTriggerWakeup();
             } while (timer.notExpired());
@@ -1683,10 +1681,10 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
      * @throws NoOffsetForPartitionException If no offset is stored for a given partition and no offset reset policy is
      *                                       defined
      */
-    private boolean updateFetchPositions(final Timer timer, final boolean isPassedByErrorEvent) {
+    private boolean updateFetchPositions(final Timer timer) {
         cachedSubscriptionHasAllFetchPositions = false;
         try {
-            CheckAndUpdatePositionsEvent checkAndUpdatePositionsEvent = new CheckAndUpdatePositionsEvent(calculateDeadlineMs(timer), isPassedByErrorEvent);
+            CheckAndUpdatePositionsEvent checkAndUpdatePositionsEvent = new CheckAndUpdatePositionsEvent(calculateDeadlineMs(timer));
             wakeupTrigger.setActiveTask(checkAndUpdatePositionsEvent.future());
             cachedSubscriptionHasAllFetchPositions = applicationEventHandler.addAndGet(checkAndUpdatePositionsEvent);
         } catch (TimeoutException e) {
@@ -1775,7 +1773,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         }
         processBackgroundEvents();
 
-        return updateFetchPositions(timer, true);
+        return updateFetchPositions(timer);
     }
 
     @Override

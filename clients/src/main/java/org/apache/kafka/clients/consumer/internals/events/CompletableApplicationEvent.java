@@ -28,11 +28,6 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
 
     private final CompletableFuture<T> future;
     private final long deadlineMs;
-    // this property is used to indicate that how the application thread is got the exception from background thread
-    // there are two cases:
-    // 1. the application thread uses the `blocking` method to get the result from the background thread
-    // 2. the application thread uses the queue to get the ErrorEvent from the background thread
-    private boolean isPassedByErrorEvent = false;
 
     /**
      * <em>Note</em>: the {@code deadlineMs} is the future time of expiration, <em>not</em> a timeout.
@@ -41,13 +36,6 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
         super(type);
         this.future = new CompletableFuture<>();
         this.deadlineMs = deadlineMs;
-    }
-
-    protected CompletableApplicationEvent(final Type type, final long deadlineMs, final boolean isPassedByErrorEvent) {
-        super(type);
-        this.future = new CompletableFuture<>();
-        this.deadlineMs = deadlineMs;
-        this.isPassedByErrorEvent = isPassedByErrorEvent;
     }
 
     @Override
@@ -65,7 +53,4 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
         return super.toStringBase() + ", future=" + future + ", deadlineMs=" + deadlineMs;
     }
     
-    public boolean isPassedByErrorEvent() {
-        return isPassedByErrorEvent;
-    }
 }

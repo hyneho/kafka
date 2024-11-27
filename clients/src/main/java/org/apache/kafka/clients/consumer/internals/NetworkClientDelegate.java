@@ -25,8 +25,6 @@ import org.apache.kafka.clients.Metadata;
 import org.apache.kafka.clients.NetworkClientUtils;
 import org.apache.kafka.clients.RequestCompletionHandler;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler;
-import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
@@ -62,7 +60,6 @@ import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.CONSUMER
 public class NetworkClientDelegate implements AutoCloseable {
 
     private final KafkaClient client;
-    private final BackgroundEventHandler backgroundEventHandler;
     private final Metadata metadata;
     private final Time time;
     private final Logger log;
@@ -76,12 +73,10 @@ public class NetworkClientDelegate implements AutoCloseable {
             final ConsumerConfig config,
             final LogContext logContext,
             final KafkaClient client,
-            final Metadata metadata,
-            final BackgroundEventHandler backgroundEventHandler) {
+            final Metadata metadata) {
         this.time = time;
         this.client = client;
         this.metadata = metadata;
-        this.backgroundEventHandler = backgroundEventHandler;
         this.log = logContext.logger(getClass());
         this.unsentRequests = new ArrayDeque<>();
         this.requestTimeoutMs = config.getInt(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG);
@@ -153,7 +148,7 @@ public class NetworkClientDelegate implements AutoCloseable {
             metadata.maybeThrowAnyException();
         } catch (Exception e) {
             metadataError = Optional.of(e);
-            backgroundEventHandler.add(new ErrorEvent(e));
+//            backgroundEventHandler.add(new ErrorEvent(e));
         }
     }
 
@@ -422,8 +417,7 @@ public class NetworkClientDelegate implements AutoCloseable {
                                                            final ApiVersions apiVersions,
                                                            final Metrics metrics,
                                                            final Sensor throttleTimeSensor,
-                                                           final ClientTelemetrySender clientTelemetrySender,
-                                                           final BackgroundEventHandler backgroundEventHandler) {
+                                                           final ClientTelemetrySender clientTelemetrySender) {
         return new CachedSupplier<>() {
             @Override
             protected NetworkClientDelegate create() {
@@ -437,7 +431,7 @@ public class NetworkClientDelegate implements AutoCloseable {
                         metadata,
                         throttleTimeSensor,
                         clientTelemetrySender);
-                return new NetworkClientDelegate(time, config, logContext, client, metadata, backgroundEventHandler);
+                return new NetworkClientDelegate(time, config, logContext, client, metadata);
             }
         };
     }
