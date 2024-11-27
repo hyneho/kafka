@@ -516,6 +516,7 @@ public class PluginUtilsTest {
                 Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
+                Collections.emptySortedSet(),
                 Collections.emptySortedSet()
         );
         Map<String, String> actualAliases = PluginUtils.computeAliases(result);
@@ -538,6 +539,7 @@ public class PluginUtilsTest {
         assertEquals(2, sinkConnectors.size());
         PluginScanResult result = new PluginScanResult(
                 sinkConnectors,
+                Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
@@ -569,6 +571,7 @@ public class PluginUtilsTest {
                 Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
+                Collections.emptySortedSet(),
                 Collections.emptySortedSet()
         );
         Map<String, String> actualAliases = PluginUtils.computeAliases(result);
@@ -589,6 +592,7 @@ public class PluginUtilsTest {
                 Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
                 converters,
+                Collections.emptySortedSet(),
                 Collections.emptySortedSet(),
                 transformations,
                 Collections.emptySortedSet(),
