@@ -897,6 +897,29 @@ public class ConsumerHeartbeatRequestManagerTest {
         assertNull(data.subscribedTopicRegex());
     }
 
+    @Test
+    public void testRegexInJoiningHeartbeat() {
+        heartbeatState = new HeartbeatState(subscriptions, membershipManager, DEFAULT_MAX_POLL_INTERVAL_MS);
+        createHeartbeatRequestStateWithZeroHeartbeatInterval();
+
+        // Initial heartbeat with regex
+        mockJoiningMemberData(null);
+        when(subscriptions.subscriptionPattern()).thenReturn(new SubscriptionPattern("t1.*"));
+        ConsumerGroupHeartbeatRequestData data = heartbeatState.buildRequestData();
+        assertEquals("t1.*", data.subscribedTopicRegex());
+
+        // Members unsubscribes from regex (empty regex included in HB)
+        when(subscriptions.subscriptionPattern()).thenReturn(null);
+        data = heartbeatState.buildRequestData();
+        assertEquals("", data.subscribedTopicRegex());
+
+        // Member rejoins (ie. fenced) should not include regex field in HB
+        when(membershipManager.state()).thenReturn(MemberState.JOINING);
+        when(subscriptions.subscriptionPattern()).thenReturn(null);
+        data = heartbeatState.buildRequestData();
+        assertNull(data.subscribedTopicRegex());
+    }
+
     private void assertHeartbeat(ConsumerHeartbeatRequestManager hrm, int nextPollMs) {
         NetworkClientDelegate.PollResult pollResult = hrm.poll(time.milliseconds());
         assertEquals(1, pollResult.unsentRequests.size());
