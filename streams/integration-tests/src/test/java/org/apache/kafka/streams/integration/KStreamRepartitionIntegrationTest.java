@@ -169,9 +169,12 @@ public class KStreamRepartitionIntegrationTest {
 
         final Properties streamsConfiguration = createStreamsConfig(topologyOptimization);
         try (final KafkaStreams ks = new KafkaStreams(builder.build(streamsConfiguration), streamsConfiguration)) {
-                  ks.setUncaughtExceptionHandler(exception -> { expectedThrowable.set(exception); return SHUTDOWN_CLIENT; });
-                  ks.start();
-                  TestUtils.waitForCondition(() -> ks.state() == ERROR, 30_000, "Kafka Streams never went into error state");
+            ks.setUncaughtExceptionHandler(exception -> {
+                expectedThrowable.set(exception);
+                return SHUTDOWN_CLIENT;
+            });
+            ks.start();
+            TestUtils.waitForCondition(() -> ks.state() == ERROR, 30_000, "Kafka Streams never went into error state");
             final String expectedMsg = String.format("Number of partitions [%s] of repartition topic [%s] " +
                             "doesn't match number of partitions [%s] of the source topic.",
                     inputTopicRepartitionedNumOfPartitions,
