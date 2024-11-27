@@ -27,7 +27,7 @@ import org.apache.kafka.common.errors.InvalidReplicaAssignmentException
 import org.apache.kafka.common.requests.MetadataResponse.TopicMetadata
 import org.apache.kafka.common.requests.{MetadataRequest, MetadataResponse}
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api.{BeforeEach, Disabled, TestInfo}
+import org.junit.jupiter.api.{BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 
@@ -115,13 +115,8 @@ class AddPartitionsTest extends BaseRequestTest {
       admin.createPartitions(Collections.singletonMap(topic1,
         NewPartitions.increaseTo(3, singletonList(asList(0, 1, 2))))).all().get()).getCause
     assertEquals(classOf[InvalidReplicaAssignmentException], cause.getClass)
-    if (isKRaftTest()) {
-      assertTrue(cause.getMessage.contains("Attempted to add 2 additional partition(s), but only 1 assignment(s) " +
-        "were specified."), "Unexpected error message: " + cause.getMessage)
-    } else {
-      assertTrue(cause.getMessage.contains("Increasing the number of partitions by 2 but 1 assignments provided."),
-        "Unexpected error message: " + cause.getMessage)
-    }
+    assertTrue(cause.getMessage.contains("Attempted to add 2 additional partition(s), but only 1 assignment(s) " +
+      "were specified."), "Unexpected error message: " + cause.getMessage)
   }
 
   @ParameterizedTest
@@ -182,9 +177,8 @@ class AddPartitionsTest extends BaseRequestTest {
     assertEquals(Set(0, 1), replicas.asScala.toSet)
   }
 
-  @Disabled
   @ParameterizedTest
-  @ValueSource(strings = Array("kraft")) // TODO: add kraft support
+  @ValueSource(strings = Array("zk")) // TODO: add kraft support
   def testReplicaPlacementAllServers(quorum: String): Unit = {
     admin.createPartitions(Collections.singletonMap(topic3, NewPartitions.increaseTo(7))).all().get()
 
@@ -209,9 +203,8 @@ class AddPartitionsTest extends BaseRequestTest {
     validateLeaderAndReplicas(topicMetadata, 6, 0, Set(0, 1, 2, 3))
   }
 
-  @Disabled
   @ParameterizedTest
-  @ValueSource(strings = Array("kraft")) // TODO: add kraft support
+  @ValueSource(strings = Array("zk")) // TODO: add kraft support
   def testReplicaPlacementPartialServers(quorum: String): Unit = {
     admin.createPartitions(Collections.singletonMap(topic2, NewPartitions.increaseTo(3))).all().get()
 
