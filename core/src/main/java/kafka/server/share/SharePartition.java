@@ -2221,7 +2221,7 @@ public class SharePartition {
             return batchState.acquisitionLockTimeoutTask;
         }
 
-        RecordState batchRollbackState() {
+        private RecordState batchRollbackState() {
             if (batchState == null) {
                 throw new IllegalStateException("The batch state is not available as the offset state is maintained");
             }
@@ -2339,7 +2339,7 @@ public class SharePartition {
             return memberId;
         }
 
-        RecordState rollbackState() {
+        private RecordState rollbackState() {
             if (rollbackState == null) {
                 // This case could occur when the batch/offset hasn't transitioned even once or the state transitions have
                 // been committed.
