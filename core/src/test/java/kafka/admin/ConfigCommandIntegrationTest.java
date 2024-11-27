@@ -17,21 +17,29 @@
 package kafka.admin;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AlterConfigsOptions;
+import org.apache.kafka.clients.admin.AlterConfigsResult;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.InvalidConfigurationException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
+import org.apache.kafka.common.internals.KafkaFutureImpl;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
 import org.apache.kafka.common.test.api.Type;
 import org.apache.kafka.common.utils.Exit;
+import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.test.TestUtils;
 
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -63,6 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(value = ClusterTestExtensions.class)
 public class ConfigCommandIntegrationTest {
@@ -373,6 +382,38 @@ public class ConfigCommandIntegrationTest {
         }
     }
 
+    @ClusterTest(metadataVersion = MetadataVersion.IBP_3_3_IV0) // Zk code has been removed, use kraft and mockito to mock this situation
+    public void testFallbackToDeprecatedAlterConfigs() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+        try (Admin client = cluster.admin()) {
+            Admin spyAdmin = Mockito.spy(client);
+
+            AlterConfigsResult mockResult;
+            {
+                // Create a mock result of unsupported version error
+                KafkaFutureImpl<Void> future = new KafkaFutureImpl<>();
+                future.completeExceptionally(new UnsupportedVersionException("simulated error"));
+                Constructor<AlterConfigsResult> constructor = AlterConfigsResult.class.getDeclaredConstructor(java.util.Map.class);
+                constructor.setAccessible(true);
+                mockResult = constructor.newInstance(Collections.singletonMap(new ConfigResource(ConfigResource.Type.BROKER, ""), future));
+                constructor.setAccessible(false);
+            }
+            Mockito.doReturn(mockResult).when(spyAdmin)
+                    .incrementalAlterConfigs(any(java.util.Map.class), any(AlterConfigsOptions.class));
+
+            String err = captureStandardStream(true, () -> {
+                ConfigCommand.alterConfig(spyAdmin, new ConfigCommand.ConfigCommandOptions(
+                        toArray(asList(
+                                "--bootstrap-server", cluster.bootstrapServers(),
+                                "--alter",
+                                "--add-config", "log.cleaner.threads=2",
+                                "--entity-type", "brokers",
+                                "--entity-default"))));
+            });
+            assertEquals("Could not update broker config , because brokers don't support api INCREMENTAL_ALTER_CONFIGS, You can upgrade your brokers to version 2.3.0 or newer to avoid this error.", err);
+
+            Mockito.verify(spyAdmin).incrementalAlterConfigs(any(java.util.Map.class), any(AlterConfigsOptions.class));
+        }
+    }
 
     private void assertNonZeroStatusExit(Stream<String> args, Consumer<String> checkErrOut) {
         AtomicReference<Integer> exitStatus = new AtomicReference<>();

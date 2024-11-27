@@ -18,7 +18,7 @@
 package kafka.admin
 
 import java.nio.charset.StandardCharsets
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ExecutionException, TimeUnit}
 import java.util.{Collections, Properties}
 import joptsimple._
 import kafka.server.DynamicConfig
@@ -26,14 +26,16 @@ import kafka.utils.Implicits._
 import kafka.utils.Logging
 import org.apache.kafka.clients.admin.{Admin, AlterClientQuotasOptions, AlterConfigOp, AlterConfigsOptions, ConfigEntry, DescribeClusterOptions, DescribeConfigsOptions, ListTopicsOptions, ScramCredentialInfo, UserScramCredentialDeletion, UserScramCredentialUpsertion, ScramMechanism => PublicScramMechanism}
 import org.apache.kafka.common.config.{ConfigResource, TopicConfig}
-import org.apache.kafka.common.errors.InvalidConfigurationException
+import org.apache.kafka.common.errors.{InvalidConfigurationException, UnsupportedVersionException}
 import org.apache.kafka.common.internals.Topic
+import org.apache.kafka.common.protocol.ApiKeys
 import org.apache.kafka.common.quota.{ClientQuotaAlteration, ClientQuotaEntity, ClientQuotaFilter, ClientQuotaFilterComponent}
 import org.apache.kafka.common.security.scram.internals.ScramMechanism
 import org.apache.kafka.common.utils.{Exit, Utils}
 import org.apache.kafka.server.config.{ConfigType, QuotaConfig}
 import org.apache.kafka.server.util.{CommandDefaultOptions, CommandLineUtils}
 import org.apache.kafka.storage.internals.log.LogConfig
+
 import scala.annotation.nowarn
 import scala.jdk.CollectionConverters._
 import scala.collection._
@@ -178,7 +180,19 @@ object ConfigCommand extends Logging {
           case ConfigType.BROKER => ConfigResource.Type.BROKER
           case ConfigType.GROUP => ConfigResource.Type.GROUP
         }
-        alterResourceConfig(adminClient, entityTypeHead, entityNameHead, configsToBeDeleted, configsToBeAdded, configResourceType)
+        try {
+          alterResourceConfig(adminClient, entityTypeHead, entityNameHead, configsToBeDeleted, configsToBeAdded, configResourceType)
+        } catch {
+          case e: ExecutionException =>
+            e.getCause match {
+              case _: UnsupportedVersionException if entityTypeHead == ConfigType.BROKER =>
+                System.err.println(s"Could not update broker config $entityNameHead, because brokers don't support api ${ApiKeys.INCREMENTAL_ALTER_CONFIGS},"
+                + " You can upgrade your brokers to version 2.3.0 or newer to avoid this error.")
+                return
+              case _ => throw e
+            }
+          case e: Throwable => throw e
+        }
 
       case BrokerLoggerConfigType =>
         val validLoggers = getResourceConfig(adminClient, entityTypeHead, entityNameHead, includeSynonyms = true, describeAll = false).map(_.name)
@@ -189,10 +203,10 @@ object ConfigCommand extends Logging {
 
         val configResource = new ConfigResource(ConfigResource.Type.BROKER_LOGGER, entityNameHead)
         val alterOptions = new AlterConfigsOptions().timeoutMs(30000).validateOnly(false)
-        val alterLogLevelEntries = (configsToBeAdded.values.map(new AlterConfigOp(_, AlterConfigOp.OpType.SET))
-          ++ configsToBeDeleted.map { k => new AlterConfigOp(new ConfigEntry(k, ""), AlterConfigOp.OpType.DELETE) }
-          ).asJavaCollection
-        adminClient.incrementalAlterConfigs(Map(configResource -> alterLogLevelEntries).asJava, alterOptions).all().get(60, TimeUnit.SECONDS)
+        val addEntries = configsToBeAdded.values.map(k => new AlterConfigOp(k, AlterConfigOp.OpType.SET))
+        val deleteEntries = configsToBeDeleted.map(k => new AlterConfigOp(new ConfigEntry(k, ""), AlterConfigOp.OpType.DELETE))
+        val alterEntries = (deleteEntries ++ addEntries).asJavaCollection
+        adminClient.incrementalAlterConfigs(Map(configResource -> alterEntries).asJava, alterOptions).all().get(60, TimeUnit.SECONDS)
 
       case ConfigType.USER | ConfigType.CLIENT =>
         val hasQuotaConfigsToAdd = configsToBeAdded.keys.exists(QuotaConfig.isClientOrUserQuotaConfig)
@@ -361,9 +375,9 @@ object ConfigCommand extends Logging {
 
     val configResource = new ConfigResource(resourceType, entityNameHead)
     val alterOptions = new AlterConfigsOptions().timeoutMs(30000).validateOnly(false)
-    val alterEntries = (configsToBeAdded.values.map(new AlterConfigOp(_, AlterConfigOp.OpType.SET))
-      ++ configsToBeDeleted.map { k => new AlterConfigOp(new ConfigEntry(k, ""), AlterConfigOp.OpType.DELETE) }
-      ).asJavaCollection
+    val addEntries = configsToBeAdded.values.map(k => new AlterConfigOp(k, AlterConfigOp.OpType.SET))
+    val deleteEntries = configsToBeDeleted.map(k => new AlterConfigOp(new ConfigEntry(k, ""), AlterConfigOp.OpType.DELETE))
+    val alterEntries = (deleteEntries ++ addEntries).asJavaCollection
     adminClient.incrementalAlterConfigs(Map(configResource -> alterEntries).asJava, alterOptions).all().get(60, TimeUnit.SECONDS)
   }
 

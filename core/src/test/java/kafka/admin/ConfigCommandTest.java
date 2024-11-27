@@ -1017,7 +1017,6 @@ public class ConfigCommandTest {
                 return describeResult;
             }
 
-            @SuppressWarnings("deprecation")
             @Override
             public synchronized AlterConfigsResult incrementalAlterConfigs(Map<ConfigResource, Collection<AlterConfigOp>> configs, AlterConfigsOptions options) {
                 assertEquals(1, configs.size());
