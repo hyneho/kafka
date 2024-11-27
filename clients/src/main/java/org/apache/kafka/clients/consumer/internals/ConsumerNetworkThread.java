@@ -330,8 +330,7 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
     }
 
     /**
-     * If there is a metadata error, complete the completable events which are not passed by 
-     * error event with the metadata error
+     * If there is a metadata error, completed all uncompleted events with the metadata error.
      * @param events the completable events
      */
     private void maybeFailOnMetadataError(List<CompletableEvent<?>> events) {
