@@ -189,7 +189,7 @@ public class Loggers {
             .map(LoggerConfig::getName)
             .distinct()
             .map(LogManager::getLogger)
-            .collect(Collectors.toUnmodifiableList());
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     // visible for testing
