@@ -208,7 +208,7 @@ class AddPartitionsTest extends BaseRequestTest {
     assertEquals(1, response.topicMetadata.size)
     val topicMetadata = response.topicMetadata.asScala.head
 
-    // Verify properties that should hold true regardless of randomization
+    assertEquals(7, topicMetadata.partitionMetadata.size)
     for (partition <- topicMetadata.partitionMetadata.asScala) {
       val replicas = partition.replicaIds.asScala.toSet
       assertEquals(4, replicas.size, s"Partition ${partition.partition} should have 4 replicas")
@@ -232,7 +232,7 @@ class AddPartitionsTest extends BaseRequestTest {
     assertEquals(1, response.topicMetadata.size)
     val topicMetadata = response.topicMetadata.asScala.head
 
-    // Verify properties that should hold true regardless of randomization
+    assertEquals(3, topicMetadata.partitionMetadata.size)
     for (partition <- topicMetadata.partitionMetadata.asScala) {
       val replicas = partition.replicaIds.asScala.toSet
       assertEquals(2, replicas.size, s"Partition ${partition.partition} should have 2 replicas")
