@@ -650,7 +650,7 @@ public abstract class AbstractMembershipManager<R extends AbstractResponse> impl
      * the group, this will be invoked with empty epoch.
      */
     void notifyEpochChange(Optional<Integer> epoch) {
-        stateUpdatesListeners.forEach(stateListener -> stateListener.onMemberEpochUpdated(epoch, memberId));
+        stateUpdatesListeners.forEach(stateListener -> stateListener.onMemberEpochUpdated(epoch, Optional.of(memberId)));
     }
 
     /**

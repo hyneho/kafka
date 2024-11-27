@@ -36,7 +36,7 @@ public interface MemberStateListener {
      *                    not part of the group anymore.
      * @param memberId    Current member ID. It won't change until the process is terminated.
      */
-    void onMemberEpochUpdated(Optional<Integer> memberEpoch, String memberId);
+    void onMemberEpochUpdated(Optional<Integer> memberEpoch, Optional<String> memberId);
 
     /**
      * This callback is invoked when a group member's assigned set of partitions changes. Assignments can change via
