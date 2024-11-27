@@ -414,80 +414,46 @@ public abstract class AbstractFetch implements Closeable {
             if (position == null)
                 throw new IllegalStateException("Missing position for fetchable partition " + partition);
 
-            // Use the preferred read replica if set, otherwise the partition's leader
-            Optional<Node> nodeOpt = maybeFetchingNode(currentTimeMs, partition, position);
+            Optional<Node> leaderOpt = position.currentLeader.leader;
 
-            if (nodeOpt.isEmpty())
+            if (leaderOpt.isEmpty()) {
+                log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
+                metadata.requestUpdate(false);
                 continue;
+            }
 
-            Node node = nodeOpt.get();
-            FetchSessionHandler.Builder builder = fetchSessionHandlerBuilder(fetchable, node);
-            addFetchable(builder, topicIds, node, partition, position, fetchConfig.fetchSize);
+            // Use the preferred read replica if set, otherwise the partition's leader
+            Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
+
+            if (isUnavailable(node)) {
+                maybeThrowAuthFailure(node);
+
+                // If we try to send during the reconnect backoff window, then the request is just
+                // going to be failed anyway before being sent, so skip sending the request for now
+                log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
+            } else if (nodesWithPendingFetchRequests.contains(node.id())) {
+                log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
+            } else {
+                // if there is a leader and no in-flight requests, issue a new fetch
+                FetchSessionHandler.Builder builder = fetchable.computeIfAbsent(node, k -> {
+                    FetchSessionHandler fetchSessionHandler = sessionHandlers.computeIfAbsent(node.id(), n -> new FetchSessionHandler(logContext, n));
+                    return fetchSessionHandler.newBuilder();
+                });
+                Uuid topicId = topicIds.getOrDefault(partition.topic(), Uuid.ZERO_UUID);
+                FetchRequest.PartitionData partitionData = new FetchRequest.PartitionData(topicId,
+                        position.offset,
+                        FetchRequest.INVALID_LOG_START_OFFSET,
+                        fetchConfig.fetchSize,
+                        position.currentLeader.epoch,
+                        Optional.empty());
+                builder.add(partition, partitionData);
+
+                log.debug("Added {} fetch request for partition {} at position {} to node {}", fetchConfig.isolationLevel,
+                        partition, position, node);
+            }
         }
 
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
-    }
-
-    protected Optional<Node> maybeFetchingNode(final long currentTimeMs,
-                                               final TopicPartition partition,
-                                               final SubscriptionState.FetchPosition position) {
-        Optional<Node> leaderOpt = position.currentLeader.leader;
-
-        if (leaderOpt.isEmpty()) {
-            log.debug("Requesting metadata update for partition {} since the position {} is missing the current leader node", partition, position);
-            metadata.requestUpdate(false);
-            return Optional.empty();
-        }
-
-        // Use the preferred read replica if set, otherwise the partition's leader
-        Node node = selectReadReplica(partition, leaderOpt.get(), currentTimeMs);
-
-        if (isUnavailable(node)) {
-            maybeThrowAuthFailure(node);
-
-            // If we try to send during the reconnect backoff window, then the request is just
-            // going to be failed anyway before being sent, so skip sending the request for now
-            log.trace("Skipping fetch for partition {} because node {} is awaiting reconnect backoff", partition, node);
-            return Optional.empty();
-        } else if (nodesWithPendingFetchRequests.contains(node.id())) {
-            log.trace("Skipping fetch for partition {} because previous request to {} has not been processed", partition, node);
-            return Optional.empty();
-        }
-
-        return Optional.of(node);
-    }
-
-    /**
-     * Creates and adds a new {@link FetchRequest.PartitionData} that represents the given partition, at the
-     * given position, for the given amount of bytes.
-     */
-    void addFetchable(final FetchSessionHandler.Builder builder,
-                      final Map<String, Uuid> topicIds,
-                      final Node node,
-                      final TopicPartition partition,
-                      final SubscriptionState.FetchPosition position,
-                      final int fetchSize) {
-        Uuid topicId = topicIds.getOrDefault(partition.topic(), Uuid.ZERO_UUID);
-        FetchRequest.PartitionData partitionData = new FetchRequest.PartitionData(
-            topicId,
-            position.offset,
-            FetchRequest.INVALID_LOG_START_OFFSET,
-            fetchSize,
-            position.currentLeader.epoch,
-            Optional.empty()
-        );
-        builder.add(partition, partitionData);
-
-        log.debug("Added {} fetch request for partition {} at position {} to node {}", fetchConfig.isolationLevel,
-            partition, position, node);
-    }
-
-    protected FetchSessionHandler.Builder fetchSessionHandlerBuilder(final Map<Node, FetchSessionHandler.Builder> fetchable,
-                                                                     final Node node) {
-        return fetchable.computeIfAbsent(node, k -> {
-            FetchSessionHandler fetchSessionHandler = sessionHandlers.computeIfAbsent(node.id(), n -> new FetchSessionHandler(logContext, n));
-            return fetchSessionHandler.newBuilder();
-        });
     }
 
     // Visible for testing
