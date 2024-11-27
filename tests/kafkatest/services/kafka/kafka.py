@@ -1022,10 +1022,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                 security_protocol_to_use = self.security_protocol
         else:
             security_protocol_to_use = kafka_security_protocol
-        bootstrap_server_or_zookeeper = "--bootstrap-server %s" % (self.bootstrap_servers(security_protocol_to_use, offline_nodes=offline_nodes))
+        bootstrap_server = "--bootstrap-server %s" % (self.bootstrap_servers(security_protocol_to_use, offline_nodes=offline_nodes))
         skip_optional_security_settings = security_protocol_to_use == SecurityConfig.PLAINTEXT
-
-        # we need security configs because aren't going to ZooKeeper and we aren't using PLAINTEXT
         if (security_protocol_to_use == self.interbroker_security_protocol):
             # configure JAAS to provide the broker's credentials
             # since this is an authenticating cluster and we are going to use the inter-broker security protocol
@@ -1042,7 +1040,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         kafka_topic_script = self.path.script("kafka-topics.sh", node)
         return "%s%s %s%s" % \
                (optional_jass_krb_system_props_prefix, kafka_topic_script,
-                bootstrap_server_or_zookeeper, optional_command_config_suffix)
+                bootstrap_server, optional_command_config_suffix)
 
     def kafka_configs_cmd_with_optional_security_settings(self, node, kafka_security_protocol = None):
         if self.quorum_info.using_kraft and not self.quorum_info.has_brokers:
@@ -1056,9 +1054,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                 security_protocol_to_use = self.security_protocol
         else:
             security_protocol_to_use = kafka_security_protocol
-        bootstrap_server_or_zookeeper = "--bootstrap-server %s" % (self.bootstrap_servers(security_protocol_to_use))
+        bootstrap_server = "--bootstrap-server %s" % (self.bootstrap_servers(security_protocol_to_use))
         skip_optional_security_settings = security_protocol_to_use == SecurityConfig.PLAINTEXT
-        # we need security configs because aren't going to ZooKeeper and we aren't using PLAINTEXT
         if (security_protocol_to_use == self.interbroker_security_protocol):
             # configure JAAS to provide the broker's credentials
             # since this is an authenticating cluster and we are going to use the inter-broker security protocol
@@ -1075,7 +1072,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         kafka_config_script = self.path.script("kafka-configs.sh", node)
         return "%s%s %s%s" % \
                (optional_jass_krb_system_props_prefix, kafka_config_script,
-                bootstrap_server_or_zookeeper, optional_command_config_suffix)
+                bootstrap_server, optional_command_config_suffix)
 
     def maybe_setup_broker_scram_credentials(self, node):
         security_config = self.security_config
@@ -1313,9 +1310,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                 security_protocol_to_use = self.security_protocol
         else:
             security_protocol_to_use = kafka_security_protocol
-        bootstrap_server_or_authorizer_zk_props = "--bootstrap-server %s" % (self.bootstrap_servers(security_protocol_to_use))
+        bootstrap_server = "--bootstrap-server %s" % (self.bootstrap_servers(security_protocol_to_use))
         skip_optional_security_settings = security_protocol_to_use == SecurityConfig.PLAINTEXT
-        # we need security configs because aren't going to ZooKeeper and we aren't using PLAINTEXT
         if (security_protocol_to_use == self.interbroker_security_protocol):
             # configure JAAS to provide the broker's credentials
             # since this is an authenticating cluster and we are going to use the inter-broker security protocol
@@ -1335,7 +1331,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         kafka_acls_script = self.path.script("kafka-acls.sh", node)
         return "%s%s %s%s" % \
                (optional_jass_krb_system_props_prefix, kafka_acls_script,
-                bootstrap_server_or_authorizer_zk_props, optional_command_config_suffix)
+                bootstrap_server, optional_command_config_suffix)
 
     def run_cli_tool(self, node, cmd):
         output = ""
