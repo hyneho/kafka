@@ -30,13 +30,11 @@ import javax.management.ObjectName
 import com.yammer.metrics.core.MetricName
 import kafka.admin.ConfigCommand
 import kafka.api.{KafkaSasl, SaslSetup}
-import kafka.controller.{ControllerBrokerStateInfo, ControllerChannelManager}
 import kafka.log.UnifiedLog
 import kafka.network.{DataPlaneAcceptor, Processor, RequestChannel}
 import kafka.security.JaasTestUtils
 import kafka.utils._
 import kafka.utils.Implicits._
-import kafka.utils.TestUtils.TestControllerRequestCompletionHandler
 import kafka.zk.ConfigEntityChangeNotificationZNode
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.admin.AlterConfigOp.OpType
@@ -52,12 +50,10 @@ import org.apache.kafka.common.config.types.Password
 import org.apache.kafka.common.config.provider.FileConfigProvider
 import org.apache.kafka.common.errors.{AuthenticationException, InvalidRequestException}
 import org.apache.kafka.common.internals.Topic
-import org.apache.kafka.common.message.MetadataRequestData
 import org.apache.kafka.common.metrics.{JmxReporter, KafkaMetric, MetricsContext, MetricsReporter, Quota}
 import org.apache.kafka.common.network.{ConnectionMode, ListenerName}
 import org.apache.kafka.common.network.CertStores.{KEYSTORE_PROPS, TRUSTSTORE_PROPS}
 import org.apache.kafka.common.record.TimestampType
-import org.apache.kafka.common.requests.MetadataRequest
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.security.scram.ScramCredential
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
@@ -69,11 +65,11 @@ import org.apache.kafka.server.metrics.{KafkaYammerMetrics, MetricConfigs}
 import org.apache.kafka.server.record.BrokerCompressionType
 import org.apache.kafka.server.util.ShutdownableThread
 import org.apache.kafka.storage.internals.log.{CleanerConfig, LogConfig}
-import org.apache.kafka.test.{TestSslUtils, TestUtils => JTestUtils}
+import org.apache.kafka.test.TestSslUtils
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api.{AfterEach, BeforeEach, Disabled, Test, TestInfo}
+import org.junit.jupiter.api.{AfterEach, BeforeEach, Disabled, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.{CsvSource, MethodSource}
 
 import java.util.concurrent.atomic.AtomicInteger
 import scala.annotation.nowarn
@@ -185,9 +181,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     closeSasl()
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testConfigDescribeUsingAdminClient(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testConfigDescribeUsingAdminClient(quorum: String, groupProtocol: String): Unit = {
 
     def verifyConfig(configName: String, configEntry: ConfigEntry, isSensitive: Boolean, isReadOnly: Boolean,
                      expectedProps: Properties): Unit = {
@@ -285,9 +281,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     assertEquals(List((CleanerConfig.LOG_CLEANER_THREADS_PROP, ConfigSource.DEFAULT_CONFIG)), synonymsList(logCleanerThreads))
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testUpdatesUsingConfigProvider(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testUpdatesUsingConfigProvider(quorum: String, groupProtocol: String): Unit = {
     val PollingIntervalVal = f"$${file:polling.interval:interval}"
     val PollingIntervalUpdateVal = f"$${file:polling.interval:updinterval}"
     val SslTruststoreTypeVal = f"$${file:ssl.truststore.type:storetype}"
@@ -333,14 +329,6 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       assertFalse(reporter.kafkaMetrics.isEmpty, "No metrics found")
     }
 
-    if (!isKRaftTest()) {
-      // fetch from ZK, values should be unresolved
-      val props = fetchBrokerConfigsFromZooKeeper(servers.head)
-      assertTrue(props.getProperty(TestMetricsReporter.PollingIntervalProp) == PollingIntervalVal, "polling interval is not updated in ZK")
-      assertTrue(props.getProperty(configPrefix + SSL_TRUSTSTORE_TYPE_CONFIG) == SslTruststoreTypeVal, "store type is not updated in ZK")
-      assertTrue(props.getProperty(configPrefix + SSL_KEYSTORE_PASSWORD_CONFIG) == SslKeystorePasswordVal, "keystore password is not updated in ZK")
-    }
-
     // verify the update
     // 1. verify update not occurring if the value of property is same.
     alterConfigsUsingConfigCommand(updatedProps)
@@ -358,15 +346,15 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testKeyStoreAlter(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testKeyStoreAlter(quorum: String, groupProtocol: String): Unit = {
     val topic2 = "testtopic2"
     TestUtils.createTopicWithAdmin(adminClients.head, topic2, servers, controllerServers, numPartitions, replicationFactor = numServers)
 
     // Start a producer and consumer that work with the current broker keystore.
     // This should continue working while changes are made
-    val (producerThread, consumerThread) = startProduceConsume(retries = 0)
+    val (producerThread, consumerThread) = startProduceConsume(retries = 0, groupProtocol)
     TestUtils.waitUntilTrue(() => consumerThread.received >= 10, "Messages not received")
 
     // Producer with new truststore should fail to connect before keystore update
@@ -384,7 +372,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     val producer = ProducerBuilder().trustStoreProps(sslProperties2).maxRetries(0).build()
     // Start the new consumer in a separate group than the continuous consumer started at the beginning of the test so
     // that it is not disrupted by rebalance.
-    val consumer = ConsumerBuilder("group2").trustStoreProps(sslProperties2).topic(topic2).build()
+    val consumer = ConsumerBuilder("group2", groupProtocol).trustStoreProps(sslProperties2).topic(topic2).build()
     verifyProduceConsume(producer, consumer, 10, topic2)
 
     // Broker keystore update for internal listener with incompatible keystore should fail without update
@@ -427,9 +415,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     stopAndVerifyProduceConsume(producerThread, consumerThread)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testTrustStoreAlter(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testTrustStoreAlter(quorum: String, groupProtocol: String): Unit = {
     val producerBuilder = ProducerBuilder().listenerName(SecureInternal).securityProtocol(SecurityProtocol.SSL)
 
     // Producer with new keystore should fail to connect before truststore update
@@ -450,30 +438,13 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
 
     def verifySslProduceConsume(keyStoreProps: Properties, group: String): Unit = {
       val producer = producerBuilder.keyStoreProps(keyStoreProps).build()
-      val consumer = ConsumerBuilder(group)
+      val consumer = ConsumerBuilder(group, groupProtocol)
         .listenerName(SecureInternal)
         .securityProtocol(SecurityProtocol.SSL)
         .keyStoreProps(keyStoreProps)
         .autoOffsetReset("latest")
         .build()
       verifyProduceConsume(producer, consumer, 10, topic)
-    }
-
-    def verifyBrokerToControllerCall(controller: KafkaServer): Unit = {
-      val nonControllerBroker = servers.find(_.config.brokerId != controller.config.brokerId).get
-      val brokerToControllerManager = nonControllerBroker.clientToControllerChannelManager
-      val completionHandler = new TestControllerRequestCompletionHandler()
-      brokerToControllerManager.sendRequest(new MetadataRequest.Builder(new MetadataRequestData()), completionHandler)
-      TestUtils.waitUntilTrue(() => {
-        completionHandler.completed.get() || completionHandler.timedOut.get()
-      }, "Timed out while waiting for broker to controller API call")
-      // we do not expect a timeout from broker to controller request
-      assertFalse(completionHandler.timedOut.get(), "broker to controller request is timeout")
-      assertTrue(completionHandler.actualResponse.isDefined, "No response recorded even though request is completed")
-      val response = completionHandler.actualResponse.get
-      assertNull(response.authenticationException(), s"Request failed due to authentication error ${response.authenticationException}")
-      assertNull(response.versionMismatch(), s"Request failed due to unsupported version error ${response.versionMismatch}")
-      assertFalse(response.wasDisconnected(), "Request failed because broker is not available")
     }
 
     val group_id = new AtomicInteger(1)
@@ -518,24 +489,12 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     TestUtils.incrementalAlterConfigs(servers, adminClients.head, props2, perBrokerConfig = true).all.get(15, TimeUnit.SECONDS)
     verifySslProduceConsume(sslProperties2, next_group_name())
     waitForAuthenticationFailure(producerBuilder.keyStoreProps(sslProperties1))
-
-    if (!isKRaftTest()) {
-      val controller = servers.find(_.config.brokerId == TestUtils.waitUntilControllerElected(zkClient)).get.asInstanceOf[KafkaServer]
-      val controllerChannelManager = controller.kafkaController.controllerChannelManager
-      val brokerStateInfo: mutable.HashMap[Int, ControllerBrokerStateInfo] =
-        JTestUtils.fieldValue(controllerChannelManager, classOf[ControllerChannelManager], "brokerStateInfo")
-      brokerStateInfo(0).networkClient.disconnect("0")
-      TestUtils.createTopic(zkClient, "testtopic2", numPartitions, replicationFactor = numServers, servers)
-
-      // validate that the brokerToController request works fine
-      verifyBrokerToControllerCall(controller)
-    }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testLogCleanerConfig(quorum: String): Unit = {
-    val (producerThread, consumerThread) = startProduceConsume(retries = 0)
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testLogCleanerConfig(quorum: String, groupProtocol: String): Unit = {
+    val (producerThread, consumerThread) = startProduceConsume(retries = 0, groupProtocol)
 
     verifyThreads("kafka-log-cleaner-thread-", countPerBroker = 1)
 
@@ -585,9 +544,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     verifyThreads("kafka-log-cleaner-thread-", countPerBroker = 2)
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testConsecutiveConfigChange(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testConsecutiveConfigChange(quorum: String, groupProtocol: String): Unit = {
     val topic2 = "testtopic2"
     val topicProps = new Properties
     topicProps.put(ServerLogConfigs.MIN_IN_SYNC_REPLICAS_CONFIG, "2")
@@ -629,10 +588,11 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     assertEquals("2", log.config.originals().get(ServerLogConfigs.MIN_IN_SYNC_REPLICAS_CONFIG).toString) // Verify topic-level config still survives
   }
 
-  @Test
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   @nowarn("cat=deprecation") // See `TopicConfig.MESSAGE_FORMAT_VERSION_CONFIG` for deprecation details
-  def testDefaultTopicConfig(): Unit = {
-    val (producerThread, consumerThread) = startProduceConsume(retries = 0)
+  def testDefaultTopicConfig(quorum: String, groupProtocol: String): Unit = {
+    val (producerThread, consumerThread) = startProduceConsume(retries = 0, groupProtocol)
 
     val props = new Properties
     props.put(ServerLogConfigs.LOG_SEGMENT_BYTES_CONFIG, "4000")
@@ -751,8 +711,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @Test
-  def testUncleanLeaderElectionEnable(): Unit = {
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
+  def testUncleanLeaderElectionEnable(groupProtocol: String): Unit = {
     val controller = servers.find(_.config.brokerId == TestUtils.waitUntilControllerElected(zkClient)).get
     val controllerId = controller.config.brokerId
 
@@ -762,7 +723,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     TestUtils.createTopic(zkClient, topic, assignment, servers)
 
     val producer = ProducerBuilder().acks(1).build()
-    val consumer = ConsumerBuilder("unclean-leader-test").enableAutoCommit(false).topic(topic).build()
+    val consumer = ConsumerBuilder("unclean-leader-test", groupProtocol).enableAutoCommit(false).topic(topic).build()
     verifyProduceConsume(producer, consumer, numRecords = 10, topic)
     consumer.commitSync()
 
@@ -812,8 +773,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     consumer.commitSync()
   }
 
-  @Test
-  def testThreadPoolResize(): Unit = {
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
+  def testThreadPoolResize(groupProtocol: String): Unit = {
     val requestHandlerPrefix = "data-plane-kafka-request-handler-"
     val networkThreadPrefix = "data-plane-kafka-network-thread-"
     val fetcherThreadPrefix = "ReplicaFetcherThread-"
@@ -866,7 +828,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     def verifyThreadPoolResize(propName: String, currentSize: => Int, threadPrefix: String, mayReceiveDuplicates: Boolean): Unit = {
       maybeVerifyThreadPoolSize(currentSize, threadPrefix)
       val numRetries = if (mayReceiveDuplicates) 100 else 0
-      val (producerThread, consumerThread) = startProduceConsume(retries = numRetries)
+      val (producerThread, consumerThread) = startProduceConsume(retries = numRetries, groupProtocol)
       var threadPoolSize = currentSize
       (1 to 2).foreach { _ =>
         threadPoolSize = reducePoolSize(propName, threadPoolSize, threadPrefix)
@@ -950,8 +912,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @Test
-  def testMetricsReporterUpdate(): Unit = {
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
+  def testMetricsReporterUpdate(groupProtocol: String): Unit = {
     // Add a new metrics reporter
     val newProps = new Properties
     newProps.put(TestMetricsReporter.PollingIntervalProp, "100")
@@ -971,7 +934,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       server.quotaManagers.produce.updateQuota(None, Some(clientId), Some(clientId),
         Some(Quota.upperBound(10000000)))
     }
-    val (producerThread, consumerThread) = startProduceConsume(retries = 0, clientId)
+    val (producerThread, consumerThread) = startProduceConsume(retries = 0, groupProtocol, clientId)
     TestUtils.waitUntilTrue(() => consumerThread.received >= 5, "Messages not sent")
 
     // Verify that JMX reporter is still active (test a metric registered after the dynamic reporter update)
@@ -1037,9 +1000,10 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     stopAndVerifyProduceConsume(producerThread, consumerThread)
   }
 
-  @Test
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic"))
   // Modifying advertised listeners is not supported in KRaft
-  def testAdvertisedListenerUpdate(): Unit = {
+  def testAdvertisedListenerUpdate(groupProtocol: String): Unit = {
     val adminClient = adminClients.head
     val externalAdminClient = createAdminClient(SecurityProtocol.SASL_SSL, SecureExternal)
 
@@ -1097,7 +1061,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     val topic2 = "testtopic2"
     TestUtils.createTopic(zkClient, topic2, numPartitions, replicationFactor = numServers, servers)
     val producer = ProducerBuilder().trustStoreProps(sslProperties1).maxRetries(0).build()
-    val consumer = ConsumerBuilder("group2").trustStoreProps(sslProperties1).topic(topic2).build()
+    val consumer = ConsumerBuilder("group2", groupProtocol).trustStoreProps(sslProperties1).topic(topic2).build()
     verifyProduceConsume(producer, consumer, 10, topic2)
 
     // Verify updating inter-broker listener
@@ -1108,10 +1072,11 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     servers.foreach(server => assertEquals(SecureInternal, server.config.interBrokerListenerName.value))
   }
 
-  @Test
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
   @Disabled // Re-enable once we make it less flaky (KAFKA-6824)
-  def testAddRemoveSslListener(): Unit = {
-    verifyAddListener("SSL", SecurityProtocol.SSL, Seq.empty)
+  def testAddRemoveSslListener(groupProtocol: String): Unit = {
+    verifyAddListener("SSL", SecurityProtocol.SSL, Seq.empty, groupProtocol)
 
     // Restart servers and check secret rotation
     servers.foreach(_.shutdown())
@@ -1149,13 +1114,14 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       }
     }
 
-    verifyListener(SecurityProtocol.SSL, None, "add-ssl-listener-group2")
+    verifyListener(SecurityProtocol.SSL, None, "add-ssl-listener-group2", groupProtocol)
     createAdminClient(SecurityProtocol.SSL, SecureInternal)
-    verifyRemoveListener("SSL", SecurityProtocol.SSL, Seq.empty)
+    verifyRemoveListener("SSL", SecurityProtocol.SSL, Seq.empty, groupProtocol)
   }
 
-  @Test
-  def testAddRemoveSaslListeners(): Unit = {
+  @ParameterizedTest(name = "{displayName}.groupProtocol={0}")
+  @CsvSource(Array("classic, consumer"))
+  def testAddRemoveSaslListeners(groupProtocol: String): Unit = {
     createScramCredentials(adminClients.head, JaasTestUtils.KAFKA_SCRAM_USER, JaasTestUtils.KAFKA_SCRAM_PASSWORD)
     createScramCredentials(adminClients.head, JaasTestUtils.KAFKA_SCRAM_ADMIN, JaasTestUtils.KAFKA_SCRAM_ADMIN_PASSWORD)
     initializeKerberos()
@@ -1170,9 +1136,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       }}
 
     //verifyAddListener("SASL_SSL", SecurityProtocol.SASL_SSL, Seq("SCRAM-SHA-512", "SCRAM-SHA-256", "PLAIN"))
-    verifyAddListener("SASL_PLAINTEXT", SecurityProtocol.SASL_PLAINTEXT, Seq("GSSAPI"))
+    verifyAddListener("SASL_PLAINTEXT", SecurityProtocol.SASL_PLAINTEXT, Seq("GSSAPI"), groupProtocol)
     //verifyRemoveListener("SASL_SSL", SecurityProtocol.SASL_SSL, Seq("SCRAM-SHA-512", "SCRAM-SHA-256", "PLAIN"))
-    verifyRemoveListener("SASL_PLAINTEXT", SecurityProtocol.SASL_PLAINTEXT, Seq("GSSAPI"))
+    verifyRemoveListener("SASL_PLAINTEXT", SecurityProtocol.SASL_PLAINTEXT, Seq("GSSAPI"), groupProtocol)
 
     // Verify that a listener added to a subset of servers doesn't cause any issues
     // when metadata is processed by the client.
@@ -1188,9 +1154,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     assertTrue(partitions.exists(_.leader == null), "Did not find partitions with no leader")
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testReconfigureRemovedListener(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testReconfigureRemovedListener(quorum: String, groupProtocol: String): Unit = {
     val client = adminClients.head
     val broker = servers.head
     assertEquals(2, broker.config.dynamicConfig.reconfigurables.asScala.count(r => r.isInstanceOf[DataPlaneAcceptor]))
@@ -1268,9 +1234,9 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
-  def testTransactionVerificationEnable(quorum: String): Unit = {
+  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
+  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
+  def testTransactionVerificationEnable(quorum: String, groupProtocol: String): Unit = {
     def verifyConfiguration(enabled: Boolean): Unit = {
       servers.foreach { server =>
         TestUtils.waitUntilTrue(() => server.logManager.producerStateManagerConfig.transactionVerificationEnabled == enabled, "Configuration was not updated.")
@@ -1301,27 +1267,29 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
   }
 
   private def verifyAddListener(listenerName: String, securityProtocol: SecurityProtocol,
-                                saslMechanisms: Seq[String]): Unit = {
+                                saslMechanisms: Seq[String],
+                                groupProtocol: String): Unit = {
     addListener(servers, listenerName, securityProtocol, saslMechanisms)
     TestUtils.waitUntilTrue(() => servers.forall(hasListenerMetric(_, listenerName)),
       "Processors not started for new listener")
     if (saslMechanisms.nonEmpty)
       saslMechanisms.foreach { mechanism =>
-        verifyListener(securityProtocol, Some(mechanism), s"add-listener-group-$securityProtocol-$mechanism")
+        verifyListener(securityProtocol, Some(mechanism), s"add-listener-group-$securityProtocol-$mechanism", groupProtocol)
       }
     else
-      verifyListener(securityProtocol, None, s"add-listener-group-$securityProtocol")
+      verifyListener(securityProtocol, None, s"add-listener-group-$securityProtocol", groupProtocol)
   }
 
   private def verifyRemoveListener(listenerName: String, securityProtocol: SecurityProtocol,
-                                   saslMechanisms: Seq[String]): Unit = {
+                                   saslMechanisms: Seq[String],
+                                   groupProtocol: String): Unit = {
     val saslMechanism = if (saslMechanisms.isEmpty) "" else saslMechanisms.head
     val producer1 = ProducerBuilder().listenerName(listenerName)
       .securityProtocol(securityProtocol)
       .saslMechanism(saslMechanism)
       .maxRetries(1000)
       .build()
-    val consumer1 = ConsumerBuilder(s"remove-listener-group-$securityProtocol")
+    val consumer1 = ConsumerBuilder(s"remove-listener-group-$securityProtocol", groupProtocol)
       .listenerName(listenerName)
       .securityProtocol(securityProtocol)
       .saslMechanism(saslMechanism)
@@ -1365,7 +1333,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     val topic2 = "testtopic2"
     TestUtils.createTopic(zkClient, topic2, numPartitions, replicationFactor = numServers, servers)
     val producer2 = ProducerBuilder().trustStoreProps(sslProperties1).maxRetries(0).build()
-    val consumer2 = ConsumerBuilder(s"remove-listener-group2-$securityProtocol")
+    val consumer2 = ConsumerBuilder(s"remove-listener-group2-$securityProtocol", groupProtocol)
       .trustStoreProps(sslProperties1)
       .topic(topic2)
       .autoOffsetReset("latest")
@@ -1377,7 +1345,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     verifyTimeout(consumerFuture)
   }
 
-  private def verifyListener(securityProtocol: SecurityProtocol, saslMechanism: Option[String], groupId: String): Unit = {
+  private def verifyListener(securityProtocol: SecurityProtocol, saslMechanism: Option[String], groupId: String, groupProtocol: String): Unit = {
     val mechanism = saslMechanism.getOrElse("")
     val retries = 1000 // since it may take time for metadata to be updated on all brokers
     val producer = ProducerBuilder().listenerName(securityProtocol.name)
@@ -1385,7 +1353,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       .saslMechanism(mechanism)
       .maxRetries(retries)
       .build()
-    val consumer = ConsumerBuilder(groupId)
+    val consumer = ConsumerBuilder(groupId, groupProtocol)
       .listenerName(securityProtocol.name)
       .securityProtocol(securityProtocol)
       .saslMechanism(mechanism)
@@ -1686,10 +1654,10 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     assertTrue(resized, s"Invalid threads: expected $expectedCount, got ${threads.size}: $threads")
   }
 
-  private def startProduceConsume(retries: Int, producerClientId: String = "test-producer"): (ProducerThread, ConsumerThread) = {
+  private def startProduceConsume(retries: Int, groupProtocol: String, producerClientId: String = "test-producer"): (ProducerThread, ConsumerThread) = {
     val producerThread = new ProducerThread(producerClientId, retries)
     clientThreads += producerThread
-    val consumerThread = new ConsumerThread(producerThread)
+    val consumerThread = new ConsumerThread(producerThread, groupProtocol)
     clientThreads += consumerThread
     consumerThread.start()
     producerThread.start()
@@ -1834,7 +1802,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  private case class ConsumerBuilder(group: String) extends ClientBuilder[Consumer[String, String]] {
+  private case class ConsumerBuilder(group: String, groupProtocol: String) extends ClientBuilder[Consumer[String, String]] {
     private var _autoOffsetReset = "earliest"
     private var _enableAutoCommit = false
     private var _topic = DynamicBrokerReconfigurationTest.this.topic
@@ -1849,6 +1817,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, _autoOffsetReset)
       consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, group)
       consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, _enableAutoCommit.toString)
+      consumerProps.put(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol)
 
       val consumer = new KafkaConsumer[String, String](consumerProps, new StringDeserializer, new StringDeserializer)
       consumers += consumer
@@ -1882,8 +1851,8 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
   }
 
-  private class ConsumerThread(producerThread: ProducerThread) extends ShutdownableThread("test-consumer", false) {
-    private val consumer = ConsumerBuilder("group1").enableAutoCommit(true).build()
+  private class ConsumerThread(producerThread: ProducerThread, groupProtocol: String) extends ShutdownableThread("test-consumer", false) {
+    private val consumer = ConsumerBuilder("group1", groupProtocol).enableAutoCommit(true).build()
     val lastReceived = new ConcurrentHashMap[Int, Int]()
     val missingRecords = new ConcurrentLinkedQueue[Int]()
     @volatile var outOfOrder = false

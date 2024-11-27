@@ -62,6 +62,7 @@ import org.apache.kafka.common.requests.RequestContext;
 import org.apache.kafka.common.requests.ShareGroupHeartbeatRequest;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.coordinator.common.runtime.CoordinatorExecutor;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorResult;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorTimer;
@@ -82,6 +83,8 @@ import org.apache.kafka.coordinator.group.generated.ConsumerGroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupMetadataValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupPartitionMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupPartitionMetadataValue;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegularExpressionKey;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegularExpressionValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMetadataKey;
@@ -109,12 +112,14 @@ import org.apache.kafka.coordinator.group.modern.TopicMetadata;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup;
 import org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember;
 import org.apache.kafka.coordinator.group.modern.consumer.CurrentAssignmentBuilder;
+import org.apache.kafka.coordinator.group.modern.consumer.ResolvedRegularExpression;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroup;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupAssignmentBuilder;
 import org.apache.kafka.coordinator.group.modern.share.ShareGroupMember;
 import org.apache.kafka.image.MetadataDelta;
 import org.apache.kafka.image.MetadataImage;
 import org.apache.kafka.image.TopicImage;
+import org.apache.kafka.image.TopicsDelta;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineHashSet;
@@ -131,6 +136,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -196,6 +202,7 @@ public class GroupMetadataManager {
         private SnapshotRegistry snapshotRegistry = null;
         private Time time = null;
         private CoordinatorTimer<Void, CoordinatorRecord> timer = null;
+        private CoordinatorExecutor<CoordinatorRecord> executor = null;
         private List<ConsumerGroupPartitionAssignor> consumerGroupAssignors = null;
         private GroupConfigManager groupConfigManager = null;
         private int consumerGroupMaxSize = Integer.MAX_VALUE;
@@ -233,6 +240,11 @@ public class GroupMetadataManager {
 
         Builder withTimer(CoordinatorTimer<Void, CoordinatorRecord> timer) {
             this.timer = timer;
+            return this;
+        }
+
+        Builder withExecutor(CoordinatorExecutor<CoordinatorRecord> executor) {
+            this.executor = executor;
             return this;
         }
 
@@ -339,6 +351,8 @@ public class GroupMetadataManager {
 
             if (timer == null)
                 throw new IllegalArgumentException("Timer must be set.");
+            if (executor == null)
+                throw new IllegalArgumentException("Executor must be set.");
             if (consumerGroupAssignors == null || consumerGroupAssignors.isEmpty())
                 throw new IllegalArgumentException("Assignors must be set before building.");
             if (shareGroupAssignor == null)
@@ -353,6 +367,7 @@ public class GroupMetadataManager {
                 logContext,
                 time,
                 timer,
+                executor,
                 metrics,
                 consumerGroupAssignors,
                 metadataImage,
@@ -375,6 +390,12 @@ public class GroupMetadataManager {
             );
         }
     }
+
+    /**
+     * The minimum amount of time between two consecutive refreshes of
+     * the regular expressions within a single group.
+     */
+    private static final long REGEX_BATCH_REFRESH_INTERVAL_MS = 10_000L;
 
     /**
      * The log context.
@@ -400,6 +421,11 @@ public class GroupMetadataManager {
      * The system timer.
      */
     private final CoordinatorTimer<Void, CoordinatorRecord> timer;
+
+    /**
+     * The executor to executor asynchronous tasks.
+     */
+    private final CoordinatorExecutor<CoordinatorRecord> executor;
 
     /**
      * The coordinator metrics.
@@ -455,6 +481,12 @@ public class GroupMetadataManager {
      * The metadata image.
      */
     private MetadataImage metadataImage;
+
+    /**
+     * This tracks the version (or the offset) of the last metadata image
+     * with newly created topics.
+     */
+    private long lastMetadataImageWithNewTopics = -1L;
 
     /**
      * An empty result returned to the state machine. This means that
@@ -525,6 +557,7 @@ public class GroupMetadataManager {
         LogContext logContext,
         Time time,
         CoordinatorTimer<Void, CoordinatorRecord> timer,
+        CoordinatorExecutor<CoordinatorRecord> executor,
         GroupCoordinatorMetricsShard metrics,
         List<ConsumerGroupPartitionAssignor> consumerGroupAssignors,
         MetadataImage metadataImage,
@@ -550,6 +583,7 @@ public class GroupMetadataManager {
         this.snapshotRegistry = snapshotRegistry;
         this.time = time;
         this.timer = timer;
+        this.executor = executor;
         this.metrics = metrics;
         this.metadataImage = metadataImage;
         this.consumerGroupAssignors = consumerGroupAssignors.stream().collect(Collectors.toMap(ConsumerGroupPartitionAssignor::name, Function.identity()));
@@ -728,7 +762,7 @@ public class GroupMetadataManager {
                 ClassicGroup group = classicGroup(groupId, committedOffset);
 
                 if (group.isInState(STABLE)) {
-                    if (!group.protocolName().isPresent()) {
+                    if (group.protocolName().isEmpty()) {
                         throw new IllegalStateException("Invalid null group protocol for stable group");
                     }
 
@@ -748,7 +782,7 @@ public class GroupMetadataManager {
                         .setGroupState(group.stateAsString())
                         .setProtocolType(group.protocolType().orElse(""))
                         .setMembers(group.allMembers().stream()
-                            .map(member -> member.describeNoMetadata())
+                            .map(ClassicGroupMember::describeNoMetadata)
                             .collect(Collectors.toList())
                         )
                     );
@@ -1809,8 +1843,19 @@ public class GroupMetadataManager {
             .setClassicMemberMetadata(null)
             .build();
 
-        boolean bumpGroupEpoch = hasMemberSubscriptionChanged(
+        // If the group is newly created, we must ensure that it moves away from
+        // epoch 0 and that it is fully initialized.
+        boolean bumpGroupEpoch = group.groupEpoch() == 0;
+
+        bumpGroupEpoch |= hasMemberSubscriptionChanged(
             groupId,
+            member,
+            updatedMember,
+            records
+        );
+
+        bumpGroupEpoch |= maybeUpdateRegularExpressions(
+            group,
             member,
             updatedMember,
             records
@@ -1818,14 +1863,16 @@ public class GroupMetadataManager {
 
         int groupEpoch = group.groupEpoch();
         Map<String, TopicMetadata> subscriptionMetadata = group.subscriptionMetadata();
-        Map<String, Integer> subscribedTopicNamesMap = group.subscribedTopicNames();
         SubscriptionType subscriptionType = group.subscriptionType();
 
         if (bumpGroupEpoch || group.hasMetadataExpired(currentTimeMs)) {
             // The subscription metadata is updated in two cases:
             // 1) The member has updated its subscriptions;
             // 2) The refresh deadline has been reached.
-            subscribedTopicNamesMap = group.computeSubscribedTopicNames(member, updatedMember);
+            Map<String, Integer> subscribedTopicNamesMap = group.computeSubscribedTopicNames(
+                member,
+                updatedMember
+            );
             subscriptionMetadata = group.computeSubscriptionMetadata(
                 subscribedTopicNamesMap,
                 metadataImage.topics(),
@@ -2404,15 +2451,14 @@ public class GroupMetadataManager {
 
     /**
      * Creates the member subscription record if the updatedMember is different from
-     * the old member. Returns true if the subscribedTopicNames/subscribedTopicRegex
-     * has changed.
+     * the old member. Returns true if the subscribedTopicNames has changed.
      *
      * @param groupId       The group id.
      * @param member        The old member.
      * @param updatedMember The updated member.
      * @param records       The list to accumulate any new records.
      * @return A boolean indicating whether the updatedMember has a different
-     *         subscribedTopicNames/subscribedTopicRegex from the old member.
+     *         subscribedTopicNames from the old member.
      * @throws InvalidRegularExpression if the regular expression is invalid.
      */
     private boolean hasMemberSubscriptionChanged(
@@ -2424,25 +2470,281 @@ public class GroupMetadataManager {
         String memberId = updatedMember.memberId();
         if (!updatedMember.equals(member)) {
             records.add(newConsumerGroupMemberSubscriptionRecord(groupId, updatedMember));
-
             if (!updatedMember.subscribedTopicNames().equals(member.subscribedTopicNames())) {
                 log.debug("[GroupId {}] Member {} updated its subscribed topics to: {}.",
                     groupId, memberId, updatedMember.subscribedTopicNames());
                 return true;
             }
-
-            if (!updatedMember.subscribedTopicRegex().equals(member.subscribedTopicRegex())) {
-                log.debug("[GroupId {}] Member {} updated its subscribed regex to: {}.",
-                    groupId, memberId, updatedMember.subscribedTopicRegex());
-                // If the regular expression has changed, we compile it to ensure that
-                // its syntax is valid.
-                if (updatedMember.subscribedTopicRegex() != null) {
-                    throwIfRegularExpressionIsInvalid(updatedMember.subscribedTopicRegex());
-                }
-                return true;
-            }
         }
         return false;
+    }
+
+    private static boolean isNotEmpty(String value) {
+        return value != null && !value.isEmpty();
+    }
+
+    /**
+     * Check whether the member has updated its subscribed topic regular expression and
+     * may trigger the resolution/the refresh of all the regular expressions in the
+     * group. We align the refreshment of the regular expression in order to have
+     * them trigger only one rebalance per update.
+     *
+     * @param group         The consumer group.
+     * @param member        The old member.
+     * @param updatedMember The new member.
+     * @param records       The records accumulator.
+     * @return Whether a rebalance must be triggered.
+     */
+    private boolean maybeUpdateRegularExpressions(
+        ConsumerGroup group,
+        ConsumerGroupMember member,
+        ConsumerGroupMember updatedMember,
+        List<CoordinatorRecord> records
+    ) {
+        String groupId = group.groupId();
+        String memberId = updatedMember.memberId();
+        String oldSubscribedTopicRegex = member.subscribedTopicRegex();
+        String newSubscribedTopicRegex = updatedMember.subscribedTopicRegex();
+
+        boolean bumpGroupEpoch = false;
+        boolean requireRefresh = false;
+
+        // Check whether the member has changed its subscribed regex.
+        if (!Objects.equals(oldSubscribedTopicRegex, newSubscribedTopicRegex)) {
+            log.debug("[GroupId {}] Member {} updated its subscribed regex to: {}.",
+                groupId, memberId, newSubscribedTopicRegex);
+
+            if (isNotEmpty(oldSubscribedTopicRegex) && group.numSubscribedMembers(oldSubscribedTopicRegex) == 1) {
+                // If the member was the last one subscribed to the regex, we delete the
+                // resolved regular expression.
+                records.add(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone(
+                    groupId,
+                    oldSubscribedTopicRegex
+                ));
+            }
+
+            if (isNotEmpty(newSubscribedTopicRegex)) {
+                if (group.numSubscribedMembers(newSubscribedTopicRegex) == 0) {
+                    // If the member subscribed to a new regex, we compile it to ensure its validity.
+                    // We also trigger a refresh of the regexes in order to resolve it.
+                    throwIfRegularExpressionIsInvalid(updatedMember.subscribedTopicRegex());
+                    requireRefresh = true;
+                } else {
+                    // If the new regex is already resolved, we trigger a rebalance
+                    // by bumping the group epoch.
+                    bumpGroupEpoch = group.resolvedRegularExpression(newSubscribedTopicRegex).isPresent();
+                }
+            }
+        }
+
+        // Conditions to trigger a refresh:
+        // 0. The group is subscribed to regular expressions.
+        // 1. There is no ongoing refresh for the group.
+        // 2. The last refresh is older than 10s.
+        // 3. The group has unresolved regular expressions.
+        // 4. The metadata image has new topics.
+
+        // 0. The group is subscribed to regular expressions. We also take the one
+        //    that the current may have just introduced.
+        if (!requireRefresh && group.subscribedRegularExpressions().isEmpty()) {
+            return bumpGroupEpoch;
+        }
+
+        // 1. There is no ongoing refresh for the group.
+        String key = group.groupId() + "-regex";
+        if (executor.isScheduled(key)) {
+            return bumpGroupEpoch;
+        }
+
+        // 2. The last refresh is older than 10s. If the group does not have any regular
+        //    expressions but the current member just brought a new one, we should continue.
+        long lastRefreshTimeMs = group.lastResolvedRegularExpressionRefreshTimeMs();
+        if (time.milliseconds() <= lastRefreshTimeMs + REGEX_BATCH_REFRESH_INTERVAL_MS) {
+            return bumpGroupEpoch;
+        }
+
+        // 3. The group has unresolved regular expressions.
+        Map<String, Integer> subscribedRegularExpressions = new HashMap<>(group.subscribedRegularExpressions());
+        if (isNotEmpty(oldSubscribedTopicRegex)) {
+            subscribedRegularExpressions.compute(oldSubscribedTopicRegex, Utils::decValue);
+        }
+        if (isNotEmpty(newSubscribedTopicRegex)) {
+            subscribedRegularExpressions.compute(newSubscribedTopicRegex, Utils::incValue);
+        }
+
+        requireRefresh |= subscribedRegularExpressions.size() != group.numResolvedRegularExpressions();
+
+        // 4. The metadata has new topics that we must consider.
+        requireRefresh |= group.lastResolvedRegularExpressionVersion() < lastMetadataImageWithNewTopics;
+
+        if (requireRefresh && !subscribedRegularExpressions.isEmpty()) {
+            Set<String> regexes = Collections.unmodifiableSet(subscribedRegularExpressions.keySet());
+            executor.schedule(
+                key,
+                () -> refreshRegularExpressions(groupId, log, time, metadataImage, regexes),
+                (result, exception) -> handleRegularExpressionsResult(groupId, result, exception)
+            );
+        }
+
+        return bumpGroupEpoch;
+    }
+
+    /**
+     * Resolves the provided regular expressions. Note that this static method is executed
+     * as an asynchronous task in the executor. Hence, it should not access any state from
+     * the manager.
+     *
+     * @param groupId   The group id.
+     * @param log       The log instance.
+     * @param time      The time instance.
+     * @param image     The metadata image to use for listing the topics.
+     * @param regexes   The list of regular expressions that must be resolved.
+     * @return The list of resolved regular expressions.
+     *
+     * public for benchmarks.
+     */
+    public static Map<String, ResolvedRegularExpression> refreshRegularExpressions(
+        String groupId,
+        Logger log,
+        Time time,
+        MetadataImage image,
+        Set<String> regexes
+    ) {
+        long startTimeMs = time.milliseconds();
+        log.debug("[GroupId {}] Refreshing regular expressions: {}", groupId, regexes);
+
+        Map<String, Set<String>> resolvedRegexes = new HashMap<>(regexes.size());
+        List<Pattern> compiledRegexes = new ArrayList<>(regexes.size());
+        for (String regex : regexes) {
+            resolvedRegexes.put(regex, new HashSet<>());
+            try {
+                compiledRegexes.add(Pattern.compile(regex));
+            } catch (PatternSyntaxException ex) {
+                // This should not happen because the regular expressions are validated
+                // when received from the members. If for some reason, it would
+                // happen, we log it and ignore it.
+                log.error("[GroupId {}] Couldn't parse regular expression '{}' due to `{}`. Ignoring it.",
+                    groupId, regex, ex.getDescription());
+            }
+        }
+
+        for (String topicName : image.topics().topicsByName().keySet()) {
+            for (Pattern regex : compiledRegexes) {
+                if (regex.matcher(topicName).matches()) {
+                    resolvedRegexes.get(regex.pattern()).add(topicName);
+                }
+            }
+        }
+
+        long version = image.provenance().lastContainedOffset();
+        Map<String, ResolvedRegularExpression> result = new HashMap<>(resolvedRegexes.size());
+        for (Map.Entry<String, Set<String>> resolvedRegex : resolvedRegexes.entrySet()) {
+            result.put(
+                resolvedRegex.getKey(),
+                new ResolvedRegularExpression(resolvedRegex.getValue(), version, startTimeMs)
+            );
+        }
+
+        log.info("[GroupId {}] Scanned {} topics to refresh regular expressions {} in {}ms.",
+            groupId, image.topics().topicsByName().size(), resolvedRegexes.keySet(),
+            time.milliseconds() - startTimeMs);
+
+        return result;
+    }
+
+    /**
+     * Handle the result of the asynchronous tasks which resolves the regular expressions.
+     *
+     * @param resolvedRegularExpressions    The resolved regular expressions.
+     * @param exception                     The exception if the resolution failed.
+     * @return A CoordinatorResult containing the records to mutate the group state.
+     */
+    private CoordinatorResult<Void, CoordinatorRecord> handleRegularExpressionsResult(
+        String groupId,
+        Map<String, ResolvedRegularExpression> resolvedRegularExpressions,
+        Throwable exception
+    ) {
+        if (exception != null) {
+            log.error("[GroupId {}] Couldn't update regular expression due to: {}",
+                groupId, exception.getMessage());
+            return new CoordinatorResult<>(Collections.emptyList());
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("[GroupId {}] Received updated regular expressions: {}.",
+                groupId, resolvedRegularExpressions);
+        }
+
+        List<CoordinatorRecord> records = new ArrayList<>();
+        try {
+            ConsumerGroup group = consumerGroup(groupId);
+            Map<String, Integer> subscribedTopicNames = new HashMap<>(group.subscribedTopicNames());
+
+            boolean bumpGroupEpoch = false;
+            for (Map.Entry<String, ResolvedRegularExpression> entry : resolvedRegularExpressions.entrySet()) {
+                String regex = entry.getKey();
+
+                // We can skip the regex if the group is no longer
+                // subscribed to it.
+                if (group.numSubscribedMembers(regex) == 0) continue;
+
+                ResolvedRegularExpression newResolvedRegularExpression = entry.getValue();
+                ResolvedRegularExpression oldResolvedRegularExpression = group
+                    .resolvedRegularExpression(regex)
+                    .orElse(ResolvedRegularExpression.EMPTY);
+
+                if (!oldResolvedRegularExpression.topics.equals(newResolvedRegularExpression.topics)) {
+                    bumpGroupEpoch = true;
+
+                    oldResolvedRegularExpression.topics.forEach(topicName ->
+                        subscribedTopicNames.compute(topicName, Utils::decValue)
+                    );
+
+                    newResolvedRegularExpression.topics.forEach(topicName ->
+                        subscribedTopicNames.compute(topicName, Utils::incValue)
+                    );
+                }
+
+                // Add the record to persist the change.
+                records.add(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionRecord(
+                    groupId,
+                    regex,
+                    newResolvedRegularExpression
+                ));
+            }
+
+            // Compute the subscription metadata.
+            Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
+                subscribedTopicNames,
+                metadataImage.topics(),
+                metadataImage.cluster()
+            );
+
+            if (!subscriptionMetadata.equals(group.subscriptionMetadata())) {
+                if (log.isDebugEnabled()) {
+                    log.debug("[GroupId {}] Computed new subscription metadata: {}.",
+                        groupId, subscriptionMetadata);
+                }
+                bumpGroupEpoch = true;
+                records.add(newConsumerGroupSubscriptionMetadataRecord(groupId, subscriptionMetadata));
+            }
+
+            if (bumpGroupEpoch) {
+                int groupEpoch = group.groupEpoch() + 1;
+                records.add(newConsumerGroupEpochRecord(groupId, groupEpoch));
+                log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
+                metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
+                group.setMetadataRefreshDeadline(
+                    time.milliseconds() + consumerGroupMetadataRefreshIntervalMs,
+                    groupEpoch
+                );
+            }
+        } catch (GroupIdNotFoundException ex) {
+            log.debug("[GroupId {}] Received result of regular expression resolution but " +
+                "it no longer exists.", groupId);
+        }
+
+        return new CoordinatorResult<>(records);
     }
 
     /**
@@ -2603,8 +2905,8 @@ public class GroupMetadataManager {
             updatedMember
         ).orElse(defaultConsumerGroupAssignor.name());
         try {
-            TargetAssignmentBuilder<ConsumerGroupMember> assignmentResultBuilder =
-                new TargetAssignmentBuilder<ConsumerGroupMember>(group.groupId(), groupEpoch, consumerGroupAssignors.get(preferredServerAssignor))
+            TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder assignmentResultBuilder =
+                new TargetAssignmentBuilder.ConsumerTargetAssignmentBuilder(group.groupId(), groupEpoch, consumerGroupAssignors.get(preferredServerAssignor))
                     .withMembers(group.members())
                     .withStaticMembers(group.staticMembers())
                     .withSubscriptionMetadata(subscriptionMetadata)
@@ -2612,6 +2914,7 @@ public class GroupMetadataManager {
                     .withTargetAssignment(group.targetAssignment())
                     .withInvertedTargetAssignment(group.invertedTargetAssignment())
                     .withTopicsImage(metadataImage.topics())
+                    .withResolvedRegularExpressions(group.resolvedRegularExpressions())
                     .addOrUpdateMember(updatedMember.memberId(), updatedMember);
 
             // If the instance id was associated to a different member, it means that the
@@ -2670,16 +2973,14 @@ public class GroupMetadataManager {
         List<CoordinatorRecord> records
     ) {
         try {
-            TargetAssignmentBuilder<ShareGroupMember> assignmentResultBuilder =
-                new TargetAssignmentBuilder<ShareGroupMember>(group.groupId(), groupEpoch, shareGroupAssignor)
+            TargetAssignmentBuilder.ShareTargetAssignmentBuilder assignmentResultBuilder =
+                new TargetAssignmentBuilder.ShareTargetAssignmentBuilder(group.groupId(), groupEpoch, shareGroupAssignor)
                     .withMembers(group.members())
                     .withSubscriptionMetadata(subscriptionMetadata)
                     .withSubscriptionType(subscriptionType)
                     .withTargetAssignment(group.targetAssignment())
                     .withInvertedTargetAssignment(group.invertedTargetAssignment())
                     .withTopicsImage(metadataImage.topics())
-                    .withTargetAssignmentRecordBuilder(GroupCoordinatorRecordHelpers::newShareGroupTargetAssignmentRecord)
-                    .withTargetAssignmentEpochRecordBuilder(GroupCoordinatorRecordHelpers::newShareGroupTargetAssignmentEpochRecord)
                     .addOrUpdateMember(updatedMember.memberId(), updatedMember);
 
             long startTimeMs = time.milliseconds();
@@ -3609,6 +3910,40 @@ public class GroupMetadataManager {
     }
 
     /**
+     * Replays ConsumerGroupRegularExpressionKey/Value to update the hard state of
+     * the consumer group.
+     *
+     * @param key   A ConsumerGroupRegularExpressionKey key.
+     * @param value A ConsumerGroupRegularExpressionValue record.
+     */
+    public void replay(
+        ConsumerGroupRegularExpressionKey key,
+        ConsumerGroupRegularExpressionValue value
+    ) {
+        String groupId = key.groupId();
+        String regex = key.regularExpression();
+
+        if (value != null) {
+            ConsumerGroup group = getOrMaybeCreatePersistedConsumerGroup(groupId, true);
+            group.updateResolvedRegularExpression(
+                regex,
+                new ResolvedRegularExpression(
+                    new HashSet<>(value.topics()),
+                    value.version(),
+                    value.timestamp()
+                )
+            );
+        } else {
+            try {
+                ConsumerGroup group = getOrMaybeCreatePersistedConsumerGroup(groupId, false);
+                group.removeResolvedRegularExpression(regex);
+            } catch (GroupIdNotFoundException ex) {
+                // If the group does not exist, we can ignore the tombstone.
+            }
+        }
+    }
+
+    /**
      * Replays ShareGroupMemberMetadataKey/Value to update the hard state of
      * the share group. It updates the subscription part of the member or
      * delete the member.
@@ -3701,9 +4036,9 @@ public class GroupMetadataManager {
 
         if (value != null) {
             Map<String, TopicMetadata> subscriptionMetadata = new HashMap<>();
-            value.topics().forEach(topicMetadata -> {
-                subscriptionMetadata.put(topicMetadata.topicName(), TopicMetadata.fromRecord(topicMetadata));
-            });
+            value.topics().forEach(topicMetadata ->
+                subscriptionMetadata.put(topicMetadata.topicName(), TopicMetadata.fromRecord(topicMetadata))
+            );
             group.setSubscriptionMetadata(subscriptionMetadata);
         } else {
             group.setSubscriptionMetadata(Collections.emptyMap());
@@ -3799,24 +4134,39 @@ public class GroupMetadataManager {
     public void onNewMetadataImage(MetadataImage newImage, MetadataDelta delta) {
         metadataImage = newImage;
 
+        // Initialize the last offset if it was not yet.
+        if (lastMetadataImageWithNewTopics == -1L) {
+            lastMetadataImageWithNewTopics = metadataImage.provenance().lastContainedOffset();
+        }
+
+        TopicsDelta topicsDelta = delta.topicsDelta();
+        if (topicsDelta == null) return;
+
+        // Updated the last offset of the image with newly created topics. This is used to
+        // trigger a refresh of all the regular expressions when topics are created. Note
+        // that we don't trigger a refresh when topics are deleted. Those are removed from
+        // the subscription metadata (and the assignment) via the above mechanism. The
+        // resolved regular expressions are cleaned up on the next refresh.
+        if (!topicsDelta.createdTopicIds().isEmpty()) {
+            lastMetadataImageWithNewTopics = metadataImage.provenance().lastContainedOffset();
+        }
+
         // Notify all the groups subscribed to the created, updated or
         // deleted topics.
-        Optional.ofNullable(delta.topicsDelta()).ifPresent(topicsDelta -> {
-            Set<String> allGroupIds = new HashSet<>();
-            topicsDelta.changedTopics().forEach((topicId, topicDelta) -> {
-                String topicName = topicDelta.name();
-                allGroupIds.addAll(groupsSubscribedToTopic(topicName));
-            });
-            topicsDelta.deletedTopicIds().forEach(topicId -> {
-                TopicImage topicImage = delta.image().topics().getTopic(topicId);
-                allGroupIds.addAll(groupsSubscribedToTopic(topicImage.name()));
-            });
-            allGroupIds.forEach(groupId -> {
-                Group group = groups.get(groupId);
-                if (group != null && (group.type() == CONSUMER || group.type() == SHARE)) {
-                    ((ModernGroup<?>) group).requestMetadataRefresh();
-                }
-            });
+        Set<String> allGroupIds = new HashSet<>();
+        topicsDelta.changedTopics().forEach((topicId, topicDelta) -> {
+            String topicName = topicDelta.name();
+            allGroupIds.addAll(groupsSubscribedToTopic(topicName));
+        });
+        topicsDelta.deletedTopicIds().forEach(topicId -> {
+            TopicImage topicImage = delta.image().topics().getTopic(topicId);
+            allGroupIds.addAll(groupsSubscribedToTopic(topicImage.name()));
+        });
+        allGroupIds.forEach(groupId -> {
+            Group group = groups.get(groupId);
+            if (group != null && (group.type() == CONSUMER || group.type() == SHARE)) {
+                ((ModernGroup<?>) group).requestMetadataRefresh();
+            }
         });
     }
 
@@ -3911,19 +4261,19 @@ public class GroupMetadataManager {
                         case DEAD:
                             break;
                         case PREPARING_REBALANCE:
-                            classicGroup.allMembers().forEach(member -> {
+                            classicGroup.allMembers().forEach(member ->
                                 classicGroup.completeJoinFuture(member, new JoinGroupResponseData()
                                     .setMemberId(member.memberId())
-                                    .setErrorCode(NOT_COORDINATOR.code()));
-                            });
+                                    .setErrorCode(NOT_COORDINATOR.code()))
+                            );
 
                             break;
                         case COMPLETING_REBALANCE:
                         case STABLE:
-                            classicGroup.allMembers().forEach(member -> {
+                            classicGroup.allMembers().forEach(member ->
                                 classicGroup.completeSyncFuture(member, new SyncGroupResponseData()
-                                    .setErrorCode(NOT_COORDINATOR.code()));
-                            });
+                                    .setErrorCode(NOT_COORDINATOR.code()))
+                            );
                     }
                     break;
                 case SHARE:
@@ -6050,7 +6400,7 @@ public class GroupMetadataManager {
         if (isEmptyClassicGroup(group)) {
             // Delete the classic group by adding tombstones.
             // There's no need to remove the group as the replay of tombstones removes it.
-            if (group != null) createGroupTombstoneRecords(group, records);
+            createGroupTombstoneRecords(group, records);
             return true;
         }
         return false;
