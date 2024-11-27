@@ -42,7 +42,6 @@ import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Repartitioned;
 import org.apache.kafka.streams.processor.StreamPartitioner;
 import org.apache.kafka.test.TestUtils;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -76,6 +75,7 @@ import java.util.stream.IntStream;
 import static org.apache.kafka.streams.KafkaStreams.State.ERROR;
 import static org.apache.kafka.streams.KafkaStreams.State.REBALANCING;
 import static org.apache.kafka.streams.KafkaStreams.State.RUNNING;
+import static org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.SHUTDOWN_CLIENT;
 import static org.apache.kafka.streams.utils.TestUtils.safeUniqueTestName;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -168,17 +168,18 @@ public class KStreamRepartitionIntegrationTest {
                .to(outputTopic);
 
         final Properties streamsConfiguration = createStreamsConfig(topologyOptimization);
-        builder.build(streamsConfiguration);
-
-        startStreams(builder, REBALANCING, ERROR, streamsConfiguration, (t, e) -> expectedThrowable.set(e));
-
-        final String expectedMsg = String.format("Number of partitions [%s] of repartition topic [%s] " +
-                                                 "doesn't match number of partitions [%s] of the source topic.",
-                                                 inputTopicRepartitionedNumOfPartitions,
-                                                 toRepartitionTopicName(inputTopicRepartitionName),
-                                                 topicBNumberOfPartitions);
-        assertNotNull(expectedThrowable.get());
-        assertTrue(expectedThrowable.get().getMessage().contains(expectedMsg));
+        try (final KafkaStreams ks = new KafkaStreams(builder.build(streamsConfiguration), streamsConfiguration)) {
+                  ks.setUncaughtExceptionHandler(exception -> { expectedThrowable.set(exception); return SHUTDOWN_CLIENT; });
+                  ks.start();
+                  TestUtils.waitForCondition(() -> ks.state() == ERROR, 30_000, "Kafka Streams never went into error state");
+            final String expectedMsg = String.format("Number of partitions [%s] of repartition topic [%s] " +
+                            "doesn't match number of partitions [%s] of the source topic.",
+                    inputTopicRepartitionedNumOfPartitions,
+                    toRepartitionTopicName(inputTopicRepartitionName),
+                    topicBNumberOfPartitions);
+            assertNotNull(expectedThrowable.get());
+            assertTrue(expectedThrowable.get().getMessage().contains(expectedMsg));
+        }
     }
 
     @ParameterizedTest
@@ -723,7 +724,7 @@ public class KStreamRepartitionIntegrationTest {
             )
         );
 
-        kafkaStreamsToClose.close();
+        kafkaStreamsToClose.close(Duration.ofSeconds(5));
 
         sendEvents(
             timestamp,
@@ -814,36 +815,12 @@ public class KStreamRepartitionIntegrationTest {
     }
 
     private KafkaStreams startStreams(final StreamsBuilder builder, final Properties streamsConfiguration) throws InterruptedException {
-        return startStreams(builder, REBALANCING, RUNNING, streamsConfiguration, null);
-    }
-
-    private KafkaStreams startStreams(final StreamsBuilder builder,
-                                      final State expectedOldState,
-                                      final State expectedNewState,
-                                      final Properties streamsConfiguration,
-                                      final Thread.UncaughtExceptionHandler uncaughtExceptionHandler) throws InterruptedException {
         final CountDownLatch latch;
         final KafkaStreams kafkaStreams = new KafkaStreams(builder.build(streamsConfiguration), streamsConfiguration);
-
-        if (uncaughtExceptionHandler == null) {
-            latch = new CountDownLatch(1);
-        } else {
-            latch = new CountDownLatch(2);
-            kafkaStreams.setUncaughtExceptionHandler(e -> {
-                uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), e);
-                latch.countDown();
-                if (e instanceof RuntimeException) {
-                    throw (RuntimeException) e;
-                } else if (e instanceof Error) {
-                    throw (Error) e;
-                } else {
-                    throw new RuntimeException("Unexpected checked exception caught in the uncaught exception handler", e);
-                }
-            });
-        }
+        latch = new CountDownLatch(1);
 
         kafkaStreams.setStateListener((newState, oldState) -> {
-            if (expectedOldState == oldState && expectedNewState == newState) {
+            if (REBALANCING == oldState && RUNNING == newState) {
                 latch.countDown();
             }
         });
