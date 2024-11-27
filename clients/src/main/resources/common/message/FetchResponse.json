@@ -76,12 +76,11 @@
         { "name": "LogStartOffset", "type": "int64", "versions": "5+", "default": "-1", "ignorable": true,
           "about": "The current log start offset." },
         { "name": "DivergingEpoch", "type": "EpochEndOffset", "versions": "12+", "taggedVersions": "12+", "tag": 0,
-          "about": "In case divergence is detected based on the `LastFetchedEpoch` and `FetchOffset` in the request, this field indicates the largest epoch and its end offset such that subsequent records are known to diverge.",
-          "fields": [
-            { "name": "Epoch", "type": "int32", "versions": "12+", "default": "-1",
-              "about": "The largest epoch." },
-            { "name": "EndOffset", "type": "int64", "versions": "12+", "default": "-1",
-              "about": "The end offset of the epoch." }
+          "about": "In case divergence is detected based on the `LastFetchedEpoch` and `FetchOffset` in the request, this field indicates the largest epoch and its end offset such that subsequent records are known to diverge.", "fields": [
+          { "name": "Epoch", "type": "int32", "versions": "12+", "default": "-1",
+            "about": "The largest epoch." },
+          { "name": "EndOffset", "type": "int64", "versions": "12+", "default": "-1",
+            "about": "The end offset of the epoch." }
         ]},
         { "name": "CurrentLeader", "type": "LeaderIdAndEpoch",
           "versions": "12+", "taggedVersions": "12+", "tag": 1,
@@ -93,12 +92,11 @@
         ]},
         { "name": "SnapshotId", "type": "SnapshotId",
           "versions": "12+", "taggedVersions": "12+", "tag": 2,
-          "about": "In the case of fetching an offset less than the LogStartOffset, this is the end offset and epoch that should be used in the FetchSnapshot request.",
-          "fields": [
-            { "name": "EndOffset", "type": "int64", "versions": "0+", "default": "-1",
-              "about": "The end offset of the epoch." },
-            { "name": "Epoch", "type": "int32", "versions": "0+", "default": "-1",
-              "about": "The largest epoch." }
+          "about": "In the case of fetching an offset less than the LogStartOffset, this is the end offset and epoch that should be used in the FetchSnapshot request.", "fields": [
+          { "name": "EndOffset", "type": "int64", "versions": "0+", "default": "-1",
+            "about": "The end offset of the epoch." },
+          { "name": "Epoch", "type": "int32", "versions": "0+", "default": "-1",
+            "about": "The largest epoch." }
         ]},
         { "name": "AbortedTransactions", "type": "[]AbortedTransaction", "versions": "4+", "nullableVersions": "4+", "ignorable": true,
           "about": "The aborted transactions.",  "fields": [
