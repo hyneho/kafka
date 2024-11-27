@@ -34,7 +34,7 @@
     { "name": "CurrentVoters", "type": "[]Voter", "versions": "0", "nullableVersions": "0",
       "about": "The current voters.", "fields": [
       { "name": "VoterId", "type": "int32", "versions": "0",
-      "about": "The voter id."}
+        "about": "The voter id."}
     ]}
   ]
 }

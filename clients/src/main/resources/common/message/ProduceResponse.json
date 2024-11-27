@@ -68,7 +68,8 @@
           "about": "The leader broker that the producer should use for future requests.", "fields": [
           { "name": "LeaderId", "type": "int32", "versions": "10+", "default": "-1", "entityType": "brokerId",
             "about": "The ID of the current leader or -1 if the leader is unknown."},
-          { "name": "LeaderEpoch", "type": "int32", "versions": "10+", "default": "-1", "about": "The latest known leader epoch."}
+          { "name": "LeaderEpoch", "type": "int32", "versions": "10+", "default": "-1",
+            "about": "The latest known leader epoch."}
         ]}
       ]}
     ]},

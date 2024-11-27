@@ -34,12 +34,12 @@
       "about": "Transaction timeout in milliseconds."},
     { "name": "TransactionStatus", "type": "int8", "versions": "0+",
       "about": "TransactionState the transaction is in."},
-    { "name": "TransactionPartitions", "type": "[]PartitionsSchema", "versions": "0+", "nullableVersions": "0+", "fields": [
+    { "name": "TransactionPartitions", "type": "[]PartitionsSchema", "versions": "0+", "nullableVersions": "0+",
+      "about": "Partitions involved in the transaction.", "fields": [
       { "name": "Topic", "type": "string", "versions": "0+",
         "about": "Topic involved in the transaction."},
       { "name": "PartitionIds", "type": "[]int32", "versions": "0+",
-        "about": "Partition ids involved in the transaction."}],
-      "about": "Partitions involved in the transaction."},
+        "about": "Partition ids involved in the transaction."}]},
     { "name": "TransactionLastUpdateTimestampMs", "type": "int64", "versions": "0+",
       "about": "Time the transaction was last updated."},
     { "name": "TransactionStartTimestampMs", "type": "int64", "versions": "0+",

@@ -68,9 +68,9 @@
   "commonStructs": [
     { "name": "ReplicaState", "versions": "0+", "fields": [
       { "name": "ReplicaId", "type": "int32", "versions": "0+", "entityType": "brokerId",
-      "about": "The ID of the replica."},
+        "about": "The ID of the replica."},
       { "name": "ReplicaDirectoryId", "type": "uuid", "versions": "2+",
-      "about": "The replica directory ID of the replica."},
+        "about": "The replica directory ID of the replica."},
       { "name": "LogEndOffset", "type": "int64", "versions": "0+",
         "about": "The last known log end offset of the follower or -1 if it is unknown."},
       { "name": "LastFetchTimestamp", "type": "int64", "versions": "1+", "ignorable": true, "default": -1,

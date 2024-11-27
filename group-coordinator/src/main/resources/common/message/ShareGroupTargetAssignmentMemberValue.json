@@ -21,7 +21,7 @@
   "flexibleVersions": "0+",
   "fields": [
     { "name": "TopicPartitions", "versions": "0+", "type": "[]TopicPartition",
-        "about": "The assigned partitions.", "fields": [
+      "about": "The assigned partitions.", "fields": [
       { "name": "TopicId", "versions": "0+", "type": "uuid",
         "about": "The topic id."},
       { "name": "Partitions", "versions": "0+", "type": "[]int32",
