@@ -1114,9 +1114,9 @@ public class ConfigCommandTest {
                 assertEquals(3, alterConfigOps.size());
 
                 List<AlterConfigOp> expectedConfigOps = Arrays.asList(
-                    new AlterConfigOp(new ConfigEntry("kafka.log.LogCleaner", "DEBUG"), AlterConfigOp.OpType.SET),
                     new AlterConfigOp(new ConfigEntry("kafka.server.ReplicaManager", ""), AlterConfigOp.OpType.DELETE),
-                    new AlterConfigOp(new ConfigEntry("kafka.server.KafkaApi", ""), AlterConfigOp.OpType.DELETE)
+                    new AlterConfigOp(new ConfigEntry("kafka.server.KafkaApi", ""), AlterConfigOp.OpType.DELETE),
+                    new AlterConfigOp(new ConfigEntry("kafka.log.LogCleaner", "DEBUG"), AlterConfigOp.OpType.SET)
                 );
                 assertEquals(expectedConfigOps.size(), alterConfigOps.size());
                 Iterator<AlterConfigOp> alterConfigOpsIter = alterConfigOps.iterator();
@@ -1247,9 +1247,9 @@ public class ConfigCommandTest {
                 assertEquals(3, alterConfigOps.size());
 
                 List<AlterConfigOp> expectedConfigOps = Arrays.asList(
+                    new AlterConfigOp(new ConfigEntry("interval.ms", ""), AlterConfigOp.OpType.DELETE),
                     new AlterConfigOp(new ConfigEntry("match", "client_software_name=kafka.python,client_software_version=1\\.2\\..*"), AlterConfigOp.OpType.SET),
-                    new AlterConfigOp(new ConfigEntry("metrics", "org.apache.kafka.consumer."), AlterConfigOp.OpType.SET),
-                    new AlterConfigOp(new ConfigEntry("interval.ms", ""), AlterConfigOp.OpType.DELETE)
+                    new AlterConfigOp(new ConfigEntry("metrics", "org.apache.kafka.consumer."), AlterConfigOp.OpType.SET)
                 );
                 assertEquals(expectedConfigOps.size(), alterConfigOps.size());
                 Iterator<AlterConfigOp> alterConfigOpsIter = alterConfigOps.iterator();
@@ -1357,8 +1357,8 @@ public class ConfigCommandTest {
                 assertEquals(2, alterConfigOps.size());
 
                 List<AlterConfigOp> expectedConfigOps = Arrays.asList(
-                    new AlterConfigOp(new ConfigEntry("consumer.heartbeat.interval.ms", "6000"), AlterConfigOp.OpType.SET),
-                    new AlterConfigOp(new ConfigEntry("consumer.session.timeout.ms", ""), AlterConfigOp.OpType.DELETE)
+                    new AlterConfigOp(new ConfigEntry("consumer.session.timeout.ms", ""), AlterConfigOp.OpType.DELETE),
+                    new AlterConfigOp(new ConfigEntry("consumer.heartbeat.interval.ms", "6000"), AlterConfigOp.OpType.SET)
                 );
                 assertEquals(expectedConfigOps.size(), alterConfigOps.size());
                 Iterator<AlterConfigOp> alterConfigOpsIter = alterConfigOps.iterator();
