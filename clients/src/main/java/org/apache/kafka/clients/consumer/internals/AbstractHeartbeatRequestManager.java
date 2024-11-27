@@ -408,8 +408,8 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
 
             case INVALID_REGULAR_EXPRESSION:
                 logger.error("{} failed due to {}: {}", heartbeatRequestName(), error, errorMessage);
-                handleFatalFailure(error.exception("The SubscriptionPattern provided in the call to subscribe is not " +
-                    "a valid RE2J regular expression."));
+                handleFatalFailure(error.exception("Invalid RE2J SubscriptionPattern provided in the call to " +
+                    "subscribe. " + errorMessage));
                 break;
 
             default:
