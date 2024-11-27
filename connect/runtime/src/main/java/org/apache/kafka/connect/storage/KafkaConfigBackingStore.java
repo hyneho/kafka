@@ -1230,8 +1230,8 @@ public final class KafkaConfigBackingStore extends KafkaTopicBasedBackingStore i
                 (long) creationTimestamp
         );
 
-        if (started)
-            updateListener.onSessionKeyUpdate(KafkaConfigBackingStore.this.sessionKey);
+        // we notify the listener of all session key updates, even if we haven't completed startup
+        updateListener.onSessionKeyUpdate(KafkaConfigBackingStore.this.sessionKey);
     }
 
     private void processLoggerLevelRecord(String namespace, SchemaAndValue value) {
