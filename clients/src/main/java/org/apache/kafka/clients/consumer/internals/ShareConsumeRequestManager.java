@@ -150,7 +150,7 @@ public class ShareConsumeRequestManager implements RequestManager, MemberStateLi
         for (TopicPartition partition : partitionsToFetch()) {
             Optional<Node> leaderOpt = metadata.currentLeader(partition).leader;
 
-            if (!leaderOpt.isPresent()) {
+            if (leaderOpt.isEmpty()) {
                 log.debug("Requesting metadata update for partition {} since current leader node is missing", partition);
                 metadata.requestUpdate(false);
                 continue;
@@ -1165,7 +1165,10 @@ public class ShareConsumeRequestManager implements RequestManager, MemberStateLi
             }
             // For commitAsync, we do not wait for other results to complete, we prepare a background event
             // for every ShareAcknowledgeResponse.
-            if (isCommitAsync || (remainingResults  != null && remainingResults.decrementAndGet() == 0)) {
+            // For commitAsync, we send out a background event for every TopicIdPartition, so we use a singletonMap each time.
+            if (isCommitAsync) {
+                maybeSendShareAcknowledgeCommitCallbackEvent(Collections.singletonMap(partition, acknowledgements));
+            } else if (remainingResults != null && remainingResults.decrementAndGet() == 0) {
                 maybeSendShareAcknowledgeCommitCallbackEvent(result);
                 future.ifPresent(future -> future.complete(result));
             }

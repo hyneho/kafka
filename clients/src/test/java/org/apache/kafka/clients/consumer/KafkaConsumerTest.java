@@ -20,8 +20,10 @@ import org.apache.kafka.clients.ClientRequest;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.KafkaClient;
 import org.apache.kafka.clients.MockClient;
+import org.apache.kafka.clients.NetworkClient;
 import org.apache.kafka.clients.NodeApiVersions;
 import org.apache.kafka.clients.consumer.internals.AsyncKafkaConsumer;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.clients.consumer.internals.ClassicKafkaConsumer;
 import org.apache.kafka.clients.consumer.internals.ConsumerMetadata;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
@@ -223,7 +225,7 @@ public class KafkaConsumerTest {
 
     private final Collection<TopicPartition> singleTopicPartition = Collections.singleton(new TopicPartition(topic, 0));
     private final Time time = new MockTime();
-    private final SubscriptionState subscription = new SubscriptionState(new LogContext(), OffsetResetStrategy.EARLIEST);
+    private final SubscriptionState subscription = new SubscriptionState(new LogContext(), AutoOffsetResetStrategy.EARLIEST);
     private final ConsumerPartitionAssignor assignor = new RoundRobinAssignor();
 
     private KafkaConsumer<?, ?> consumer;
@@ -1028,7 +1030,7 @@ public class KafkaConsumerTest {
     @ParameterizedTest
     @EnumSource(value = GroupProtocol.class)
     public void testMissingOffsetNoResetPolicy(GroupProtocol groupProtocol) throws InterruptedException {
-        SubscriptionState subscription = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
+        SubscriptionState subscription = new SubscriptionState(new LogContext(), AutoOffsetResetStrategy.NONE);
         ConsumerMetadata metadata = createMetadata(subscription);
         MockClient client = new MockClient(time, metadata);
 
@@ -1057,7 +1059,7 @@ public class KafkaConsumerTest {
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
     public void testResetToCommittedOffset(GroupProtocol groupProtocol) {
-        SubscriptionState subscription = new SubscriptionState(new LogContext(), OffsetResetStrategy.NONE);
+        SubscriptionState subscription = new SubscriptionState(new LogContext(), AutoOffsetResetStrategy.NONE);
         ConsumerMetadata metadata = createMetadata(subscription);
         MockClient client = new MockClient(time, metadata);
 
@@ -1080,7 +1082,7 @@ public class KafkaConsumerTest {
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
     public void testResetUsingAutoResetPolicy(GroupProtocol groupProtocol) {
-        SubscriptionState subscription = new SubscriptionState(new LogContext(), OffsetResetStrategy.LATEST);
+        SubscriptionState subscription = new SubscriptionState(new LogContext(), AutoOffsetResetStrategy.LATEST);
         ConsumerMetadata metadata = createMetadata(subscription);
         MockClient client = new MockClient(time, metadata);
 
@@ -1105,7 +1107,7 @@ public class KafkaConsumerTest {
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
     public void testOffsetIsValidAfterSeek(GroupProtocol groupProtocol) {
-        SubscriptionState subscription = new SubscriptionState(new LogContext(), OffsetResetStrategy.LATEST);
+        SubscriptionState subscription = new SubscriptionState(new LogContext(), AutoOffsetResetStrategy.LATEST);
         ConsumerMetadata metadata = createMetadata(subscription);
         MockClient client = new MockClient(time, metadata);
 
@@ -1968,11 +1970,11 @@ public class KafkaConsumerTest {
         }
 
         try (KafkaConsumer<byte[], byte[]> consumer = newConsumer(groupProtocol, null)) {
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitAsync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitAsync);
         }
 
         try (KafkaConsumer<byte[], byte[]> consumer = newConsumer(groupProtocol, null)) {
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitSync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitSync);
         }
     }
 
@@ -1983,8 +1985,8 @@ public class KafkaConsumerTest {
             consumer.assign(singleton(tp0));
 
             assertThrows(InvalidGroupIdException.class, () -> consumer.committed(Collections.singleton(tp0)).get(tp0));
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitAsync());
-            assertThrows(InvalidGroupIdException.class, () -> consumer.commitSync());
+            assertThrows(InvalidGroupIdException.class, consumer::commitAsync);
+            assertThrows(InvalidGroupIdException.class, consumer::commitSync);
         }
     }
 
@@ -2282,7 +2284,7 @@ public class KafkaConsumerTest {
     public void testMeasureCommitSyncDuration(GroupProtocol groupProtocol) {
         Time time = new MockTime(Duration.ofSeconds(1).toMillis());
         SubscriptionState subscription = new SubscriptionState(new LogContext(),
-            OffsetResetStrategy.EARLIEST);
+            AutoOffsetResetStrategy.EARLIEST);
         ConsumerMetadata metadata = createMetadata(subscription);
         MockClient client = new MockClient(time, metadata);
         initMetadata(client, Collections.singletonMap(topic, 2));
@@ -2328,7 +2330,7 @@ public class KafkaConsumerTest {
         long offset1 = 10000;
         Time time = new MockTime(Duration.ofSeconds(1).toMillis());
         SubscriptionState subscription = new SubscriptionState(new LogContext(),
-            OffsetResetStrategy.EARLIEST);
+            AutoOffsetResetStrategy.EARLIEST);
         ConsumerMetadata metadata = createMetadata(subscription);
         MockClient client = new MockClient(time, metadata);
         initMetadata(client, Collections.singletonMap(topic, 2));
@@ -2667,7 +2669,7 @@ public class KafkaConsumerTest {
 
     @ParameterizedTest
     @EnumSource(GroupProtocol.class)
-    public void testListOffsetShouldUpdateSubscriptions(GroupProtocol groupProtocol) throws InterruptedException {
+    public void testListOffsetShouldUpdateSubscriptions(GroupProtocol groupProtocol) {
         final ConsumerMetadata metadata = createMetadata(subscription);
         final MockClient client = new MockClient(time, metadata);
 
@@ -3607,6 +3609,17 @@ public void testClosingConsumerUnregistersConsumerMetrics(GroupProtocol groupPro
                 requestGenerated(client, ApiKeys.JOIN_GROUP) :
                 requestGenerated(client, ApiKeys.CONSUMER_GROUP_HEARTBEAT),
                 "Expected " + (groupProtocol == GroupProtocol.CLASSIC ? "JoinGroup" : "Heartbeat") + " request");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = GroupProtocol.class, names = "CLASSIC")
+    public void testSubscribeToRe2jPatternNotSupportedForClassicConsumer(GroupProtocol groupProtocol) {
+        KafkaConsumer<String, String> consumer = newConsumerNoAutoCommit(groupProtocol, time, mock(NetworkClient.class), subscription,
+            mock(ConsumerMetadata.class));
+        assertThrows(UnsupportedOperationException.class, () ->
+            consumer.subscribe(new SubscriptionPattern("t*")));
+        assertThrows(UnsupportedOperationException.class, () ->
+            consumer.subscribe(new SubscriptionPattern("t*"), mock(ConsumerRebalanceListener.class)));
     }
 
     private boolean requestGenerated(MockClient client, ApiKeys apiKey) {
