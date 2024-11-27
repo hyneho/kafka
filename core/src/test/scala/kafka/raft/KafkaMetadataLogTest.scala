@@ -449,8 +449,8 @@ final class KafkaMetadataLogTest {
   }
 
   private def metadataLogDir(
-                              logDir: File
-                            ): File = {
+    logDir: File
+  ): File = {
     new File(
       logDir.getAbsolutePath,
       UnifiedLog.logDirName(KafkaRaftServer.MetadataPartition)
@@ -458,15 +458,10 @@ final class KafkaMetadataLogTest {
   }
 
   private def writeEmptySnapshot(
-                                  metadataDir: File,
-                                  snapshotId: OffsetAndEpoch
-                                ): Unit = {
-    val snapshot = FileRawSnapshotWriter.create(metadataDir.toPath, snapshotId)
-    try {
-      snapshot.freeze()
-    } finally {
-      snapshot.close()
-    }
+    metadataDir: File,
+    snapshotId: OffsetAndEpoch
+  ): Unit = {
+    Using.resource(FileRawSnapshotWriter.create(metadataDir.toPath, snapshotId))(_.freeze())
   }
 
   @Test
@@ -620,10 +615,10 @@ final class KafkaMetadataLogTest {
   }
 
   private def buildFullBatch(
-                              leaderEpoch: Int,
-                              recordSize: Int,
-                              maxBatchSizeInBytes: Int
-                            ): MemoryRecords = {
+    leaderEpoch: Int,
+    recordSize: Int,
+    maxBatchSizeInBytes: Int
+  ): MemoryRecords = {
     val buffer = ByteBuffer.allocate(maxBatchSizeInBytes)
     val batchBuilder = new BatchBuilder[Array[Byte]](
       buffer,
@@ -984,10 +979,10 @@ object KafkaMetadataLogTest {
   )
 
   def buildMetadataLogAndDir(
-                              tempDir: File,
-                              time: MockTime,
-                              metadataLogConfig: MetadataLogConfig = DefaultMetadataLogConfig
-                            ): (Path, KafkaMetadataLog, MetadataLogConfig) = {
+    tempDir: File,
+    time: MockTime,
+    metadataLogConfig: MetadataLogConfig = DefaultMetadataLogConfig
+  ): (Path, KafkaMetadataLog, MetadataLogConfig) = {
 
     val logDir = createLogDirectory(
       tempDir,
@@ -1007,10 +1002,10 @@ object KafkaMetadataLogTest {
   }
 
   def buildMetadataLog(
-                        tempDir: File,
-                        time: MockTime,
-                        metadataLogConfig: MetadataLogConfig = DefaultMetadataLogConfig,
-                      ): KafkaMetadataLog = {
+    tempDir: File,
+    time: MockTime,
+    metadataLogConfig: MetadataLogConfig = DefaultMetadataLogConfig,
+  ): KafkaMetadataLog = {
     val (_, log, _) = buildMetadataLogAndDir(tempDir, time, metadataLogConfig)
     log
   }
