@@ -643,7 +643,7 @@ public class SharePartition {
                         // acquire subset of offsets from the in-flight batch but only if the
                         // complete batch is available yet. Hence, do a pre-check to avoid exploding
                         // the in-flight offset tracking unnecessarily.
-                        if (inFlightBatch.batchState() != RecordState.AVAILABLE) {
+                        if (inFlightBatch.batchState() != RecordState.AVAILABLE || inFlightBatch.batchRollbackState() == RecordState.ACQUIRED) {
                             log.trace("The batch is not available to acquire in share partition: {}-{}, skipping: {}"
                                     + " skipping offset tracking for batch as well.", groupId,
                                 topicIdPartition, inFlightBatch);
@@ -662,7 +662,7 @@ public class SharePartition {
                 }
 
                 // The in-flight batch is a full match hence change the state of the complete batch.
-                if (inFlightBatch.batchState() != RecordState.AVAILABLE) {
+                if (inFlightBatch.batchState() != RecordState.AVAILABLE || inFlightBatch.batchRollbackState() == RecordState.ACQUIRED) {
                     log.trace("The batch is not available to acquire in share partition: {}-{}, skipping: {}",
                         groupId, topicIdPartition, inFlightBatch);
                     continue;
@@ -1225,7 +1225,7 @@ public class SharePartition {
                     break;
                 }
 
-                if (offsetState.getValue().state != RecordState.AVAILABLE) {
+                if (offsetState.getValue().state != RecordState.AVAILABLE || offsetState.getValue().rollbackState() == RecordState.ACQUIRED) {
                     log.trace("The offset is not available skipping, offset: {} batch: {}"
                             + " for the share partition: {}-{}", offsetState.getKey(), inFlightBatch,
                         groupId, topicIdPartition);
@@ -2221,6 +2221,13 @@ public class SharePartition {
             return batchState.acquisitionLockTimeoutTask;
         }
 
+        RecordState batchRollbackState() {
+            if (batchState == null) {
+                throw new IllegalStateException("The batch state is not available as the offset state is maintained");
+            }
+            return batchState.rollbackState();
+        }
+
         // Visible for testing.
         NavigableMap<Long, InFlightState> offsetState() {
             return offsetState;
@@ -2330,6 +2337,15 @@ public class SharePartition {
 
         String memberId() {
             return memberId;
+        }
+
+        RecordState rollbackState() {
+            if (rollbackState == null) {
+                // This case could occur when the batch/offset hasn't transitioned even once or the state transitions have
+                // been committed.
+                return null;
+            }
+            return rollbackState.state;
         }
 
         // Visible for testing.
