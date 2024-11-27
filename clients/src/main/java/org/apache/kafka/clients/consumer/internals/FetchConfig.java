@@ -37,6 +37,7 @@ public class FetchConfig {
     public final boolean checkCrcs;
     public final String clientRackId;
     public final IsolationLevel isolationLevel;
+    public final TempFetchMode tempFetchMode;
 
     /**
      * Constructs a new {@link FetchConfig} using explicitly provided values. This is provided here for tests that
@@ -59,6 +60,7 @@ public class FetchConfig {
         this.checkCrcs = checkCrcs;
         this.clientRackId = clientRackId;
         this.isolationLevel = isolationLevel;
+        this.tempFetchMode = TempFetchMode.SKIP_BUFFERED;
     }
 
     /**
@@ -74,6 +76,7 @@ public class FetchConfig {
      *     <li>{@link #checkCrcs}: {@link ConsumerConfig#CHECK_CRCS_CONFIG}</li>
      *     <li>{@link #clientRackId}: {@link ConsumerConfig#CLIENT_RACK_CONFIG}</li>
      *     <li>{@link #isolationLevel}: {@link ConsumerConfig#ISOLATION_LEVEL_CONFIG}</li>
+     *     <li>{@link #tempFetchMode}: {@link ConsumerConfig#TEMP_FETCH_MODE_CONFIG}</li>
      * </ul>
      *
      * @param config Consumer configuration
@@ -87,6 +90,7 @@ public class FetchConfig {
         this.checkCrcs = config.getBoolean(ConsumerConfig.CHECK_CRCS_CONFIG);
         this.clientRackId = config.getString(ConsumerConfig.CLIENT_RACK_CONFIG);
         this.isolationLevel = configuredIsolationLevel(config);
+        this.tempFetchMode = TempFetchMode.of(config.getInt(ConsumerConfig.TEMP_FETCH_MODE_CONFIG));
     }
 
     @Override
@@ -100,6 +104,7 @@ public class FetchConfig {
                 ", checkCrcs=" + checkCrcs +
                 ", clientRackId='" + clientRackId + '\'' +
                 ", isolationLevel=" + isolationLevel +
+                ", tempFetchMode=" + tempFetchMode +
                 '}';
     }
 }
