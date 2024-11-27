@@ -237,7 +237,7 @@ public class ConsumerHeartbeatRequestManager extends AbstractHeartbeatRequestMan
             // Send empty string to indicate that a subscribed pattern needs to be removed.
             SubscriptionPattern pattern = subscriptions.subscriptionPattern();
             boolean patternUpdated = !Objects.equals(pattern, sentFields.pattern);
-            if (sendAllFields || patternUpdated) {
+            if ((sendAllFields && pattern != null) || patternUpdated) {
                 data.setSubscribedTopicRegex((pattern != null) ? pattern.pattern() : "");
                 sentFields.pattern = pattern;
             }
