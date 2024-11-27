@@ -17,12 +17,7 @@
 package org.apache.kafka.streams.scala
 package kstream
 
-import org.apache.kafka.streams.kstream.{
-  GlobalKTable,
-  JoinWindows,
-  KStream => KStreamJ,
-  Printed
-}
+import org.apache.kafka.streams.kstream.{GlobalKTable, JoinWindows, KStream => KStreamJ, Printed}
 import org.apache.kafka.streams.processor.TopicNameExtractor
 import org.apache.kafka.streams.processor.api.{FixedKeyProcessorSupplier, ProcessorSupplier}
 import org.apache.kafka.streams.scala.FunctionsCompatConversions.{
