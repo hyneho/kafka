@@ -590,7 +590,7 @@ public class KTableImpl<K, S, V> extends AbstractStream<K, V> implements KTable<
         final ProcessorGraphNode<K, Change<V>> node = new TableSuppressNode<>(
             name,
             new ProcessorParameters<>(suppressionSupplier, name),
-            new StoreBuilderWrapper(storeBuilder)
+            StoreBuilderWrapper.wrapStoreBuilder(storeBuilder)
         );
         node.setOutputVersioned(false);
 
