@@ -312,7 +312,8 @@ class CoordinatorLoaderImplTest {
         .thenThrow(new RuntimeException("Error!"))
 
       val ex = assertFutureThrows(loader.load(tp, coordinator), classOf[RuntimeException])
-      assertEquals("Error!", ex.getMessage)
+
+      assertEquals(s"Deserializing record DefaultRecord(offset=0, timestamp=-1, key=2 bytes, value=2 bytes) from $tp failed due to: Error!", ex.getMessage)
     }
   }
 
