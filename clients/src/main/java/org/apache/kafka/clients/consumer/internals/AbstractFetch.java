@@ -71,6 +71,7 @@ public abstract class AbstractFetch implements Closeable {
     protected final FetchBuffer fetchBuffer;
     protected final BufferSupplier decompressionBufferSupplier;
     protected final Set<Integer> nodesWithPendingFetchRequests;
+
     protected final Map<Integer, FetchSessionHandler> sessionHandlers;
 
     private final ApiVersions apiVersions;

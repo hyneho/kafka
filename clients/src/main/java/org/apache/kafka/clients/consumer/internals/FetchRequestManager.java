@@ -53,7 +53,6 @@ import static org.apache.kafka.clients.consumer.internals.AbstractMembershipMana
  * {@link SubscriptionState#fetchablePartitions(Predicate)} based on the user's topic subscription/partition
  * assignment.
  */
-@SuppressWarnings("NPathComplexity")
 public class FetchRequestManager extends AbstractFetch implements RequestManager {
 
     private final Logger log;
@@ -189,8 +188,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
 
 
     /**
-     * Create fetch requests for all nodes for which we have assigned partitions that have no existing requests
-     * in flight.
+     * Create fetch requests based on the configured {@link TempFetchMode}.
      */
     @Override
     protected Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests() {
@@ -311,6 +309,7 @@ public class FetchRequestManager extends AbstractFetch implements RequestManager
         return fetchable.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
     }
 
+    @SuppressWarnings("NPathComplexity")
     private Map<Node, FetchSessionHandler.FetchRequestData> prepareFetchRequests_option3() {
         // Update metrics in case there was an assignment change
         metricsManager.maybeUpdateAssignment(subscriptions);

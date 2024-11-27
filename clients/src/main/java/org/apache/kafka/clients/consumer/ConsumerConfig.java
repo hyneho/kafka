@@ -670,6 +670,7 @@ public class ConsumerConfig extends AbstractConfig {
                                         (name, optionObj) -> TempFetchMode.of((Integer) optionObj),
                                         Importance.LOW,
                                         TEMP_FETCH_MODE_DOC);
+
     }
 
     @Override
