@@ -735,8 +735,8 @@ public class ConsumerConfig extends AbstractConfig {
     }
 
     private void checkUnsupportedConfigs(GroupProtocol groupProtocol, List<String> unsupportedConfigs) {
-        List<String> invalidConfigs = new ArrayList<>();
         if (getString(GROUP_PROTOCOL_CONFIG).equalsIgnoreCase(groupProtocol.name())) {
+            List<String> invalidConfigs = new ArrayList<>();
             unsupportedConfigs.forEach(configName -> {
                 Object config = originals().get(configName);
                 if (config != null && !Utils.isBlank(config.toString())) {
