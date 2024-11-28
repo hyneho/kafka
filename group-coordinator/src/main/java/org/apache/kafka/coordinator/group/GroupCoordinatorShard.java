@@ -946,13 +946,6 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 );
                 break;
 
-            case 15:
-                groupMetadataManager.replay(
-                    (ConsumerGroupRegularExpressionKey) key.message(),
-                    (ConsumerGroupRegularExpressionValue) Utils.messageOrNull(value)
-                );
-                break;
-
             case 16:
                 groupMetadataManager.replay(
                     (ConsumerGroupRegularExpressionKey) key.message(),
