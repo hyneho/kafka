@@ -25,6 +25,7 @@ import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.api.ProcessorWrapper;
 import org.apache.kafka.streams.processor.api.WrappedFixedKeyProcessorSupplier;
 import org.apache.kafka.streams.processor.api.WrappedProcessorSupplier;
+import org.apache.kafka.streams.processor.internals.StoreFactory;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.utils.TestUtils.RecordingProcessorWrapper.WrapperRecorder;
 import org.junit.jupiter.api.TestInfo;
@@ -37,8 +38,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.mockito.Mockito;
 
 import static org.apache.kafka.streams.StreamsConfig.APPLICATION_ID_CONFIG;
 import static org.apache.kafka.streams.StreamsConfig.BOOTSTRAP_SERVERS_CONFIG;
@@ -115,6 +116,12 @@ public class TestUtils {
         return baseConfigs;
     }
 
+    public static StoreFactory mockStoreFactory(final String name) {
+        final StoreFactory storeFactory = Mockito.mock(StoreFactory.class);
+        Mockito.when(storeFactory.name()).thenReturn(name);
+        return storeFactory;
+    }
+
     /**
      * Simple pass-through processor wrapper that counts the number of processors
      * it wraps.
@@ -135,7 +142,7 @@ public class TestUtils {
         }
 
         public static class WrapperRecorder {
-            private final AtomicInteger wrappedStateStoresCount = new AtomicInteger();
+            private final Set<String> uniqueStores = new HashSet<>();
             private final Set<String> processorStoresCounted = new HashSet<>();
             private final Set<String> wrappedProcessorNames = Collections.synchronizedSet(new HashSet<>());
 
@@ -144,10 +151,13 @@ public class TestUtils {
             }
 
             public void wrapStateStore(final String processorName, final String storeName) {
-                final String key = processorName + storeName;
-                if (!processorStoresCounted.contains(key)) {
-                    processorStoresCounted.add(key);
-                    wrappedStateStoresCount.incrementAndGet();
+                if (!uniqueStores.contains(storeName)) {
+                    uniqueStores.add(storeName);
+                }
+
+                final String processorStoreKey = processorName + storeName;
+                if (!processorStoresCounted.contains(processorStoreKey)) {
+                    processorStoresCounted.add(processorStoreKey);
                 }
             }
 
@@ -155,8 +165,20 @@ public class TestUtils {
                 return wrappedProcessorNames.size();
             }
 
-            public int numWrappedStateStores() {
-                return wrappedStateStoresCount.get();
+            // Number of unique state stores in the topology connected to their processors via the
+            // ProcessorSupplier#stores method. State stores connected to more than one processor are
+            // counted only once
+            public int numUniqueStateStores() {
+                return uniqueStores.size();
+            }
+
+            // Number of stores connected to a processor via the ProcessorSupplier#stores method (ie the size
+            // of the set returned by #stores), summed across all processors in the topology.
+            // Equal to the number of unique <processorName>-<storeName>
+            // pairings. Will be greater than or equal to the value of #numUniqueStateStores, as this method
+            // will double count any stores connected to more than one processor
+            public int numConnectedStateStores() {
+                return processorStoresCounted.size();
             }
 
             public Set<String> wrappedProcessorNames() {

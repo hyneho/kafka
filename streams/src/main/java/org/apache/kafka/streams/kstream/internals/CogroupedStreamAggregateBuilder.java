@@ -102,7 +102,7 @@ class CogroupedStreamAggregateBuilder<K, VOut> {
             final KStreamAggProcessorSupplier<K, ?, K, ?>  parentProcessor =
                 (KStreamAggProcessorSupplier<K, ?, K, ?>) new KStreamWindowAggregate<K, K, VOut, W>(
                     windows,
-                    storeFactory.name(),
+                    storeFactory,
                     EmitStrategy.onWindowUpdate(),
                     initializer,
                     kGroupedStream.getValue());
@@ -141,7 +141,7 @@ class CogroupedStreamAggregateBuilder<K, VOut> {
             final KStreamAggProcessorSupplier<K, ?, K, ?> parentProcessor =
                 (KStreamAggProcessorSupplier<K, ?, K, ?>) new KStreamSessionWindowAggregate<K, K, VOut>(
                     sessionWindows,
-                    storeFactory.name(),
+                    storeFactory,
                     EmitStrategy.onWindowUpdate(),
                     initializer,
                     kGroupedStream.getValue(),
@@ -180,7 +180,7 @@ class CogroupedStreamAggregateBuilder<K, VOut> {
             final KStreamAggProcessorSupplier<K, ?, K, ?> parentProcessor =
                 (KStreamAggProcessorSupplier<K, ?, K, ?>) new KStreamSlidingWindowAggregate<K, K, VOut>(
                     slidingWindows,
-                    storeFactory.name(),
+                    storeFactory,
                     // TODO: We do not have other emit policies for co-group yet
                     EmitStrategy.onWindowUpdate(),
                     initializer,

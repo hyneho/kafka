@@ -148,7 +148,7 @@ public class KGroupedTableImpl<K, V> extends AbstractStream<K, V> implements KGr
             materializedInternal.withValueSerde(valueSerde);
         }
         final ProcessorSupplier<K, Change<V>, K, Change<V>> aggregateSupplier = new KTableReduce<>(
-            materializedInternal.storeName(),
+            materializedInternal,
             adder,
             subtractor);
         return doAggregate(aggregateSupplier, new NamedInternal(named), REDUCE_NAME, materializedInternal);

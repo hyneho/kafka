@@ -98,7 +98,7 @@ class KGroupedStreamImpl<K, V> extends AbstractStream<K, V> implements KGroupedS
 
         final String name = new NamedInternal(named).orElseGenerateWithPrefix(builder, REDUCE_NAME);
         return doAggregate(
-            new KStreamReduce<>(materializedInternal.storeName(), reducer),
+            new KStreamReduce<>(materializedInternal, reducer),
             name,
             materializedInternal
         );
