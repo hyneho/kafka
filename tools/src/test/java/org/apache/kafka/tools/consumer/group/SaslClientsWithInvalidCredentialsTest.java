@@ -45,7 +45,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
+import org.apache.kafka.common.config.SaslConfigs;
 import scala.Option;
 import scala.Some$;
 import scala.collection.Seq;
@@ -114,6 +114,8 @@ public class SaslClientsWithInvalidCredentialsTest extends AbstractSaslTest {
     public void setUp(TestInfo testInfo) {
         startSasl(jaasSections(KAFKA_SERVER_SASL_MECHANISMS, Some$.MODULE$.apply(KAFKA_CLIENT_SASL_MECHANISM), Both$.MODULE$,
             JaasTestUtils.KAFKA_SERVER_CONTEXT_NAME));
+        String superuserLoginContext = jaasAdminLoginModule(KAFKA_CLIENT_SASL_MECHANISM, Option.empty());
+        this.superuserClientConfig().put(SaslConfigs.SASL_JAAS_CONFIG, superuserLoginContext);
         super.setUp(testInfo);
         try (Admin admin = createPrivilegedAdminClient()) {
             admin.createTopics(Collections.singletonList(
