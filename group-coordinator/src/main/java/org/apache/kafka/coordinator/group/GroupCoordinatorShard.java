@@ -218,6 +218,7 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 .withTime(time)
                 .withTimer(timer)
                 .withExecutor(executor)
+                .withConfig(config)
                 .withGroupConfigManager(groupConfigManager)
                 .withConsumerGroupAssignors(config.consumerGroupAssignors())
                 .withConsumerGroupMaxSize(config.consumerGroupMaxSize())

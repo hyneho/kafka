@@ -142,6 +142,7 @@ public class OffsetMetadataManagerTest {
                         .withConsumerGroupAssignors(Collections.singletonList(new RangeAssignor()))
                         .withGroupCoordinatorMetricsShard(metrics)
                         .withGroupConfigManager(configManager)
+                        .withConfig(GroupCoordinatorConfig.fromProps(Collections.emptyMap()))
                         .build();
                 }
 

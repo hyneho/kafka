@@ -203,6 +203,7 @@ public class GroupMetadataManager {
         private Time time = null;
         private CoordinatorTimer<Void, CoordinatorRecord> timer = null;
         private CoordinatorExecutor<CoordinatorRecord> executor = null;
+        private GroupCoordinatorConfig config = null;
         private List<ConsumerGroupPartitionAssignor> consumerGroupAssignors = null;
         private GroupConfigManager groupConfigManager = null;
         private int consumerGroupMaxSize = Integer.MAX_VALUE;
@@ -245,6 +246,11 @@ public class GroupMetadataManager {
 
         Builder withExecutor(CoordinatorExecutor<CoordinatorRecord> executor) {
             this.executor = executor;
+            return this;
+        }
+
+        Builder withConfig(GroupCoordinatorConfig config) {
+            this.config = config;
             return this;
         }
 
@@ -353,6 +359,8 @@ public class GroupMetadataManager {
                 throw new IllegalArgumentException("Timer must be set.");
             if (executor == null)
                 throw new IllegalArgumentException("Executor must be set.");
+            if (config == null)
+                throw new IllegalArgumentException("Config must be set.");
             if (consumerGroupAssignors == null || consumerGroupAssignors.isEmpty())
                 throw new IllegalArgumentException("Assignors must be set before building.");
             if (shareGroupAssignor == null)
@@ -371,6 +379,7 @@ public class GroupMetadataManager {
                 metrics,
                 consumerGroupAssignors,
                 metadataImage,
+                config,
                 groupConfigManager,
                 consumerGroupMaxSize,
                 consumerGroupSessionTimeoutMs,
@@ -431,6 +440,11 @@ public class GroupMetadataManager {
      * The coordinator metrics.
      */
     private final GroupCoordinatorMetricsShard metrics;
+
+    /**
+     * The group coordinator config.
+     */
+    private final GroupCoordinatorConfig config;
 
     /**
      * The supported consumer group partition assignors keyed by their name.
@@ -561,6 +575,7 @@ public class GroupMetadataManager {
         GroupCoordinatorMetricsShard metrics,
         List<ConsumerGroupPartitionAssignor> consumerGroupAssignors,
         MetadataImage metadataImage,
+        GroupCoordinatorConfig config,
         GroupConfigManager groupConfigManager,
         int consumerGroupMaxSize,
         int consumerGroupSessionTimeoutMs,
@@ -585,6 +600,7 @@ public class GroupMetadataManager {
         this.timer = timer;
         this.executor = executor;
         this.metrics = metrics;
+        this.config = config;
         this.metadataImage = metadataImage;
         this.consumerGroupAssignors = consumerGroupAssignors.stream().collect(Collectors.toMap(ConsumerGroupPartitionAssignor::name, Function.identity()));
         this.defaultConsumerGroupAssignor = consumerGroupAssignors.get(0);

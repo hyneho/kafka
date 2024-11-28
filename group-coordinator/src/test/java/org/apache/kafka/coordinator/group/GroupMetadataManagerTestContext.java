@@ -504,6 +504,7 @@ public class GroupMetadataManagerTestContext {
                     .withTime(time)
                     .withTimer(timer)
                     .withExecutor(executor)
+                    .withConfig(GroupCoordinatorConfig.fromProps(Collections.emptyMap()))
                     .withMetadataImage(metadataImage)
                     .withConsumerGroupHeartbeatInterval(5000)
                     .withConsumerGroupSessionTimeout(45000)

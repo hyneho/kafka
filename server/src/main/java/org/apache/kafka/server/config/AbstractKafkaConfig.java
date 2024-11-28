@@ -43,7 +43,7 @@ import java.util.Map;
  */
 public abstract class AbstractKafkaConfig extends AbstractConfig {
     @SuppressWarnings("deprecation")
-    public static final ConfigDef CONFIG_DEF =  Utils.mergeConfigs(Arrays.asList(
+    public static final ConfigDef CONFIG_DEF = Utils.mergeConfigs(Arrays.asList(
             RemoteLogManagerConfig.configDef(),
             ZkConfigs.CONFIG_DEF,
             ServerConfigs.CONFIG_DEF,
