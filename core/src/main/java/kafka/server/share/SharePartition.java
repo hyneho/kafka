@@ -1226,9 +1226,8 @@ public class SharePartition {
                 }
 
                 if (offsetState.getValue().state != RecordState.AVAILABLE || offsetState.getValue().rollbackState() != null) {
-                    log.trace("The offset is not available skipping, offset: {} batch: {}"
-                            + " for the share partition: {}-{}", offsetState.getKey(), inFlightBatch,
-                        groupId, topicIdPartition);
+                    log.trace("The offset {} is not available in share partition: {}-{}, skipping: {}",
+                        offsetState.getKey(), groupId, topicIdPartition, inFlightBatch);
                     continue;
                 }
 
