@@ -1746,6 +1746,85 @@ public class ConsumerGroupTest {
     }
 
     @Test
+    public void testComputeSubscribedTopicNamesWithoutDeletedMembers() {
+        ConsumerGroup consumerGroup = createConsumerGroup("foo");
+
+        ConsumerGroupMember member1 = new ConsumerGroupMember.Builder("member1")
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+            .build();
+        consumerGroup.updateMember(member1);
+
+        ConsumerGroupMember member2 = new ConsumerGroupMember.Builder("member2")
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .build();
+        consumerGroup.updateMember(member2);
+
+        ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
+            .setSubscribedTopicRegex("foo*")
+            .build();
+        consumerGroup.updateMember(member3);
+
+        ConsumerGroupMember member4 = new ConsumerGroupMember.Builder("member4")
+            .setSubscribedTopicRegex("foo*")
+            .build();
+        consumerGroup.updateMember(member4);
+
+        ConsumerGroupMember member5 = new ConsumerGroupMember.Builder("member5")
+            .setSubscribedTopicRegex("bar*")
+            .build();
+        consumerGroup.updateMember(member5);
+
+        ConsumerGroupMember member6 = new ConsumerGroupMember.Builder("member6")
+            .setSubscribedTopicRegex("bar*")
+            .build();
+        consumerGroup.updateMember(member6);
+
+        consumerGroup.updateResolvedRegularExpression(
+            "foo*",
+            new ResolvedRegularExpression(
+                Set.of("foo", "fooo"),
+                10L,
+                12345L
+            )
+        );
+
+        consumerGroup.updateResolvedRegularExpression(
+            "bar*",
+            new ResolvedRegularExpression(
+                Set.of("bar", "barr"),
+                10L,
+                12345L
+            )
+        );
+
+        // Verify initial state.
+        assertEquals(
+            Map.of(
+                "foo", 3,
+                "fooo", 1,
+                "bar", 3,
+                "barr", 1,
+                "zar", 1
+            ),
+            consumerGroup.subscribedTopicNames()
+        );
+
+        // Compute with removed members and regexes.
+        assertEquals(
+            Map.of(
+                "foo", 1,
+                "bar", 2,
+                "barr", 1,
+                "zar", 1
+            ),
+            consumerGroup.computeSubscribedTopicNamesWithoutDeletedMembers(
+                Set.of(member2, member3, member4, member5),
+                Set.of("foo*")
+            )
+        );
+    }
+
+    @Test
     public void testComputeSubscribedTopicNames() {
         ConsumerGroup consumerGroup = createConsumerGroup("foo");
 

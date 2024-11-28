@@ -2406,7 +2406,8 @@ public class GroupMetadataManager {
                     .setPreviousMemberEpoch(0)
                     .build();
 
-                // Generate the records to replace the member.
+                // Generate the records to replace the member. We don't care about the regular expression
+                // here because it is taken care of later after the static membership replacement.
                 replaceMember(records, group, existingStaticMemberOrNull, newMember);
 
                 log.info("[GroupId {}] Static member with instance id {} re-joins the consumer group " +
@@ -3246,6 +3247,38 @@ public class GroupMetadataManager {
                 member.subscribedTopicRegex()
             ));
         }
+    }
+
+    /**
+     * Maybe delete the resolved regular expressions associated with the provided members
+     * if they were the last ones susbcribed to them.
+     *
+     * @param records   The record accumulator.
+     * @param group     The group.
+     * @param members   The member removed from the group.
+     * @return The set of deleted regular expressions.
+     */
+    private Set<String> maybeDeleteResolvedRegularExpressions(
+        List<CoordinatorRecord> records,
+        ConsumerGroup group,
+        Set<ConsumerGroupMember> members
+    ) {
+        Map<String, Integer> counts = new HashMap<>();
+        members.forEach(member -> {
+            if (isNotEmpty(member.subscribedTopicRegex())) {
+                counts.compute(member.subscribedTopicRegex(), Utils::incValue);
+            }
+        });
+
+        Set<String> deletedRegexes = new HashSet<>();
+        counts.forEach((regex, count) -> {
+            if (group.numSubscribedMembers(regex) == count) {
+                records.add(newConsumerGroupRegularExpressionTombstone(group.groupId(), regex));
+                deletedRegexes.add(regex);
+            }
+        });
+
+        return deletedRegexes;
     }
 
     /**
@@ -6106,7 +6139,7 @@ public class GroupMetadataManager {
         if (group.type() == CLASSIC) {
             return classicGroupLeaveToClassicGroup((ClassicGroup) group, context, request);
         } else if (group.type() == CONSUMER) {
-            return classicGroupLeaveToConsumerGroup((ConsumerGroup) group, context, request);
+            return classicGroupLeaveToConsumerGroup((ConsumerGroup) group, request);
         } else {
             throw new UnknownMemberIdException(String.format("Group %s not found.", request.groupId()));
         }
@@ -6116,14 +6149,12 @@ public class GroupMetadataManager {
      * Handle a classic LeaveGroupRequest to a ConsumerGroup.
      *
      * @param group          The ConsumerGroup.
-     * @param context        The request context.
      * @param request        The actual LeaveGroup request.
      *
      * @return The LeaveGroup response and the records to append.
      */
     private CoordinatorResult<LeaveGroupResponseData, CoordinatorRecord> classicGroupLeaveToConsumerGroup(
         ConsumerGroup group,
-        RequestContext context,
         LeaveGroupRequestData request
     ) throws UnknownMemberIdException {
         String groupId = group.groupId();
@@ -6152,8 +6183,8 @@ public class GroupMetadataManager {
                     // in which case we expect the MemberId to be undefined.
                     if (!UNKNOWN_MEMBER_ID.equals(memberId)) {
                         throwIfInstanceIdIsFenced(member, groupId, memberId, instanceId);
+                        throwIfMemberDoesNotUseClassicProtocol(member);
                     }
-                    throwIfMemberDoesNotUseClassicProtocol(member);
 
                     memberId = member.memberId();
                     log.info("[Group {}] Static member {} with instance id {} has left group " +
@@ -6180,9 +6211,16 @@ public class GroupMetadataManager {
         }
 
         if (!records.isEmpty()) {
+            // Check whether resolved regular expressions could be deleted.
+            Set<String> deletedRegexes = maybeDeleteResolvedRegularExpressions(
+                records,
+                group,
+                validLeaveGroupMembers
+            );
+
             // Maybe update the subscription metadata.
             Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
-                group.computeSubscribedTopicNames(validLeaveGroupMembers),
+                group.computeSubscribedTopicNamesWithoutDeletedMembers(validLeaveGroupMembers, deletedRegexes),
                 metadataImage.topics(),
                 metadataImage.cluster()
             );
@@ -6195,6 +6233,7 @@ public class GroupMetadataManager {
 
             // Bump the group epoch.
             records.add(newConsumerGroupEpochRecord(groupId, group.groupEpoch() + 1));
+            log.info("[GroupId {}] Bumped group epoch to {}.", groupId, group.groupEpoch() + 1);
         }
 
         return new CoordinatorResult<>(records, new LeaveGroupResponseData().setMembers(memberResponses));

@@ -390,6 +390,32 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
+     * Computes an updated copy of the subscribed topic names without the provided
+     * removed members and removed regular expressions.
+     *
+     * @param removedMembers    The set of removed members.
+     * @param removedRegexes    The set of removed regular expressions.
+     *
+     * @return Copy of the map of topics to the count of number of subscribers.
+     */
+    public Map<String, Integer> computeSubscribedTopicNamesWithoutDeletedMembers(
+        Set<ConsumerGroupMember> removedMembers,
+        Set<String> removedRegexes
+    ) {
+        Map<String, Integer> subscribedTopicsNames = super.computeSubscribedTopicNames(removedMembers);
+
+        removedRegexes.forEach(regex ->
+            resolvedRegularExpression(regex).ifPresent(resolvedRegularExpression ->
+                resolvedRegularExpression.topics.forEach(topic ->
+                    subscribedTopicsNames.compute(topic, Utils::decValue)
+                )
+            )
+        );
+
+        return subscribedTopicsNames;
+    }
+
+    /**
      * Update the resolved regular expression.
      *
      * @param regex                         The regular expression.
