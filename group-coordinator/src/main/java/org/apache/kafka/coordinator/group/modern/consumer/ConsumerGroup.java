@@ -662,21 +662,25 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
      */
     @Override
     public void createGroupTombstoneRecords(List<CoordinatorRecord> records) {
-        members().forEach((memberId, member) ->
-            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId(), memberId))
+        members.keySet().forEach(memberId ->
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId))
         );
 
-        members().forEach((memberId, member) ->
-            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId(), memberId))
+        members.keySet().forEach(memberId ->
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId))
         );
-        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(groupId()));
+        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(groupId));
 
-        members().forEach((memberId, member) ->
-            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId(), memberId))
+        members.keySet().forEach(memberId ->
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId))
         );
 
-        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(groupId()));
-        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(groupId()));
+        resolvedRegularExpressions.keySet().forEach(regex ->
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone(groupId, regex))
+        );
+
+        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(groupId));
+        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(groupId));
     }
 
     /**
@@ -693,24 +697,28 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         String leavingMemberId,
         String joiningMemberId
     ) {
-        members().forEach((memberId, __) -> {
+        members.keySet().forEach(memberId -> {
             String removedMemberId = memberId.equals(leavingMemberId) ? joiningMemberId : memberId;
-            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId(), removedMemberId));
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, removedMemberId));
         });
 
-        members().forEach((memberId, __) -> {
+        members.keySet().forEach(memberId -> {
             String removedMemberId = memberId.equals(leavingMemberId) ? joiningMemberId : memberId;
-            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId(), removedMemberId));
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, removedMemberId));
         });
-        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(groupId()));
+        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(groupId));
 
-        members().forEach((memberId,  __) -> {
+        members.keySet().forEach(memberId -> {
             String removedMemberId = memberId.equals(leavingMemberId) ? joiningMemberId : memberId;
-            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId(), removedMemberId));
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, removedMemberId));
         });
 
-        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(groupId()));
-        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(groupId()));
+        resolvedRegularExpressions.keySet().forEach(regex ->
+            records.add(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone(groupId, regex))
+        );
+
+        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(groupId));
+        records.add(GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(groupId));
     }
 
     @Override

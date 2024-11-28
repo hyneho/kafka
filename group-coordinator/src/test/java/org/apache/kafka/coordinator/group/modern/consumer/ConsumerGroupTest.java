@@ -66,9 +66,7 @@ import java.util.Set;
 
 import static org.apache.kafka.common.utils.Utils.mkEntry;
 import static org.apache.kafka.common.utils.Utils.mkMap;
-import static org.apache.kafka.coordinator.group.Assertions.assertRecordEquals;
-import static org.apache.kafka.coordinator.group.Assertions.assertRecordsEquals;
-import static org.apache.kafka.coordinator.group.Assertions.assertUnorderedListEquals;
+import static org.apache.kafka.coordinator.group.Assertions.assertUnorderedRecordsEquals;
 import static org.apache.kafka.coordinator.group.AssignmentTestUtil.mkAssignment;
 import static org.apache.kafka.coordinator.group.AssignmentTestUtil.mkTopicAssignment;
 import static org.apache.kafka.coordinator.group.api.assignor.SubscriptionType.HETEROGENEOUS;
@@ -1451,52 +1449,6 @@ public class ConsumerGroupTest {
     }
 
     @Test
-    public void testCreateGroupTombstoneRecordsWithReplacedMember() {
-        String groupId = "group";
-        String memberId1 = "member-1";
-        String memberId2 = "member-2";
-        String newMemberId2 = "new-member-2";
-
-        ConsumerGroup consumerGroup = createConsumerGroup(groupId);
-        List<ConsumerGroupMemberMetadataValue.ClassicProtocol> protocols = new ArrayList<>();
-        protocols.add(new ConsumerGroupMemberMetadataValue.ClassicProtocol()
-            .setName("range")
-            .setMetadata(new byte[0]));
-
-        ConsumerGroupMember member1 = new ConsumerGroupMember.Builder(memberId1)
-            .setClassicMemberMetadata(new ConsumerGroupMemberMetadataValue.ClassicMemberMetadata()
-                .setSupportedProtocols(protocols))
-            .build();
-        consumerGroup.updateMember(member1);
-
-        ConsumerGroupMember member2 = new ConsumerGroupMember.Builder(memberId2)
-            .setInstanceId("instance-id-2")
-            .build();
-        consumerGroup.updateMember(member2);
-
-        List<CoordinatorRecord> records = new ArrayList<>();
-        consumerGroup.createGroupTombstoneRecordsWithReplacedMember(records, memberId2, newMemberId2);
-
-        List<CoordinatorRecord> expectedRecords = Arrays.asList(
-            GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, memberId1),
-            GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord(groupId, newMemberId2),
-            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, memberId1),
-            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord(groupId, newMemberId2),
-            GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord(groupId),
-            GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, memberId1),
-            GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord(groupId, newMemberId2),
-            GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord(groupId),
-            GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord(groupId)
-        );
-        assertEquals(expectedRecords.size(), records.size());
-        assertUnorderedListEquals(expectedRecords.subList(0, 2), records.subList(0, 2));
-        assertUnorderedListEquals(expectedRecords.subList(2, 4), records.subList(2, 4));
-        assertRecordEquals(expectedRecords.get(4), records.get(4));
-        assertUnorderedListEquals(expectedRecords.subList(5, 7), records.subList(5, 7));
-        assertRecordsEquals(expectedRecords.subList(7, 9), records.subList(7, 9));
-    }
-
-    @Test
     public void testFromClassicGroup() {
         MockTime time = new MockTime();
         LogContext logContext = new LogContext();
@@ -1698,6 +1650,115 @@ public class ConsumerGroupTest {
             .build();
         consumerGroup.updateMember(member2);
 
+        // Verify initial state.
+        assertEquals(
+            Map.of(
+                "foo", 2,
+                "bar", 2,
+                "zar", 1
+            ),
+            consumerGroup.subscribedTopicNames()
+        );
+
+        // Add a regex.
+        consumerGroup.updateResolvedRegularExpression(
+            "foo|bar",
+            new ResolvedRegularExpression(
+                Set.of("foo", "bar"),
+                10L,
+                12345L
+            )
+        );
+
+        assertEquals(
+            Map.of(
+                "foo", 3,
+                "bar", 3,
+                "zar", 1
+            ),
+            consumerGroup.subscribedTopicNames()
+        );
+
+        // Add a regex.
+        consumerGroup.updateResolvedRegularExpression(
+            "foobar",
+            new ResolvedRegularExpression(
+                Set.of("foobar"),
+                10L,
+                12345L
+            )
+        );
+
+        assertEquals(
+            Map.of(
+                "foo", 3,
+                "bar", 3,
+                "zar", 1,
+                "foobar", 1
+            ),
+            consumerGroup.subscribedTopicNames()
+        );
+
+        // Update a regex.
+        consumerGroup.updateResolvedRegularExpression(
+            "foo|bar",
+            new ResolvedRegularExpression(
+                Set.of("foo"),
+                10L,
+                12345L
+            )
+        );
+
+        assertEquals(
+            Map.of(
+                "foo", 3,
+                "bar", 2,
+                "zar", 1,
+                "foobar", 1
+            ),
+            consumerGroup.subscribedTopicNames()
+        );
+
+        // Remove a regex.
+        consumerGroup.removeResolvedRegularExpression("foo|bar");
+
+        assertEquals(
+            Map.of(
+                "foo", 2,
+                "bar", 2,
+                "zar", 1,
+                "foobar", 1
+            ),
+            consumerGroup.subscribedTopicNames()
+        );
+
+        // Remove another regex.
+        consumerGroup.removeResolvedRegularExpression("foobar");
+
+        assertEquals(
+            Map.of(
+                "foo", 2,
+                "bar", 2,
+                "zar", 1
+            ),
+            consumerGroup.subscribedTopicNames()
+        );
+    }
+
+    @Test
+    public void testComputeSubscribedTopicNames() {
+        ConsumerGroup consumerGroup = createConsumerGroup("foo");
+
+        ConsumerGroupMember member1 = new ConsumerGroupMember.Builder("member1")
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+            .build();
+        consumerGroup.updateMember(member1);
+
+        ConsumerGroupMember member2 = new ConsumerGroupMember.Builder("member2")
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .build();
+        consumerGroup.updateMember(member2);
+
         ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
             .setSubscribedTopicRegex("foo*")
             .build();
@@ -1751,7 +1812,170 @@ public class ConsumerGroupTest {
     }
 
     @Test
-    public void testComputeSubscribedTopicNames() {
+    public void testCreateGroupTombstoneRecords() {
+        ConsumerGroup consumerGroup = createConsumerGroup("foo");
+        consumerGroup.setGroupEpoch(10);
 
+        ConsumerGroupMember member1 = new ConsumerGroupMember.Builder("member1")
+            .setMemberEpoch(10)
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+            .setAssignedPartitions(mkAssignment(mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2)))
+            .build();
+        consumerGroup.updateMember(member1);
+
+        ConsumerGroupMember member2 = new ConsumerGroupMember.Builder("member2")
+            .setMemberEpoch(10)
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setAssignedPartitions(mkAssignment(mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2)))
+            .build();
+        consumerGroup.updateMember(member2);
+
+        ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
+            .setMemberEpoch(10)
+            .setSubscribedTopicRegex("foo*")
+            .setAssignedPartitions(mkAssignment(mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2)))
+            .build();
+        consumerGroup.updateMember(member3);
+
+        consumerGroup.updateResolvedRegularExpression(
+            "foo*",
+            new ResolvedRegularExpression(
+                Set.of("foo", "fooo"),
+                10L,
+                12345L
+            )
+        );
+
+        consumerGroup.updateTargetAssignment("member1", new Assignment(mkAssignment(
+            mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2))
+        ));
+
+        consumerGroup.updateTargetAssignment("member2", new Assignment(mkAssignment(
+            mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2))
+        ));
+
+        consumerGroup.updateTargetAssignment("member3", new Assignment(mkAssignment(
+            mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2))
+        ));
+
+        List<CoordinatorRecord> records = new ArrayList<>();
+        consumerGroup.createGroupTombstoneRecords(records);
+
+        assertUnorderedRecordsEquals(
+            List.of(
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord("foo", "member1"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord("foo", "member2"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord("foo", "member3")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord("foo", "member1"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord("foo", "member2"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord("foo", "member3")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord("foo")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord("foo", "member1"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord("foo", "member2"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord("foo", "member3")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone("foo", "foo*")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord("foo")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord("foo")
+                )
+            ),
+            records
+        );
+    }
+
+    @Test
+    public void testCreateGroupTombstoneRecordsWithReplacedMember() {
+        ConsumerGroup consumerGroup = createConsumerGroup("foo");
+        consumerGroup.setGroupEpoch(10);
+
+        ConsumerGroupMember member1 = new ConsumerGroupMember.Builder("member1")
+            .setMemberEpoch(10)
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+            .setAssignedPartitions(mkAssignment(mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2)))
+            .build();
+        consumerGroup.updateMember(member1);
+
+        ConsumerGroupMember member2 = new ConsumerGroupMember.Builder("member2")
+            .setMemberEpoch(10)
+            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setAssignedPartitions(mkAssignment(mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2)))
+            .build();
+        consumerGroup.updateMember(member2);
+
+        ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
+            .setMemberEpoch(10)
+            .setSubscribedTopicRegex("foo*")
+            .setAssignedPartitions(mkAssignment(mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2)))
+            .build();
+        consumerGroup.updateMember(member3);
+
+        consumerGroup.updateResolvedRegularExpression(
+            "foo*",
+            new ResolvedRegularExpression(
+                Set.of("foo", "fooo"),
+                10L,
+                12345L
+            )
+        );
+
+        consumerGroup.updateTargetAssignment("member1", new Assignment(mkAssignment(
+            mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2))
+        ));
+
+        consumerGroup.updateTargetAssignment("member2", new Assignment(mkAssignment(
+            mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2))
+        ));
+
+        consumerGroup.updateTargetAssignment("member3", new Assignment(mkAssignment(
+            mkTopicAssignment(Uuid.randomUuid(), 0, 1, 2))
+        ));
+
+        List<CoordinatorRecord> records = new ArrayList<>();
+        consumerGroup.createGroupTombstoneRecordsWithReplacedMember(records, "member3", "member4");
+
+        assertUnorderedRecordsEquals(
+            List.of(
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord("foo", "member1"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord("foo", "member2"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupCurrentAssignmentTombstoneRecord("foo", "member4")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord("foo", "member1"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord("foo", "member2"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord("foo", "member4")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentEpochTombstoneRecord("foo")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord("foo", "member1"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord("foo", "member2"),
+                    GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord("foo", "member4")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone("foo", "foo*")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataTombstoneRecord("foo")
+                ),
+                List.of(
+                    GroupCoordinatorRecordHelpers.newConsumerGroupEpochTombstoneRecord("foo")
+                )
+            ),
+            records
+        );
     }
 }
