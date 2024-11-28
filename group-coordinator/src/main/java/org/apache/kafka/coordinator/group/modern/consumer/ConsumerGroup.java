@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.apache.kafka.coordinator.group.Utils.decValue;
 import static org.apache.kafka.coordinator.group.Utils.toOptional;
 import static org.apache.kafka.coordinator.group.Utils.toTopicPartitionMap;
 import static org.apache.kafka.coordinator.group.classic.ClassicGroupMember.EMPTY_ASSIGNMENT;
@@ -349,6 +350,43 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         if (oldMember != null && oldMember.instanceId() != null) {
             staticMembers.remove(oldMember.instanceId());
         }
+    }
+
+    /**
+     * Updates the subscription count.
+     *
+     * @param oldMember             The old member.
+     * @param newMember             The new member.
+     *
+     * @return Copy of the map of topics to the count of number of subscribers.
+     */
+    public Map<String, Integer> computeSubscribedTopicNames(
+        ConsumerGroupMember oldMember,
+        ConsumerGroupMember newMember
+    ) {
+        Map<String, Integer> subscribedTopicsNames = super.computeSubscribedTopicNames(oldMember, newMember);
+
+        String oldSubscribedTopicRegex = null;
+        if (oldMember != null && oldMember.subscribedTopicRegex() != null && !oldMember.subscribedTopicRegex().isEmpty()) {
+            oldSubscribedTopicRegex = oldMember.subscribedTopicRegex();
+        }
+
+        if (oldSubscribedTopicRegex != null) {
+            String newSubscribedTopicRegex = null;
+            if (newMember != null && newMember.subscribedTopicRegex() != null && !newMember.subscribedTopicRegex().isEmpty()) {
+                newSubscribedTopicRegex = newMember.subscribedTopicRegex();
+            }
+
+            // If the old member was the last one subscribed to the regex and the new member
+            // is not subscribed to it, we must remove it from the subscribed topic names.
+            if (!oldSubscribedTopicRegex.equals(newSubscribedTopicRegex) && numSubscribedMembers(oldSubscribedTopicRegex) == 1) {
+                resolvedRegularExpression(oldSubscribedTopicRegex).ifPresent(resolvedRegularExpression ->
+                    resolvedRegularExpression.topics.forEach(topic -> subscribedTopicsNames.compute(topic, Utils::decValue))
+                );
+            }
+        }
+
+        return subscribedTopicsNames;
     }
 
     /**

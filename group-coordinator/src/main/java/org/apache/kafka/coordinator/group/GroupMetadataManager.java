@@ -163,6 +163,7 @@ import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.n
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord;
+import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newShareGroupCurrentAssignmentRecord;
@@ -2517,7 +2518,7 @@ public class GroupMetadataManager {
             if (isNotEmpty(oldSubscribedTopicRegex) && group.numSubscribedMembers(oldSubscribedTopicRegex) == 1) {
                 // If the member was the last one subscribed to the regex, we delete the
                 // resolved regular expression.
-                records.add(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone(
+                records.add(newConsumerGroupRegularExpressionTombstone(
                     groupId,
                     oldSubscribedTopicRegex
                 ));
@@ -3122,6 +3123,7 @@ public class GroupMetadataManager {
             return new CoordinatorResult<>(records, response, null, false);
         } else {
             removeMember(records, group.groupId(), member.memberId());
+            maybeDeleteResolvedRegularExpression(records, group, member);
 
             // We update the subscription metadata without the leaving member.
             Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
@@ -3222,6 +3224,27 @@ public class GroupMetadataManager {
             groupId,
             newMember
         ));
+    }
+
+    /**
+     * Maybe delete the resolved regular expression associated to the provided member if
+     * it was the last subscribed member to it.
+     *
+     * @param records   The record accumulator.
+     * @param group     The group.
+     * @param member    The member removed from the group.
+     */
+    private void maybeDeleteResolvedRegularExpression(
+        List<CoordinatorRecord> records,
+        ConsumerGroup group,
+        ConsumerGroupMember member
+    ) {
+        if (isNotEmpty(member.subscribedTopicRegex()) && group.numSubscribedMembers(member.subscribedTopicRegex()) == 1) {
+            records.add(newConsumerGroupRegularExpressionTombstone(
+                group.groupId(),
+                member.subscribedTopicRegex()
+            ));
+        }
     }
 
     /**
