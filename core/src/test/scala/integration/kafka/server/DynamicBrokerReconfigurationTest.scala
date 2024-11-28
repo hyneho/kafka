@@ -840,7 +840,6 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
       "", mayReceiveDuplicates = false)
     verifyThreadPoolResize(SocketServerConfigs.NUM_NETWORK_THREADS_CONFIG, config.numNetworkThreads,
       networkThreadPrefix, mayReceiveDuplicates = true)
-    System.out.println("config.listeners = " + config.listeners)
     verifyThreads("data-plane-kafka-socket-acceptor-", config.listeners.size, 1)
 
     verifyProcessorMetrics()
