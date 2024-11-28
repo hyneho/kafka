@@ -6173,7 +6173,7 @@ public class GroupMetadataManager {
                     member = group.getOrMaybeCreateMember(memberId, false);
                     throwIfMemberDoesNotUseClassicProtocol(member);
 
-                    log.info("[Group {}] Dynamic member {} has left group " +
+                    log.info("[GroupId {}] Dynamic member {} has left group " +
                             "through explicit `LeaveGroup` request; client reason: {}",
                         groupId, memberId, reason);
                 } else {
@@ -6187,7 +6187,7 @@ public class GroupMetadataManager {
                     }
 
                     memberId = member.memberId();
-                    log.info("[Group {}] Static member {} with instance id {} has left group " +
+                    log.info("[GroupId {}] Static member {} with instance id {} has left group " +
                             "through explicit `LeaveGroup` request; client reason: {}",
                         groupId, memberId, instanceId, reason);
                 }
