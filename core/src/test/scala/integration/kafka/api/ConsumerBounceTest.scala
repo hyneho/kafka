@@ -139,7 +139,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     consumer.seek(tp, 0)
 
     // wait until all the followers have synced the last HW with leader
-    TestUtils.waitUntilTrue(() => servers.forall(server =>
+    TestUtils.waitUntilTrue(() => brokers.forall(server =>
       server.replicaManager.localLog(tp).get.highWatermark == numRecords
     ), "Failed to update high watermark for followers after timeout")
 
@@ -210,7 +210,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     receiveExactRecords(poller, numRecords, 10000)
     poller.shutdown()
 
-    servers.foreach(server => killBroker(server.config.brokerId))
+    brokers.foreach(server => killBroker(server.config.brokerId))
     Thread.sleep(500)
     restartDeadBrokers()
 
@@ -293,7 +293,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     this.consumerConfig.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, requestTimeout.toString)
     val consumer2 = createConsumerAndReceive(group2, manualAssign = true, numRecords)
 
-    servers.foreach(server => killBroker(server.config.brokerId))
+    brokers.foreach(server => killBroker(server.config.brokerId))
     val closeTimeout = 2000
     val future1 = submitCloseAndValidate(consumer1, closeTimeout, None, Some(closeTimeout))
     val future2 = submitCloseAndValidate(consumer2, Long.MaxValue, None, Some(requestTimeout))
@@ -325,10 +325,10 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
 
     // roll all brokers with a lesser max group size to make sure coordinator has the new config
     val newConfigs = generateKafkaConfigs(maxGroupSize.toString)
-    for (serverIdx <- servers.indices) {
+    for (serverIdx <- brokers.indices) {
       killBroker(serverIdx)
       val config = newConfigs(serverIdx)
-      servers(serverIdx) = TestUtils.createServer(config, time = brokerTime(config.brokerId))
+      brokers(serverIdx) = TestUtils.createServer(config, time = brokerTime(config.brokerId))
       restartDeadBrokers()
     }
 
@@ -439,7 +439,7 @@ class ConsumerBounceTest extends AbstractConsumerTest with Logging {
     // Trigger another rebalance and shutdown all brokers
     // This consumer poll() doesn't complete and `tearDown` shuts down the executor and closes the consumer
     createConsumerToRebalance()
-    servers.foreach(server => killBroker(server.config.brokerId))
+    brokers.foreach(server => killBroker(server.config.brokerId))
 
     // consumer2 should close immediately without LeaveGroup request since there are no brokers available
     val closeFuture2 = submitCloseAndValidate(consumer2, Long.MaxValue, None, Some(0))

@@ -17,7 +17,7 @@ package kafka.api
 import kafka.api.GroupedUserPrincipalBuilder._
 import kafka.api.GroupedUserQuotaCallback._
 import kafka.security.{JaasModule, JaasTestUtils}
-import kafka.server._
+import kafka.server.KafkaBroker
 import kafka.utils.{Logging, TestInfoUtils, TestUtils}
 import kafka.zk.ConfigEntityChangeNotificationZNode
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig}
@@ -159,7 +159,7 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
     val newProps = new Properties
     newProps.put(GroupedUserQuotaCallback.DefaultProduceQuotaProp, "8000")
     newProps.put(GroupedUserQuotaCallback.DefaultFetchQuotaProp, "2500")
-    TestUtils.incrementalAlterConfigs(servers, adminClient, newProps, perBrokerConfig = false)
+    TestUtils.incrementalAlterConfigs(brokers, adminClient, newProps, perBrokerConfig = false)
     user.waitForQuotaUpdate(8000, 2500, defaultRequestQuota)
     user.produceConsume(expectProduceThrottle = true, expectConsumeThrottle = true)
 
@@ -180,13 +180,13 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
 
   private def createTopic(topic: String, numPartitions: Int, leader: Int): Unit = {
     val assignment = (0 until numPartitions).map { i => i -> Seq(leader) }.toMap
-    TestUtils.createTopic(zkClient, topic, assignment, servers)
+    TestUtils.createTopic(zkClient, topic, assignment, brokers)
   }
 
   private def createAdminClient(): Admin = {
     val config = new util.HashMap[String, Object]
     config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
-      TestUtils.bootstrapServers(servers, new ListenerName("BROKER")))
+      TestUtils.bootstrapServers(brokers, new ListenerName("BROKER")))
     clientSecurityProps("admin-client").asInstanceOf[util.Map[Object, Object]].forEach { (key, value) =>
       config.put(key.toString, value)
     }
@@ -231,11 +231,11 @@ class CustomQuotaCallbackTest extends IntegrationTestHarness with SaslSetup {
     consumerConfig.put(ConsumerConfig.GROUP_ID_CONFIG, s"$user-group")
     consumerConfig.put(SaslConfigs.SASL_JAAS_CONFIG, JaasModule.scramLoginModule(user, password).toString)
 
-    GroupedUser(user, userGroup, topic, servers(leader), producerClientId, consumerClientId,
+    GroupedUser(user, userGroup, topic, brokers(leader), producerClientId, consumerClientId,
       createProducer(), createConsumer(), adminClient)
   }
 
-  case class GroupedUser(user: String, userGroup: String, topic: String, leaderNode: KafkaServer,
+  case class GroupedUser(user: String, userGroup: String, topic: String, leaderNode: KafkaBroker,
                          producerClientId: String, consumerClientId: String,
                          override val producer: KafkaProducer[Array[Byte], Array[Byte]],
                          override val consumer: Consumer[Array[Byte], Array[Byte]],
