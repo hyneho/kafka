@@ -82,6 +82,11 @@ object ConfigCommand extends Logging {
         System.err.println(e.getMessage)
         Exit.exit(1)
 
+      case e: UnsupportedVersionException =>
+        logger.debug(s"Unsupported API encountered in server when executing config command with args '${args.mkString(" ")}'")
+        e.printStackTrace(System.err)
+        Exit.exit(1)
+
       case t: Throwable =>
         logger.debug(s"Error while executing config command with args '${args.mkString(" ")}'", t)
         System.err.println(s"Error while executing config command with args '${args.mkString(" ")}'")
@@ -176,7 +181,7 @@ object ConfigCommand extends Logging {
       case ConfigType.TOPIC | ConfigType.CLIENT_METRICS | ConfigType.BROKER | ConfigType.GROUP =>
         val configResourceType = entityTypeHead match {
           case ConfigType.TOPIC => ConfigResource.Type.TOPIC
-          case ConfigType.CLIENT_METRICS =>ConfigResource.Type.CLIENT_METRICS
+          case ConfigType.CLIENT_METRICS => ConfigResource.Type.CLIENT_METRICS
           case ConfigType.BROKER => ConfigResource.Type.BROKER
           case ConfigType.GROUP => ConfigResource.Type.GROUP
         }
@@ -185,10 +190,9 @@ object ConfigCommand extends Logging {
         } catch {
           case e: ExecutionException =>
             e.getCause match {
-              case _: UnsupportedVersionException if entityTypeHead == ConfigType.BROKER =>
-                System.err.println(s"Could not update broker config $entityNameHead, because brokers don't support api ${ApiKeys.INCREMENTAL_ALTER_CONFIGS},"
-                + " You can upgrade your brokers to version 2.3.0 or newer to avoid this error.")
-                return
+              case cause: UnsupportedVersionException if entityTypeHead == ConfigType.BROKER =>
+                throw new UnsupportedVersionException(s"Could not update broker config $entityNameHead, because brokers don't support api ${ApiKeys.INCREMENTAL_ALTER_CONFIGS},"
+                + " You can upgrade your brokers to version 2.3.0 or newer to avoid this error.", cause)
               case _ => throw e
             }
           case e: Throwable => throw e

@@ -25,6 +25,7 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.InvalidConfigurationException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.internals.KafkaFutureImpl;
+import org.apache.kafka.common.test.api.ClusterConfigProperty;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
 import org.apache.kafka.common.test.api.ClusterTestExtensions;
@@ -358,7 +359,9 @@ public class ConfigCommandIntegrationTest {
     }
 
     // Test case from KAFKA-13788
-    @ClusterTest
+    @ClusterTest(serverProperties = {
+            @ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "2097154"),
+    })
     public void testUpdateBrokerConfigNotAffectedByInvalidConfig() {
         try (Admin client = cluster.admin()) {
             ConfigCommand.alterConfig(client, new ConfigCommand.ConfigCommandOptions(
@@ -382,7 +385,11 @@ public class ConfigCommandIntegrationTest {
         }
     }
 
-    @ClusterTest(metadataVersion = MetadataVersion.IBP_3_3_IV0) // Zk code has been removed, use kraft and mockito to mock this situation
+    @ClusterTest(
+            serverProperties = {@ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "2097154")},
+            // Zk code has been removed, use kraft and mockito to mock this situation
+            metadataVersion = MetadataVersion.IBP_3_3_IV0
+    )
     public void testFallbackToDeprecatedAlterConfigs() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         try (Admin client = cluster.admin()) {
             Admin spyAdmin = Mockito.spy(client);
@@ -399,18 +406,18 @@ public class ConfigCommandIntegrationTest {
             }
             Mockito.doReturn(mockResult).when(spyAdmin)
                     .incrementalAlterConfigs(any(java.util.Map.class), any(AlterConfigsOptions.class));
-
-            String err = captureStandardStream(true, () -> {
-                ConfigCommand.alterConfig(spyAdmin, new ConfigCommand.ConfigCommandOptions(
-                        toArray(asList(
-                                "--bootstrap-server", cluster.bootstrapServers(),
-                                "--alter",
-                                "--add-config", "log.cleaner.threads=2",
-                                "--entity-type", "brokers",
-                                "--entity-default"))));
-            });
-            assertEquals("Could not update broker config , because brokers don't support api INCREMENTAL_ALTER_CONFIGS, You can upgrade your brokers to version 2.3.0 or newer to avoid this error.", err);
-
+            assertEquals(
+                    "Could not update broker config , because brokers don't support api INCREMENTAL_ALTER_CONFIGS, You can upgrade your brokers to version 2.3.0 or newer to avoid this error.",
+                    assertThrows(UnsupportedVersionException.class, () -> {
+                        ConfigCommand.alterConfig(spyAdmin, new ConfigCommand.ConfigCommandOptions(
+                                toArray(asList(
+                                        "--bootstrap-server", cluster.bootstrapServers(),
+                                        "--alter",
+                                        "--add-config", "log.cleaner.threads=2",
+                                        "--entity-type", "brokers",
+                                        "--entity-default"))));
+                    }).getMessage()
+            );
             Mockito.verify(spyAdmin).incrementalAlterConfigs(any(java.util.Map.class), any(AlterConfigsOptions.class));
         }
     }
