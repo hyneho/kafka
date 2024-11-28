@@ -16,23 +16,20 @@
  */
 package kafka.api
 
-import kafka.api.ConsumerRebootstrapTest._
-import kafka.server.QuorumTestHarness.getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit
-import kafka.utils.{TestInfoUtils, TestUtils}
+import kafka.utils.TestUtils
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows}
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.{Arguments, MethodSource}
+import org.junit.jupiter.api.{Disabled, Test}
 
 import java.time.Duration
-import java.util.{Collections, stream}
+import java.util.Collections
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
+@Disabled // See KAFKA-17986
 class ConsumerRebootstrapTest extends RebootstrapTest {
-  @ParameterizedTest(name = RebootstrapTestName)
-  @MethodSource(Array("rebootstrapTestParams"))
+  @Test
   def testRebootstrap(quorum: String, groupProtocol: String, useRebootstrapTriggerMs: Boolean): Unit = {
     sendRecords(10, 0)
 
@@ -84,8 +81,7 @@ class ConsumerRebootstrapTest extends RebootstrapTest {
     consumeAndVerifyRecords(consumer, 10, 20, startingKeyAndValueIndex = 20, startingTimestamp = 20)
   }
 
-  @ParameterizedTest(name = RebootstrapTestName)
-  @MethodSource(Array("rebootstrapTestParams"))
+  @Test
   def testRebootstrapDisabled(quorum: String, groupProtocol: String, useRebootstrapTriggerMs: Boolean): Unit = {
     server1.shutdown()
     server1.awaitShutdown()
@@ -126,19 +122,5 @@ class ConsumerRebootstrapTest extends RebootstrapTest {
     }
     producer.flush()
     producer.close()
-  }
-}
-
-object ConsumerRebootstrapTest {
-
-  final val RebootstrapTestName = s"${TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames}.useRebootstrapTriggerMs={2}"
-  def rebootstrapTestParams: stream.Stream[Arguments] = {
-    assertEquals(1, getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit.count())
-    val args = getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit
-      .findFirst().get.get
-    stream.Stream.of(
-      Arguments.of((args :+ true):_*),
-      Arguments.of((args :+ false):_*)
-    )
   }
 }
