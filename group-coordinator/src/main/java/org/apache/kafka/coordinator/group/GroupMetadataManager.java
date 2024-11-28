@@ -3143,6 +3143,7 @@ public class GroupMetadataManager {
             // We bump the group epoch.
             int groupEpoch = group.groupEpoch() + 1;
             records.add(newConsumerGroupEpochRecord(group.groupId(), groupEpoch));
+            log.info("[GroupId {}] Bumped group epoch to {}.", group.groupId(), groupEpoch);
 
             cancelTimers(group.groupId(), member.memberId());
 
