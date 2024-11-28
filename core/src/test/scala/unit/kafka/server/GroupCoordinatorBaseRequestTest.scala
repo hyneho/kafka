@@ -532,7 +532,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
 
   protected def consumerGroupDescribe(
     groupIds: List[String],
-    includeAuthorizedOperations: Boolean,
+    includeAuthorizedOperations: Boolean = false,
     version: Short = ApiKeys.CONSUMER_GROUP_DESCRIBE.latestVersion(isUnstableApiEnabled)
   ): List[ConsumerGroupDescribeResponseData.DescribedGroup] = {
     val consumerGroupDescribeRequest = new ConsumerGroupDescribeRequest.Builder(
@@ -658,6 +658,24 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
       memberId = memberId,
       memberEpoch = ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH
     )
+  }
+
+  protected def classicLeaveGroup(
+    groupId: String,
+    memberIds: List[String],
+    groupInstanceIds: List[String] = null,
+    version: Short = ApiKeys.LEAVE_GROUP.latestVersion(isUnstableApiEnabled)
+  ): LeaveGroupResponseData = {
+    val leaveGroupRequest = new LeaveGroupRequest.Builder(
+      groupId,
+      List.tabulate(memberIds.length) { i =>
+        new MemberIdentity()
+          .setMemberId(memberIds(i))
+          .setGroupInstanceId(if (groupInstanceIds == null) null else groupInstanceIds(i))
+      }.asJava
+    ).build(version)
+
+    connectAndReceive[LeaveGroupResponse](leaveGroupRequest).data
   }
 
   protected def leaveGroupWithOldProtocol(
