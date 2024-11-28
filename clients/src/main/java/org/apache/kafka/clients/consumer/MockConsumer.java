@@ -17,6 +17,7 @@
 package org.apache.kafka.clients.consumer;
 
 import org.apache.kafka.clients.Metadata;
+import org.apache.kafka.clients.consumer.internals.AutoOffsetResetStrategy;
 import org.apache.kafka.clients.consumer.internals.SubscriptionState;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
@@ -79,7 +80,23 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
 
     private final List<KafkaMetric> addedMetrics = new ArrayList<>();
 
+    /**
+     * @deprecated Since 4.0. Use {@link #MockConsumer(String)}.
+     */
+    @Deprecated
     public MockConsumer(OffsetResetStrategy offsetResetStrategy) {
+        this(AutoOffsetResetStrategy.fromString(offsetResetStrategy.toString()));
+    }
+
+    /**
+     * A mock consumer is instantiated by providing ConsumerConfig.AUTO_OFFSET_RESET_CONFIG value as the input.
+     * @param offsetResetStrategy the offset reset strategy to use
+     */
+    public MockConsumer(String offsetResetStrategy) {
+        this(AutoOffsetResetStrategy.fromString(offsetResetStrategy));
+    }
+
+    private MockConsumer(AutoOffsetResetStrategy offsetResetStrategy) {
         this.subscriptions = new SubscriptionState(new LogContext(), offsetResetStrategy);
         this.partitions = new HashMap<>();
         this.records = new HashMap<>();
@@ -141,6 +158,26 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
     @Override
     public synchronized void subscribe(Pattern pattern) {
         subscribe(pattern, Optional.empty());
+    }
+
+    @Override
+    public void subscribe(SubscriptionPattern pattern, ConsumerRebalanceListener listener) {
+        if (listener == null)
+            throw new IllegalArgumentException("RebalanceListener cannot be null");
+        subscribe(pattern, Optional.of(listener));
+    }
+
+    @Override
+    public void subscribe(SubscriptionPattern pattern) {
+        subscribe(pattern, Optional.empty());
+    }
+
+    private void subscribe(SubscriptionPattern pattern, Optional<ConsumerRebalanceListener> listener) {
+        if (pattern == null || pattern.toString().isEmpty())
+            throw new IllegalArgumentException("Topic pattern cannot be " + (pattern == null ? "null" : "empty"));
+        ensureNotClosed();
+        committed.clear();
+        this.subscriptions.subscribe(pattern, listener);
     }
 
     @Override
@@ -379,7 +416,7 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
     @Override
     public synchronized void seekToBeginning(Collection<TopicPartition> partitions) {
         ensureNotClosed();
-        subscriptions.requestOffsetReset(partitions, OffsetResetStrategy.EARLIEST);
+        subscriptions.requestOffsetReset(partitions, AutoOffsetResetStrategy.EARLIEST);
     }
 
     public synchronized void updateBeginningOffsets(Map<TopicPartition, Long> newOffsets) {
@@ -389,7 +426,7 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
     @Override
     public synchronized void seekToEnd(Collection<TopicPartition> partitions) {
         ensureNotClosed();
-        subscriptions.requestOffsetReset(partitions, OffsetResetStrategy.LATEST);
+        subscriptions.requestOffsetReset(partitions, AutoOffsetResetStrategy.LATEST);
     }
 
     public synchronized void updateEndOffsets(final Map<TopicPartition, Long> newOffsets) {
@@ -543,7 +580,7 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
     }
 
     public synchronized Set<TopicPartition> paused() {
-        return Collections.unmodifiableSet(new HashSet<>(paused));
+        return Set.copyOf(paused);
     }
 
     private void ensureNotClosed() {
@@ -563,13 +600,13 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
     }
 
     private void resetOffsetPosition(TopicPartition tp) {
-        OffsetResetStrategy strategy = subscriptions.resetStrategy(tp);
+        AutoOffsetResetStrategy strategy = subscriptions.resetStrategy(tp);
         Long offset;
-        if (strategy == OffsetResetStrategy.EARLIEST) {
+        if (strategy == AutoOffsetResetStrategy.EARLIEST) {
             offset = beginningOffsets.get(tp);
             if (offset == null)
                 throw new IllegalStateException("MockConsumer didn't have beginning offset specified, but tried to seek to beginning");
-        } else if (strategy == OffsetResetStrategy.LATEST) {
+        } else if (strategy == AutoOffsetResetStrategy.LATEST) {
             offset = endOffsets.get(tp);
             if (offset == null)
                 throw new IllegalStateException("MockConsumer didn't have end offset specified, but tried to seek to end");
