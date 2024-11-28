@@ -99,6 +99,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -408,19 +409,15 @@ public class GroupMetadataManagerTestContext {
         private GroupConfigManager groupConfigManager;
         private List<ConsumerGroupPartitionAssignor> consumerGroupAssignors = Collections.singletonList(new MockPartitionAssignor("range"));
         private final List<ConsumerGroupBuilder> consumerGroupBuilders = new ArrayList<>();
-        private int consumerGroupMaxSize = Integer.MAX_VALUE;
-        private int consumerGroupMetadataRefreshIntervalMs = Integer.MAX_VALUE;
-        private int classicGroupMaxSize = Integer.MAX_VALUE;
-        private int classicGroupInitialRebalanceDelayMs = 3000;
-        private final int classicGroupNewMemberJoinTimeoutMs = 5 * 60 * 1000;
-        private int classicGroupMinSessionTimeoutMs = 10;
-        private int classicGroupMaxSessionTimeoutMs = 10 * 60 * 1000;
         private final GroupCoordinatorMetricsShard metrics = mock(GroupCoordinatorMetricsShard.class);
-        private ConsumerGroupMigrationPolicy consumerGroupMigrationPolicy = ConsumerGroupMigrationPolicy.DISABLED;
-        // Share group configs
         private ShareGroupPartitionAssignor shareGroupAssignor = new MockPartitionAssignor("share");
         private final List<ShareGroupBuilder> shareGroupBuilders = new ArrayList<>();
-        private int shareGroupMaxSize = Integer.MAX_VALUE;
+        private final Map<String, Object> config = new HashMap<>();
+
+        public Builder withConfig(String key, Object value) {
+            config.put(key, value);
+            return this;
+        }
 
         public Builder withMetadataImage(MetadataImage metadataImage) {
             this.metadataImage = metadataImage;
@@ -437,41 +434,6 @@ public class GroupMetadataManagerTestContext {
             return this;
         }
 
-        public Builder withConsumerGroupMaxSize(int consumerGroupMaxSize) {
-            this.consumerGroupMaxSize = consumerGroupMaxSize;
-            return this;
-        }
-
-        public Builder withConsumerGroupMetadataRefreshIntervalMs(int consumerGroupMetadataRefreshIntervalMs) {
-            this.consumerGroupMetadataRefreshIntervalMs = consumerGroupMetadataRefreshIntervalMs;
-            return this;
-        }
-
-        public Builder withClassicGroupMaxSize(int classicGroupMaxSize) {
-            this.classicGroupMaxSize = classicGroupMaxSize;
-            return this;
-        }
-
-        public Builder withClassicGroupInitialRebalanceDelayMs(int classicGroupInitialRebalanceDelayMs) {
-            this.classicGroupInitialRebalanceDelayMs = classicGroupInitialRebalanceDelayMs;
-            return this;
-        }
-
-        public Builder withClassicGroupMinSessionTimeoutMs(int classicGroupMinSessionTimeoutMs) {
-            this.classicGroupMinSessionTimeoutMs = classicGroupMinSessionTimeoutMs;
-            return this;
-        }
-
-        public Builder withClassicGroupMaxSessionTimeoutMs(int classicGroupMaxSessionTimeoutMs) {
-            this.classicGroupMaxSessionTimeoutMs = classicGroupMaxSessionTimeoutMs;
-            return this;
-        }
-
-        public Builder withConsumerGroupMigrationPolicy(ConsumerGroupMigrationPolicy consumerGroupMigrationPolicy) {
-            this.consumerGroupMigrationPolicy = consumerGroupMigrationPolicy;
-            return this;
-        }
-
         public Builder withShareGroup(ShareGroupBuilder builder) {
             this.shareGroupBuilders.add(builder);
             return this;
@@ -482,15 +444,12 @@ public class GroupMetadataManagerTestContext {
             return this;
         }
 
-        public Builder withShareGroupMaxSize(int shareGroupMaxSize) {
-            this.shareGroupMaxSize = shareGroupMaxSize;
-            return this;
-        }
-
         public GroupMetadataManagerTestContext build() {
             if (metadataImage == null) metadataImage = MetadataImage.EMPTY;
             if (consumerGroupAssignors == null) consumerGroupAssignors = Collections.emptyList();
             if (groupConfigManager == null) groupConfigManager = createConfigManager();
+
+            GroupCoordinatorConfig groupCoordinatorConfig = GroupCoordinatorConfig.fromProps(config);
 
             GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext(
                 time,
@@ -498,33 +457,21 @@ public class GroupMetadataManagerTestContext {
                 executor,
                 snapshotRegistry,
                 metrics,
+                groupCoordinatorConfig,
                 new GroupMetadataManager.Builder()
                     .withSnapshotRegistry(snapshotRegistry)
                     .withLogContext(logContext)
                     .withTime(time)
                     .withTimer(timer)
                     .withExecutor(executor)
-                    .withConfig(GroupCoordinatorConfig.fromProps(Collections.emptyMap()))
+                    .withConfig(groupCoordinatorConfig)
                     .withMetadataImage(metadataImage)
-                    .withConsumerGroupHeartbeatInterval(5000)
-                    .withConsumerGroupSessionTimeout(45000)
-                    .withConsumerGroupMaxSize(consumerGroupMaxSize)
                     .withConsumerGroupAssignors(consumerGroupAssignors)
-                    .withConsumerGroupMetadataRefreshIntervalMs(consumerGroupMetadataRefreshIntervalMs)
-                    .withClassicGroupMaxSize(classicGroupMaxSize)
-                    .withClassicGroupMinSessionTimeoutMs(classicGroupMinSessionTimeoutMs)
-                    .withClassicGroupMaxSessionTimeoutMs(classicGroupMaxSessionTimeoutMs)
-                    .withClassicGroupInitialRebalanceDelayMs(classicGroupInitialRebalanceDelayMs)
-                    .withClassicGroupNewMemberJoinTimeoutMs(classicGroupNewMemberJoinTimeoutMs)
                     .withGroupCoordinatorMetricsShard(metrics)
-                    .withConsumerGroupMigrationPolicy(consumerGroupMigrationPolicy)
                     .withShareGroupAssignor(shareGroupAssignor)
-                    .withShareGroupMaxSize(shareGroupMaxSize)
                     .withGroupConfigManager(groupConfigManager)
                     .build(),
-                groupConfigManager,
-                classicGroupInitialRebalanceDelayMs,
-                classicGroupNewMemberJoinTimeoutMs
+                groupConfigManager
             );
 
             consumerGroupBuilders.forEach(builder -> builder.build(metadataImage.topics()).forEach(context::replay));
@@ -555,10 +502,9 @@ public class GroupMetadataManagerTestContext {
         MockCoordinatorExecutor<CoordinatorRecord> executor,
         SnapshotRegistry snapshotRegistry,
         GroupCoordinatorMetricsShard metrics,
+        GroupCoordinatorConfig config,
         GroupMetadataManager groupMetadataManager,
-        GroupConfigManager groupConfigManager,
-        int classicGroupInitialRebalanceDelayMs,
-        int classicGroupNewMemberJoinTimeoutMs
+        GroupConfigManager groupConfigManager
     ) {
         this.time = time;
         this.timer = timer;
@@ -567,8 +513,8 @@ public class GroupMetadataManagerTestContext {
         this.metrics = metrics;
         this.groupMetadataManager = groupMetadataManager;
         this.groupConfigManager = groupConfigManager;
-        this.classicGroupInitialRebalanceDelayMs = classicGroupInitialRebalanceDelayMs;
-        this.classicGroupNewMemberJoinTimeoutMs = classicGroupNewMemberJoinTimeoutMs;
+        this.classicGroupInitialRebalanceDelayMs = config.classicGroupInitialRebalanceDelayMs();
+        this.classicGroupNewMemberJoinTimeoutMs = config.classicGroupNewMemberJoinTimeoutMs();
         snapshotRegistry.idempotentCreateSnapshot(lastWrittenOffset);
     }
 
