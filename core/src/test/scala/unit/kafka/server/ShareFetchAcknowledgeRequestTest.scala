@@ -875,6 +875,9 @@ class ShareFetchAcknowledgeRequestTest(cluster: ClusterInstance) extends GroupCo
       if (responseSize > 0) {
         acquiredRecords.addAll(shareFetchResponseData.responses().get(0).partitions().get(0).acquiredRecords())
       }
+      // There should be 2 acquired record batches finally -
+      // 1. batch containing 0-9 offsets which were initially acknowledged as RELEASED.
+      // 2. batch containing 10-19 offsets which were produced in the second produceData function call.
       acquiredRecords.size() == 2
 
     }, "Share fetch request failed", 5000)

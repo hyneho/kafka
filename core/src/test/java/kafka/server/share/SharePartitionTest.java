@@ -5433,19 +5433,10 @@ public class SharePartitionTest {
         Mockito.when(writeShareGroupStateResult.topicsData()).thenReturn(Collections.singletonList(
             new TopicData<>(TOPIC_ID_PARTITION.topicId(), Collections.singletonList(
                 PartitionFactory.newPartitionErrorData(0, Errors.NONE.code(), Errors.NONE.message())))));
-        Mockito.doAnswer(invocationOnMock -> {
-            CompletableFuture<WriteShareGroupStateResult> future = new CompletableFuture<>();
-            // Simulate a delay of 5 sec.
-            CompletableFuture.runAsync(() -> {
-                try {
-                    TimeUnit.SECONDS.sleep(5);
-                    future.complete(writeShareGroupStateResult);
-                } catch (InterruptedException e) {
-                    future.completeExceptionally(e);
-                }
-            });
-            return future;
-        }).when(persister).writeState(Mockito.any());
+
+        CompletableFuture<WriteShareGroupStateResult> future = new CompletableFuture<>();
+        // persister.writeState RPC will not complete instantaneously due to which commit won't happen for acknowledged offsets.
+        Mockito.when(persister.writeState(Mockito.any())).thenReturn(future);
 
         sharePartition.acquire(MEMBER_ID, MAX_FETCH_RECORDS, new FetchPartitionData(Errors.NONE, 20, 0, memoryRecords(5, 0),
             Optional.empty(), OptionalLong.empty(), Optional.empty(),
@@ -5482,6 +5473,21 @@ public class SharePartitionTest {
         assertEquals(RecordState.AVAILABLE, sharePartition.cachedState().get(0L).offsetState().get(3L).state());
         assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(0L).offsetState().get(4L).state());
         assertEquals(RecordState.AVAILABLE, sharePartition.cachedState().get(5L).batchState());
+        assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(10L).batchState());
+
+        // persister.writeState RPC will complete now. This is going to commit all the acknowledged batches. Hence, their
+        // rollBack state will become null and they will be available for acquire again.
+        future.complete(writeShareGroupStateResult);
+        sharePartition.acquire(MEMBER_ID, MAX_FETCH_RECORDS, new FetchPartitionData(Errors.NONE, 20, 0, memoryRecords(15, 0),
+            Optional.empty(), OptionalLong.empty(), Optional.empty(),
+            OptionalInt.empty(), false));
+        assertEquals(3, sharePartition.cachedState().size());
+        assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(0L).offsetState().get(0L).state());
+        assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(0L).offsetState().get(1L).state());
+        assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(0L).offsetState().get(2L).state());
+        assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(0L).offsetState().get(3L).state());
+        assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(0L).offsetState().get(4L).state());
+        assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(5L).batchState());
         assertEquals(RecordState.ACQUIRED, sharePartition.cachedState().get(10L).batchState());
     }
 
