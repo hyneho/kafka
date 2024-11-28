@@ -23,6 +23,7 @@ import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.compress.Compression;
+import org.apache.kafka.common.errors.FencedLeaderEpochException;
 import org.apache.kafka.common.message.ShareFetchResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
@@ -30,6 +31,7 @@ import org.apache.kafka.common.record.FileRecords;
 import org.apache.kafka.common.record.MemoryRecords;
 import org.apache.kafka.common.record.SimpleRecord;
 import org.apache.kafka.common.requests.FetchRequest;
+import org.apache.kafka.server.share.SharePartitionKey;
 import org.apache.kafka.server.share.fetch.ShareAcquiredRecords;
 import org.apache.kafka.server.share.fetch.ShareFetch;
 import org.apache.kafka.server.storage.log.FetchIsolation;
@@ -47,6 +49,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 import scala.Option;
 
@@ -61,6 +64,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -70,6 +74,9 @@ public class ShareFetchUtilsTest {
     private static final FetchParams FETCH_PARAMS = new FetchParams(ApiKeys.SHARE_FETCH.latestVersion(),
         FetchRequest.ORDINARY_CONSUMER_ID, -1, 0, 1, 1024 * 1024, FetchIsolation.HIGH_WATERMARK,
         Optional.empty(), true);
+    private static final BiConsumer<SharePartitionKey, Throwable> EXCEPTION_HANDLER = (key, exception) -> {
+        // No-op
+    };
 
     @Test
     public void testProcessFetchResponse() {
@@ -124,7 +131,7 @@ public class ShareFetchUtilsTest {
                 records1, Optional.empty(), OptionalLong.empty(), Optional.empty(),
                 OptionalInt.empty(), false));
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> resultData =
-                ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, mock(ReplicaManager.class));
+                ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, mock(ReplicaManager.class), EXCEPTION_HANDLER);
 
         assertEquals(2, resultData.size());
         assertTrue(resultData.containsKey(tp0));
@@ -178,7 +185,7 @@ public class ShareFetchUtilsTest {
             MemoryRecords.EMPTY, Optional.empty(), OptionalLong.empty(), Optional.empty(),
             OptionalInt.empty(), false));
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> resultData =
-            ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, mock(ReplicaManager.class));
+            ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, mock(ReplicaManager.class), EXCEPTION_HANDLER);
 
         assertEquals(2, resultData.size());
         assertTrue(resultData.containsKey(tp0));
@@ -247,7 +254,7 @@ public class ShareFetchUtilsTest {
             records1, Optional.empty(), OptionalLong.empty(), Optional.empty(),
             OptionalInt.empty(), false));
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> resultData1 =
-            ShareFetchUtils.processFetchResponse(shareFetch, responseData1, sharePartitions, replicaManager);
+            ShareFetchUtils.processFetchResponse(shareFetch, responseData1, sharePartitions, replicaManager, EXCEPTION_HANDLER);
 
         assertEquals(2, resultData1.size());
         assertTrue(resultData1.containsKey(tp0));
@@ -276,7 +283,7 @@ public class ShareFetchUtilsTest {
             MemoryRecords.EMPTY, Optional.empty(), OptionalLong.empty(), Optional.empty(),
             OptionalInt.empty(), false));
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> resultData2 =
-            ShareFetchUtils.processFetchResponse(shareFetch, responseData2, sharePartitions, replicaManager);
+            ShareFetchUtils.processFetchResponse(shareFetch, responseData2, sharePartitions, replicaManager, EXCEPTION_HANDLER);
 
         assertEquals(2, resultData2.size());
         assertTrue(resultData2.containsKey(tp0));
@@ -327,7 +334,7 @@ public class ShareFetchUtilsTest {
                 OptionalInt.empty(), false));
 
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> resultData =
-            ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, replicaManager);
+            ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, replicaManager, EXCEPTION_HANDLER);
 
         assertEquals(1, resultData.size());
         assertTrue(resultData.containsKey(tp0));
@@ -342,7 +349,7 @@ public class ShareFetchUtilsTest {
                 records, Optional.empty(), OptionalLong.empty(), Optional.empty(),
                 OptionalInt.empty(), false));
 
-        resultData = ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, replicaManager);
+        resultData = ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions, replicaManager, EXCEPTION_HANDLER);
 
         assertEquals(1, resultData.size());
         assertTrue(resultData.containsKey(tp0));
@@ -381,11 +388,6 @@ public class ShareFetchUtilsTest {
                 1, 1024 * 1024, FetchIsolation.HIGH_WATERMARK, Optional.empty()),
             groupId, memberId.toString(), new CompletableFuture<>(), partitionMaxBytes, 10);
 
-        ReplicaManager replicaManager = mock(ReplicaManager.class);
-        // Mock the replicaManager.fetchOffsetForTimestamp method to return a timestamp and offset for the topic partition.
-        FileRecords.TimestampAndOffset timestampAndOffset = new FileRecords.TimestampAndOffset(100L, 1L, Optional.empty());
-        doReturn(new OffsetResultHolder(Option.apply(timestampAndOffset), Option.empty())).when(replicaManager).fetchOffsetForTimestamp(any(TopicPartition.class), anyLong(), any(), any(), anyBoolean());
-
         MemoryRecords records1 = MemoryRecords.withRecords(Compression.NONE,
             new SimpleRecord("0".getBytes(), "v".getBytes()),
             new SimpleRecord("1".getBytes(), "v".getBytes()),
@@ -413,7 +415,8 @@ public class ShareFetchUtilsTest {
         responseData1.put(tp1, fetchPartitionData2);
 
         Map<TopicIdPartition, ShareFetchResponseData.PartitionData> resultData1 =
-            ShareFetchUtils.processFetchResponse(shareFetch, responseData1, sharePartitions, replicaManager);
+            ShareFetchUtils.processFetchResponse(shareFetch, responseData1, sharePartitions,
+                mock(ReplicaManager.class), EXCEPTION_HANDLER);
 
         assertEquals(2, resultData1.size());
         assertTrue(resultData1.containsKey(tp0));
@@ -428,5 +431,42 @@ public class ShareFetchUtilsTest {
         assertEquals(1, resultData1.get(tp1).acquiredRecords().size());
         assertEquals(100, resultData1.get(tp1).acquiredRecords().get(0).firstOffset());
         assertEquals(103, resultData1.get(tp1).acquiredRecords().get(0).lastOffset());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testProcessFetchResponseWithOffsetFetchException() {
+        SharePartition sp0 = Mockito.mock(SharePartition.class);
+        when(sp0.leaderEpoch()).thenReturn(1);
+
+        TopicIdPartition tp0 = new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0));
+        LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
+        sharePartitions.put(tp0, sp0);
+
+        ShareFetch shareFetch = mock(ShareFetch.class);
+        when(shareFetch.groupId()).thenReturn("grp");
+        ReplicaManager replicaManager = mock(ReplicaManager.class);
+
+        // Mock the replicaManager.fetchOffsetForTimestamp method to throw exception.
+        Throwable exception = new FencedLeaderEpochException("Fenced exception");
+        doThrow(exception).when(replicaManager).fetchOffsetForTimestamp(any(TopicPartition.class), anyLong(), any(), any(), anyBoolean());
+        when(sp0.acquire(anyString(), anyInt(), any(FetchPartitionData.class))).thenReturn(ShareAcquiredRecords.empty());
+        doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
+
+        // When no records are acquired from share partition.
+        Map<TopicIdPartition, FetchPartitionData> responseData = Collections.singletonMap(
+            tp0, new FetchPartitionData(Errors.OFFSET_OUT_OF_RANGE, 0L, 0L,
+                MemoryRecords.EMPTY, Optional.empty(), OptionalLong.empty(), Optional.empty(),
+                OptionalInt.empty(), false));
+
+        BiConsumer<SharePartitionKey, Throwable> exceptionHandler = mock(BiConsumer.class);
+        Map<TopicIdPartition, ShareFetchResponseData.PartitionData> resultData =
+            ShareFetchUtils.processFetchResponse(shareFetch, responseData, sharePartitions,
+                replicaManager, exceptionHandler);
+
+        assertTrue(resultData.isEmpty());
+        Mockito.verify(shareFetch, times(1)).addErroneous(tp0, exception);
+        Mockito.verify(exceptionHandler, times(1)).accept(any(SharePartitionKey.class), any(Throwable.class));
+        Mockito.verify(sp0, times(0)).updateCacheAndOffsets(1L);
     }
 }
