@@ -387,7 +387,9 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                     applicationEventProcessorSupplier,
                     networkClientDelegateSupplier,
                     requestManagersSupplier);
-
+            streamsAssignmentInterface.ifPresent(
+                sai -> sai.setApplicationEventHandler(applicationEventHandler)
+            );
             this.rebalanceListenerInvoker = new ConsumerRebalanceListenerInvoker(
                     logContext,
                     subscriptions,
@@ -477,8 +479,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                        Deserializer<V> valueDeserializer,
                        KafkaClient client,
                        SubscriptionState subscriptions,
-                       ConsumerMetadata metadata,
-                       Optional<StreamsAssignmentInterface> streamsInstanceMetadata) {
+                       ConsumerMetadata metadata) {
         this.log = logContext.logger(getClass());
         this.subscriptions = subscriptions;
         this.clientId = config.getString(ConsumerConfig.CLIENT_ID_CONFIG);
@@ -546,8 +547,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             clientTelemetryReporter,
             metrics,
             offsetCommitCallbackInvoker,
-            memberStateListener,
-            streamsInstanceMetadata
+            this::updateGroupMetadata,
+            Optional.empty()
         );
         Supplier<ApplicationEventProcessor> applicationEventProcessorSupplier = ApplicationEventProcessor.supplier(
                 logContext,
