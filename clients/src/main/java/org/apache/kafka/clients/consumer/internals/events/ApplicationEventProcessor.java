@@ -296,19 +296,64 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
      * consumer join the group if it is not part of it yet, or send the updated subscription if
      * it is already a member on the next poll.
      */
-    private void process(final TopicSubscriptionChangeEvent ignored) {
+    private void process(final TopicSubscriptionChangeEvent event) {
         if (requestManagers.consumerMembershipManager.isPresent()) {
-            requestManagers.consumerMembershipManager.get().onSubscriptionUpdated();
+            try {
+                if (subscriptions.subscribe(event.topics(), event.listener())) {
+                    this.metadataVersionSnapshot = metadata.requestUpdateForNewTopics();
+                }
+                requestManagers.consumerMembershipManager.get().onSubscriptionUpdated();
+                event.future().complete(null);
+            } catch (Exception e) {
+                event.future().completeExceptionally(e);
+            }
         } else if (requestManagers.streamsMembershipManager.isPresent()) {
-            requestManagers.streamsMembershipManager.get().onSubscriptionUpdated();
+            try {
+                if (subscriptions.subscribe(event.topics(), event.listener())) {
+                    this.metadataVersionSnapshot = metadata.requestUpdateForNewTopics();
+                }
+                requestManagers.streamsMembershipManager.get().onSubscriptionUpdated();
+                event.future().complete(null);
+            } catch (Exception e) {
+                event.future().completeExceptionally(e);
+            }
         } else {
             log.warn("Group membership manager not present when processing a subscribe event");
+            event.future().complete(null);
+        }
+    }
+
+    /**
+     * Process event that indicates that the subscription java pattern changed.
+     * This will update the subscription state in the client to persist the new pattern.
+     * It will also evaluate the pattern against the latest metadata to find the matching topics,
+     * and send an updated subscription to the broker on the next poll
+     * (joining the group if it's not already part of it).
+     */
+    private void process(final TopicPatternSubscriptionChangeEvent event) {
+        try {
+            subscriptions.subscribe(event.pattern(), event.listener());
+            metadata.requestUpdateForNewTopics();
+            updatePatternSubscription(metadata.fetch());
+            event.future().complete(null);
+        } catch (Exception e) {
+            event.future().completeExceptionally(e);
+        }
+    }
+
+    /**
+     * Process event that re-evaluates the subscribed regular expression using the latest topics from metadata, only if metadata changed.
+     * This will make the consumer send the updated subscription on the next poll.
+     */
+    private void process(final UpdatePatternSubscriptionEvent event) {
+        if (!subscriptions.hasPatternSubscription()) {
+            return;
         }
         if (this.metadataVersionSnapshot < metadata.updateVersion()) {
             this.metadataVersionSnapshot = metadata.updateVersion();
             updatePatternSubscription(metadata.fetch());
         }
-        ignored.future().complete(null);
+        event.future().complete(null);
     }
 
     /**

@@ -266,7 +266,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     private final MemberStateListener memberStateListener = new MemberStateListener() {
         @Override
-        public void onMemberEpochUpdated(Optional<Integer> memberEpoch, Optional<String> memberId) {
+        public void onMemberEpochUpdated(Optional<Integer> memberEpoch, String memberId) {
             updateGroupMetadata(memberEpoch, memberId);
         }
 
@@ -652,13 +652,13 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
         );
     }
 
-    private void updateGroupMetadata(final Optional<Integer> memberEpoch, final Optional<String> memberId) {
+    private void updateGroupMetadata(final Optional<Integer> memberEpoch, final String memberId) {
         memberEpoch.ifPresent(epoch -> groupMetadata.updateAndGet(
                 oldGroupMetadataOptional -> oldGroupMetadataOptional.map(
                     oldGroupMetadata -> new ConsumerGroupMetadata(
                         oldGroupMetadata.groupId(),
                         memberEpoch.orElse(oldGroupMetadata.generationId()),
-                            memberId.orElse(oldGroupMetadata.memberId()),
+                        memberId,
                         oldGroupMetadata.groupInstanceId()
                     )
                 )

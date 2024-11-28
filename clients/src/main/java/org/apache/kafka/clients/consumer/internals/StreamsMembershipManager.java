@@ -28,8 +28,6 @@ import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.StreamsGroupHeartbeatRequest;
 import org.apache.kafka.common.requests.StreamsGroupHeartbeatResponse;
-import org.apache.kafka.common.telemetry.internals.ClientTelemetryProvider;
-import org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 
@@ -166,8 +164,6 @@ public class StreamsMembershipManager implements RequestManager {
 
     private final List<MemberStateListener> stateUpdatesListeners = new ArrayList<>();
 
-    private final Optional<ClientTelemetryReporter> clientTelemetryReporter;
-
     private LocalAssignment targetAssignment = LocalAssignment.NONE;
 
     private LocalAssignment currentAssignment = LocalAssignment.NONE;
@@ -184,7 +180,6 @@ public class StreamsMembershipManager implements RequestManager {
                                     final StreamsAssignmentInterface streamsAssignmentInterface,
                                     final SubscriptionState subscriptionState,
                                     final LogContext logContext,
-                                    final Optional<ClientTelemetryReporter> clientTelemetryReporter,
                                     final Time time,
                                     final Metrics metrics) {
         log = logContext.logger(StreamsMembershipManager.class);
@@ -192,7 +187,6 @@ public class StreamsMembershipManager implements RequestManager {
         this.groupId = groupId;
         this.streamsAssignmentInterface = streamsAssignmentInterface;
         this.subscriptionState = subscriptionState;
-        this.clientTelemetryReporter = clientTelemetryReporter;
         metricsManager = new ConsumerRebalanceMetricsManager(metrics);
         this.time = time;
     }
@@ -234,7 +228,7 @@ public class StreamsMembershipManager implements RequestManager {
         stateUpdatesListeners.add(Objects.requireNonNull(listener, "State updates listener cannot be null"));
     }
 
-    void notifyEpochChange(Optional<Integer> epoch, Optional<String> memberId) {
+    void notifyEpochChange(Optional<Integer> epoch) {
         stateUpdatesListeners.forEach(stateListener -> stateListener.onMemberEpochUpdated(epoch, memberId));
     }
 
@@ -301,7 +295,7 @@ public class StreamsMembershipManager implements RequestManager {
         MemberState previousState = state;
         transitionTo(MemberState.FATAL);
         log.error("Member {} with epoch {} transitioned to fatal state", memberIdInfoForLog(), memberEpoch);
-        notifyEpochChange(Optional.empty(), Optional.empty());
+        notifyEpochChange(Optional.empty());
 
         if (previousState == MemberState.UNSUBSCRIBED) {
             log.debug("Member {} with epoch {} got fatal error from the broker but it already " +
@@ -372,9 +366,9 @@ public class StreamsMembershipManager implements RequestManager {
         this.memberEpoch = newEpoch;
         if (newEpochReceived) {
             if (memberEpoch > 0) {
-                notifyEpochChange(Optional.of(memberEpoch), Optional.ofNullable(memberId));
+                notifyEpochChange(Optional.of(memberEpoch));
             } else {
-                notifyEpochChange(Optional.empty(), Optional.empty());
+                notifyEpochChange(Optional.empty());
             }
         }
     }
@@ -449,15 +443,6 @@ public class StreamsMembershipManager implements RequestManager {
             log.debug("Ignoring heartbeat response received from broker. Member {} is in {} state" +
                 " so it's not a member of the group. ", memberId, state);
             return;
-        }
-
-        // Update the group member id label in the client telemetry reporter if the member id has
-        // changed. Initially the member id is empty, and it is updated when the member joins the
-        // group. This is done here to avoid updating the label on every heartbeat response. Also
-        // check if the member id is null, as the schema defines it as nullable.
-        if (responseData.memberId() != null && !responseData.memberId().equals(memberId)) {
-            clientTelemetryReporter.ifPresent(reporter -> reporter.updateMetricsLabels(
-                Collections.singletonMap(ClientTelemetryProvider.GROUP_MEMBER_ID, responseData.memberId())));
         }
 
         memberId = responseData.memberId();

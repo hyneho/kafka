@@ -220,7 +220,35 @@ public class RequestManagers implements Closeable {
                             groupRebalanceConfig.groupInstanceId,
                             metrics,
                             metadata);
-                    membershipManager = new ConsumerMembershipManager(
+
+                    if (streamsInstanceMetadata.isPresent()) {
+                        streamsMembershipManager = new StreamsMembershipManager(
+                            groupRebalanceConfig.groupId,
+                            streamsInstanceMetadata.get(),
+                            subscriptions,
+                            logContext,
+                            time,
+                            metrics);
+                        streamsMembershipManager.registerStateListener(commitRequestManager);
+                        streamsMembershipManager.registerStateListener(applicationThreadMemberStateListener);
+
+                        if (clientTelemetryReporter.isPresent()) {
+                            clientTelemetryReporter.get()
+                                .updateMetricsLabels(Map.of(ClientTelemetryProvider.GROUP_MEMBER_ID, streamsMembershipManager.memberId()));
+                        }
+
+                        streamsGroupHeartbeatRequestManager = new StreamsGroupHeartbeatRequestManager(
+                            logContext,
+                            time,
+                            config,
+                            coordinator,
+                            streamsMembershipManager,
+                            backgroundEventHandler,
+                            metrics,
+                            streamsInstanceMetadata.get()
+                        );
+                    } else {
+                        membershipManager = new ConsumerMembershipManager(
                             groupRebalanceConfig.groupId,
                             groupRebalanceConfig.groupInstanceId,
                             groupRebalanceConfig.rebalanceTimeoutMs,
@@ -233,29 +261,14 @@ public class RequestManagers implements Closeable {
                             time,
                             metrics);
 
-                    // Update the group member ID label in the client telemetry reporter.
-                    // According to KIP-1082, the consumer will generate the member ID as the incarnation ID of the process.
-                    // Therefore, we can update the group member ID during initialization.
-                    if (clientTelemetryReporter.isPresent()) {
-                        clientTelemetryReporter.get()
-                            .updateMetricsLabels(Map.of(ClientTelemetryProvider.GROUP_MEMBER_ID, membershipManager.memberId()));
-                    }
+                        // Update the group member ID label in the client telemetry reporter.
+                        // According to KIP-1082, the consumer will generate the member ID as the incarnation ID of the process.
+                        // Therefore, we can update the group member ID during initialization.
+                        if (clientTelemetryReporter.isPresent()) {
+                            clientTelemetryReporter.get()
+                                .updateMetricsLabels(Map.of(ClientTelemetryProvider.GROUP_MEMBER_ID, membershipManager.memberId()));
+                        }
 
-                    membershipManager.registerStateListener(commitRequestManager);
-                    membershipManager.registerStateListener(applicationThreadMemberStateListener);
-
-                    if (streamsInstanceMetadata.isPresent()) {
-                        streamsGroupHeartbeatRequestManager = new StreamsGroupHeartbeatRequestManager(
-                                logContext,
-                                time,
-                                config,
-                                coordinator,
-                                streamsMembershipManager,
-                                backgroundEventHandler,
-                                metrics,
-                                streamsInstanceMetadata.get()
-                            );
-                    } else {
                         membershipManager.registerStateListener(commitRequestManager);
                         membershipManager.registerStateListener(applicationThreadMemberStateListener);
                         heartbeatRequestManager = new ConsumerHeartbeatRequestManager(
@@ -267,6 +280,7 @@ public class RequestManagers implements Closeable {
                             membershipManager,
                             backgroundEventHandler,
                             metrics);
+
                     }
                 }
 

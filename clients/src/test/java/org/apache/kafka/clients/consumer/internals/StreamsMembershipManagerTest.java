@@ -102,7 +102,6 @@ public class StreamsMembershipManagerTest {
             streamsAssignmentInterface,
             subscriptionState,
             new LogContext("test"),
-            Optional.empty(),
             time,
             metrics
         );

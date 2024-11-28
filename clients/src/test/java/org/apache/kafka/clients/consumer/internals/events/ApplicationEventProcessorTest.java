@@ -504,7 +504,9 @@ public class ApplicationEventProcessorTest {
 
     @Test
     public void testSubscriptionChangeEventWithStreamsMembershipManager() {
-        SubscriptionChangeEvent event = new SubscriptionChangeEvent();
+        Set<String> topics = Set.of("topic1", "topic2");
+        Optional<ConsumerRebalanceListener> listener = Optional.of(new MockRebalanceListener());
+        TopicSubscriptionChangeEvent event = new TopicSubscriptionChangeEvent(topics, listener, 12345);
 
         setupProcessorWithStreamsMembershipManager();
         processor.process(event);
