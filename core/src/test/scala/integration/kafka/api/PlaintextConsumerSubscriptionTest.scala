@@ -194,7 +194,7 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
     assertEquals(0, consumer.assignment().size)
 
     val pattern = new SubscriptionPattern("t.*c")
-    consumer.subscribe(pattern, new TestConsumerReassignmentListener)
+    consumer.subscribe(pattern)
 
     val assignment = Set(
       new TopicPartition(topic, 0),
@@ -213,7 +213,7 @@ class PlaintextConsumerSubscriptionTest extends AbstractConsumerTest {
     assertEquals(0, consumer.assignment().size)
 
     val pattern = new SubscriptionPattern("(t.*c")
-    consumer.subscribe(pattern, new TestConsumerReassignmentListener)
+    consumer.subscribe(pattern)
 
     TestUtils.tryUntilNoAssertionError() {
       assertThrows(classOf[InvalidRegularExpression], () => consumer.poll(Duration.ZERO))
