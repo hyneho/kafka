@@ -449,6 +449,7 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
             metricGroup.addValueMetric(registry.taskConnectorClass, now -> pluginsMetadata.connectorClass());
             metricGroup.addValueMetric(registry.taskConnectorClassVersion, now -> pluginsMetadata.connectorVersion());
             metricGroup.addValueMetric(registry.taskConnectorType, now -> pluginsMetadata.connectorType());
+            metricGroup.addValueMetric(registry.taskClass, now -> pluginsMetadata.taskClass());
             metricGroup.addValueMetric(registry.taskVersion, now -> pluginsMetadata.taskVersion());
             metricGroup.addValueMetric(registry.taskKeyConverterClass, now -> pluginsMetadata.keyConverterClass());
             metricGroup.addValueMetric(registry.taskKeyConverterVersion, now -> pluginsMetadata.keyConverterVersion());
@@ -467,6 +468,7 @@ abstract class WorkerTask<T, R extends ConnectRecord<R>> implements Runnable {
                     transformationGroup.close();
                     transformationGroup.addValueMetric(registry.transformClass, now -> entry.className());
                     transformationGroup.addValueMetric(registry.transformVersion, now -> entry.version());
+                    this.transformationGroups.add(transformationGroup);
                 }
             }
 

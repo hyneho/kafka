@@ -55,7 +55,7 @@ public class RequiredPluginsMetadata {
         this.connectorVersion = PluginVersionUtils.getVersionOrUndefined(connector);
         this.connectorType = getConnectorType(connector);
         this.taskClass = task.getClass().getName();
-        this.taskVersion = PluginVersionUtils.getVersionOrUndefined(task);
+        this.taskVersion = task.version();
         this.keyConverterClass = keyConverter.getClass().getName();
         this.keyConverterVersion = PluginVersionUtils.getVersionOrUndefined(keyConverter);
         this.valueConverterClass = valueConverter.getClass().getName();

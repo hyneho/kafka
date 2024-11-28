@@ -37,8 +37,8 @@ public class ConnectMetricsRegistry {
     public static final String WORKER_GROUP_NAME = "connect-worker-metrics";
     public static final String WORKER_REBALANCE_GROUP_NAME = "connect-worker-rebalance-metrics";
     public static final String TASK_ERROR_HANDLING_GROUP_NAME = "task-error-metrics";
-    public static final String TRANSFORMS_GROUP = "connect-transform-metrics";
-    public static final String PREDICATES_GROUP = "connect-predicate-metrics";
+    public static final String TRANSFORMS_GROUP = "connector-transform-metrics";
+    public static final String PREDICATES_GROUP = "connector-predicate-metrics";
     public static final String TRANSFORM_TAG_NAME = "transform";
     public static final String PREDICATE_TAG_NAME = "predicate";
 
@@ -66,6 +66,7 @@ public class ConnectMetricsRegistry {
     public final MetricNameTemplate taskConnectorClass;
     public final MetricNameTemplate taskConnectorClassVersion;
     public final MetricNameTemplate taskConnectorType;
+    public final MetricNameTemplate taskClass;
     public final MetricNameTemplate taskVersion;
     public final MetricNameTemplate taskKeyConverterClass;
     public final MetricNameTemplate taskValueConverterClass;
@@ -187,6 +188,7 @@ public class ConnectMetricsRegistry {
                                                    "The version of the connector class, as reported by the connector.", workerTaskTags);
         taskConnectorType = createTemplate("connector-type", TASK_GROUP_NAME, "The type of the connector. One of 'source' or 'sink'.",
                                            workerTaskTags);
+        taskClass = createTemplate("task-class", TASK_GROUP_NAME, "The class name of the task.", workerTaskTags);
         taskVersion = createTemplate("task-version", TASK_GROUP_NAME, "The version of the task.", workerTaskTags);
         taskKeyConverterClass = createTemplate("key-converter-class", TASK_GROUP_NAME,
                                             "The fully qualified class name from key.converter", workerTaskTags);
@@ -200,6 +202,24 @@ public class ConnectMetricsRegistry {
                                                 "The fully qualified class name from header.converter", workerTaskTags);
         taskHeaderConverterVersion = createTemplate("header-converter-version", TASK_GROUP_NAME,
                                                     "The version instantiated for header.converter. May be undefined", workerTaskTags);
+
+        /* Transformation Metrics */
+        Set<String> transformTags = new LinkedHashSet<>(tags);
+        transformTags.addAll(workerTaskTags);
+        transformTags.add(TRANSFORM_TAG_NAME);
+        transformClass = createTemplate("transform-class", TRANSFORMS_GROUP,
+                "The class name of the transformation class", transformTags);
+        transformVersion = createTemplate("transform-version", TRANSFORMS_GROUP,
+                "The version of the transformation class", transformTags);
+
+        /* Predicate Metrics */
+        Set<String> predicateTags = new LinkedHashSet<>(tags);
+        predicateTags.addAll(workerTaskTags);
+        predicateTags.add(PREDICATE_TAG_NAME);
+        predicateClass = createTemplate("predicate-class", PREDICATES_GROUP,
+                "The class name of the predicate class", predicateTags);
+        predicateVersion = createTemplate("predicate-version", PREDICATES_GROUP,
+                "The version of the predicate class", predicateTags);
 
         /* Source worker task level */
         Set<String> sourceTaskTags = new LinkedHashSet<>(tags);
@@ -415,18 +435,6 @@ public class ConnectMetricsRegistry {
                 "The number of failed writes to the dead letter queue.", taskErrorHandlingTags);
         lastErrorTimestamp = createTemplate("last-error-timestamp", TASK_ERROR_HANDLING_GROUP_NAME,
                 "The epoch timestamp when this task last encountered an error.", taskErrorHandlingTags);
-
-        /* Transformation Metrics */
-        transformClass = createTemplate("transform-class", TRANSFORMS_GROUP,
-                "The class name of the transformation class", tags);
-        transformVersion = createTemplate("transform-version", TRANSFORMS_GROUP,
-                "The version of the transformation class", tags);
-
-        /* Predicate Metrics */
-        predicateClass = createTemplate("predicate-class", PREDICATES_GROUP,
-                "The class name of the predicate class", tags);
-        predicateVersion = createTemplate("predicate-version", PREDICATES_GROUP,
-                "The version of the predicate class", tags);
 
     }
 
