@@ -47,7 +47,6 @@ import org.apache.kafka.server.common.{EligibleLeaderReplicasVersion, MetadataVe
 import org.apache.kafka.server.config.{KRaftConfigs, ServerConfigs, ServerLogConfigs}
 import org.apache.kafka.server.fault.{FaultHandler, MockFaultHandler}
 import org.apache.kafka.server.util.timer.SystemTimer
-import org.apache.zookeeper.client.ZKClientConfig
 import org.apache.zookeeper.{WatchedEvent, Watcher, ZooKeeper}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterAll, AfterEach, BeforeAll, BeforeEach, Tag, TestInfo}
@@ -67,30 +66,6 @@ trait QuorumImplementation {
   ): KafkaBroker
 
   def shutdown(): Unit
-}
-
-class ZooKeeperQuorumImplementation(
-  val zookeeper: EmbeddedZookeeper,
-  val zkConnect: String,
-  val zkClient: KafkaZkClient,
-  val adminZkClient: AdminZkClient,
-  val log: Logging
-) extends QuorumImplementation {
-  override def createBroker(
-    config: KafkaConfig,
-    time: Time,
-    startup: Boolean,
-    threadNamePrefix: Option[String],
-  ): KafkaBroker = {
-    val server = new KafkaServer(config, time, threadNamePrefix, false)
-    if (startup) server.startup()
-    server
-  }
-
-  override def shutdown(): Unit = {
-    Utils.closeQuietly(zkClient, "zk client")
-    CoreUtils.swallow(zookeeper.shutdown(), log)
-  }
 }
 
 class KRaftQuorumImplementation(
@@ -172,12 +147,6 @@ class QuorumTestHarnessFaultHandlerFactory(
 
 @Tag("integration")
 abstract class QuorumTestHarness extends Logging {
-  val zkConnectionTimeout = 10000
-  val zkSessionTimeout = 15000 // Allows us to avoid ZK session expiration due to GC up to 2/3 * 15000ms = 10 secs
-  val zkMaxInFlightRequests = Int.MaxValue
-
-  protected def zkAclsEnabled: Option[Boolean] = None
-
   /**
    * When in KRaft mode, the security protocol to use for the controller listener.
    * Can be overridden by subclasses.
@@ -214,13 +183,6 @@ abstract class QuorumTestHarness extends Logging {
     gp.get
   }
 
-  def checkIsZKTest(): Unit = {
-    if (isKRaftTest()) {
-      throw new RuntimeException("This function can't be accessed when running the test " +
-        "in KRaft mode. ZooKeeper mode is required.")
-    }
-  }
-
   def checkIsKRaftTest(): Unit = {
     if (!isKRaftTest()) {
       throw new RuntimeException("This function can't be accessed when running the test " +
@@ -228,29 +190,24 @@ abstract class QuorumTestHarness extends Logging {
     }
   }
 
-  private def asZk(): ZooKeeperQuorumImplementation = {
-    checkIsZKTest()
-    implementation.asInstanceOf[ZooKeeperQuorumImplementation]
-  }
-
   private def asKRaft(): KRaftQuorumImplementation = {
     checkIsKRaftTest()
     implementation.asInstanceOf[KRaftQuorumImplementation]
   }
 
-  def zookeeper: EmbeddedZookeeper = asZk().zookeeper
+  def zookeeper: EmbeddedZookeeper = null
 
-  def zkClient: KafkaZkClient = asZk().zkClient
+  def zkClient: KafkaZkClient = null
 
-  def zkClientOrNull: KafkaZkClient = if (isKRaftTest()) null else asZk().zkClient
+  def zkClientOrNull: KafkaZkClient = null
 
-  def adminZkClient: AdminZkClient = asZk().adminZkClient
+  def adminZkClient: AdminZkClient = null
 
-  def zkPort: Int = asZk().zookeeper.port
+  def zkPort: Int = 0
 
   def zkConnect: String = s"127.0.0.1:$zkPort"
 
-  def zkConnectOrNull: String = if (isKRaftTest()) null else zkConnect
+  def zkConnectOrNull: String = null
 
   def controllerServer: ControllerServer = asKRaft().controllerServer
 
@@ -300,9 +257,6 @@ abstract class QuorumTestHarness extends Logging {
     if (TestInfoUtils.isKRaft(testInfo)) {
       info(s"Running KRAFT test $name")
       implementation = newKRaftQuorum(testInfo)
-    } else {
-      info(s"Running ZK test $name")
-      implementation = newZooKeeperQuorum()
     }
   }
 
@@ -314,8 +268,6 @@ abstract class QuorumTestHarness extends Logging {
   ): KafkaBroker = {
     implementation.createBroker(config, time, startup, threadNamePrefix)
   }
-
-  def shutdownZooKeeper(): Unit = asZk().shutdown()
 
   def shutdownKRaftController(): Unit = {
     // Note that the RaftManager instance is left running; it will be shut down in tearDown()
@@ -357,7 +309,6 @@ abstract class QuorumTestHarness extends Logging {
     props.setProperty(SocketServerConfigs.LISTENERS_CONFIG, s"CONTROLLER://localhost:0,$listeners")
     props.setProperty(KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG, s"CONTROLLER,$listenerNames")
     props.setProperty(QuorumConfig.QUORUM_VOTERS_CONFIG, s"$nodeId@localhost:0")
-    // Setting the configuration to the same value set on the brokers via TestUtils to keep KRaft based and Zk based controller configs are consistent.
     props.setProperty(ServerLogConfigs.LOG_DELETE_DELAY_MS_CONFIG, "1000")
     val config = new KafkaConfig(props)
 
@@ -438,38 +389,6 @@ abstract class QuorumTestHarness extends Logging {
     )
   }
 
-  private def newZooKeeperQuorum(): ZooKeeperQuorumImplementation = {
-    val zookeeper = new EmbeddedZookeeper()
-    var zkClient: KafkaZkClient = null
-    var adminZkClient: AdminZkClient = null
-    val zkConnect = s"127.0.0.1:${zookeeper.port}"
-    try {
-      zkClient = KafkaZkClient(
-        zkConnect,
-        zkAclsEnabled.getOrElse(JaasUtils.isZkSaslEnabled),
-        zkSessionTimeout,
-        zkConnectionTimeout,
-        zkMaxInFlightRequests,
-        Time.SYSTEM,
-        name = "ZooKeeperTestHarness",
-        new ZKClientConfig,
-        enableEntityConfigControllerCheck = false)
-      adminZkClient = new AdminZkClient(zkClient)
-    } catch {
-      case t: Throwable =>
-        CoreUtils.swallow(zookeeper.shutdown(), this)
-        Utils.closeQuietly(zkClient, "zk client")
-        throw t
-    }
-    new ZooKeeperQuorumImplementation(
-      zookeeper,
-      zkConnect,
-      zkClient,
-      adminZkClient,
-      this
-    )
-  }
-
   @AfterEach
   def tearDown(): Unit = {
     if (implementation != null) {
@@ -482,23 +401,9 @@ abstract class QuorumTestHarness extends Logging {
     Configuration.setConfiguration(null)
     faultHandler.maybeRethrowFirstException()
   }
-
-  // Trigger session expiry by reusing the session id in another client
-  def createZooKeeperClientToTriggerSessionExpiry(zooKeeper: ZooKeeper): ZooKeeper = {
-    val dummyWatcher = new Watcher {
-      override def process(event: WatchedEvent): Unit = {}
-    }
-    val anotherZkClient = new ZooKeeper(zkConnect, 1000, dummyWatcher,
-      zooKeeper.getSessionId,
-      zooKeeper.getSessionPasswd)
-    assertNull(anotherZkClient.exists("/nonexistent", false)) // Make sure new client works
-    anotherZkClient
-  }
 }
 
 object QuorumTestHarness {
-  val ZkClientEventThreadSuffix = "-EventThread"
-
   /**
    * Verify that a previous test that doesn't use QuorumTestHarness hasn't left behind an unexpected thread.
    * This assumes that brokers, ZooKeeper clients, producers and consumers are not created in another @BeforeClass,
@@ -527,7 +432,6 @@ object QuorumTestHarness {
       KafkaProducer.NETWORK_THREAD_PREFIX,
       AdminClientUnitTestEnv.kafkaAdminClientNetworkThreadPrefix(),
       AbstractCoordinator.HEARTBEAT_THREAD_PREFIX,
-      QuorumTestHarness.ZkClientEventThreadSuffix,
       KafkaEventQueue.EVENT_HANDLER_THREAD_SUFFIX,
       ClientMetricsManager.CLIENT_METRICS_REAPER_THREAD_NAME,
       SystemTimer.SYSTEM_TIMER_THREAD_PREFIX,
@@ -569,9 +473,6 @@ object QuorumTestHarness {
       Arguments.of("kraft", GroupProtocol.CONSUMER.name.toLowerCase(Locale.ROOT))
     )
   }
-
-  // The following is for tests that only work with the classic group protocol because of relying on Zookeeper
-  def getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_ZK_implicit: java.util.stream.Stream[Arguments] = stream.Stream.of(Arguments.of("zk", GroupProtocol.CLASSIC.name.toLowerCase(Locale.ROOT)))
 
   // The following parameter groups are to *temporarily* avoid bugs with the CONSUMER group protocol Consumer
   // implementation that would otherwise cause tests to fail.
