@@ -14,28 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package unit.kafka.server
+package kafka.server
 
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterInstance, ClusterTest, ClusterTestDefaults, ClusterTestExtensions, Type}
-import kafka.server.GroupCoordinatorBaseRequestTest
 import kafka.utils.TestUtils
-import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig}
-import org.apache.kafka.clients.producer.{Producer, ProducerConfig}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.internals.Topic
+import org.apache.kafka.common.message.WriteTxnMarkersRequestData.{WritableTxnMarker, WritableTxnMarkerTopic}
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.requests.JoinGroupRequest
-import org.apache.kafka.common.utils.Bytes
-import org.apache.kafka.coordinator.group.{GroupCoordinatorConfig, GroupCoordinatorRecordSerde}
-import org.apache.kafka.coordinator.group.generated.{OffsetCommitKey, OffsetCommitValue}
+import org.apache.kafka.common.utils.ProducerIdAndEpoch
+import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
-import org.junit.jupiter.api.Assertions.fail
+import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue, fail}
 import org.junit.jupiter.api.extension.ExtendWith
 
-import java.nio.ByteBuffer
-import java.time.Duration
-import java.util
 import java.util.Collections
 import scala.jdk.CollectionConverters.IterableHasAsScala
 
@@ -79,70 +72,112 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
     val transactionalId = "txn"
     val groupId = "group"
 
-    // Creates the __consumer_offsets topics because it won't be created automatically
+    // Creates the __consumer_offsets and __transaction_state topics because it won't be created automatically
     // in this test because it does not use FindCoordinator API.
     createOffsetsTopic()
+    createTransactionStateTopic()
 
     // Join the consumer group. Note that we don't heartbeat here so we must use
     // a session long enough for the duration of the test.
-    joinConsumerGroup(groupId, useNewProtocol)
+    val (memberId: String, memberEpoch: Int) = joinConsumerGroup(groupId, useNewProtocol)
+    assertTrue(memberId != JoinGroupRequest.UNKNOWN_MEMBER_ID)
+    assertTrue(memberEpoch != JoinGroupRequest.UNKNOWN_GENERATION_ID)
 
-    var consumer: Consumer[Bytes, Bytes] = null
-    var producer: Producer[String, String] = null
-    try {
-      createTopic(topic, 1)
+    createTopic(topic, 1)
 
-      producer = cluster.producer(Collections.singletonMap(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId))
-      producer.initTransactions()
-      producer.beginTransaction()
-      addOffsetsToTxn(groupId, 0, 0.toShort, transactionalId, ApiKeys.ADD_OFFSETS_TO_TXN.latestVersion())
+    var producerIdAndEpoch: ProducerIdAndEpoch = null
+    // Wait until ALLOCATE_PRODUCER_ID request finished
+    TestUtils.waitUntilTrue(() =>
+      try {
+        producerIdAndEpoch = initProducerId(
+          transactionalId = transactionalId,
+          producerIdAndEpoch = ProducerIdAndEpoch.NONE,
+          expectedError = Errors.NONE)
+        true
+      } catch {
+        case _: Throwable => false
+      }, "initProducerId request failed"
+    )
 
-      val consumerConfigs = new util.HashMap[String, Object]()
-      consumerConfigs.put(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG, "false")
-      consumer = cluster.consumer(consumerConfigs)
-      consumer.assign(Collections.singletonList(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0)))
+    addOffsetsToTxn(
+      groupId = groupId,
+      producerId = producerIdAndEpoch.producerId,
+      producerEpoch = producerIdAndEpoch.epoch,
+      transactionalId = transactionalId
+    )
 
+    def verifyTxnCommitAndFetch(
+      groupId: String,
+      memberId: String,
+      generationId: Int,
+      offset: Long,
+      version: Short
+    ): Unit = {
+      commitTxnOffset(
+        groupId = groupId,
+        memberId = memberId,
+        generationId = generationId,
+        producerId = producerIdAndEpoch.producerId,
+        producerEpoch = producerIdAndEpoch.epoch,
+        transactionalId = transactionalId,
+        topic = topic,
+        partition = partition,
+        offset = offset,
+        expectedError = Errors.NONE,
+        version = version
+      )
+
+      // Send writeTxnMarker to force transaction from pending to completed
+      // hence we can retrieve offsets from OFFSET_FETCH request
+      val writableTxnMarkersResult = writeTxnMarkers(
+        Collections.singletonList(new WritableTxnMarker()
+          .setTopics(Collections.singletonList(new WritableTxnMarkerTopic()
+            .setName(Topic.GROUP_METADATA_TOPIC_NAME)
+            .setPartitionIndexes(Collections.singletonList(0))))
+          .setProducerId(producerIdAndEpoch.producerId)
+          .setProducerEpoch(producerIdAndEpoch.epoch)
+          .setCoordinatorEpoch(0.toShort)
+          .setTransactionResult(true))
+      )
+      assertEquals(1, writableTxnMarkersResult.size())
+      val writableTxnMarkerTopic = writableTxnMarkersResult.asScala.head.topics().asScala.head
+      assertEquals(Topic.GROUP_METADATA_TOPIC_NAME, writableTxnMarkerTopic.name())
+      assertEquals(1, writableTxnMarkerTopic.partitions().size())
+      assertEquals(Errors.NONE.code(), writableTxnMarkerTopic.partitions().asScala.head.errorCode())
+
+      val fetchOffsetsResp = fetchOffsets(
+        groups = Map(groupId -> List(new TopicPartition(topic, partition))),
+        requireStable = true,
+        version = ApiKeys.OFFSET_FETCH.latestVersion()
+      )
+      val groupIdRecord = fetchOffsetsResp.find(_.groupId() == groupId).head
+      val topicRecord = groupIdRecord.topics().asScala.find(_.name() == topic).head
+      val partitionRecord = topicRecord.partitions().asScala.find(_.partitionIndex() == partition).head
+      assertEquals(offset, partitionRecord.committedOffset())
+    }
+
+    for (version <- 0 to ApiKeys.TXN_OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)) {
       // Verify that the TXN_OFFSET_COMMIT request is processed correctly when member id is UNKNOWN_MEMBER_ID
       // and generation id is UNKNOWN_GENERATION_ID under all api versions
-      for (version <- 0 to ApiKeys.TXN_OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)) {
-        commitTxnOffset(
-          groupId = groupId,
-          memberId = JoinGroupRequest.UNKNOWN_MEMBER_ID,
-          generationId = JoinGroupRequest.UNKNOWN_GENERATION_ID,
-          producerId = 0,
-          producerEpoch = 0.toShort,
-          transactionalId = transactionalId,
-          topic = topic,
-          partition = partition,
-          offset = 100 + version,
-          expectedError = Errors.NONE,
-          version = version.toShort,
-        )
+      verifyTxnCommitAndFetch(
+        groupId = groupId,
+        memberId = JoinGroupRequest.UNKNOWN_MEMBER_ID,
+        generationId = JoinGroupRequest.UNKNOWN_GENERATION_ID,
+        offset = 100 + version,
+        version = version.toShort
+      )
 
-        TestUtils.waitUntilTrue(() => {
-          consumer.poll(Duration.ofSeconds(5)).asScala
-            .filter(record => record.key() != null && record.value() != null)
-            .map(record => new GroupCoordinatorRecordSerde()
-              .deserialize(ByteBuffer.wrap(record.key().get()), ByteBuffer.wrap(record.value().get())))
-            .filter(coordinatorRecord =>
-              coordinatorRecord.key().message().isInstanceOf[OffsetCommitKey] &&
-              coordinatorRecord.value().message().isInstanceOf[OffsetCommitValue])
-            .exists(coordinatorRecord => {
-              val offsetCommitKey = coordinatorRecord.key().message().asInstanceOf[OffsetCommitKey]
-              val offsetCommitValue = coordinatorRecord.value().message().asInstanceOf[OffsetCommitValue]
-              offsetCommitKey.group() == groupId &&
-                offsetCommitKey.topic() == topic &&
-                offsetCommitKey.partition == partition &&
-                offsetCommitValue.offset() == 100 + version
-            })
-        }, "Txn offset commit not found")
-      }
-    } finally {
-      if (consumer != null) consumer.close()
-      if (producer != null) {
-        // Make test end faster
-        producer.abortTransaction()
-        producer.close()
+      // Verify that the TXN_OFFSET_COMMIT request is processed correctly when the member ID
+      // and generation ID are known. This validation starts from version 3, as the member ID
+      // must not be empty from version 3 onwards.
+      if (version >= 3) {
+        verifyTxnCommitAndFetch(
+          groupId = groupId,
+          memberId = memberId,
+          generationId = memberEpoch,
+          offset = 200 + version,
+          version = version.toShort
+        )
       }
     }
   }

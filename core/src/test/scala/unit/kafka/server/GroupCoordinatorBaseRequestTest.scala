@@ -25,10 +25,12 @@ import org.apache.kafka.common.message.DeleteGroupsResponseData.{DeletableGroupR
 import org.apache.kafka.common.message.LeaveGroupRequestData.MemberIdentity
 import org.apache.kafka.common.message.LeaveGroupResponseData.MemberResponse
 import org.apache.kafka.common.message.SyncGroupRequestData.SyncGroupRequestAssignment
-import org.apache.kafka.common.message.{AddOffsetsToTxnRequestData, AddOffsetsToTxnResponseData, ConsumerGroupDescribeRequestData, ConsumerGroupDescribeResponseData, ConsumerGroupHeartbeatRequestData, ConsumerGroupHeartbeatResponseData, DeleteGroupsRequestData, DeleteGroupsResponseData, DescribeGroupsRequestData, DescribeGroupsResponseData, HeartbeatRequestData, HeartbeatResponseData, JoinGroupRequestData, JoinGroupResponseData, LeaveGroupResponseData, ListGroupsRequestData, ListGroupsResponseData, OffsetCommitRequestData, OffsetCommitResponseData, OffsetDeleteRequestData, OffsetDeleteResponseData, OffsetFetchResponseData, ShareGroupDescribeRequestData, ShareGroupDescribeResponseData, ShareGroupHeartbeatRequestData, ShareGroupHeartbeatResponseData, SyncGroupRequestData, SyncGroupResponseData, TxnOffsetCommitRequestData, TxnOffsetCommitResponseData}
+import org.apache.kafka.common.message.WriteTxnMarkersRequestData.WritableTxnMarker
+import org.apache.kafka.common.message.{AddOffsetsToTxnRequestData, AddOffsetsToTxnResponseData, ConsumerGroupDescribeRequestData, ConsumerGroupDescribeResponseData, ConsumerGroupHeartbeatRequestData, ConsumerGroupHeartbeatResponseData, DeleteGroupsRequestData, DeleteGroupsResponseData, DescribeGroupsRequestData, DescribeGroupsResponseData, HeartbeatRequestData, HeartbeatResponseData, InitProducerIdRequestData, JoinGroupRequestData, JoinGroupResponseData, LeaveGroupResponseData, ListGroupsRequestData, ListGroupsResponseData, OffsetCommitRequestData, OffsetCommitResponseData, OffsetDeleteRequestData, OffsetDeleteResponseData, OffsetFetchResponseData, ShareGroupDescribeRequestData, ShareGroupDescribeResponseData, ShareGroupHeartbeatRequestData, ShareGroupHeartbeatResponseData, SyncGroupRequestData, SyncGroupResponseData, TxnOffsetCommitRequestData, TxnOffsetCommitResponseData, WriteTxnMarkersRequestData, WriteTxnMarkersResponseData}
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
-import org.apache.kafka.common.requests.{AbstractRequest, AbstractResponse, AddOffsetsToTxnRequest, AddOffsetsToTxnResponse, ConsumerGroupDescribeRequest, ConsumerGroupDescribeResponse, ConsumerGroupHeartbeatRequest, ConsumerGroupHeartbeatResponse, DeleteGroupsRequest, DeleteGroupsResponse, DescribeGroupsRequest, DescribeGroupsResponse, HeartbeatRequest, HeartbeatResponse, JoinGroupRequest, JoinGroupResponse, LeaveGroupRequest, LeaveGroupResponse, ListGroupsRequest, ListGroupsResponse, OffsetCommitRequest, OffsetCommitResponse, OffsetDeleteRequest, OffsetDeleteResponse, OffsetFetchRequest, OffsetFetchResponse, ShareGroupDescribeRequest, ShareGroupDescribeResponse, ShareGroupHeartbeatRequest, ShareGroupHeartbeatResponse, SyncGroupRequest, SyncGroupResponse, TxnOffsetCommitRequest, TxnOffsetCommitResponse}
+import org.apache.kafka.common.requests.{AbstractRequest, AbstractResponse, AddOffsetsToTxnRequest, AddOffsetsToTxnResponse, ConsumerGroupDescribeRequest, ConsumerGroupDescribeResponse, ConsumerGroupHeartbeatRequest, ConsumerGroupHeartbeatResponse, DeleteGroupsRequest, DeleteGroupsResponse, DescribeGroupsRequest, DescribeGroupsResponse, HeartbeatRequest, HeartbeatResponse, InitProducerIdRequest, InitProducerIdResponse, JoinGroupRequest, JoinGroupResponse, LeaveGroupRequest, LeaveGroupResponse, ListGroupsRequest, ListGroupsResponse, OffsetCommitRequest, OffsetCommitResponse, OffsetDeleteRequest, OffsetDeleteResponse, OffsetFetchRequest, OffsetFetchResponse, ShareGroupDescribeRequest, ShareGroupDescribeResponse, ShareGroupHeartbeatRequest, ShareGroupHeartbeatResponse, SyncGroupRequest, SyncGroupResponse, TxnOffsetCommitRequest, TxnOffsetCommitResponse, WriteTxnMarkersRequest, WriteTxnMarkersResponse}
 import org.apache.kafka.common.serialization.StringSerializer
+import org.apache.kafka.common.utils.ProducerIdAndEpoch
 import org.apache.kafka.controller.ControllerRequestContextUtil.ANONYMOUS_CONTEXT
 import org.junit.jupiter.api.Assertions.{assertEquals, fail}
 
@@ -50,6 +52,19 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     val admin = cluster.admin()
     try {
       TestUtils.createOffsetsTopicWithAdmin(
+        admin = admin,
+        brokers = brokers(),
+        controllers = controllerServers()
+      )
+    } finally {
+      admin.close()
+    }
+  }
+
+  protected def createTransactionStateTopic(): Unit = {
+    val admin = cluster.admin()
+    try {
+      TestUtils.createTransactionStateTopicWithAdmin(
         admin = admin,
         brokers = brokers(),
         controllers = controllerServers()
@@ -198,14 +213,15 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
      groupId: String,
      memberId: String,
      generationId: Int,
-     producerId: Int,
+     producerId: Long,
      producerEpoch: Short,
      transactionalId: String,
      topic: String,
      partition: Int,
      offset: Long,
      expectedError: Errors,
-     version: Short = ApiKeys.TXN_OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)): Unit = {
+     version: Short = ApiKeys.TXN_OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)
+  ): Unit = {
     val request = new TxnOffsetCommitRequest.Builder(
       new TxnOffsetCommitRequestData()
         .setGroupId(groupId)
@@ -240,20 +256,55 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     assertEquals(expectedResponse, response.data)
   }
 
-  protected def addOffsetsToTxn(groupId: String,
-                                producerId: Int,
-                                producerEpoch: Short,
-                                transactionalId: String,
-                                version: Short): Unit = {
-    val request = new AddOffsetsToTxnRequest.Builder(new AddOffsetsToTxnRequestData()
-      .setTransactionalId(transactionalId)
-      .setProducerId(producerId).setProducerEpoch(producerEpoch).setGroupId(groupId)
+  protected def addOffsetsToTxn(
+    groupId: String,
+    producerId: Long,
+    producerEpoch: Short,
+    transactionalId: String,
+    version: Short = ApiKeys.ADD_OFFSETS_TO_TXN.latestVersion(isUnstableApiEnabled)
+  ): Unit = {
+    val request = new AddOffsetsToTxnRequest.Builder(
+      new AddOffsetsToTxnRequestData()
+        .setTransactionalId(transactionalId)
+        .setProducerId(producerId)
+        .setProducerEpoch(producerEpoch)
+        .setGroupId(groupId)
     ).build(version)
 
-    val expectedResponse = new AddOffsetsToTxnResponseData()
-
     val response = connectAndReceive[AddOffsetsToTxnResponse](request)
-    assertEquals(expectedResponse, response.data)
+    assertEquals(new AddOffsetsToTxnResponseData(), response.data)
+  }
+
+  protected def initProducerId(
+    transactionalId: String,
+    transactionTimeoutMs: Int = 60000,
+    producerIdAndEpoch: ProducerIdAndEpoch,
+    expectedError: Errors,
+    version: Short = ApiKeys.INIT_PRODUCER_ID.latestVersion(isUnstableApiEnabled)
+  ): ProducerIdAndEpoch = {
+    val request = new InitProducerIdRequest.Builder(
+      new InitProducerIdRequestData()
+        .setTransactionalId(transactionalId)
+        .setTransactionTimeoutMs(transactionTimeoutMs)
+        .setProducerId(producerIdAndEpoch.producerId)
+        .setProducerEpoch(producerIdAndEpoch.epoch))
+      .build(version)
+
+    val response = connectAndReceive[InitProducerIdResponse](request).data()
+    assertEquals(expectedError.code(), response.errorCode())
+    new ProducerIdAndEpoch(response.producerId(), response.producerEpoch())
+  }
+
+  protected def writeTxnMarkers(
+    writableTxnMarkers: java.util.List[WritableTxnMarker],
+    version: Short = ApiKeys.WRITE_TXN_MARKERS.latestVersion(isUnstableApiEnabled)
+  ): java.util.List[WriteTxnMarkersResponseData.WritableTxnMarkerResult] = {
+    val request = new WriteTxnMarkersRequest.Builder(
+      new WriteTxnMarkersRequestData()
+        .setMarkers(writableTxnMarkers)
+    ).build(version)
+
+    connectAndReceive[WriteTxnMarkersResponse](request).data().markers()
   }
 
   protected def fetchOffsets(
