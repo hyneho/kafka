@@ -72,6 +72,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -280,7 +281,7 @@ public class SharePartitionManager implements AutoCloseable {
                 sharePartition.acknowledge(memberId, acknowledgePartitionBatches).whenComplete((result, throwable) -> {
                     if (throwable != null) {
                         handleFencedSharePartitionException(sharePartitionKey, throwable);
-                        future.complete(Errors.forException(throwable));
+                        future.completeExceptionally(throwable);
                         return;
                     }
                     acknowledgePartitionBatches.forEach(batch -> batch.acknowledgeTypes().forEach(this.shareGroupMetrics::recordAcknowledgement));
@@ -300,11 +301,24 @@ public class SharePartitionManager implements AutoCloseable {
 
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(
             futures.values().toArray(new CompletableFuture[0]));
-        return allFutures.thenApply(v -> {
+        return allFutures.handle((results, exception) -> {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
-            futures.forEach((topicIdPartition, future) -> result.put(topicIdPartition, new ShareAcknowledgeResponseData.PartitionData()
-                .setPartitionIndex(topicIdPartition.partition())
-                .setErrorCode(future.join().code())));
+            futures.forEach((topicIdPartition, future) -> {
+                try {
+                    Errors error = future.join();
+                    result.put(topicIdPartition,
+                            new ShareAcknowledgeResponseData.PartitionData()
+                                    .setPartitionIndex(topicIdPartition.partition())
+                                    .setErrorCode(error.code()));
+                } catch (CompletionException e) {
+                    Throwable t = e.getCause();
+                    result.put(topicIdPartition,
+                            new ShareAcknowledgeResponseData.PartitionData()
+                                    .setPartitionIndex(topicIdPartition.partition())
+                                    .setErrorCode(Errors.forException(t).code())
+                                    .setErrorMessage(t.getMessage()));
+                }
+            });
             return result;
         });
     }
@@ -353,7 +367,7 @@ public class SharePartitionManager implements AutoCloseable {
                 sharePartition.releaseAcquiredRecords(memberId).whenComplete((result, throwable) -> {
                     if (throwable != null) {
                         handleFencedSharePartitionException(sharePartitionKey, throwable);
-                        future.complete(Errors.forException(throwable));
+                        future.completeExceptionally(throwable);
                         return;
                     }
                     future.complete(Errors.NONE);
@@ -369,11 +383,23 @@ public class SharePartitionManager implements AutoCloseable {
 
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(
             futuresMap.values().toArray(new CompletableFuture[0]));
-        return allFutures.thenApply(v -> {
+        return allFutures.handle((results, exception) -> {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
-            futuresMap.forEach((topicIdPartition, future) -> result.put(topicIdPartition, new ShareAcknowledgeResponseData.PartitionData()
-                    .setPartitionIndex(topicIdPartition.partition())
-                    .setErrorCode(future.join().code())));
+            futuresMap.forEach((topicIdPartition, future) -> {
+                try {
+                    Errors error = future.join();
+                    result.put(topicIdPartition, new ShareAcknowledgeResponseData.PartitionData()
+                            .setPartitionIndex(topicIdPartition.partition())
+                            .setErrorCode(error.code()));
+                } catch (CompletionException e) {
+                    Throwable t = e.getCause();
+                    result.put(topicIdPartition,
+                            new ShareAcknowledgeResponseData.PartitionData()
+                                    .setPartitionIndex(topicIdPartition.partition())
+                                    .setErrorCode(Errors.forException(t).code())
+                                    .setErrorMessage(t.getMessage()));
+                }
+            });
             return result;
         });
     }
