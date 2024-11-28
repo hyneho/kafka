@@ -61,8 +61,7 @@ public class TopologyMetadata implements TopologyDescriber {
 
     @Override
     public boolean isStateful(String subtopologyId) {
-        //TODO
-        return false;
+        return !topology.subtopologies().get(subtopologyId).stateChangelogTopics().isEmpty();
     }
 
     /**
