@@ -615,7 +615,7 @@ public class SharePartitionManager implements AutoCloseable {
                     // hence create separate listeners per share partition which holds the share partition key
                     // to identify the respective share partition.
                     replicaManager.maybeAddListener(sharePartitionKey.topicIdPartition().topicPartition(),
-                        new SharePartitionListener(sharePartitionKey));
+                        new SharePartitionListener(sharePartitionKey, partitionCacheMap));
                     SharePartition partition = new SharePartition(
                             sharePartitionKey.groupId(),
                             sharePartitionKey.topicIdPartition(),
@@ -647,7 +647,7 @@ public class SharePartitionManager implements AutoCloseable {
         }
 
         // Remove the partition from the cache as it's failed to initialize.
-        removeSharePartitionFromCache(sharePartitionKey);
+        removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap);
         // The partition initialization failed, so add the partition to the erroneous partitions.
         log.debug("Error initializing share partition with key {}", sharePartitionKey, throwable);
         shareFetch.addErroneous(sharePartitionKey.topicIdPartition(), throwable);
@@ -669,7 +669,7 @@ public class SharePartitionManager implements AutoCloseable {
             // The share partition is fenced hence remove the partition from map and let the client retry.
             // But surface the error to the client so client might take some action i.e. re-fetch
             // the metadata and retry the fetch on new leader.
-            removeSharePartitionFromCache(sharePartitionKey);
+            removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap);
         }
     }
 
@@ -677,8 +677,8 @@ public class SharePartitionManager implements AutoCloseable {
         return new SharePartitionKey(groupId, topicIdPartition);
     }
 
-    private void removeSharePartitionFromCache(SharePartitionKey sharePartitionKey) {
-        SharePartition sharePartition = partitionCacheMap.remove(sharePartitionKey);
+    private static void removeSharePartitionFromCache(SharePartitionKey sharePartitionKey, Map<SharePartitionKey, SharePartition> map) {
+        SharePartition sharePartition = map.remove(sharePartitionKey);
         if (sharePartition != null) {
             sharePartition.markFenced();
         }
@@ -692,19 +692,17 @@ public class SharePartitionManager implements AutoCloseable {
      * group and topic-partition. Instead of maintaining a separate map for topic-partition to share partitions,
      * we can maintain the share partition key in the listener and create a new listener for each share partition.
      */
-    private class SharePartitionListener implements PartitionListener {
+    // Visible for testing.
+    static class SharePartitionListener implements PartitionListener {
 
         private final SharePartitionKey sharePartitionKey;
+        private final Map<SharePartitionKey, SharePartition> partitionCacheMap;
 
-        private SharePartitionListener(SharePartitionKey sharePartitionKey) {
+        SharePartitionListener(SharePartitionKey sharePartitionKey, Map<SharePartitionKey, SharePartition> partitionCacheMap) {
             this.sharePartitionKey = sharePartitionKey;
+            this.partitionCacheMap = partitionCacheMap;
         }
 
-        /**
-         * The onFailed method is called when a Partition is marked offline.
-         *
-         * @param topicPartition The topic-partition that has been marked offline.
-         */
         @Override
         public void onFailed(TopicPartition topicPartition) {
             log.info("The share partition failed listener is invoked for the topic-partition: {}, share-partition: {}",
@@ -712,11 +710,6 @@ public class SharePartitionManager implements AutoCloseable {
             onUpdate(topicPartition);
         }
 
-        /**
-         * The onDeleted method is called when a Partition is deleted.
-         *
-         * @param topicPartition The topic-partition that has been deleted.
-         */
         @Override
         public void onDeleted(TopicPartition topicPartition) {
             log.info("The share partition delete listener is invoked for the topic-partition: {}, share-partition: {}",
@@ -724,13 +717,8 @@ public class SharePartitionManager implements AutoCloseable {
             onUpdate(topicPartition);
         }
 
-        /**
-         * The onFollower method is called when a Partition is marked follower.
-         *
-         * @param topicPartition The topic-partition that has been marked as follower.
-         */
         @Override
-        public void onFollower(TopicPartition topicPartition) {
+        public void onLeaderToFollower(TopicPartition topicPartition) {
             log.info("The share partition leader change listener is invoked for the topic-partition: {}, share-partition: {}",
                 topicPartition, sharePartitionKey);
             onUpdate(topicPartition);
@@ -742,7 +730,7 @@ public class SharePartitionManager implements AutoCloseable {
                     topicPartition, sharePartitionKey);
                 return;
             }
-            removeSharePartitionFromCache(sharePartitionKey);
+            removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap);
         }
     }
 

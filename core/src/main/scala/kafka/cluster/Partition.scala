@@ -84,9 +84,9 @@ trait PartitionListener {
   def onDeleted(partition: TopicPartition): Unit = {}
 
   /**
-   * Called when the Partition on this broker is marked as follower.
+   * Called when the Partition on this broker is transitioned to follower from leader.
    */
-  def onFollower(partition: TopicPartition): Unit = {}
+  def onLeaderToFollower(partition: TopicPartition): Unit = {}
 }
 
 trait AlterPartitionListener {
@@ -707,11 +707,11 @@ class Partition(val topicPartition: TopicPartition,
   }
 
   /**
-   * Invoke the partition listeners when the partition has been marked as follower.
+   * Invoke the partition listeners when the partition has been transitioned to follower from leader.
    */
-  def invokeFollowerListeners(): Unit = {
+  def invokeLeaderToFollowerListeners(): Unit = {
     listeners.forEach { listener =>
-      listener.onFollower(topicPartition)
+      listener.onLeaderToFollower(topicPartition)
     }
   }
 
@@ -905,8 +905,6 @@ class Partition(val topicPartition: TopicPartition,
           s"and partition state $partitionState since it is already a follower with leader epoch $leaderEpoch.")
       }
 
-      // Invoke the follower transition listeners for the partition.
-      invokeFollowerListeners()
       // We must restart the fetchers when the leader epoch changed regardless of
       // whether the leader changed as well.
       isNewLeaderEpoch
