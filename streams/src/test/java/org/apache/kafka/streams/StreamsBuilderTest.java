@@ -1493,15 +1493,16 @@ public class StreamsBuilderTest {
 
         final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
 
-        builder.stream("input")
-            .groupBy(KeyValue::new, Grouped.as("groupBy")) // wrapped 1 (implicit selectKey)
-            .reduce((l, r) -> l, Named.as("reduce"), Materialized.as("store")) // wrapped 2
-            .toStream(Named.as("toStream"))// wrapped 3
+        builder.stream("input", Consumed.as("source")) // wrapped 1
+            .groupBy(KeyValue::new, Grouped.as("groupBy")) // wrapped 2 & 3 (implicit selectKey & repartition)
+            .reduce((l, r) -> l, Named.as("reduce"), Materialized.as("store")) // wrapped 4
+            .toStream(Named.as("toStream"))// wrapped 4
             .to("output");
 
         builder.build();
-        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(3));
-        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder("groupBy", "reduce", "toStream"));
+        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+            "source", "groupBy", "groupBy-repartition-filter", "reduce", "toStream"));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(4));
         assertThat(counter.numWrappedStateStores(), CoreMatchers.is(1));
     }
 
@@ -1515,11 +1516,11 @@ public class StreamsBuilderTest {
 
         final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
 
-        final KStream<String, String> stream1 = builder.stream("one");
-        final KStream<String, String> stream2 = builder.stream("two");
+        final KStream<String, String> stream1 = builder.stream("one", Consumed.as("source-1")); // wrapped 1
+        final KStream<String, String> stream2 = builder.stream("two", Consumed.as("source-2")); // wrapped 2
 
-        final KGroupedStream<String, String> grouped1 = stream1.groupByKey();
-        final KGroupedStream<String, String> grouped2 = stream2.groupByKey();
+        final KGroupedStream<String, String> grouped1 = stream1.groupByKey(Grouped.as("groupByKey-1"));
+        final KGroupedStream<String, String> grouped2 = stream2.groupByKey(Grouped.as("groupByKey-2"));
 
         grouped1
             .cogroup((k, v, a) -> a + v) // wrapped 1, store 1
@@ -1528,11 +1529,11 @@ public class StreamsBuilderTest {
             .toStream(Named.as("toStream"))// wrapped 4
             .to("output");
 
-        builder.build();
-        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(4));
+        final var top = builder.build();
         assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-            "groupBy", "a", "toStream"
+            "source-1", "source-2", "groupByKey-1", "groupByKey-2", "aggregate", "toStream"
         ));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(4));
         assertThat(counter.numWrappedStateStores(), CoreMatchers.is(2));
     }
 
@@ -1546,18 +1547,18 @@ public class StreamsBuilderTest {
 
         final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
 
-        builder.table("input")
-            .groupBy(KeyValue::new, Grouped.as("groupBy")) // wrapped 1 (implicit selectKey)
-            .count(Named.as("count")) // wrapped 2
-            .toStream(Named.as("toStream"))// wrapped 3
+        builder.table("input", Consumed.as("source")) // wrapped 1, store 1
+            .groupBy(KeyValue::new, Grouped.as("groupBy")) // wrapped 2 (implicit selectKey)
+            .count(Named.as("count")) // wrapped 3, store 2
+            .toStream(Named.as("toStream"))// wrapped 4
             .to("output");
 
         builder.build();
-        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(3));
         assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
-            "groupBy", "count", "toStream"
+            "source", "groupBy", "count", "toStream"
         ));
-        assertThat(counter.numWrappedStateStores(), CoreMatchers.is(1));
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(4));
+        assertThat(counter.numWrappedStateStores(), CoreMatchers.is(2));
     }
 
     @Test
