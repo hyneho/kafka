@@ -1698,98 +1698,60 @@ public class ConsumerGroupTest {
             .build();
         consumerGroup.updateMember(member2);
 
+        ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
+            .setSubscribedTopicRegex("foo*")
+            .build();
+        consumerGroup.updateMember(member3);
+
+        consumerGroup.updateResolvedRegularExpression(
+            "foo*",
+            new ResolvedRegularExpression(
+                Set.of("foo", "fooo"),
+                10L,
+                12345L
+            )
+        );
+
         // Verify initial state.
         assertEquals(
             Map.of(
-                "foo", 2,
+                "foo", 3,
+                "fooo", 1,
                 "bar", 2,
                 "zar", 1
             ),
             consumerGroup.subscribedTopicNames()
         );
 
-        // Add a regex.
-        consumerGroup.updateResolvedRegularExpression(
-            "foo|bar",
-            new ResolvedRegularExpression(
-                Set.of("foo", "bar"),
-                10L,
-                12345L
-            )
-        );
-
+        // Compute subscribed topic names without changing the regex.
         assertEquals(
             Map.of(
                 "foo", 3,
-                "bar", 3,
+                "fooo", 1,
+                "bar", 2,
                 "zar", 1
             ),
-            consumerGroup.subscribedTopicNames()
+            consumerGroup.computeSubscribedTopicNames(member3, member3)
         );
 
-        // Add a regex.
-        consumerGroup.updateResolvedRegularExpression(
-            "foobar",
-            new ResolvedRegularExpression(
-                Set.of("foobar"),
-                10L,
-                12345L
-            )
-        );
-
-        assertEquals(
-            Map.of(
-                "foo", 3,
-                "bar", 3,
-                "zar", 1,
-                "foobar", 1
-            ),
-            consumerGroup.subscribedTopicNames()
-        );
-
-        // Update a regex.
-        consumerGroup.updateResolvedRegularExpression(
-            "foo|bar",
-            new ResolvedRegularExpression(
-                Set.of("foo"),
-                10L,
-                12345L
-            )
-        );
-
-        assertEquals(
-            Map.of(
-                "foo", 3,
-                "bar", 2,
-                "zar", 1,
-                "foobar", 1
-            ),
-            consumerGroup.subscribedTopicNames()
-        );
-
-        // Remove a regex.
-        consumerGroup.removeResolvedRegularExpression("foo|bar");
-
-        assertEquals(
-            Map.of(
-                "foo", 2,
-                "bar", 2,
-                "zar", 1,
-                "foobar", 1
-            ),
-            consumerGroup.subscribedTopicNames()
-        );
-
-        // Remove another regex.
-        consumerGroup.removeResolvedRegularExpression("foobar");
-
+        // Compute subscribed topic names with changing the regex.
         assertEquals(
             Map.of(
                 "foo", 2,
                 "bar", 2,
                 "zar", 1
             ),
-            consumerGroup.subscribedTopicNames()
+            consumerGroup.computeSubscribedTopicNames(
+                member3,
+                new ConsumerGroupMember.Builder(member3)
+                    .setSubscribedTopicRegex("")
+                    .build()
+            )
         );
+    }
+
+    @Test
+    public void testComputeSubscribedTopicNames() {
+
     }
 }
