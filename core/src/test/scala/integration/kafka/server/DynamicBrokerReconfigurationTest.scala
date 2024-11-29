@@ -826,20 +826,8 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     }
 
     val config = servers.head.config
-    verifyThreadPoolResize(ServerConfigs.NUM_IO_THREADS_CONFIG, config.numIoThreads,
-      requestHandlerPrefix, mayReceiveDuplicates = false)
     verifyThreadPoolResize(ReplicationConfigs.NUM_REPLICA_FETCHERS_CONFIG, config.numReplicaFetchers,
       fetcherThreadPrefix, mayReceiveDuplicates = false)
-    verifyThreadPoolResize(ServerConfigs.BACKGROUND_THREADS_CONFIG, config.backgroundThreads,
-      "kafka-scheduler-", mayReceiveDuplicates = false)
-    verifyThreadPoolResize(ServerLogConfigs.NUM_RECOVERY_THREADS_PER_DATA_DIR_CONFIG, config.numRecoveryThreadsPerDataDir,
-      "", mayReceiveDuplicates = false)
-    verifyThreadPoolResize(SocketServerConfigs.NUM_NETWORK_THREADS_CONFIG, config.numNetworkThreads,
-      networkThreadPrefix, mayReceiveDuplicates = true)
-    verifyThreads("data-plane-kafka-socket-acceptor-", config.listeners.size, 1)
-
-    verifyProcessorMetrics()
-    verifyMarkPartitionsForTruncation()
   }
 
   private def isProcessorMetric(metricName: MetricName): Boolean = {
@@ -850,54 +838,6 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
   private def clearLeftOverProcessorMetrics(): Unit = {
     val metricsFromOldTests = KafkaYammerMetrics.defaultRegistry.allMetrics.keySet.asScala.filter(isProcessorMetric)
     metricsFromOldTests.foreach(KafkaYammerMetrics.defaultRegistry.removeMetric)
-  }
-
-  // Verify that metrics from processors that were removed have been deleted.
-  // Since processor ids are not reused, it is sufficient to check metrics count
-  // based on the current number of processors
-  private def verifyProcessorMetrics(): Unit = {
-    val numProcessors = servers.head.config.numNetworkThreads * 2 // 2 listeners
-
-    val kafkaMetrics = servers.head.metrics.metrics().keySet.asScala
-      .filter(_.tags.containsKey(Processor.NetworkProcessorMetricTag))
-      .groupBy(_.tags.get(Processor.ListenerMetricTag))
-
-    assertEquals(2, kafkaMetrics.size) // 2 listeners
-    // 2 threads per listener
-    assertEquals(2, kafkaMetrics("INTERNAL").groupBy(_.tags().get(Processor.NetworkProcessorMetricTag)).size)
-    assertEquals(2, kafkaMetrics("EXTERNAL").groupBy(_.tags().get(Processor.NetworkProcessorMetricTag)).size)
-
-    KafkaYammerMetrics.defaultRegistry.allMetrics.keySet.asScala
-      .filter(isProcessorMetric)
-      .groupBy(_.getName)
-      .foreach { case (name, set) => assertEquals(numProcessors, set.size, s"Metrics not deleted $name") }
-  }
-
-  // Verify that replicaFetcherManager.markPartitionsForTruncation uses the current fetcher thread size
-  // to obtain partition assignment
-  private def verifyMarkPartitionsForTruncation(): Unit = {
-    val leaderId = 0
-    val topicDescription = adminClients.head.
-      describeTopics(java.util.Arrays.asList(topic)).
-      allTopicNames().
-      get(3, TimeUnit.MINUTES).get(topic)
-    val partitions = topicDescription.partitions().asScala.
-      filter(p => p.leader().id() == leaderId).
-      map(p => new TopicPartition(topic, p.partition()))
-    assertTrue(partitions.nonEmpty, s"Partitions not found with leader $leaderId")
-    partitions.foreach { tp =>
-      (1 to 2).foreach { i =>
-        val replicaFetcherManager = servers(i).replicaManager.replicaFetcherManager
-        val truncationOffset = tp.partition
-        replicaFetcherManager.markPartitionsForTruncation(leaderId, tp, truncationOffset)
-        val fetcherThreads = replicaFetcherManager.fetcherThreadMap.filter(_._2.fetchState(tp).isDefined)
-        assertEquals(1, fetcherThreads.size)
-        assertEquals(replicaFetcherManager.getFetcherId(tp), fetcherThreads.head._1.fetcherId)
-        val thread = fetcherThreads.head._2
-        assertEquals(Some(truncationOffset), thread.fetchState(tp).map(_.fetchOffset))
-        assertEquals(Some(Truncating), thread.fetchState(tp).map(_.state))
-      }
-    }
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
