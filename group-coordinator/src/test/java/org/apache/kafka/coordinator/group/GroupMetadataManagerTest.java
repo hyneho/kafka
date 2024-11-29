@@ -207,7 +207,7 @@ public class GroupMetadataManagerTest {
                 .setRebalanceTimeoutMs(5000)));
         assertEquals("TopicPartitions must be empty when (re-)joining.", ex.getMessage());
 
-        // SubscribedTopicNames or SubscribedTopicRegex must be present and non-empty in the first request (epoch == 0).
+        // SubscribedTopicNames or SubscribedTopicRegex must be present in the first request (epoch == 0).
         ex = assertThrows(InvalidRequestException.class, () -> context.consumerGroupHeartbeat(
             new ConsumerGroupHeartbeatRequestData()
                 .setMemberId(memberId)
