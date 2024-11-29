@@ -294,11 +294,7 @@ public class ConnectorConfig extends AbstractConfig {
     }
 
     public ConnectorConfig(Plugins plugins, ConfigDef configDef, Map<String, String> props) {
-        this(plugins, configDef, props, Collections.emptyMap());
-    }
-
-    public ConnectorConfig(Plugins plugins, ConfigDef configDef, Map<String, String> props, Map<String, String> workerProps) {
-        super(updateDefaults(configDef, plugins, props, workerProps), props);
+        super(configDef, props);
         enrichedConfig = new EnrichedConnectorConfig(
                 enrich(plugins, configDef, props, true),
                 props
@@ -348,8 +344,6 @@ public class ConnectorConfig extends AbstractConfig {
      * Returns the initialized list of {@link TransformationStage} which apply the
      * {@link Transformation transformations} and {@link Predicate predicates}
      * as they are specified in the {@link #TRANSFORMS_CONFIG} and {@link #PREDICATES_CONFIG}
-     *
-     * Deprecated: This is kept for ease of testing, Use {@link #transformationStages(Plugins)} instead.
      */
     public <R extends ConnectRecord<R>> List<TransformationStage<R>> transformationStages() {
         final List<String> transformAliases = getList(TRANSFORMS_CONFIG);
@@ -524,15 +518,14 @@ public class ConnectorConfig extends AbstractConfig {
         return newDef;
     }
 
-    public static ConfigDef updateDefaults(ConfigDef configDef, Plugins plugins, Map<String, String> connProps, Map<String, String> workerProps) {
+    public static void updateDefaults(ConfigDef configDef, Plugins plugins, Map<String, String> connProps, Map<String, String> workerProps) {
         updateAllConverterDefaults(configDef, plugins, connProps, workerProps);
         updateConnectorVersionDefaults(configDef, plugins, connProps.get(CONNECTOR_CLASS_CONFIG));
-        return configDef;
     }
 
     public static void updateConnectorVersionDefaults(ConfigDef configDef, Plugins plugins, String connectorClass) {
         // if provided connector version is null, the latest version is used
-        updateVersionKeyDefault(configDef, ConnectorConfig.CONNECTOR_VERSION, plugins.latestVersion(connectorClass));
+        updateKeyDefault(configDef, ConnectorConfig.CONNECTOR_VERSION, plugins.latestVersion(connectorClass));
     }
 
     public static void updateAllConverterDefaults(ConfigDef configDef, Plugins plugins,
@@ -595,6 +588,11 @@ public class ConnectorConfig extends AbstractConfig {
             2. if the version is provided, the provided version is used
         C. If the converter class is not provided as part of the connector properties and not provided as part of the worker properties,
         the converter to use is unknown hence no default version can be determined (null)
+
+        Note: Connect when using service loading has an issue outlined in KAFKA-18119. The issue means that the above
+        logic does not hold currently for clusters using service loading when converters are defined in the connector.
+        However, the logic to determine the default should ideally follow the one outlined above, and the code here
+        should still show the correct default version regardless of the bug.
         */
         final String connectorConverter = connectorProps.get(connectorConverterConfig);
         final String workerConverter = workerProps.get(workerConverterConfig);
@@ -608,13 +606,13 @@ public class ConnectorConfig extends AbstractConfig {
         }
         // update the default of connector converter based on if the worker converter is provided
         if (workerConverter != null) {
-            updateVersionKeyDefault(configDef, connectorConverterConfig, workerProps.get(workerConverterConfig));
+            updateKeyDefault(configDef, connectorConverterConfig, workerProps.get(workerConverterConfig));
         }
 
 
         String version = null;
         if (connectorConverter != null) {
-            version = fetchDefaultPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, Converter.class);
+            version = fetchPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, Converter.class);
         } else {
             version = workerProps.get(workerConverterVersionConfig);
             if (version == null) {
@@ -622,11 +620,11 @@ public class ConnectorConfig extends AbstractConfig {
             }
         }
         if (version != null) {
-            updateVersionKeyDefault(configDef, connectorConverterVersionConfig, version);
+            updateKeyDefault(configDef, connectorConverterVersionConfig, version);
         }
     }
 
-    private static void updateVersionKeyDefault(ConfigDef configDef, String versionConfigKey, String versionDefault) {
+    private static void updateKeyDefault(ConfigDef configDef, String versionConfigKey, String versionDefault) {
         ConfigDef.ConfigKey key = configDef.configKeys().get(versionConfigKey);
         if (key == null) {
             return;
@@ -636,7 +634,7 @@ public class ConnectorConfig extends AbstractConfig {
         ));
     }
 
-    private static <T> String fetchDefaultPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName, Class<T> pluginClass) {
+    private static <T> String fetchPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName, Class<T> pluginClass) {
         if (connectorClass == null || pluginName == null) {
             return null;
         }
@@ -738,7 +736,7 @@ public class ConnectorConfig extends AbstractConfig {
                         getConfigDefFromPlugin(typeConfig, props.get(typeConfig), (String) value, plugins);
                     }
                 };
-                String defaultVersion = fetchDefaultPluginVersion(plugins, props.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG),
+                String defaultVersion = fetchPluginVersion(plugins, props.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG),
                         props.get(ConnectorConfig.CONNECTOR_VERSION), props.get(typeConfig), baseClass);
                 newDef.define(versionConfig, Type.STRING, defaultVersion, versionValidator, Importance.HIGH,
                         "Version of the '" + alias + "' " + aliasKind.toLowerCase(Locale.ENGLISH) + ".", group, orderInGroup++, Width.LONG,
