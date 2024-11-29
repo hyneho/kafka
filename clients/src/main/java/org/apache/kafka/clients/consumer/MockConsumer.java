@@ -616,7 +616,7 @@ public class MockConsumer<K, V> implements Consumer<K, V> {
             offset = endOffsets.get(tp);
             if (offset == null)
                 throw new IllegalStateException("MockConsumer didn't have end offset specified, but tried to seek to end");
-        } else if (strategy.timestamp().isPresent()) {
+        } else if (strategy.type() == AutoOffsetResetStrategy.StrategyType.BY_DURATION) {
             offset = durationResetOffsets.get(tp);
             if (offset == null)
                 throw new IllegalStateException("MockConsumer didn't have duration offset specified, but tried to seek to timestamp");
