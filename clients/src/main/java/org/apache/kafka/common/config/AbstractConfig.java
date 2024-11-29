@@ -381,7 +381,7 @@ public class AbstractConfig {
         }
     }
 
-    protected <T> T getConfiguredInstance(Object klass, Class<T> t, Map<String, Object> configPairs) {
+    private <T> T getConfiguredInstance(Object klass, Class<T> t, Map<String, Object> configPairs) {
         if (klass == null)
             return null;
         Object o;
