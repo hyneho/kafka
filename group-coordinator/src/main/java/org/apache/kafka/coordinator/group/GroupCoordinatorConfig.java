@@ -249,23 +249,6 @@ public class GroupCoordinatorConfig {
             .define(SHARE_GROUP_MAX_HEARTBEAT_INTERVAL_MS_CONFIG, INT, SHARE_GROUP_MAX_HEARTBEAT_INTERVAL_MS_DEFAULT, atLeast(1), MEDIUM, SHARE_GROUP_MAX_HEARTBEAT_INTERVAL_MS_DOC)
             .define(SHARE_GROUP_MAX_SIZE_CONFIG, INT, SHARE_GROUP_MAX_SIZE_DEFAULT, between(1, 1000), MEDIUM, SHARE_GROUP_MAX_SIZE_DOC);
 
-    public static GroupCoordinatorConfig fromProps(
-        Map<?, ?> props
-    ) {
-        return new GroupCoordinatorConfig(
-            new AbstractConfig(
-                Utils.mergeConfigs(List.of(
-                    GroupCoordinatorConfig.GROUP_COORDINATOR_CONFIG_DEF,
-                    GroupCoordinatorConfig.NEW_GROUP_CONFIG_DEF,
-                    GroupCoordinatorConfig.OFFSET_MANAGEMENT_CONFIG_DEF,
-                    GroupCoordinatorConfig.CONSUMER_GROUP_CONFIG_DEF,
-                    GroupCoordinatorConfig.SHARE_GROUP_CONFIG_DEF
-                )),
-                props
-            )
-        );
-    }
-
     /**
      * The timeout used to wait for a new member in milliseconds.
      */
@@ -304,6 +287,7 @@ public class GroupCoordinatorConfig {
     private final int shareGroupMinHeartbeatIntervalMs;
     private final int shareGroupMaxHeartbeatIntervalMs;
 
+    @SuppressWarnings("this-escape")
     public GroupCoordinatorConfig(AbstractConfig config) {
         this.numThreads = config.getInt(GroupCoordinatorConfig.GROUP_COORDINATOR_NUM_THREADS_CONFIG);
         this.appendLingerMs = config.getInt(GroupCoordinatorConfig.GROUP_COORDINATOR_APPEND_LINGER_MS_CONFIG);
@@ -383,18 +367,26 @@ public class GroupCoordinatorConfig {
                 SHARE_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG, SHARE_GROUP_SESSION_TIMEOUT_MS_CONFIG));
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<ConsumerGroupPartitionAssignor> consumerGroupAssignors(
+    public static GroupCoordinatorConfig fromProps(
+        Map<?, ?> props
+    ) {
+        return new GroupCoordinatorConfig(
+            new AbstractConfig(
+                Utils.mergeConfigs(List.of(
+                    GroupCoordinatorConfig.GROUP_COORDINATOR_CONFIG_DEF,
+                    GroupCoordinatorConfig.NEW_GROUP_CONFIG_DEF,
+                    GroupCoordinatorConfig.OFFSET_MANAGEMENT_CONFIG_DEF,
+                    GroupCoordinatorConfig.CONSUMER_GROUP_CONFIG_DEF,
+                    GroupCoordinatorConfig.SHARE_GROUP_CONFIG_DEF
+                )),
+                props
+            )
+        );
+    }
+
+    protected List<ConsumerGroupPartitionAssignor> consumerGroupAssignors(
         AbstractConfig config
     ) {
-        // In unit tests, it is pretty convenient to have the ability to pass instantiated
-        // assignors. Hence, we check if the provided assignors are already instantiated.
-        // Otherwise, we use the regular method.
-        List<?> classes = config.getList(GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG);
-        if (classes.stream().allMatch(o -> o instanceof ConsumerGroupPartitionAssignor)) {
-            return Collections.unmodifiableList((List<ConsumerGroupPartitionAssignor>) classes);
-        }
-
         return Collections.unmodifiableList(
             config.getConfiguredInstances(
                 GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG,

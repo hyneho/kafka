@@ -19,6 +19,7 @@ package org.apache.kafka.coordinator.group;
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.errors.UnknownMemberIdException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
@@ -49,10 +50,12 @@ import org.apache.kafka.common.security.auth.KafkaPrincipal;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
+import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorResult;
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorExecutor;
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer;
+import org.apache.kafka.coordinator.group.api.assignor.ConsumerGroupPartitionAssignor;
 import org.apache.kafka.coordinator.group.api.assignor.ShareGroupPartitionAssignor;
 import org.apache.kafka.coordinator.group.classic.ClassicGroup;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupCurrentMemberAssignmentKey;
@@ -135,6 +138,45 @@ import static org.mockito.Mockito.mock;
 public class GroupMetadataManagerTestContext {
     static final String DEFAULT_CLIENT_ID = "client";
     static final InetAddress DEFAULT_CLIENT_ADDRESS = InetAddress.getLoopbackAddress();
+
+    private static class GroupCoordinatorConfigContext extends GroupCoordinatorConfig {
+        GroupCoordinatorConfigContext(AbstractConfig config) {
+            super(config);
+        }
+
+        public static GroupCoordinatorConfig fromProps(
+            Map<?, ?> props
+        ) {
+            return new GroupCoordinatorConfigContext(
+                new AbstractConfig(
+                    Utils.mergeConfigs(List.of(
+                        GroupCoordinatorConfig.GROUP_COORDINATOR_CONFIG_DEF,
+                        GroupCoordinatorConfig.NEW_GROUP_CONFIG_DEF,
+                        GroupCoordinatorConfig.OFFSET_MANAGEMENT_CONFIG_DEF,
+                        GroupCoordinatorConfig.CONSUMER_GROUP_CONFIG_DEF,
+                        GroupCoordinatorConfig.SHARE_GROUP_CONFIG_DEF
+                    )),
+                    props
+                )
+            );
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected List<ConsumerGroupPartitionAssignor> consumerGroupAssignors(
+            AbstractConfig config
+        ) {
+            // In unit tests, it is pretty convenient to have the ability to pass instantiated
+            // assignors. Hence, we check if the provided assignors are already instantiated.
+            // Otherwise, we use the regular method.
+            List<?> classes = config.getList(GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG);
+            if (classes.stream().allMatch(o -> o instanceof ConsumerGroupPartitionAssignor)) {
+                return Collections.unmodifiableList((List<ConsumerGroupPartitionAssignor>) classes);
+            }
+
+            return super.consumerGroupAssignors(config);
+        }
+    }
 
     public static void assertNoOrEmptyResult(List<MockCoordinatorTimer.ExpiredTimeout<Void, CoordinatorRecord>> timeouts) {
         assertTrue(timeouts.size() <= 1);
@@ -446,7 +488,7 @@ public class GroupMetadataManagerTestContext {
                 List.of(new MockPartitionAssignor("range"))
             );
 
-            GroupCoordinatorConfig groupCoordinatorConfig = GroupCoordinatorConfig.fromProps(config);
+            GroupCoordinatorConfig groupCoordinatorConfig = GroupCoordinatorConfigContext.fromProps(config);
 
             GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext(
                 time,
