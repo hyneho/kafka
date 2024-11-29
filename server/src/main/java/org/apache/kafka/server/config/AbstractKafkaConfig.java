@@ -16,8 +16,6 @@
  */
 package org.apache.kafka.server.config;
 
-import org.apache.kafka.common.Configurable;
-import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
@@ -34,7 +32,6 @@ import org.apache.kafka.server.metrics.MetricConfigs;
 import org.apache.kafka.storage.internals.log.CleanerConfig;
 import org.apache.kafka.storage.internals.log.LogConfig;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
