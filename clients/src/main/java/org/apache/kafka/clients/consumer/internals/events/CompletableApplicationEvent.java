@@ -52,5 +52,4 @@ public abstract class CompletableApplicationEvent<T> extends ApplicationEvent im
     protected String toStringBase() {
         return super.toStringBase() + ", future=" + future + ", deadlineMs=" + deadlineMs;
     }
-    
 }
