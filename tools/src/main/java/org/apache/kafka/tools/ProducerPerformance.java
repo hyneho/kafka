@@ -196,7 +196,7 @@ public class ProducerPerformance {
             }
 
             List<String> payloadList;
-            try (Scanner payLoadScanner = new Scanner(path, StandardCharsets.UTF_8.name())) {
+            try (Scanner payLoadScanner = new Scanner(path, StandardCharsets.UTF_8)) {
                 payLoadScanner.useDelimiter(payloadDelimiter);
                 payloadList = new ArrayList<>();
                 while (payLoadScanner.hasNext()) {
