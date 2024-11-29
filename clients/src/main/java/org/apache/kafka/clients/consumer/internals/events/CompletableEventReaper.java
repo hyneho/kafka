@@ -75,15 +75,15 @@ public class CompletableEventReaper {
      *         {@link CompletableFuture#isDone() done} state, it will be removed from the list of tracked events.
      *     </li>
      * </ol>
-     *
+     * <p>
      * <p/>
-     *
+     * <p>
      * This method should be called at regular intervals, based upon the needs of the resource that owns the reaper.
      *
      * @param currentTimeMs <em>Current</em> time with which to compare against the
      *                      <em>{@link CompletableEvent#deadlineMs() expiration time}</em>
      */
-    public List<CompletableEvent<?>> reap(long currentTimeMs) {
+    public void reap(long currentTimeMs) {
         Consumer<CompletableEvent<?>> expireEvent = event -> {
             long pastDueMs = currentTimeMs - event.deadlineMs();
             TimeoutException error = new TimeoutException(String.format("%s was %s ms past its expiration of %s", event.getClass().getSimpleName(), pastDueMs, event.deadlineMs()));
@@ -103,8 +103,7 @@ public class CompletableEventReaper {
         // Second, remove any events that are already complete, just to make sure we don't hold references. This will
         // include any events that finished successfully as well as any events we just completed exceptionally above.
         tracked.removeIf(e -> e.future().isDone());
-        
-        return tracked;
+
     }
 
     /**

@@ -136,9 +136,9 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
      * </ol>
      */
     void runOnce() {
-        final long currentTimeMs = time.milliseconds();
-        processApplicationEvents(currentTimeMs);
+        processApplicationEvents();
 
+        final long currentTimeMs = time.milliseconds();
         final long pollWaitTimeMs = requestManagers.entries().stream()
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -160,7 +160,7 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
     /**
      * Process the events—if any—that were produced by the application thread.
      */
-    private void processApplicationEvents(long currentTimeMs) {
+    private void processApplicationEvents() {
         LinkedList<ApplicationEvent> events = new LinkedList<>();
         applicationEventQueue.drainTo(events);
 
@@ -182,8 +182,8 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
      * thread has made at least one call to {@link NetworkClientDelegate#poll(long, long) poll} so that each event
      * is given least one attempt to satisfy any network requests <em>before</em> checking if a timeout has expired.
      */
-    private List<CompletableEvent<?>> reapExpiredApplicationEvents(long currentTimeMs) {
-        return applicationEventReaper.reap(currentTimeMs);
+    private void reapExpiredApplicationEvents(long currentTimeMs) {
+        applicationEventReaper.reap(currentTimeMs);
     }
 
     /**
