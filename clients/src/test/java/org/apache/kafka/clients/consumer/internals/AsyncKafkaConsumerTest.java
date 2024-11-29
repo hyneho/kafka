@@ -1892,7 +1892,7 @@ public class AsyncKafkaConsumerTest {
     }
 
     // SubscriptionPattern is supported as of ConsumerGroupHeartbeatRequest v1. Clients using subscribe
-    // (SubscribePattern) against older broker versions should get UnsupportedApiVersions on poll after subscribe
+    // (SubscribePattern) against older broker versions should get UnsupportedVersionException on poll after subscribe
     @Test
     public void testSubscribePatternAgainstBrokerNotSupportingRegex() throws InterruptedException {
         final Properties props = requiredConsumerConfig();
