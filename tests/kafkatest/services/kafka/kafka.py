@@ -1091,7 +1091,6 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         security_config = self.security_config
         # we only need to create client credentials when the client mechanism is SASL/SCRAM
         if security_config.is_sasl(self.security_protocol) and security_config.is_sasl_scram(self.client_sasl_mechanism):
-            # ignored if forcing the use of Zookeeper, but we need a value to send, so calculate it anyway
             if self.interbroker_security_protocol == SecurityConfig.PLAINTEXT:
                 kafka_security_protocol = self.interbroker_security_protocol
             else:
