@@ -72,7 +72,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -272,20 +271,20 @@ public class SharePartitionManager implements AutoCloseable {
         log.trace("Acknowledge request for topicIdPartitions: {} with groupId: {}",
             acknowledgeTopics.keySet(), groupId);
         this.shareGroupMetrics.shareAcknowledgement();
-        Map<TopicIdPartition, CompletableFuture<Errors>> futures = new HashMap<>();
+        Map<TopicIdPartition, CompletableFuture<Throwable>> futures = new HashMap<>();
         acknowledgeTopics.forEach((topicIdPartition, acknowledgePartitionBatches) -> {
             SharePartitionKey sharePartitionKey = sharePartitionKey(groupId, topicIdPartition);
             SharePartition sharePartition = partitionCacheMap.get(sharePartitionKey);
             if (sharePartition != null) {
-                CompletableFuture<Errors> future = new CompletableFuture<>();
+                CompletableFuture<Throwable> future = new CompletableFuture<>();
                 sharePartition.acknowledge(memberId, acknowledgePartitionBatches).whenComplete((result, throwable) -> {
                     if (throwable != null) {
                         handleFencedSharePartitionException(sharePartitionKey, throwable);
-                        future.completeExceptionally(throwable);
+                        future.complete(throwable);
                         return;
                     }
                     acknowledgePartitionBatches.forEach(batch -> batch.acknowledgeTypes().forEach(this.shareGroupMetrics::recordAcknowledgement));
-                    future.complete(Errors.NONE);
+                    future.complete(null);
                 });
 
                 // If we have an acknowledgement completed for a topic-partition, then we should check if
@@ -295,30 +294,26 @@ public class SharePartitionManager implements AutoCloseable {
 
                 futures.put(topicIdPartition, future);
             } else {
-                futures.put(topicIdPartition, CompletableFuture.completedFuture(Errors.UNKNOWN_TOPIC_OR_PARTITION));
+                futures.put(topicIdPartition, CompletableFuture.completedFuture(Errors.UNKNOWN_TOPIC_OR_PARTITION.exception()));
             }
         });
 
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(
             futures.values().toArray(new CompletableFuture[0]));
-        return allFutures.handle((unused, exception) -> {
+        return allFutures.thenApply(v -> {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
             futures.forEach((topicIdPartition, future) -> {
-                try {
-                    Errors error = future.join();
-                    result.put(topicIdPartition,
-                            new ShareAcknowledgeResponseData.PartitionData()
-                                    .setPartitionIndex(topicIdPartition.partition())
-                                    .setErrorCode(error.code())
-                                    .setErrorMessage(error.message()));
-                } catch (CompletionException e) {
-                    Throwable t = e.getCause();
-                    result.put(topicIdPartition,
-                            new ShareAcknowledgeResponseData.PartitionData()
-                                    .setPartitionIndex(topicIdPartition.partition())
-                                    .setErrorCode(Errors.forException(t).code())
-                                    .setErrorMessage(t.getMessage()));
+                ShareAcknowledgeResponseData.PartitionData partitionData = new ShareAcknowledgeResponseData.PartitionData()
+                        .setPartitionIndex(topicIdPartition.partition());
+                Throwable t = future.join();
+                if (t == null) {
+                    partitionData.setErrorCode(Errors.NONE.code())
+                            .setErrorMessage(Errors.NONE.message());
+                } else {
+                    partitionData.setErrorCode(Errors.forException(t).code())
+                            .setErrorMessage(t.getMessage());
                 }
+                result.put(topicIdPartition, partitionData);
             });
             return result;
         });
@@ -356,22 +351,22 @@ public class SharePartitionManager implements AutoCloseable {
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
 
-        Map<TopicIdPartition, CompletableFuture<Errors>> futuresMap = new HashMap<>();
+        Map<TopicIdPartition, CompletableFuture<Throwable>> futuresMap = new HashMap<>();
         topicIdPartitions.forEach(topicIdPartition -> {
             SharePartitionKey sharePartitionKey = sharePartitionKey(groupId, topicIdPartition);
             SharePartition sharePartition = partitionCacheMap.get(sharePartitionKey);
             if (sharePartition == null) {
                 log.error("No share partition found for groupId {} topicPartition {} while releasing acquired topic partitions", groupId, topicIdPartition);
-                futuresMap.put(topicIdPartition, CompletableFuture.completedFuture(Errors.UNKNOWN_TOPIC_OR_PARTITION));
+                futuresMap.put(topicIdPartition, CompletableFuture.completedFuture(Errors.UNKNOWN_TOPIC_OR_PARTITION.exception()));
             } else {
-                CompletableFuture<Errors> future = new CompletableFuture<>();
+                CompletableFuture<Throwable> future = new CompletableFuture<>();
                 sharePartition.releaseAcquiredRecords(memberId).whenComplete((result, throwable) -> {
                     if (throwable != null) {
                         handleFencedSharePartitionException(sharePartitionKey, throwable);
-                        future.completeExceptionally(throwable);
+                        future.complete(throwable);
                         return;
                     }
-                    future.complete(Errors.NONE);
+                    future.complete(null);
                 });
                 // If we have a release acquired request completed for a topic-partition, then we should check if
                 // there is a pending share fetch request for the topic-partition and complete it.
@@ -384,23 +379,20 @@ public class SharePartitionManager implements AutoCloseable {
 
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(
             futuresMap.values().toArray(new CompletableFuture[0]));
-        return allFutures.handle((unused, exception) -> {
+        return allFutures.thenApply(v -> {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
             futuresMap.forEach((topicIdPartition, future) -> {
-                try {
-                    Errors error = future.join();
-                    result.put(topicIdPartition, new ShareAcknowledgeResponseData.PartitionData()
-                            .setPartitionIndex(topicIdPartition.partition())
-                            .setErrorCode(error.code())
-                            .setErrorMessage(error.message()));
-                } catch (CompletionException e) {
-                    Throwable t = e.getCause();
-                    result.put(topicIdPartition,
-                            new ShareAcknowledgeResponseData.PartitionData()
-                                    .setPartitionIndex(topicIdPartition.partition())
-                                    .setErrorCode(Errors.forException(t).code())
-                                    .setErrorMessage(t.getMessage()));
+                ShareAcknowledgeResponseData.PartitionData partitionData = new ShareAcknowledgeResponseData.PartitionData()
+                        .setPartitionIndex(topicIdPartition.partition());
+                Throwable t = future.join();
+                if (t == null) {
+                    partitionData.setErrorCode(Errors.NONE.code())
+                            .setErrorMessage(Errors.NONE.message());
+                } else {
+                    partitionData.setErrorCode(Errors.forException(t).code())
+                            .setErrorMessage(t.getMessage());
                 }
+                result.put(topicIdPartition, partitionData);
             });
             return result;
         });
