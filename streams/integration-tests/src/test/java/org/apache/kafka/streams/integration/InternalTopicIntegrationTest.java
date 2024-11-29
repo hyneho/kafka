@@ -95,6 +95,7 @@ public class InternalTopicIntegrationTest {
     @AfterAll
     public static void closeCluster() {
         cluster.stop();
+        cluster = null;
     }
 
 

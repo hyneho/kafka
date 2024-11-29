@@ -2399,7 +2399,7 @@ public class GroupMetadataManager {
                 InternalTopicManager.configureTopics(logContext, topology, partitionMetadata);
         }
 
-        // 2. Update the target assignment if the group epoch is larger than the target assignment epoch or a static member
+        // 4. Update the target assignment if the group epoch is larger than the target assignment epoch or a static member
         // replaces an existing static member. The delta between the existing and the new target assignment is persisted to the partition.
         int targetAssignmentEpoch = group.assignmentEpoch();
         org.apache.kafka.coordinator.group.streams.Assignment targetAssignment = group.targetAssignment(memberId);
@@ -2417,7 +2417,7 @@ public class GroupMetadataManager {
             targetAssignmentEpoch = groupEpoch;
         }
 
-        // 3. Reconcile the member's assignment with the target assignment if the member is not
+        // 5. Reconcile the member's assignment with the target assignment if the member is not
         // fully reconciled yet.
         updatedMember = maybeReconcile(
             groupId,
