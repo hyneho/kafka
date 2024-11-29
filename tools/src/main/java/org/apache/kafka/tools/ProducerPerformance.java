@@ -195,10 +195,9 @@ public class ProducerPerformance {
                 throw new IllegalArgumentException("File does not exist or empty file provided.");
             }
 
-            List<String> payloadList;
+            List<String> payloadList = new ArrayList<>();
             try (Scanner payLoadScanner = new Scanner(path, StandardCharsets.UTF_8)) {
                 payLoadScanner.useDelimiter(payloadDelimiter);
-                payloadList = new ArrayList<>();
                 while (payLoadScanner.hasNext()) {
                     payloadList.add(payLoadScanner.next());
                 }
