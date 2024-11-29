@@ -1197,7 +1197,7 @@ class DynamicBrokerReconfigurationTest extends QuorumTestHarness with SaslSetup 
     val (threads, resized) = TestUtils.computeUntilTrue(matchingThreads(threadPrefix)) { matching =>
       matching.size >= expectedCount &&  matching.size <= expectedCount + leftOverThreads
     }
-    assertTrue(resized, s"Invalid threads: expected $expectedCount, got ${threads.size}: $threads")
+    assertTrue(resized, s"Invalid threads: countPerBroker: ${countPerBroker} servers.size: ${servers.size} leftOverThreads: ${leftOverThreads} expected $expectedCount, got ${threads.size}: $threads")
   }
 
   private def startProduceConsume(retries: Int, groupProtocol: String, producerClientId: String = "test-producer"): (ProducerThread, ConsumerThread) = {
