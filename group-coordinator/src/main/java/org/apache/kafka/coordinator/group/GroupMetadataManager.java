@@ -196,6 +196,7 @@ import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMe
  *    handling as well as during the initial loading of the records from the partitions.
  */
 public class GroupMetadataManager {
+    private static final int METADATA_REFRESH_INTERVAL_MS = Integer.MAX_VALUE;
 
     public static class Builder {
         private LogContext logContext = null;
@@ -1718,7 +1719,7 @@ public class GroupMetadataManager {
                 metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
             }
 
-            group.setMetadataRefreshDeadline(currentTimeMs + Integer.MAX_VALUE, groupEpoch);
+            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -1911,7 +1912,7 @@ public class GroupMetadataManager {
                 metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
             }
 
-            group.setMetadataRefreshDeadline(currentTimeMs + Integer.MAX_VALUE, groupEpoch);
+            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -2087,7 +2088,7 @@ public class GroupMetadataManager {
                 log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
             }
 
-            group.setMetadataRefreshDeadline(currentTimeMs + Integer.MAX_VALUE, groupEpoch);
+            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -2548,7 +2549,7 @@ public class GroupMetadataManager {
                 log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
                 metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
                 group.setMetadataRefreshDeadline(
-                    time.milliseconds() + Integer.MAX_VALUE,
+                    time.milliseconds() + METADATA_REFRESH_INTERVAL_MS,
                     groupEpoch
                 );
             }
