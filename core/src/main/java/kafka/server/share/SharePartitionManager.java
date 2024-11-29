@@ -304,14 +304,13 @@ public class SharePartitionManager implements AutoCloseable {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
             futures.forEach((topicIdPartition, future) -> {
                 ShareAcknowledgeResponseData.PartitionData partitionData = new ShareAcknowledgeResponseData.PartitionData()
-                        .setPartitionIndex(topicIdPartition.partition());
+                    .setPartitionIndex(topicIdPartition.partition());
                 Throwable t = future.join();
                 if (t == null) {
-                    partitionData.setErrorCode(Errors.NONE.code())
-                            .setErrorMessage(Errors.NONE.message());
+                    partitionData.setErrorCode(Errors.NONE.code());
                 } else {
                     partitionData.setErrorCode(Errors.forException(t).code())
-                            .setErrorMessage(t.getMessage());
+                        .setErrorMessage(t.getMessage());
                 }
                 result.put(topicIdPartition, partitionData);
             });
@@ -383,14 +382,13 @@ public class SharePartitionManager implements AutoCloseable {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
             futuresMap.forEach((topicIdPartition, future) -> {
                 ShareAcknowledgeResponseData.PartitionData partitionData = new ShareAcknowledgeResponseData.PartitionData()
-                        .setPartitionIndex(topicIdPartition.partition());
+                    .setPartitionIndex(topicIdPartition.partition());
                 Throwable t = future.join();
                 if (t == null) {
-                    partitionData.setErrorCode(Errors.NONE.code())
-                            .setErrorMessage(Errors.NONE.message());
+                    partitionData.setErrorCode(Errors.NONE.code());
                 } else {
                     partitionData.setErrorCode(Errors.forException(t).code())
-                            .setErrorMessage(t.getMessage());
+                        .setErrorMessage(t.getMessage());
                 }
                 result.put(topicIdPartition, partitionData);
             });
