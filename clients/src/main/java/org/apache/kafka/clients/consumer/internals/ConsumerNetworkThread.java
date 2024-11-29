@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.DEFAULT_CLOSE_TIMEOUT_MS;
 import static org.apache.kafka.common.utils.Utils.closeQuietly;
@@ -166,11 +167,11 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
 
         for (ApplicationEvent event : events) {
             try {
-                if (event instanceof CompletableEvent)
+                if (event instanceof CompletableEvent) {
                     applicationEventReaper.add((CompletableEvent<?>) event);
-
-                List<CompletableEvent<?>> completableEvents = reapExpiredApplicationEvents(currentTimeMs);
-                maybeFailOnMetadataError(completableEvents);
+                    List<CompletableEvent<?>> completableEvents = reapExpiredApplicationEvents(currentTimeMs);
+                    maybeFailOnMetadataError(completableEvents);
+                }
                 applicationEventProcessor.process(event);
             } catch (Throwable t) {
                 log.warn("Error processing event {}", t.getMessage(), t);

@@ -148,7 +148,6 @@ public class NetworkClientDelegate implements AutoCloseable {
             metadata.maybeThrowAnyException();
         } catch (Exception e) {
             metadataError = Optional.of(e);
-//            backgroundEventHandler.add(new ErrorEvent(e));
         }
     }
 
