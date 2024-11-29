@@ -344,8 +344,6 @@ public class ConnectorConfig extends AbstractConfig {
      * Returns the initialized list of {@link TransformationStage} which apply the
      * {@link Transformation transformations} and {@link Predicate predicates}
      * as they are specified in the {@link #TRANSFORMS_CONFIG} and {@link #PREDICATES_CONFIG}
-     *
-     * Deprecated: This is kept for ease of testing, Use {@link #transformationStages(Plugins)} instead.
      */
     public <R extends ConnectRecord<R>> List<TransformationStage<R>> transformationStages() {
         final List<String> transformAliases = getList(TRANSFORMS_CONFIG);
@@ -375,50 +373,6 @@ public class ConnectorConfig extends AbstractConfig {
         }
 
         return transformations;
-    }
-
-    public <R extends ConnectRecord<R>> List<TransformationStage<R>> transformationStages(Plugins plugins) {
-        final List<String> transformAliases = getList(TRANSFORMS_CONFIG);
-
-        final List<TransformationStage<R>> transformations = new ArrayList<>(transformAliases.size());
-        for (String alias : transformAliases) {
-            final String prefix = TRANSFORMS_CONFIG + "." + alias + ".";
-
-            try {
-                final String typeConfig = prefix + "type";
-                final String versionConfig = prefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
-                @SuppressWarnings("unchecked") final Transformation<R> transformation = getTransformationOrPredicate(plugins, typeConfig, versionConfig, Transformation.class);
-                Map<String, Object> configs = originalsWithPrefix(prefix);
-                Object predicateAlias = configs.remove(TransformationStage.PREDICATE_CONFIG);
-                Object negate = configs.remove(TransformationStage.NEGATE_CONFIG);
-                transformation.configure(configs);
-                if (predicateAlias != null) {
-                    String predicatePrefix = PREDICATES_PREFIX + predicateAlias + ".";
-                    final String predicateTypeConfig = predicatePrefix + "type";
-                    final String predicateVersionConfig = predicatePrefix + WorkerConfig.PLUGIN_VERSION_SUFFIX;
-                    @SuppressWarnings("unchecked")
-                    Predicate<R> predicate = getTransformationOrPredicate(plugins, typeConfig, versionConfig, Predicate.class);
-                    predicate.configure(originalsWithPrefix(predicatePrefix));
-                    transformations.add(new TransformationStage<>(predicate, negate != null && Boolean.parseBoolean(negate.toString()), transformation));
-                } else {
-                    transformations.add(new TransformationStage<>(transformation));
-                }
-            } catch (Exception e) {
-                throw new ConnectException(e);
-            }
-        }
-
-        return transformations;
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T getTransformationOrPredicate(Plugins plugins, String classConfig, String versionConfig, Class<T> type) {
-        try {
-            VersionRange range = PluginVersionUtils.connectorVersionRequirement(getString(versionConfig));
-            return range == null ? Utils.newInstance(getClass(classConfig), type) : (T) plugins.newPlugin(getClass(classConfig).getName(), range);
-        } catch (Exception e) {
-            throw new ConnectException(e);
-        }
     }
 
     /**
@@ -726,7 +680,7 @@ public class ConnectorConfig extends AbstractConfig {
                         getConfigDefFromPlugin(typeConfig, props.get(typeConfig), (String) value, plugins);
                     }
                 };
-                String defaultVersion = fetchDefaultPluginVersion(plugins, props.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG),
+                String defaultVersion = fetchPluginVersion(plugins, props.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG),
                         props.get(ConnectorConfig.CONNECTOR_VERSION), props.get(typeConfig), baseClass);
                 newDef.define(versionConfig, Type.STRING, defaultVersion, versionValidator, Importance.HIGH,
                         "Version of the '" + alias + "' " + aliasKind.toLowerCase(Locale.ENGLISH) + ".", group, orderInGroup++, Width.LONG,
