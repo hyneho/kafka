@@ -29,7 +29,7 @@ import org.apache.kafka.raft.QuorumConfig
 import org.apache.kafka.server.BrokerFeatures
 import org.apache.kafka.server.common.{Features, KRaftVersion, MetadataVersion}
 import org.apache.kafka.server.common.MetadataVersion.{IBP_3_8_IV0, IBP_3_9_IV0}
-import org.apache.kafka.server.config.{KRaftConfigs, ReplicationConfigs, ServerLogConfigs, ZkConfigs}
+import org.apache.kafka.server.config.{KRaftConfigs, ReplicationConfigs, ServerLogConfigs}
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, Test, Timeout}
 import org.junit.jupiter.params.ParameterizedTest
@@ -64,7 +64,7 @@ class BrokerLifecycleManagerTest {
   def migrationConfigProperties(ibp: MetadataVersion) = {
     val migrationConfigProperties = configProperties
     migrationConfigProperties.setProperty(KRaftConfigs.MIGRATION_ENABLED_CONFIG, "true")
-    migrationConfigProperties.setProperty(ZkConfigs.ZK_CONNECT_CONFIG, "localhost:2181")
+//    migrationConfigProperties.setProperty(ZkConfigs.ZK_CONNECT_CONFIG, "localhost:2181")
     migrationConfigProperties.setProperty(KRaftConfigs.PROCESS_ROLES_CONFIG, "")
     migrationConfigProperties.setProperty(ReplicationConfigs.INTER_BROKER_PROTOCOL_VERSION_CONFIG, ibp.toString)
     migrationConfigProperties
