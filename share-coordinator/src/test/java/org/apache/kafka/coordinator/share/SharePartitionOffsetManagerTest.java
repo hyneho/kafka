@@ -21,14 +21,11 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.server.share.SharePartitionKey;
 import org.apache.kafka.timeline.SnapshotRegistry;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -102,14 +99,14 @@ public class SharePartitionOffsetManagerTest {
         return Stream.of(
                 new ShareOffsetTestHolder(
                         "no redundant state single key",
-                        Collections.singletonList(
+                        List.of(
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty())
                         )
                 ),
 
                 new ShareOffsetTestHolder(
                         "no redundant state multiple keys",
-                        Arrays.asList(
+                        List.of(
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY4, 11L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY2, 13L, Optional.empty())
@@ -122,7 +119,7 @@ public class SharePartitionOffsetManagerTest {
         return Stream.of(
                 new ShareOffsetTestHolder(
                         "redundant state single key",
-                        Arrays.asList(
+                        List.of(
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 11L, Optional.of(11L)),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 15L, Optional.of(15L))
@@ -134,7 +131,7 @@ public class SharePartitionOffsetManagerTest {
                         // KEY1: 10 17
                         // KEY2: 11 16
                         // KEY3: 15
-                        Arrays.asList(
+                        List.of(
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.empty()),
@@ -151,7 +148,7 @@ public class SharePartitionOffsetManagerTest {
                 new ShareOffsetTestHolder(
                         "redundant state reverse key order",
                         // requests come in order KEY1, KEY2, KEY3, KEY3, KEY2, KEY1
-                        Arrays.asList(
+                        List.of(
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.empty()),
@@ -163,7 +160,7 @@ public class SharePartitionOffsetManagerTest {
 
                 new ShareOffsetTestHolder(
                         "redundant state cold partition",
-                        Arrays.asList(
+                        List.of(
                                 ShareOffsetTestHolder.TestTuple.instance(KEY1, 10L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY2, 11L, Optional.empty()),
                                 ShareOffsetTestHolder.TestTuple.instance(KEY3, 15L, Optional.empty()),
