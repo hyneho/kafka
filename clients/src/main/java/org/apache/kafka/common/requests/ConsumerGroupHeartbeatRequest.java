@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.common.requests;
 
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatResponseData;
 import org.apache.kafka.common.protocol.ApiKeys;
@@ -59,6 +60,9 @@ public class ConsumerGroupHeartbeatRequest extends AbstractRequest {
 
         @Override
         public ConsumerGroupHeartbeatRequest build(short version) {
+            if (version == 0 && data.subscribedTopicRegex() != null) {
+                throw new UnsupportedVersionException("Broker does not support resolution of SubscriptionPattern on version " + version);
+            }
             return new ConsumerGroupHeartbeatRequest(data, version);
         }
 
