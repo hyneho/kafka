@@ -301,7 +301,7 @@ public class SharePartitionManager implements AutoCloseable {
 
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(
             futures.values().toArray(new CompletableFuture[0]));
-        return allFutures.handle((results, exception) -> {
+        return allFutures.handle((unused, exception) -> {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
             futures.forEach((topicIdPartition, future) -> {
                 try {
@@ -309,7 +309,8 @@ public class SharePartitionManager implements AutoCloseable {
                     result.put(topicIdPartition,
                             new ShareAcknowledgeResponseData.PartitionData()
                                     .setPartitionIndex(topicIdPartition.partition())
-                                    .setErrorCode(error.code()));
+                                    .setErrorCode(error.code())
+                                    .setErrorMessage(error.message()));
                 } catch (CompletionException e) {
                     Throwable t = e.getCause();
                     result.put(topicIdPartition,
@@ -383,14 +384,15 @@ public class SharePartitionManager implements AutoCloseable {
 
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(
             futuresMap.values().toArray(new CompletableFuture[0]));
-        return allFutures.handle((results, exception) -> {
+        return allFutures.handle((unused, exception) -> {
             Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
             futuresMap.forEach((topicIdPartition, future) -> {
                 try {
                     Errors error = future.join();
                     result.put(topicIdPartition, new ShareAcknowledgeResponseData.PartitionData()
                             .setPartitionIndex(topicIdPartition.partition())
-                            .setErrorCode(error.code()));
+                            .setErrorCode(error.code())
+                            .setErrorMessage(error.message()));
                 } catch (CompletionException e) {
                     Throwable t = e.getCause();
                     result.put(topicIdPartition,
