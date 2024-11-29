@@ -386,7 +386,9 @@ public class AbstractConfig {
             return null;
         Object o;
 
-        if (klass instanceof String) {
+        if (t.isInstance(klass)) {
+            o = klass;
+        } else if (klass instanceof String) {
             try {
                 o = Utils.newInstance((String) klass, t);
             } catch (ClassNotFoundException e) {

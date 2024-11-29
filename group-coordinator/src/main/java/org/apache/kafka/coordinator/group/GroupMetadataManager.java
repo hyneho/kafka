@@ -204,7 +204,6 @@ public class GroupMetadataManager {
         private CoordinatorTimer<Void, CoordinatorRecord> timer = null;
         private CoordinatorExecutor<CoordinatorRecord> executor = null;
         private GroupCoordinatorConfig config = null;
-        private List<ConsumerGroupPartitionAssignor> consumerGroupAssignors = null;
         private GroupConfigManager groupConfigManager = null;
         private MetadataImage metadataImage = null;
         private ShareGroupPartitionAssignor shareGroupAssignor = null;
@@ -240,11 +239,6 @@ public class GroupMetadataManager {
             return this;
         }
 
-        Builder withConsumerGroupAssignors(List<ConsumerGroupPartitionAssignor> consumerGroupAssignors) {
-            this.consumerGroupAssignors = consumerGroupAssignors;
-            return this;
-        }
-
         Builder withGroupConfigManager(GroupConfigManager groupConfigManager) {
             this.groupConfigManager = groupConfigManager;
             return this;
@@ -277,8 +271,6 @@ public class GroupMetadataManager {
                 throw new IllegalArgumentException("Executor must be set.");
             if (config == null)
                 throw new IllegalArgumentException("Config must be set.");
-            if (consumerGroupAssignors == null || consumerGroupAssignors.isEmpty())
-                throw new IllegalArgumentException("Assignors must be set before building.");
             if (shareGroupAssignor == null)
                 shareGroupAssignor = new SimpleAssignor();
             if (metrics == null)
@@ -293,7 +285,6 @@ public class GroupMetadataManager {
                 timer,
                 executor,
                 metrics,
-                consumerGroupAssignors,
                 metadataImage,
                 config,
                 groupConfigManager,
@@ -405,7 +396,6 @@ public class GroupMetadataManager {
         CoordinatorTimer<Void, CoordinatorRecord> timer,
         CoordinatorExecutor<CoordinatorRecord> executor,
         GroupCoordinatorMetricsShard metrics,
-        List<ConsumerGroupPartitionAssignor> consumerGroupAssignors,
         MetadataImage metadataImage,
         GroupCoordinatorConfig config,
         GroupConfigManager groupConfigManager,
@@ -420,8 +410,11 @@ public class GroupMetadataManager {
         this.metrics = metrics;
         this.config = config;
         this.metadataImage = metadataImage;
-        this.consumerGroupAssignors = consumerGroupAssignors.stream().collect(Collectors.toMap(ConsumerGroupPartitionAssignor::name, Function.identity()));
-        this.defaultConsumerGroupAssignor = consumerGroupAssignors.get(0);
+        this.consumerGroupAssignors = config
+            .consumerGroupAssignors()
+            .stream()
+            .collect(Collectors.toMap(ConsumerGroupPartitionAssignor::name, Function.identity()));
+        this.defaultConsumerGroupAssignor = config.consumerGroupAssignors().get(0);
         this.groups = new TimelineHashMap<>(snapshotRegistry, 0);
         this.groupsByTopics = new TimelineHashMap<>(snapshotRegistry, 0);
         this.groupConfigManager = groupConfigManager;

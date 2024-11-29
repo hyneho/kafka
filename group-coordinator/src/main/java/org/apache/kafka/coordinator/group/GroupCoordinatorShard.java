@@ -220,7 +220,6 @@ public class GroupCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 .withExecutor(executor)
                 .withConfig(config)
                 .withGroupConfigManager(groupConfigManager)
-                .withConsumerGroupAssignors(config.consumerGroupAssignors())
                 .withGroupCoordinatorMetricsShard(metricsShard)
                 .build();
 

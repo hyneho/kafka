@@ -53,7 +53,6 @@ import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorResult;
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorExecutor;
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer;
-import org.apache.kafka.coordinator.group.api.assignor.ConsumerGroupPartitionAssignor;
 import org.apache.kafka.coordinator.group.api.assignor.ShareGroupPartitionAssignor;
 import org.apache.kafka.coordinator.group.classic.ClassicGroup;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupCurrentMemberAssignmentKey;
@@ -407,7 +406,6 @@ public class GroupMetadataManagerTestContext {
         private final SnapshotRegistry snapshotRegistry = new SnapshotRegistry(logContext);
         private MetadataImage metadataImage;
         private GroupConfigManager groupConfigManager;
-        private List<ConsumerGroupPartitionAssignor> consumerGroupAssignors = Collections.singletonList(new MockPartitionAssignor("range"));
         private final List<ConsumerGroupBuilder> consumerGroupBuilders = new ArrayList<>();
         private final GroupCoordinatorMetricsShard metrics = mock(GroupCoordinatorMetricsShard.class);
         private ShareGroupPartitionAssignor shareGroupAssignor = new MockPartitionAssignor("share");
@@ -421,11 +419,6 @@ public class GroupMetadataManagerTestContext {
 
         public Builder withMetadataImage(MetadataImage metadataImage) {
             this.metadataImage = metadataImage;
-            return this;
-        }
-
-        public Builder withConsumerGroupAssignors(List<ConsumerGroupPartitionAssignor> assignors) {
-            this.consumerGroupAssignors = assignors;
             return this;
         }
 
@@ -446,8 +439,12 @@ public class GroupMetadataManagerTestContext {
 
         public GroupMetadataManagerTestContext build() {
             if (metadataImage == null) metadataImage = MetadataImage.EMPTY;
-            if (consumerGroupAssignors == null) consumerGroupAssignors = Collections.emptyList();
             if (groupConfigManager == null) groupConfigManager = createConfigManager();
+
+            config.putIfAbsent(
+                GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG,
+                Collections.singletonList(new MockPartitionAssignor("range"))
+            );
 
             GroupCoordinatorConfig groupCoordinatorConfig = GroupCoordinatorConfig.fromProps(config);
 
@@ -466,7 +463,6 @@ public class GroupMetadataManagerTestContext {
                     .withExecutor(executor)
                     .withConfig(groupCoordinatorConfig)
                     .withMetadataImage(metadataImage)
-                    .withConsumerGroupAssignors(consumerGroupAssignors)
                     .withGroupCoordinatorMetricsShard(metrics)
                     .withShareGroupAssignor(shareGroupAssignor)
                     .withGroupConfigManager(groupConfigManager)
