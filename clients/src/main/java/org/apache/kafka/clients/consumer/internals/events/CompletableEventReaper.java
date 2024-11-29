@@ -157,4 +157,8 @@ public class CompletableEventReaper {
     public boolean contains(CompletableEvent<?> event) {
         return event != null && tracked.contains(event);
     }
+    
+    public List<CompletableEvent<?>> tracked() {
+        return tracked;
+    }
 }
