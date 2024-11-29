@@ -148,7 +148,7 @@ public class GroupMetadataManagerTestContext {
             protocols.add(new JoinGroupRequestData.JoinGroupRequestProtocol()
                 .setName(protocolNames[i])
                 .setMetadata(ConsumerProtocol.serializeSubscription(new ConsumerPartitionAssignor.Subscription(
-                    Collections.singletonList(topicNames.get(i % topicNames.size())))).array())
+                    List.of(topicNames.get(i % topicNames.size())))).array())
             );
         }
         return protocols;
@@ -443,7 +443,7 @@ public class GroupMetadataManagerTestContext {
 
             config.putIfAbsent(
                 GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG,
-                Collections.singletonList(new MockPartitionAssignor("range"))
+                List.of(new MockPartitionAssignor("range"))
             );
 
             GroupCoordinatorConfig groupCoordinatorConfig = GroupCoordinatorConfig.fromProps(config);
@@ -807,7 +807,7 @@ public class GroupMetadataManagerTestContext {
             .build());
 
         assertEquals(
-            Collections.singletonList(GroupCoordinatorRecordHelpers.newGroupMetadataRecord(group, group.groupAssignment(), MetadataVersion.latestTesting())),
+            List.of(GroupCoordinatorRecordHelpers.newGroupMetadataRecord(group, group.groupAssignment(), MetadataVersion.latestTesting())),
             syncResult.records
         );
         // Simulate a successful write to the log.
@@ -1014,7 +1014,7 @@ public class GroupMetadataManagerTestContext {
             SyncGroupRequestData.SyncGroupRequestAssignment::memberId, SyncGroupRequestData.SyncGroupRequestAssignment::assignment
         ));
         assertEquals(
-            Collections.singletonList(
+            List.of(
                 GroupCoordinatorRecordHelpers.newGroupMetadataRecord(group, groupAssignment, MetadataVersion.latestTesting())),
             leaderSyncResult.records
         );
@@ -1075,7 +1075,7 @@ public class GroupMetadataManagerTestContext {
 
         // Now the group is stable, with the one member that joined above
         assertEquals(
-            Collections.singletonList(GroupCoordinatorRecordHelpers.newGroupMetadataRecord(group, group.groupAssignment(), MetadataVersion.latestTesting())),
+            List.of(GroupCoordinatorRecordHelpers.newGroupMetadataRecord(group, group.groupAssignment(), MetadataVersion.latestTesting())),
             syncResult.records
         );
         // Simulate a successful write to log.
@@ -1113,7 +1113,7 @@ public class GroupMetadataManagerTestContext {
         syncResult = sendClassicGroupSync(syncRequest.setGenerationId(nextGenerationId));
 
         assertEquals(
-            Collections.singletonList(GroupCoordinatorRecordHelpers.newGroupMetadataRecord(group, group.groupAssignment(), MetadataVersion.latestTesting())),
+            List.of(GroupCoordinatorRecordHelpers.newGroupMetadataRecord(group, group.groupAssignment(), MetadataVersion.latestTesting())),
             syncResult.records
         );
         // Simulate a successful write to log.
@@ -1168,7 +1168,7 @@ public class GroupMetadataManagerTestContext {
 
         // Member should be removed as session expires.
         List<MockCoordinatorTimer.ExpiredTimeout<Void, CoordinatorRecord>> timeouts = sleep(timeoutMs);
-        List<CoordinatorRecord> expectedRecords = Collections.singletonList(newGroupMetadataRecord(
+        List<CoordinatorRecord> expectedRecords = List.of(newGroupMetadataRecord(
             group.groupId(),
             new GroupMetadataValue()
                 .setMembers(Collections.emptyList())
@@ -1342,10 +1342,10 @@ public class GroupMetadataManagerTestContext {
 
     public void verifyDescribeGroupsReturnsDeadGroup(String groupId) {
         List<DescribeGroupsResponseData.DescribedGroup> describedGroups =
-            describeGroups(Collections.singletonList(groupId));
+            describeGroups(List.of(groupId));
 
         assertEquals(
-            Collections.singletonList(new DescribeGroupsResponseData.DescribedGroup()
+            List.of(new DescribeGroupsResponseData.DescribedGroup()
                 .setGroupId(groupId)
                 .setGroupState(DEAD.toString())
             ),
