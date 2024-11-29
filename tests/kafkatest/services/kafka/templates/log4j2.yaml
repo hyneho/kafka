@@ -28,8 +28,68 @@ Configuration:
 
     RollingFile:
       - name: KafkaInfoAppender
-        fileName: "${sys:log_dir}/info/server.log"
-        filePattern: "${sys:log_dir}/info/server.log.%d{yyyy-MM-dd-HH}"
+        fileName: "${log_dir}/info/server.log"
+        filePattern: "${log_dir}/info/server.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        TimeBasedTriggeringPolicy:
+          interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+            onMatch: ACCEPT
+
+      - name: StateChangeInfoAppender
+        fileName: "${log_dir}/info/state-change.log"
+        filePattern: "${log_dir}/info/state-change.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        TimeBasedTriggeringPolicy:
+          interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+            onMatch: ACCEPT
+
+      - name: RequestInfoAppender
+        fileName: "${log_dir}/info/kafka-request.log"
+        filePattern: "${log_dir}/info/kafka-request.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        TimeBasedTriggeringPolicy:
+          interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+            onMatch: ACCEPT
+
+      - name: CleanerInfoAppender
+        fileName: "${log_dir}/info/log-cleaner.log"
+        filePattern: "${log_dir}/info/log-cleaner.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        TimeBasedTriggeringPolicy:
+          interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+            onMatch: ACCEPT
+
+      - name: ControllerInfoAppender
+        fileName: "${log_dir}/info/controller.log"
+        filePattern: "${log_dir}/info/controller.log.%d{yyyy-MM-dd-HH}"
+        PatternLayout:
+          pattern: "${logPattern}"
+        TimeBasedTriggeringPolicy:
+          interval: 1
+        Filters:
+          ThresholdFilter:
+            level: INFO
+            onMatch: ACCEPT
+
+      - name: AuthorizerInfoAppender
+        fileName: "${log_dir}/info/kafka-authorizer.log"
+        filePattern: "${log_dir}/info/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
         TimeBasedTriggeringPolicy:
@@ -40,8 +100,8 @@ Configuration:
             onMatch: ACCEPT
 
       - name: KafkaDebugAppender
-        fileName: "${sys:log_dir}/debug/server.log"
-        filePattern: "${sys:log_dir}/debug/server.log.%d{yyyy-MM-dd-HH}"
+        fileName: "${log_dir}/debug/server.log"
+        filePattern: "${log_dir}/debug/server.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
         TimeBasedTriggeringPolicy:
@@ -49,23 +109,11 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
-            onMatch: ACCEPT
-
-      - name: StateChangeInfoAppender
-        fileName: "${sys:log_dir}/info/state-change.log"
-        filePattern: "${sys:log_dir}/info/state-change.log.%d{yyyy-MM-dd-HH}"
-        PatternLayout:
-          pattern: "${logPattern}"
-        TimeBasedTriggeringPolicy:
-          interval: 1
-        Filters:
-          ThresholdFilter:
-            level: INFO
             onMatch: ACCEPT
 
       - name: StateChangeDebugAppender
-        fileName: "${sys:log_dir}/debug/state-change.log"
-        filePattern: "${sys:log_dir}/debug/state-change.log.%d{yyyy-MM-dd-HH}"
+        fileName: "${log_dir}/debug/state-change.log"
+        filePattern: "${log_dir}/debug/state-change.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
         TimeBasedTriggeringPolicy:
@@ -73,23 +121,11 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
-            onMatch: ACCEPT
-
-      - name: RequestInfoAppender
-        fileName: "${sys:log_dir}/info/kafka-request.log"
-        filePattern: "${sys:log_dir}/info/kafka-request.log.%d{yyyy-MM-dd-HH}"
-        PatternLayout:
-          pattern: "${logPattern}"
-        TimeBasedTriggeringPolicy:
-          interval: 1
-        Filters:
-          ThresholdFilter:
-            level: INFO
             onMatch: ACCEPT
 
       - name: RequestDebugAppender
-        fileName: "${sys:log_dir}/debug/kafka-request.log"
-        filePattern: "${sys:log_dir}/debug/kafka-request.log.%d{yyyy-MM-dd-HH}"
+        fileName: "${log_dir}/debug/kafka-request.log"
+        filePattern: "${log_dir}/debug/kafka-request.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
         TimeBasedTriggeringPolicy:
@@ -97,23 +133,11 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
-            onMatch: ACCEPT
-
-      - name: CleanerInfoAppender
-        fileName: "${sys:log_dir}/info/log-cleaner.log"
-        filePattern: "${sys:log_dir}/info/log-cleaner.log.%d{yyyy-MM-dd-HH}"
-        PatternLayout:
-          pattern: "${logPattern}"
-        TimeBasedTriggeringPolicy:
-          interval: 1
-        Filters:
-          ThresholdFilter:
-            level: INFO
             onMatch: ACCEPT
 
       - name: CleanerDebugAppender
-        fileName: "${sys:log_dir}/debug/log-cleaner.log"
-        filePattern: "${sys:log_dir}/debug/log-cleaner.log.%d{yyyy-MM-dd-HH}"
+        fileName: "${log_dir}/debug/log-cleaner.log"
+        filePattern: "${log_dir}/debug/log-cleaner.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
         TimeBasedTriggeringPolicy:
@@ -121,23 +145,11 @@ Configuration:
         Filters:
           ThresholdFilter:
             level: DEBUG
-            onMatch: ACCEPT
-
-      - name: ControllerInfoAppender
-        fileName: "${sys:log_dir}/info/controller.log"
-        filePattern: "${sys:log_dir}/info/controller.log.%d{yyyy-MM-dd-HH}"
-        PatternLayout:
-          pattern: "${logPattern}"
-        TimeBasedTriggeringPolicy:
-          interval: 1
-        Filters:
-          ThresholdFilter:
-            level: INFO
             onMatch: ACCEPT
 
       - name: ControllerDebugAppender
-        fileName: "${sys:log_dir}/debug/controller.log"
-        filePattern: "${sys:log_dir}/debug/controller.log.%d{yyyy-MM-dd-HH}"
+        fileName: "${log_dir}/debug/controller.log"
+        filePattern: "${log_dir}/debug/controller.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
         TimeBasedTriggeringPolicy:
@@ -147,21 +159,9 @@ Configuration:
             level: DEBUG
             onMatch: ACCEPT
 
-      - name: AuthorizerInfoAppender
-        fileName: "${sys:log_dir}/info/kafka-authorizer.log"
-        filePattern: "${sys:log_dir}/info/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
-        PatternLayout:
-          pattern: "${logPattern}"
-        TimeBasedTriggeringPolicy:
-          interval: 1
-        Filters:
-          ThresholdFilter:
-            level: INFO
-            onMatch: ACCEPT
-
       - name: AuthorizerDebugAppender
-        fileName: "${sys:log_dir}/debug/kafka-authorizer.log"
-        filePattern: "${sys:log_dir}/debug/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
+        fileName: "${log_dir}/debug/kafka-authorizer.log"
+        filePattern: "${log_dir}/debug/kafka-authorizer.log.%d{yyyy-MM-dd-HH}"
         PatternLayout:
           pattern: "${logPattern}"
         TimeBasedTriggeringPolicy:

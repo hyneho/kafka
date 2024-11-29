@@ -28,12 +28,3 @@ Configuration:
       level: {{ log_level|default("INFO") }}
       AppenderRef:
         - ref: FILE
-
-    {% if loggers is defined %}
-    Logger:
-    # Add additional loggers dynamically if defined
-      {% for logger, log_level in loggers.items() %}
-      - name: {{ logger }}
-        level: {{ log_level }}
-      {% endfor %}
-    {% endif %}
