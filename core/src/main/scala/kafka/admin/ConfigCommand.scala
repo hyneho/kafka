@@ -84,7 +84,7 @@ object ConfigCommand extends Logging {
 
       case e: UnsupportedVersionException =>
         logger.debug(s"Unsupported API encountered in server when executing config command with args '${args.mkString(" ")}'")
-        e.printStackTrace(System.err)
+        System.err.println(e.getMessage)
         Exit.exit(1)
 
       case t: Throwable =>
@@ -190,9 +190,9 @@ object ConfigCommand extends Logging {
         } catch {
           case e: ExecutionException =>
             e.getCause match {
-              case cause: UnsupportedVersionException if entityTypeHead == ConfigType.BROKER =>
-                throw new UnsupportedVersionException(s"Could not update broker config $entityNameHead, because brokers don't support api ${ApiKeys.INCREMENTAL_ALTER_CONFIGS},"
-                + " You can upgrade your brokers to version 2.3.0 or newer to avoid this error.", cause)
+              case _: UnsupportedVersionException =>
+                throw new UnsupportedVersionException(s"The ${ApiKeys.INCREMENTAL_ALTER_CONFIGS} API is not supported by the cluster. The API is supported starting from version 2.3.0."
+                + " You may want to use an older version of this tool to interact with your cluster, or upgrade your brokers to version 2.3.0 or newer to avoid this error.")
               case _ => throw e
             }
           case e: Throwable => throw e

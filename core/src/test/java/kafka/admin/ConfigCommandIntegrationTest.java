@@ -17,6 +17,7 @@
 package kafka.admin;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AdminClientTestUtils;
 import org.apache.kafka.clients.admin.AlterConfigsOptions;
 import org.apache.kafka.clients.admin.AlterConfigsResult;
 import org.apache.kafka.clients.admin.ConfigEntry;
@@ -24,7 +25,6 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.InvalidConfigurationException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.apache.kafka.common.internals.KafkaFutureImpl;
 import org.apache.kafka.common.test.api.ClusterConfigProperty;
 import org.apache.kafka.common.test.api.ClusterInstance;
 import org.apache.kafka.common.test.api.ClusterTest;
@@ -39,8 +39,6 @@ import org.mockito.Mockito;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -360,7 +358,8 @@ public class ConfigCommandIntegrationTest {
 
     // Test case from KAFKA-13788
     @ClusterTest(serverProperties = {
-            @ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "2097154"),
+        // Must be at greater than 1MB per cleaner thread, set to 2M+2 so that we can set 2 cleaner threads.
+        @ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "2097154"),
     })
     public void testUpdateBrokerConfigNotAffectedByInvalidConfig() {
         try (Admin client = cluster.admin()) {
@@ -386,28 +385,21 @@ public class ConfigCommandIntegrationTest {
     }
 
     @ClusterTest(
-            serverProperties = {@ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "2097154")},
-            // Zk code has been removed, use kraft and mockito to mock this situation
-            metadataVersion = MetadataVersion.IBP_3_3_IV0
+         // Must be at greater than 1MB per cleaner thread, set to 2M+2 so that we can set 2 cleaner threads.
+         serverProperties = {@ClusterConfigProperty(key = "log.cleaner.dedupe.buffer.size", value = "2097154")},
+         // Zk code has been removed, use kraft and mockito to mock this situation
+         metadataVersion = MetadataVersion.IBP_3_3_IV0
     )
-    public void testFallbackToDeprecatedAlterConfigs() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    public void testUnsupportedVersionException() {
         try (Admin client = cluster.admin()) {
             Admin spyAdmin = Mockito.spy(client);
 
-            AlterConfigsResult mockResult;
-            {
-                // Create a mock result of unsupported version error
-                KafkaFutureImpl<Void> future = new KafkaFutureImpl<>();
-                future.completeExceptionally(new UnsupportedVersionException("simulated error"));
-                Constructor<AlterConfigsResult> constructor = AlterConfigsResult.class.getDeclaredConstructor(java.util.Map.class);
-                constructor.setAccessible(true);
-                mockResult = constructor.newInstance(Collections.singletonMap(new ConfigResource(ConfigResource.Type.BROKER, ""), future));
-                constructor.setAccessible(false);
-            }
+            AlterConfigsResult mockResult = AdminClientTestUtils.alterConfigsResult(
+                    new ConfigResource(ConfigResource.Type.BROKER, ""), new UnsupportedVersionException("simulated error"));
             Mockito.doReturn(mockResult).when(spyAdmin)
                     .incrementalAlterConfigs(any(java.util.Map.class), any(AlterConfigsOptions.class));
             assertEquals(
-                    "Could not update broker config , because brokers don't support api INCREMENTAL_ALTER_CONFIGS, You can upgrade your brokers to version 2.3.0 or newer to avoid this error.",
+                    "The INCREMENTAL_ALTER_CONFIGS API is not supported by the cluster. The API is supported starting from version 2.3.0. You may want to use an older version of this tool to interact with your cluster, or upgrade your brokers to version 2.3.0 or newer to avoid this error.",
                     assertThrows(UnsupportedVersionException.class, () -> {
                         ConfigCommand.alterConfig(spyAdmin, new ConfigCommand.ConfigCommandOptions(
                                 toArray(asList(
