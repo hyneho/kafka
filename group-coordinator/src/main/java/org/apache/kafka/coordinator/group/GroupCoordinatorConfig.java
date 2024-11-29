@@ -310,8 +310,7 @@ public class GroupCoordinatorConfig {
         this.consumerGroupSessionTimeoutMs = config.getInt(GroupCoordinatorConfig.CONSUMER_GROUP_SESSION_TIMEOUT_MS_CONFIG);
         this.consumerGroupHeartbeatIntervalMs = config.getInt(GroupCoordinatorConfig.CONSUMER_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG);
         this.consumerGroupMaxSize = config.getInt(GroupCoordinatorConfig.CONSUMER_GROUP_MAX_SIZE_CONFIG);
-        this.consumerGroupAssignors = Collections.unmodifiableList(
-                config.getConfiguredInstances(GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG, ConsumerGroupPartitionAssignor.class));
+        this.consumerGroupAssignors = consumerGroupAssignors(config);
         this.offsetsTopicSegmentBytes = config.getInt(GroupCoordinatorConfig.OFFSETS_TOPIC_SEGMENT_BYTES_CONFIG);
         this.offsetMetadataMaxSize = config.getInt(GroupCoordinatorConfig.OFFSET_METADATA_MAX_SIZE_CONFIG);
         this.classicGroupMaxSize = config.getInt(GroupCoordinatorConfig.GROUP_MAX_SIZE_CONFIG);
@@ -382,6 +381,26 @@ public class GroupCoordinatorConfig {
         require(shareGroupHeartbeatIntervalMs < shareGroupSessionTimeoutMs,
             String.format("%s must be less than %s",
                 SHARE_GROUP_HEARTBEAT_INTERVAL_MS_CONFIG, SHARE_GROUP_SESSION_TIMEOUT_MS_CONFIG));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<ConsumerGroupPartitionAssignor> consumerGroupAssignors(
+        AbstractConfig config
+    ) {
+        // In unit tests, it is pretty convenient to have the ability to pass instantiated
+        // assignors. Hence, we check if the provided assignors are already instantiated.
+        // Otherwise, we use the regular method.
+        List<?> classes = config.getList(GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG);
+        if (classes.stream().allMatch(o -> o instanceof ConsumerGroupPartitionAssignor)) {
+            return Collections.unmodifiableList((List<ConsumerGroupPartitionAssignor>) classes);
+        }
+
+        return Collections.unmodifiableList(
+            config.getConfiguredInstances(
+                GroupCoordinatorConfig.CONSUMER_GROUP_ASSIGNORS_CONFIG,
+                ConsumerGroupPartitionAssignor.class
+            )
+        );
     }
 
     /**

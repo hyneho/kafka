@@ -381,14 +381,12 @@ public class AbstractConfig {
         }
     }
 
-    private <T> T getConfiguredInstance(Object klass, Class<T> t, Map<String, Object> configPairs) {
+    protected <T> T getConfiguredInstance(Object klass, Class<T> t, Map<String, Object> configPairs) {
         if (klass == null)
             return null;
         Object o;
 
-        if (t.isInstance(klass)) {
-            o = klass;
-        } else if (klass instanceof String) {
+        if (klass instanceof String) {
             try {
                 o = Utils.newInstance((String) klass, t);
             } catch (ClassNotFoundException e) {
