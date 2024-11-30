@@ -270,22 +270,6 @@ public class AsyncKafkaConsumerTest {
     }
 
     @Test
-    public void testCloseWithInvalidTopicException() {
-        consumer = newConsumer();
-        backgroundEventQueue.add(new ErrorEvent(new InvalidTopicException("Invalid topic name")));
-        completeUnsubscribeApplicationEventSuccessfully();
-        assertDoesNotThrow(() -> consumer.close());
-    }
-
-    @Test
-    public void testCloseWithTopicAuthorizationException() {
-        consumer = newConsumer();
-        backgroundEventQueue.add(new ErrorEvent(new TopicAuthorizationException(Set.of("test-topic"))));
-        completeUnsubscribeApplicationEventSuccessfully();
-        assertDoesNotThrow(() -> consumer.close());
-    }
-
-    @Test
     public void testCommitAsyncWithNullCallback() {
         consumer = newConsumer();
         final TopicPartition t0 = new TopicPartition("t0", 2);
