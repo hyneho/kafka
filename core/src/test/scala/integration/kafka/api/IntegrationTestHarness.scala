@@ -26,6 +26,7 @@ import java.util.Properties
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig}
 import kafka.server.KafkaConfig
 import kafka.integration.KafkaServerTestHarness
+import kafka.security.JaasTestUtils
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig}
 import org.apache.kafka.common.network.{ConnectionMode, ListenerName}
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer, Deserializer, Serializer}
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 
 import scala.collection.mutable
 import scala.collection.Seq
+import scala.jdk.javaapi.OptionConverters
 
 /**
  * A helper class for writing integration tests that involve producers, consumers, and servers
@@ -68,9 +70,6 @@ abstract class IntegrationTestHarness extends KafkaServerTestHarness {
       trustStoreFile = trustStoreFile, saslProperties = serverSaslProperties, logDirCount = logDirCount)
     configureListeners(cfgs)
     modifyConfigs(cfgs)
-    if (isZkMigrationTest()) {
-      cfgs.foreach(_.setProperty(KRaftConfigs.MIGRATION_ENABLED_CONFIG, "true"))
-    }
     if (isShareGroupTest()) {
       cfgs.foreach(_.setProperty(GroupCoordinatorConfig.GROUP_COORDINATOR_REBALANCE_PROTOCOLS_CONFIG, "classic,consumer,share"))
       cfgs.foreach(_.setProperty(ServerConfigs.UNSTABLE_API_VERSIONS_ENABLE_CONFIG, "true"))
@@ -153,7 +152,7 @@ abstract class IntegrationTestHarness extends KafkaServerTestHarness {
     consumerConfig.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "group")
     consumerConfig.putIfAbsent(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, classOf[ByteArrayDeserializer].getName)
     consumerConfig.putIfAbsent(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, classOf[ByteArrayDeserializer].getName)
-    maybeGroupProtocolSpecified(testInfo).map(groupProtocol => consumerConfig.putIfAbsent(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name))
+    maybeGroupProtocolSpecified().map(groupProtocol => consumerConfig.putIfAbsent(ConsumerConfig.GROUP_PROTOCOL_CONFIG, groupProtocol.name))
 
     shareConsumerConfig.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers())
     shareConsumerConfig.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "group")
@@ -170,8 +169,8 @@ abstract class IntegrationTestHarness extends KafkaServerTestHarness {
   }
 
   def clientSecurityProps(certAlias: String): Properties = {
-    TestUtils.securityConfigs(ConnectionMode.CLIENT, securityProtocol, trustStoreFile, certAlias, TestUtils.SslCertificateCn,
-      clientSaslProperties)
+    JaasTestUtils.securityConfigs(ConnectionMode.CLIENT, securityProtocol, OptionConverters.toJava(trustStoreFile), certAlias,
+      JaasTestUtils.SSL_CERTIFICATE_CN, OptionConverters.toJava(clientSaslProperties))
   }
 
   def superuserSecurityProps(certAlias: String): Properties = {
@@ -193,6 +192,9 @@ abstract class IntegrationTestHarness extends KafkaServerTestHarness {
                            valueDeserializer: Deserializer[V] = new ByteArrayDeserializer,
                            configOverrides: Properties = new Properties,
                            configsToRemove: List[String] = List()): Consumer[K, V] = {
+    if (!consumerConfig.containsKey(ConsumerConfig.GROUP_PROTOCOL_CONFIG))
+      throw new IllegalStateException(s"Please specify the group.protocol configuration when creating a KafkaConsumer")
+
     val props = new Properties
     props ++= consumerConfig
     props ++= configOverrides

@@ -13,9 +13,9 @@
 package kafka.api
 
 import kafka.log.UnifiedLog
-import kafka.test.ClusterInstance
-import kafka.test.annotation.{ClusterConfigProperty, ClusterTest, Type}
-import kafka.test.junit.ClusterTestExtensions
+import org.apache.kafka.common.test.api.ClusterInstance
+import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterTest, Type}
+import org.apache.kafka.common.test.api.ClusterTestExtensions
 import kafka.utils.TestUtils
 import org.apache.kafka.clients.admin.{Admin, ConsumerGroupDescription}
 import org.apache.kafka.clients.consumer.{Consumer, GroupProtocol, OffsetAndMetadata}
@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit
 class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
 
   @ClusterTest(
-    types = Array(Type.KRAFT, Type.ZK),
+    types = Array(Type.KRAFT),
     serverProperties = Array(
       new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, value = "1"),
       new ClusterConfigProperty(key = GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
@@ -289,7 +289,7 @@ class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
   }
 
   private def withAdmin(f: Admin => Unit): Unit = {
-    val admin: Admin = cluster.createAdminClient()
+    val admin: Admin = cluster.admin()
     try {
       f(admin)
     } finally {
@@ -304,8 +304,8 @@ class GroupCoordinatorIntegrationTest(cluster: ClusterInstance) {
   )(f: Consumer[Array[Byte], Array[Byte]] => Unit): Unit = {
     val consumer = TestUtils.createConsumer(
       brokerList = cluster.bootstrapServers(),
-      groupId = groupId,
       groupProtocol = groupProtocol,
+      groupId = groupId,
       enableAutoCommit = enableAutoCommit
     )
     try {

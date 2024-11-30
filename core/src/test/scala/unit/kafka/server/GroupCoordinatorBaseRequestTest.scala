@@ -17,7 +17,7 @@
 package kafka.server
 
 import kafka.network.SocketServer
-import kafka.test.ClusterInstance
+import org.apache.kafka.common.test.api.ClusterInstance
 import kafka.utils.TestUtils
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.{TopicIdPartition, TopicPartition, Uuid}
@@ -47,24 +47,34 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
   protected var producer: KafkaProducer[String, String] = _
 
   protected def createOffsetsTopic(): Unit = {
-    TestUtils.createOffsetsTopicWithAdmin(
-      admin = cluster.createAdminClient(),
-      brokers = brokers(),
-      controllers = controllerServers()
-    )
+    val admin = cluster.admin()
+    try {
+      TestUtils.createOffsetsTopicWithAdmin(
+        admin = admin,
+        brokers = brokers(),
+        controllers = controllerServers()
+      )
+    } finally {
+      admin.close()
+    }
   }
 
   protected def createTopic(
     topic: String,
     numPartitions: Int
   ): Unit = {
-    TestUtils.createTopicWithAdmin(
-      admin = cluster.createAdminClient(),
-      brokers = brokers(),
-      controllers = controllerServers(),
-      topic = topic,
-      numPartitions = numPartitions
-    )
+    val admin = cluster.admin()
+    try {
+      TestUtils.createTopicWithAdmin(
+        admin = admin,
+        brokers = brokers(),
+        controllers = controllerServers(),
+        topic = topic,
+        numPartitions = numPartitions
+      )
+    } finally {
+      admin.close()
+    }
   }
 
   protected def createTopicAndReturnLeaders(
@@ -73,16 +83,21 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     replicationFactor: Int = 1,
     topicConfig: Properties = new Properties
   ): Map[TopicIdPartition, Int] = {
-    val partitionToLeader = TestUtils.createTopicWithAdmin(
-      admin = cluster.createAdminClient(),
-      topic = topic,
-      brokers = brokers(),
-      controllers = controllerServers(),
-      numPartitions = numPartitions,
-      replicationFactor = replicationFactor,
-      topicConfig = topicConfig
-    )
-    partitionToLeader.map { case (partition, leader) => new TopicIdPartition(getTopicIds(topic), new TopicPartition(topic, partition)) -> leader }
+    val admin = cluster.admin()
+    try {
+      val partitionToLeader = TestUtils.createTopicWithAdmin(
+        admin = admin,
+        topic = topic,
+        brokers = brokers(),
+        controllers = controllerServers(),
+        numPartitions = numPartitions,
+        replicationFactor = replicationFactor,
+        topicConfig = topicConfig
+      )
+      partitionToLeader.map { case (partition, leader) => new TopicIdPartition(getTopicIds(topic), new TopicPartition(topic, partition)) -> leader }
+    } finally {
+      admin.close()
+    }
   }
 
   protected def isUnstableApiEnabled: Boolean = {
@@ -145,7 +160,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     partition: Int,
     offset: Long,
     expectedError: Errors,
-    version: Short
+    version: Short = ApiKeys.OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)
   ): Unit = {
     val request = new OffsetCommitRequest.Builder(
       new OffsetCommitRequestData()
@@ -305,7 +320,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     }
   }
 
-  protected def syncGroupWithOldProtocol(
+  protected def verifySyncGroupWithOldProtocol(
     groupId: String,
     memberId: String,
     generationId: Int,
@@ -318,6 +333,37 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     expectedError: Errors = Errors.NONE,
     version: Short = ApiKeys.SYNC_GROUP.latestVersion(isUnstableApiEnabled)
   ): SyncGroupResponseData = {
+    val syncGroupResponseData = syncGroupWithOldProtocol(
+      groupId = groupId,
+      memberId = memberId,
+      generationId = generationId,
+      protocolType = protocolType,
+      protocolName = protocolName,
+      assignments = assignments,
+      version = version
+    )
+
+    assertEquals(
+      new SyncGroupResponseData()
+        .setErrorCode(expectedError.code)
+        .setProtocolType(if (version >= 5) expectedProtocolType else null)
+        .setProtocolName(if (version >= 5) expectedProtocolName else null)
+        .setAssignment(expectedAssignment),
+      syncGroupResponseData
+    )
+
+    syncGroupResponseData
+  }
+
+  protected def syncGroupWithOldProtocol(
+    groupId: String,
+    memberId: String,
+    generationId: Int,
+    protocolType: String = "consumer",
+    protocolName: String = "consumer-range",
+    assignments: List[SyncGroupRequestData.SyncGroupRequestAssignment] = List.empty,
+    version: Short = ApiKeys.SYNC_GROUP.latestVersion(isUnstableApiEnabled)
+  ): SyncGroupResponseData = {
     val syncGroupRequestData = new SyncGroupRequestData()
       .setGroupId(groupId)
       .setMemberId(memberId)
@@ -328,16 +374,6 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
 
     val syncGroupRequest = new SyncGroupRequest.Builder(syncGroupRequestData).build(version)
     val syncGroupResponse = connectAndReceive[SyncGroupResponse](syncGroupRequest)
-    
-    assertEquals(
-      new SyncGroupResponseData()
-        .setErrorCode(expectedError.code)
-        .setProtocolType(if (version >= 5) expectedProtocolType else null)
-        .setProtocolName(if (version >= 5) expectedProtocolName else null)
-        .setAssignment(expectedAssignment),
-      syncGroupResponse.data
-    )
-
     syncGroupResponse.data
   }
 
@@ -399,7 +435,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
 
     if (completeRebalance) {
       // Send the sync group request to complete the rebalance.
-      syncGroupWithOldProtocol(
+      verifySyncGroupWithOldProtocol(
         groupId = groupId,
         memberId = rejoinGroupResponseData.memberId,
         generationId = rejoinGroupResponseData.generationId,
@@ -417,6 +453,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     groupId: String,
     groupInstanceId: String,
     metadata: Array[Byte] = Array.empty,
+    assignment: Array[Byte] = Array.empty,
     completeRebalance: Boolean = true
   ): (String, Int) = {
     val joinGroupResponseData = sendJoinRequest(
@@ -427,19 +464,24 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
 
     if (completeRebalance) {
       // Send the sync group request to complete the rebalance.
-      syncGroupWithOldProtocol(
+      verifySyncGroupWithOldProtocol(
         groupId = groupId,
         memberId = joinGroupResponseData.memberId,
-        generationId = joinGroupResponseData.generationId
+        generationId = joinGroupResponseData.generationId,
+        assignments = List(new SyncGroupRequestAssignment()
+          .setMemberId(joinGroupResponseData.memberId)
+          .setAssignment(assignment)),
+        expectedAssignment = assignment
       )
     }
 
     (joinGroupResponseData.memberId, joinGroupResponseData.generationId)
   }
 
-  protected def joinConsumerGroupWithNewProtocol(groupId: String): (String, Int) = {
+  protected def joinConsumerGroupWithNewProtocol(groupId: String, memberId: String = ""): (String, Int) = {
     val consumerGroupHeartbeatResponseData = consumerGroupHeartbeat(
       groupId = groupId,
+      memberId = memberId,
       rebalanceTimeoutMs = 5 * 60 * 1000,
       subscribedTopicNames = List("foo"),
       topicPartitions = List.empty
@@ -451,7 +493,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     if (useNewProtocol) {
       // Note that we heartbeat only once to join the group and assume
       // that the test will complete within the session timeout.
-      joinConsumerGroupWithNewProtocol(groupId)
+      joinConsumerGroupWithNewProtocol(groupId, Uuid.randomUuid().toString)
     } else {
       // Note that we don't heartbeat and assume that the test will
       // complete within the session timeout.
@@ -525,7 +567,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     memberId: String,
     groupInstanceId: String = null,
     expectedError: Errors = Errors.NONE,
-    version: Short
+    version: Short = ApiKeys.HEARTBEAT.latestVersion(isUnstableApiEnabled)
   ): HeartbeatResponseData = {
     val heartbeatRequest = new HeartbeatRequest.Builder(
       new HeartbeatRequestData()
@@ -551,7 +593,8 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     serverAssignor: String = null,
     subscribedTopicNames: List[String] = null,
     topicPartitions: List[ConsumerGroupHeartbeatRequestData.TopicPartitions] = null,
-    expectedError: Errors = Errors.NONE
+    expectedError: Errors = Errors.NONE,
+    version: Short = ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion(isUnstableApiEnabled)
   ): ConsumerGroupHeartbeatResponseData = {
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
       new ConsumerGroupHeartbeatRequestData()
@@ -563,9 +606,8 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
         .setRebalanceTimeoutMs(rebalanceTimeoutMs)
         .setSubscribedTopicNames(subscribedTopicNames.asJava)
         .setServerAssignor(serverAssignor)
-        .setTopicPartitions(topicPartitions.asJava),
-      true
-    ).build()
+        .setTopicPartitions(topicPartitions.asJava)
+    ).build(version)
 
     // Send the request until receiving a successful response. There is a delay
     // here because the group coordinator is loaded in the background.
@@ -580,7 +622,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
 
   protected def shareGroupHeartbeat(
     groupId: String,
-    memberId: String = "",
+    memberId: String = Uuid.randomUuid.toString,
     memberEpoch: Int = 0,
     rackId: String = null,
     subscribedTopicNames: List[String] = null,

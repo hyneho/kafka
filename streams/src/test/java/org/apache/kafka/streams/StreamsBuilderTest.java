@@ -20,7 +20,6 @@ import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.utils.Bytes;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.Topology.AutoOffsetReset;
 import org.apache.kafka.streams.errors.TopologyException;
 import org.apache.kafka.streams.kstream.Branched;
@@ -40,6 +39,7 @@ import org.apache.kafka.streams.kstream.StreamJoined;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
+import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
 import org.apache.kafka.streams.processor.internals.ProcessorNode;
@@ -55,6 +55,7 @@ import org.apache.kafka.streams.state.internals.InMemoryWindowStore;
 import org.apache.kafka.streams.state.internals.RocksDBStore;
 import org.apache.kafka.streams.state.internals.RocksDBWindowStore;
 import org.apache.kafka.streams.state.internals.WrappedStateStore;
+import org.apache.kafka.streams.utils.TestUtils.RecordingProcessorWrapper;
 import org.apache.kafka.test.MockApiProcessorSupplier;
 import org.apache.kafka.test.MockMapper;
 import org.apache.kafka.test.MockPredicate;
@@ -63,23 +64,32 @@ import org.apache.kafka.test.NoopValueTransformer;
 import org.apache.kafka.test.NoopValueTransformerWithKey;
 import org.apache.kafka.test.StreamsTestUtils;
 
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
+import static org.apache.kafka.streams.StreamsConfig.PROCESSOR_WRAPPER_CLASS_CONFIG;
 import static org.apache.kafka.streams.processor.internals.assignment.AssignmentTestUtils.SUBTOPOLOGY_0;
 import static org.apache.kafka.streams.processor.internals.assignment.AssignmentTestUtils.SUBTOPOLOGY_1;
+import static org.apache.kafka.streams.utils.TestUtils.PROCESSOR_WRAPPER_COUNTER_CONFIG;
+import static org.apache.kafka.streams.utils.TestUtils.dummyStreamsConfigMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -263,7 +273,7 @@ public class StreamsBuilderTest {
             equalTo(2));
         assertThat(
             topology.processorConnectedStateStores("KSTREAM-JOIN-0000000010"),
-            equalTo(Utils.mkSet(topology.stateStores().get(0).name(), topology.stateStores().get(1).name())));
+            equalTo(Set.of(topology.stateStores().get(0).name(), topology.stateStores().get(1).name())));
         assertTrue(
             topology.processorConnectedStateStores("KTABLE-MERGE-0000000007").isEmpty());
     }
@@ -330,28 +340,6 @@ public class StreamsBuilderTest {
         // no exception was thrown
         assertEquals(Collections.singletonList(new KeyValueTimestamp<>("A", "aa", 0)),
                      processorSupplier.theCapturedProcessor().processed());
-    }
-
-    @Deprecated
-    @Test
-    public void shouldProcessViaThroughTopic() {
-        final KStream<String, String> source = builder.stream("topic-source");
-        final KStream<String, String> through = source.through("topic-sink");
-
-        final MockApiProcessorSupplier<String, String, Void, Void> sourceProcessorSupplier = new MockApiProcessorSupplier<>();
-        source.process(sourceProcessorSupplier);
-
-        final MockApiProcessorSupplier<String, String, Void, Void> throughProcessorSupplier = new MockApiProcessorSupplier<>();
-        through.process(throughProcessorSupplier);
-
-        try (final TopologyTestDriver driver = new TopologyTestDriver(builder.build(), props)) {
-            final TestInputTopic<String, String> inputTopic =
-                driver.createInputTopic("topic-source", new StringSerializer(), new StringSerializer(), Instant.ofEpochMilli(0L), Duration.ZERO);
-            inputTopic.pipeInput("A", "aa");
-        }
-
-        assertEquals(Collections.singletonList(new KeyValueTimestamp<>("A", "aa", 0)), sourceProcessorSupplier.theCapturedProcessor().processed());
-        assertEquals(Collections.singletonList(new KeyValueTimestamp<>("A", "aa", 0)), throughProcessorSupplier.theCapturedProcessor().processed());
     }
 
     @Test
@@ -862,33 +850,6 @@ public class StreamsBuilderTest {
     @Test
     public void shouldUseSpecifiedNameForForEachOperation() {
         builder.stream(STREAM_TOPIC).foreach((k, v) -> { }, Named.as(STREAM_OPERATION_NAME));
-        builder.build();
-        final ProcessorTopology topology = builder.internalTopologyBuilder.rewriteTopology(new StreamsConfig(props)).buildTopology();
-        assertNamesForOperation(topology, "KSTREAM-SOURCE-0000000000", STREAM_OPERATION_NAME);
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    public void shouldUseSpecifiedNameForTransform() {
-        builder.stream(STREAM_TOPIC).transform(() -> null, Named.as(STREAM_OPERATION_NAME));
-        builder.build();
-        final ProcessorTopology topology = builder.internalTopologyBuilder.rewriteTopology(new StreamsConfig(props)).buildTopology();
-        assertNamesForOperation(topology, "KSTREAM-SOURCE-0000000000", STREAM_OPERATION_NAME);
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    public void shouldUseSpecifiedNameForTransformValues() {
-        builder.stream(STREAM_TOPIC).transformValues(() -> new NoopValueTransformer<>(), Named.as(STREAM_OPERATION_NAME));
-        builder.build();
-        final ProcessorTopology topology = builder.internalTopologyBuilder.rewriteTopology(new StreamsConfig(props)).buildTopology();
-        assertNamesForOperation(topology, "KSTREAM-SOURCE-0000000000", STREAM_OPERATION_NAME);
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    public void shouldUseSpecifiedNameForTransformValuesWithKey() {
-        builder.stream(STREAM_TOPIC).transformValues(() -> new NoopValueTransformerWithKey<>(), Named.as(STREAM_OPERATION_NAME));
         builder.build();
         final ProcessorTopology topology = builder.internalTopologyBuilder.rewriteTopology(new StreamsConfig(props)).buildTopology();
         assertNamesForOperation(topology, "KSTREAM-SOURCE-0000000000", STREAM_OPERATION_NAME);
@@ -1452,6 +1413,102 @@ public class StreamsBuilderTest {
 
         final ProcessorTopology topology = builder.internalTopologyBuilder.rewriteTopology(new StreamsConfig(props)).buildGlobalStateTopology();
         assertNamesForOperation(topology, "KSTREAM-SOURCE-0000000000", "KTABLE-SOURCE-0000000001");
+    }
+
+    @Test
+    public void shouldWrapProcessorsForProcess() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final Set<String> wrappedProcessors = Collections.synchronizedSet(new HashSet<>());
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessors);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        // Add a bit of randomness to the lambda-created processors to avoid them being
+        // optimized into a shared instance that will cause the ApiUtils#checkSupplier
+        // call to fail
+        final Random random = new Random();
+
+        builder.stream("input")
+            .process((ProcessorSupplier<Object, Object, Object, Object>) () -> record -> System.out.println("Processing: " + random.nextInt()), Named.as("processor1"))
+            .processValues(() -> record -> System.out.println("Processing: " + random.nextInt()), Named.as("processor2"))
+            .to("output");
+
+        builder.build();
+        assertThat(wrappedProcessors.size(), CoreMatchers.is(2));
+        assertThat(wrappedProcessors, Matchers.containsInAnyOrder("processor1", "processor2"));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForAggregationOperators() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final Set<String> wrappedProcessors = Collections.synchronizedSet(new HashSet<>());
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessors);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        builder.stream("input")
+            .groupByKey()
+            .count(Named.as("count")) // wrapped 1
+            .toStream(Named.as("toStream"))// wrapped 2
+            .to("output");
+
+        builder.build();
+        assertThat(wrappedProcessors.size(), CoreMatchers.is(2));
+        assertThat(wrappedProcessors, Matchers.containsInAnyOrder("count", "toStream"));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForStatelessOperators() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final Set<String> wrappedProcessors = Collections.synchronizedSet(new HashSet<>());
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessors);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        builder.stream("input")
+            .filter((k, v) -> true, Named.as("filter")) // wrapped 1
+            .map(KeyValue::new, Named.as("map")) // wrapped 2
+            .selectKey((k, v) -> k, Named.as("selectKey")) // wrapped 3
+            .peek((k, v) -> { }, Named.as("peek")) // wrapped 4
+            .flatMapValues(e -> new ArrayList<>(), Named.as("flatMap")) // wrapped 5
+            .toTable(Named.as("toTable")) // wrapped 6 (note named as toTable-repartition-filter)
+            .toStream(Named.as("toStream")) // wrapped 7
+            .to("output");
+
+        builder.build();
+        assertThat(wrappedProcessors.size(), CoreMatchers.is(7));
+        assertThat(wrappedProcessors, Matchers.containsInAnyOrder(
+                "filter", "map", "selectKey", "peek", "flatMap", "toTable-repartition-filter",
+                "toStream"
+        ));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForTableSource() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final Set<String> wrappedProcessors = Collections.synchronizedSet(new HashSet<>());
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, wrappedProcessors);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        builder.table("input") // wrapped 1 (named KTABLE_SOURCE-0000000002)
+                .toStream(Named.as("toStream")) // wrapped 2
+                .to("output");
+
+        builder.build();
+        assertThat(wrappedProcessors.size(), CoreMatchers.is(2));
+        assertThat(wrappedProcessors, Matchers.containsInAnyOrder(
+                "KTABLE-SOURCE-0000000002",
+                "toStream"
+        ));
     }
 
     @Test

@@ -19,6 +19,7 @@ package org.apache.kafka.clients.consumer.internals;
 import org.apache.kafka.clients.ClientResponse;
 import org.apache.kafka.clients.Metadata;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.SubscriptionPattern;
 import org.apache.kafka.clients.consumer.internals.AbstractHeartbeatRequestManager.HeartbeatRequestState;
 import org.apache.kafka.clients.consumer.internals.AbstractMembershipManager.LocalAssignment;
 import org.apache.kafka.clients.consumer.internals.ConsumerHeartbeatRequestManager.HeartbeatState;
@@ -27,6 +28,7 @@ import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
@@ -52,6 +54,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -67,12 +70,14 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -268,8 +273,10 @@ public class ConsumerHeartbeatRequestManagerTest {
         ConsumerGroupHeartbeatRequest heartbeatRequest =
                 (ConsumerGroupHeartbeatRequest) request.requestBuilder().build(version);
 
-        // Should include epoch 0 to join and no member ID.
-        assertTrue(heartbeatRequest.data().memberId().isEmpty());
+        // Should include epoch 0 and member id to join
+        String memberId = heartbeatRequest.data().memberId();
+        assertNotNull(memberId);
+        assertFalse(memberId.isEmpty());
         assertEquals(0, heartbeatRequest.data().memberEpoch());
 
         // Should include subscription and group basic info to start getting assignments, as well as rebalanceTimeoutMs
@@ -413,6 +420,36 @@ public class ConsumerHeartbeatRequestManagerTest {
         verify(membershipManager).onHeartbeatFailure(false);
         verify(membershipManager).transitionToFatal();
         verify(backgroundEventHandler).add(any());
+    }
+
+    @Test
+    public void testHeartbeatResponseErrorNotifiedToGroupManagerAfterErrorPropagated() {
+        time.sleep(DEFAULT_HEARTBEAT_INTERVAL_MS);
+        NetworkClientDelegate.PollResult result = heartbeatRequestManager.poll(time.milliseconds());
+        assertEquals(1, result.unsentRequests.size());
+        ClientResponse response = createHeartbeatResponse(result.unsentRequests.get(0), Errors.GROUP_AUTHORIZATION_FAILED);
+        result.unsentRequests.get(0).handler().onComplete(response);
+
+        // The error should be propagated before notifying the group manager. This ensures that the app thread is aware
+        // of the HB error before the manager completes any ongoing unsubscribe.
+        InOrder inOrder = inOrder(backgroundEventHandler, membershipManager);
+        inOrder.verify(backgroundEventHandler).add(any(ErrorEvent.class));
+        inOrder.verify(membershipManager).onHeartbeatFailure(false);
+    }
+
+    @Test
+    public void testHeartbeatRequestFailureNotifiedToGroupManagerAfterErrorPropagated() {
+        time.sleep(DEFAULT_HEARTBEAT_INTERVAL_MS);
+        NetworkClientDelegate.PollResult result = heartbeatRequestManager.poll(time.milliseconds());
+        assertEquals(1, result.unsentRequests.size());
+        ClientResponse response = createHeartbeatResponse(result.unsentRequests.get(0), Errors.GROUP_AUTHORIZATION_FAILED);
+        result.unsentRequests.get(0).handler().onFailure(time.milliseconds(), new AuthenticationException("Fatal error in HB"));
+
+        // The error should be propagated before notifying the group manager. This ensures that the app thread is aware
+        // of the HB error before the manager completes any ongoing unsubscribe.
+        InOrder inOrder = inOrder(backgroundEventHandler, membershipManager);
+        inOrder.verify(backgroundEventHandler).add(any(ErrorEvent.class));
+        inOrder.verify(membershipManager).onHeartbeatFailure(false);
     }
 
     @Test
@@ -590,7 +627,7 @@ public class ConsumerHeartbeatRequestManagerTest {
         // The initial ConsumerGroupHeartbeatRequest sets most fields to their initial empty values
         ConsumerGroupHeartbeatRequestData data = heartbeatState.buildRequestData();
         assertEquals(DEFAULT_GROUP_ID, data.groupId());
-        assertEquals("", data.memberId());
+        assertEquals(DEFAULT_MEMBER_ID, data.memberId());
         assertEquals(0, data.memberEpoch());
         assertNull(data.instanceId());
         assertEquals(DEFAULT_MAX_POLL_INTERVAL_MS, data.rebalanceTimeoutMs());
@@ -828,6 +865,61 @@ public class ConsumerHeartbeatRequestManagerTest {
             "No requests should be generated on close if the member is not leaving when closing the manager");
     }
 
+    @Test
+    public void testRegexInHeartbeatLifecycle() {
+        heartbeatState = new HeartbeatState(subscriptions, membershipManager, DEFAULT_MAX_POLL_INTERVAL_MS);
+        createHeartbeatRequestStateWithZeroHeartbeatInterval();
+
+        // Initial heartbeat with regex
+        mockJoiningMemberData(null);
+        when(subscriptions.subscriptionPattern()).thenReturn(new SubscriptionPattern("t1.*"));
+        ConsumerGroupHeartbeatRequestData data = heartbeatState.buildRequestData();
+        assertEquals("t1.*", data.subscribedTopicRegex());
+
+        // Regex not included in HB if not updated
+        when(membershipManager.state()).thenReturn(MemberState.STABLE);
+        data = heartbeatState.buildRequestData();
+        assertNull(data.subscribedTopicRegex());
+
+        // Regex included in HB if updated
+        when(subscriptions.subscriptionPattern()).thenReturn(new SubscriptionPattern("t2.*"));
+        data = heartbeatState.buildRequestData();
+        assertEquals("t2.*", data.subscribedTopicRegex());
+
+        // Empty regex included in HB to remove pattern subscription
+        when(subscriptions.subscriptionPattern()).thenReturn(null);
+        data = heartbeatState.buildRequestData();
+        assertEquals("", data.subscribedTopicRegex());
+
+        // Regex not included in HB after pattern subscription removed
+        when(subscriptions.subscriptionPattern()).thenReturn(null);
+        data = heartbeatState.buildRequestData();
+        assertNull(data.subscribedTopicRegex());
+    }
+
+    @Test
+    public void testRegexInJoiningHeartbeat() {
+        heartbeatState = new HeartbeatState(subscriptions, membershipManager, DEFAULT_MAX_POLL_INTERVAL_MS);
+        createHeartbeatRequestStateWithZeroHeartbeatInterval();
+
+        // Initial heartbeat with regex
+        mockJoiningMemberData(null);
+        when(subscriptions.subscriptionPattern()).thenReturn(new SubscriptionPattern("t1.*"));
+        ConsumerGroupHeartbeatRequestData data = heartbeatState.buildRequestData();
+        assertEquals("t1.*", data.subscribedTopicRegex());
+
+        // Members unsubscribes from regex (empty regex included in HB)
+        when(subscriptions.subscriptionPattern()).thenReturn(null);
+        data = heartbeatState.buildRequestData();
+        assertEquals("", data.subscribedTopicRegex());
+
+        // Member rejoins (ie. fenced) should not include regex field in HB
+        when(membershipManager.state()).thenReturn(MemberState.JOINING);
+        when(subscriptions.subscriptionPattern()).thenReturn(null);
+        data = heartbeatState.buildRequestData();
+        assertNull(data.subscribedTopicRegex());
+    }
+
     private void assertHeartbeat(ConsumerHeartbeatRequestManager hrm, int nextPollMs) {
         NetworkClientDelegate.PollResult pollResult = hrm.poll(time.milliseconds());
         assertEquals(1, pollResult.unsentRequests.size());
@@ -938,7 +1030,7 @@ public class ConsumerHeartbeatRequestManagerTest {
     private void mockJoiningMemberData(String instanceId) {
         when(membershipManager.state()).thenReturn(MemberState.JOINING);
         when(membershipManager.groupInstanceId()).thenReturn(Optional.ofNullable(instanceId));
-        when(membershipManager.memberId()).thenReturn("");
+        when(membershipManager.memberId()).thenReturn(DEFAULT_MEMBER_ID);
         when(membershipManager.memberEpoch()).thenReturn(0);
         when(membershipManager.groupId()).thenReturn(DEFAULT_GROUP_ID);
         when(membershipManager.currentAssignment()).thenReturn(LocalAssignment.NONE);

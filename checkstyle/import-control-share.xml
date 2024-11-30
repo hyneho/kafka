@@ -26,6 +26,7 @@
   <allow pkg="java" />
   <allow pkg="org.slf4j" />
   <allow pkg="org.junit" />
+  <allow pkg="org.mockito" />
 
   <!-- no one depends on the server -->
   <disallow pkg="kafka" />
@@ -33,6 +34,7 @@
   <!-- anyone can use public classes -->
   <allow pkg="org.apache.kafka.common" exact-match="true" />
   <allow pkg="org.apache.kafka.common.utils" />
+  <allow pkg="org.apache.kafka.common.annotation" />
 
   <!-- protocol, records and request/response utilities -->
   <allow pkg="org.apache.kafka.common.message" />
@@ -42,6 +44,18 @@
   <subpackage name="server">
     <subpackage name="share">
       <allow pkg="org.apache.kafka.server.share" />
+
+      <subpackage name="fetch">
+        <allow pkg="org.apache.kafka.server.purgatory" />
+        <allow class="org.apache.kafka.server.storage.log.FetchParams"/>
+      </subpackage>
+
+      <subpackage name="persister">
+        <allow pkg="org.apache.kafka.clients" />
+        <allow pkg="org.apache.kafka.common.internals" />
+        <allow pkg="org.apache.kafka.server.util" />
+        <allow pkg="org.apache.kafka.test" />
+      </subpackage>
     </subpackage>
   </subpackage>
 

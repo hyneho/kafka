@@ -51,6 +51,7 @@ import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorResult;
+import org.apache.kafka.coordinator.common.runtime.MockCoordinatorExecutor;
 import org.apache.kafka.coordinator.common.runtime.MockCoordinatorTimer;
 import org.apache.kafka.coordinator.group.api.assignor.ConsumerGroupPartitionAssignor;
 import org.apache.kafka.coordinator.group.api.assignor.ShareGroupPartitionAssignor;
@@ -63,6 +64,8 @@ import org.apache.kafka.coordinator.group.generated.ConsumerGroupMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupMetadataValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupPartitionMetadataKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupPartitionMetadataValue;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegularExpressionKey;
+import org.apache.kafka.coordinator.group.generated.ConsumerGroupRegularExpressionValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberKey;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMemberValue;
 import org.apache.kafka.coordinator.group.generated.ConsumerGroupTargetAssignmentMetadataKey;
@@ -107,7 +110,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.apache.kafka.common.requests.JoinGroupRequest.UNKNOWN_MEMBER_ID;
-import static org.apache.kafka.coordinator.group.Assertions.assertSyncGroupResponseEquals;
+import static org.apache.kafka.coordinator.group.Assertions.assertResponseEquals;
 import static org.apache.kafka.coordinator.group.GroupConfigManagerTest.createConfigManager;
 import static org.apache.kafka.coordinator.group.GroupMetadataManager.EMPTY_RESULT;
 import static org.apache.kafka.coordinator.group.GroupMetadataManager.classicGroupHeartbeatKey;
@@ -396,8 +399,9 @@ public class GroupMetadataManagerTestContext {
     }
 
     public static class Builder {
-        private final MockTime time = new MockTime();
+        private final MockTime time = new MockTime(0, 0, 0);
         private final MockCoordinatorTimer<Void, CoordinatorRecord> timer = new MockCoordinatorTimer<>(time);
+        private final MockCoordinatorExecutor<CoordinatorRecord> executor = new MockCoordinatorExecutor<>();
         private final LogContext logContext = new LogContext();
         private final SnapshotRegistry snapshotRegistry = new SnapshotRegistry(logContext);
         private MetadataImage metadataImage;
@@ -491,6 +495,7 @@ public class GroupMetadataManagerTestContext {
             GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext(
                 time,
                 timer,
+                executor,
                 snapshotRegistry,
                 metrics,
                 new GroupMetadataManager.Builder()
@@ -498,6 +503,7 @@ public class GroupMetadataManagerTestContext {
                     .withLogContext(logContext)
                     .withTime(time)
                     .withTimer(timer)
+                    .withExecutor(executor)
                     .withMetadataImage(metadataImage)
                     .withConsumerGroupHeartbeatInterval(5000)
                     .withConsumerGroupSessionTimeout(45000)
@@ -531,6 +537,7 @@ public class GroupMetadataManagerTestContext {
 
     final MockTime time;
     final MockCoordinatorTimer<Void, CoordinatorRecord> timer;
+    final MockCoordinatorExecutor<CoordinatorRecord> executor;
     final SnapshotRegistry snapshotRegistry;
     final GroupCoordinatorMetricsShard metrics;
     final GroupMetadataManager groupMetadataManager;
@@ -544,6 +551,7 @@ public class GroupMetadataManagerTestContext {
     public GroupMetadataManagerTestContext(
         MockTime time,
         MockCoordinatorTimer<Void, CoordinatorRecord> timer,
+        MockCoordinatorExecutor<CoordinatorRecord> executor,
         SnapshotRegistry snapshotRegistry,
         GroupCoordinatorMetricsShard metrics,
         GroupMetadataManager groupMetadataManager,
@@ -553,6 +561,7 @@ public class GroupMetadataManagerTestContext {
     ) {
         this.time = time;
         this.timer = timer;
+        this.executor = executor;
         this.snapshotRegistry = snapshotRegistry;
         this.metrics = metrics;
         this.groupMetadataManager = groupMetadataManager;
@@ -602,10 +611,17 @@ public class GroupMetadataManagerTestContext {
     public CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> consumerGroupHeartbeat(
         ConsumerGroupHeartbeatRequestData request
     ) {
+        return this.consumerGroupHeartbeat(request, ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion());
+    }
+
+    public CoordinatorResult<ConsumerGroupHeartbeatResponseData, CoordinatorRecord> consumerGroupHeartbeat(
+        ConsumerGroupHeartbeatRequestData request,
+        short apiVersion
+    ) {
         RequestContext context = new RequestContext(
             new RequestHeader(
                 ApiKeys.CONSUMER_GROUP_HEARTBEAT,
-                ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion(),
+                apiVersion,
                 DEFAULT_CLIENT_ID,
                 0
             ),
@@ -666,6 +682,16 @@ public class GroupMetadataManagerTestContext {
             }
         });
         return timeouts;
+    }
+
+    public List<MockCoordinatorExecutor.ExecutorResult<CoordinatorRecord>> processTasks() {
+        List<MockCoordinatorExecutor.ExecutorResult<CoordinatorRecord>> results = executor.poll();
+        results.forEach(taskResult -> {
+            if (taskResult.result.replayRecords()) {
+                taskResult.result.records().forEach(this::replay);
+            }
+        });
+        return results;
     }
 
     public void assertSessionTimeout(
@@ -1407,7 +1433,7 @@ public class GroupMetadataManagerTestContext {
 
         // Simulate a successful write to log.
         syncResult.appendFuture.complete(null);
-        assertSyncGroupResponseEquals(
+        assertResponseEquals(
             new SyncGroupResponseData()
                 .setProtocolType(protocolType)
                 .setProtocolName(protocolName)
@@ -1547,6 +1573,13 @@ public class GroupMetadataManagerTestContext {
                 groupMetadataManager.replay(
                     (ShareGroupCurrentMemberAssignmentKey) key.message(),
                     (ShareGroupCurrentMemberAssignmentValue) messageOrNull(value)
+                );
+                break;
+
+            case ConsumerGroupRegularExpressionKey.HIGHEST_SUPPORTED_VERSION:
+                groupMetadataManager.replay(
+                    (ConsumerGroupRegularExpressionKey) key.message(),
+                    (ConsumerGroupRegularExpressionValue) messageOrNull(value)
                 );
                 break;
 
