@@ -20,8 +20,15 @@ IF [%1] EQU [] (
 )
 
 SetLocal
-IF ["%KAFKA_LOG4J_OPTS%"] EQU [""] (
+IF EXIST "%~dp0../../config/log4j.properties" (
+    echo DEPRECATED: Using Log4j 1.x configuration file %~dp0../../config/log4j.properties
+    echo To use a Log4j 2.x configuration, please see https://logging.apache.org/log4j/2.x/migrate-from-log4j1.html#Log4j2ConfigurationFormat for details about Log4j configuration file migration.
+    echo You can also use the %~dp0../../config/log4j2.yaml file as a starting point. Make sure to remove the Log4j 1.x configuration after completing the migration.
     set KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:%~dp0../../config/log4j.properties
+) ELSE IF EXIST "%~dp0../../config/log4j2.yaml" (
+    set KAFKA_LOG4J_OPTS=-Dlog4j2.configurationFile=%~dp0../../config/log4j2.yaml
+) ELSE IF EXIST "%~dp0../../config/log4j2.xml" (
+    set KAFKA_LOG4J_OPTS=-Dlog4j2.configurationFile=%~dp0../../config/log4j2.xml
 )
 IF ["%KAFKA_HEAP_OPTS%"] EQU [""] (
     rem detect OS architecture

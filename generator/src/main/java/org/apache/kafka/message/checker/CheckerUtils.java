@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.stream.Collectors;
 
 /**
  * Utilities for the metadata schema checker.
@@ -129,6 +130,9 @@ class CheckerUtils {
         Git git = Git.open(new File(gitPath + "/.git"));
         Repository repository = git.getRepository();
         Ref head = git.getRepository().getRefDatabase().firstExactRef("refs/heads/trunk");
+        if (head == null) {
+            throw new RuntimeException("failed to find head and actual: " + git.getRepository().getRefDatabase().getRefs().stream().map(Ref::getName).collect(Collectors.joining(",")));
+        }
         try (RevWalk revWalk = new RevWalk(repository)) {
             RevCommit commit = revWalk.parseCommit(head.getObjectId());
             RevTree tree = commit.getTree();
