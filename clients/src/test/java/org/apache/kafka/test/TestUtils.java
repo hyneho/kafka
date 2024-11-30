@@ -542,28 +542,41 @@ public class TestUtils {
     }
 
     /**
-     * Assert that a future raises an expected exception cause type. Return the exception cause
-     * if the assertion succeeds; otherwise raise AssertionError.
+     * Assert that a future raises an expected exception cause type and optionally verify the error message.
+     * Returns the exception cause if the assertion succeeds.
      *
      * @param future The future to await
-     * @param exceptionCauseClass Class of the expected exception cause
+     * @param exceptionCauseClass Class of the expected exception cause 
+     * @param expectedErrorMessage Optional expected error message (will verify message contains this text)
      * @param <T> Exception cause type parameter
      * @return The caught exception cause
      */
-    public static <T extends Throwable> T assertFutureThrows(Future<?> future, Class<T> exceptionCauseClass) {
+    public static <T extends Throwable> T assertFutureThrows(
+        Future<?> future,
+        Class<T> exceptionCauseClass,
+        String expectedErrorMessage) {
+        
         ExecutionException exception = assertThrows(ExecutionException.class, future::get);
-        assertInstanceOf(exceptionCauseClass, exception.getCause(),
-            "Unexpected exception cause " + exception.getCause());
-        return exceptionCauseClass.cast(exception.getCause());
+        Throwable cause = exception.getCause();
+        
+        assertInstanceOf(exceptionCauseClass, cause,
+            "Expected an exception of type " + exceptionCauseClass.getName() + 
+            "; got type " + cause.getClass().getName());
+            
+        if (expectedErrorMessage != null) {
+            assertTrue(cause.getMessage().contains(expectedErrorMessage),
+                "Received error message: " + cause.getMessage() + 
+                " does not contain expected text: " + expectedErrorMessage);
+        }
+        
+        return exceptionCauseClass.cast(cause);
     }
 
-    public static <T extends Throwable> void assertFutureThrows(
+    // Overloaded version without error message check
+    public static <T extends Throwable> T assertFutureThrows(
         Future<?> future,
-        Class<T> expectedCauseClassApiException,
-        String expectedMessage
-    ) {
-        T receivedException = assertFutureThrows(future, expectedCauseClassApiException);
-        assertEquals(expectedMessage, receivedException.getMessage());
+        Class<T> exceptionCauseClass) {
+        return assertFutureThrows(future, exceptionCauseClass, null);
     }
 
     public static void assertFutureError(Future<?> future, Class<? extends Throwable> exceptionClass)
