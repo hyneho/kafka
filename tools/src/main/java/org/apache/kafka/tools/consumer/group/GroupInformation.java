@@ -14,16 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.util.clusters;
+package org.apache.kafka.tools.consumer.group;
 
-/**
- * @deprecated Use {@link ConnectAssertions} instead.
- */
-@Deprecated
-public class EmbeddedConnectClusterAssertions extends ConnectAssertions {
+import org.apache.kafka.common.GroupState;
+import org.apache.kafka.common.Node;
 
-    EmbeddedConnectClusterAssertions(EmbeddedConnect connect) {
-        super(connect);
+class GroupInformation {
+    final String group;
+    final Node coordinator;
+    final String assignmentStrategy;
+    final GroupState groupState;
+    final int numMembers;
+
+    GroupInformation(String group, Node coordinator, String assignmentStrategy, GroupState groupState, int numMembers) {
+        this.group = group;
+        this.coordinator = coordinator;
+        this.assignmentStrategy = assignmentStrategy;
+        this.groupState = groupState;
+        this.numMembers = numMembers;
     }
-
 }

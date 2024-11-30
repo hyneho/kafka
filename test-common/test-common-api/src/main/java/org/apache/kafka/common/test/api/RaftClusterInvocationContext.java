@@ -32,6 +32,7 @@ import org.apache.kafka.metadata.storage.FormatterException;
 import org.apache.kafka.server.common.FeatureVersion;
 import org.apache.kafka.server.common.Features;
 import org.apache.kafka.server.common.MetadataVersion;
+import org.apache.kafka.server.fault.FaultHandlerException;
 
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.BeforeTestExecutionCallback;
@@ -97,7 +98,7 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         );
     }
 
-    public static class RaftClusterInstance implements ClusterInstance {
+    private static class RaftClusterInstance implements ClusterInstance {
 
         private final ClusterConfig clusterConfig;
         final AtomicBoolean started = new AtomicBoolean(false);
@@ -203,6 +204,16 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         }
 
         @Override
+        public Optional<FaultHandlerException> firstFatalException() {
+            return Optional.ofNullable(clusterTestKit.fatalFaultHandler().firstException());
+        }
+
+        @Override
+        public Optional<FaultHandlerException> firstNonFatalException() {
+            return Optional.ofNullable(clusterTestKit.nonFatalFaultHandler().firstException());
+        }
+
+        @Override
         public void waitForReadyBrokers() throws InterruptedException {
             try {
                 clusterTestKit.waitForReadyBrokers();
@@ -273,11 +284,12 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                         .setNumControllerNodes(clusterConfig.numControllers())
                         .setBrokerListenerName(listenerName)
                         .setBrokerSecurityProtocol(clusterConfig.brokerSecurityProtocol())
+                        .setControllerListenerName(clusterConfig.controllerListenerName())
+                        .setControllerSecurityProtocol(clusterConfig.controllerSecurityProtocol())
                         .build();
                 KafkaClusterTestKit.Builder builder = new KafkaClusterTestKit.Builder(nodes);
                 // Copy properties into the TestKit builder
                 clusterConfig.serverProperties().forEach(builder::setConfigProp);
-                // KAFKA-12512 need to pass security protocol and listener name here
                 this.clusterTestKit = builder.build();
                 this.clusterTestKit.format();
             }

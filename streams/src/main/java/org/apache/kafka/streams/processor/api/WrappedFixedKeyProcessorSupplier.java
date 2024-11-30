@@ -14,23 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.kafka.connect.util;
+
+package org.apache.kafka.streams.processor.api;
 
 /**
- * An UncaughtExceptionHandler that can be registered with one or more threads which tracks the
- * first exception so the main thread can check for uncaught exceptions.
+ * Marker interface for classes implementing {@link FixedKeyProcessorSupplier}
+ * that have been wrapped via a {@link ProcessorWrapper}.
+ * <p>
+ * To convert a {@link FixedKeyProcessorSupplier} instance into a {@link WrappedFixedKeyProcessorSupplier},
+ * use the {@link ProcessorWrapper#asWrappedFixedKey(FixedKeyProcessorSupplier)} method
  */
-public class TestBackgroundThreadExceptionHandler implements Thread.UncaughtExceptionHandler {
-    private Throwable firstException = null;
+public interface WrappedFixedKeyProcessorSupplier<KIn, VIn, VOut> extends FixedKeyProcessorSupplier<KIn, VIn, VOut> {
 
-    @Override
-    public void uncaughtException(Thread t, Throwable e) {
-        if (this.firstException == null)
-            this.firstException = e;
-    }
-
-    public void verifyNoExceptions() {
-        if (this.firstException != null)
-            throw new AssertionError(this.firstException);
-    }
 }

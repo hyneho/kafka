@@ -45,8 +45,10 @@ import org.apache.kafka.timeline.TimelineInteger;
 import org.apache.kafka.timeline.TimelineObject;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,6 +58,7 @@ import java.util.Set;
 
 import static org.apache.kafka.coordinator.group.Utils.toOptional;
 import static org.apache.kafka.coordinator.group.Utils.toTopicPartitionMap;
+import static org.apache.kafka.coordinator.group.classic.ClassicGroupMember.EMPTY_ASSIGNMENT;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.ASSIGNING;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.EMPTY;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroup.ConsumerGroupState.RECONCILING;
@@ -378,14 +381,47 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
+     * @return The last time resolved regular expressions were refreshed or Long.MIN_VALUE if
+     * there are no resolved regular expression. Note that we use the timestamp of the first
+     * entry as a proxy for all of them. They are always resolved together.
+     */
+    public long lastResolvedRegularExpressionRefreshTimeMs() {
+        Iterator<ResolvedRegularExpression> iterator = resolvedRegularExpressions.values().iterator();
+        if (iterator.hasNext()) {
+            return iterator.next().timestamp;
+        } else {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    /**
+     * @return The version of the regular expressions or Zero if there are no resolved regular expression.
+     */
+    public long lastResolvedRegularExpressionVersion() {
+        Iterator<ResolvedRegularExpression> iterator = resolvedRegularExpressions.values().iterator();
+        if (iterator.hasNext()) {
+            return iterator.next().version;
+        } else {
+            return 0L;
+        }
+    }
+
+    /**
      * Return an optional containing the resolved regular expression corresponding to the provided regex
      * or an empty optional.
      *
      * @param regex The regular expression.
      * @return The optional containing the resolved regular expression or an empty optional.
      */
-    public Optional<ResolvedRegularExpression> regularExpression(String regex) {
+    public Optional<ResolvedRegularExpression> resolvedRegularExpression(String regex) {
         return Optional.ofNullable(resolvedRegularExpressions.get(regex));
+    }
+
+    /**
+     * @return The number of resolved regular expressions.
+     */
+    public int numResolvedRegularExpressions() {
+        return resolvedRegularExpressions.size();
     }
 
     /**
@@ -393,6 +429,14 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
      */
     public int numSubscribedMembers(String regex) {
         return subscribedRegularExpressions.getOrDefault(regex, 0);
+    }
+
+    /**
+     * @return An immutable map containing all the subscribed regular expressions
+     *         with the subscribers counts.
+     */
+    public Map<String, Integer> subscribedRegularExpressions() {
+        return Collections.unmodifiableMap(subscribedRegularExpressions);
     }
 
     /**
@@ -745,11 +789,11 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         ConsumerGroupMember newMember
     ) {
         // Decrement the count of the old regex.
-        if (oldMember != null && oldMember.subscribedTopicRegex() != null) {
+        if (oldMember != null && oldMember.subscribedTopicRegex() != null && !oldMember.subscribedTopicRegex().isEmpty()) {
             subscribedRegularExpressions.compute(oldMember.subscribedTopicRegex(), Utils::decValue);
         }
         // Increment the count of the new regex.
-        if (newMember != null && newMember.subscribedTopicRegex() != null) {
+        if (newMember != null && newMember.subscribedTopicRegex() != null && !newMember.subscribedTopicRegex().isEmpty()) {
             subscribedRegularExpressions.compute(newMember.subscribedTopicRegex(), Utils::incValue);
         }
     }
@@ -939,12 +983,22 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         consumerGroup.setTargetAssignmentEpoch(classicGroup.generationId());
 
         classicGroup.allMembers().forEach(classicGroupMember -> {
-            Map<Uuid, Set<Integer>> assignedPartitions = toTopicPartitionMap(
-                ConsumerProtocol.deserializeConsumerProtocolAssignment(
-                    ByteBuffer.wrap(classicGroupMember.assignment())
-                ),
-                topicsImage
-            );
+            // The assigned partition can be empty if the member just joined and has never synced.
+            // We should accept the empty assignment.
+            Map<Uuid, Set<Integer>> assignedPartitions;
+            if (Arrays.equals(classicGroupMember.assignment(), EMPTY_ASSIGNMENT)) {
+                assignedPartitions = Collections.emptyMap();
+            } else {
+                assignedPartitions = toTopicPartitionMap(
+                    ConsumerProtocol.deserializeConsumerProtocolAssignment(
+                        ByteBuffer.wrap(classicGroupMember.assignment())
+                    ),
+                    topicsImage
+                );
+            }
+
+            // Every member is guaranteed to have metadata set when it joins,
+            // so we don't check for empty subscription here.
             ConsumerProtocolSubscription subscription = ConsumerProtocol.deserializeConsumerProtocolSubscription(
                 ByteBuffer.wrap(classicGroupMember.metadata(classicGroup.protocolName().get()))
             );

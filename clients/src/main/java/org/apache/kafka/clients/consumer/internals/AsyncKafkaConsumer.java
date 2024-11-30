@@ -33,7 +33,7 @@ import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.clients.consumer.OffsetCommitCallback;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.SubscriptionPattern;
 import org.apache.kafka.clients.consumer.internals.events.AllTopicsMetadataEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEventHandler;
@@ -62,6 +62,7 @@ import org.apache.kafka.clients.consumer.internals.events.SeekUnvalidatedEvent;
 import org.apache.kafka.clients.consumer.internals.events.SyncCommitEvent;
 import org.apache.kafka.clients.consumer.internals.events.TopicMetadataEvent;
 import org.apache.kafka.clients.consumer.internals.events.TopicPatternSubscriptionChangeEvent;
+import org.apache.kafka.clients.consumer.internals.events.TopicRe2JPatternSubscriptionChangeEvent;
 import org.apache.kafka.clients.consumer.internals.events.TopicSubscriptionChangeEvent;
 import org.apache.kafka.clients.consumer.internals.events.UnsubscribeEvent;
 import org.apache.kafka.clients.consumer.internals.events.UpdatePatternSubscriptionEvent;
@@ -612,7 +613,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             groupRebalanceConfig.groupId,
             groupRebalanceConfig.groupInstanceId
         );
-        if (!groupMetadata.isPresent()) {
+        if (groupMetadata.isEmpty()) {
             config.ignore(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG);
             config.ignore(THROW_ON_FETCH_STABLE_OFFSET_UNSUPPORTED);
         }
@@ -662,17 +663,19 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public void registerMetricForSubscription(KafkaMetric metric) {
-        if (clientTelemetryReporter.isPresent()) {
-            ClientTelemetryReporter reporter = clientTelemetryReporter.get();
-            reporter.metricChange(metric);
+        if (!metrics().containsKey(metric.metricName())) {
+            clientTelemetryReporter.ifPresent(reporter -> reporter.metricChange(metric));
+        } else {
+            log.debug("Skipping registration for metric {}. Existing consumer metrics cannot be overwritten.", metric.metricName());
         }
     }
 
     @Override
     public void unregisterMetricFromSubscription(KafkaMetric metric) {
-        if (clientTelemetryReporter.isPresent()) {
-            ClientTelemetryReporter reporter = clientTelemetryReporter.get();
-            reporter.metricRemoval(metric);
+        if (!metrics().containsKey(metric.metricName())) {
+            clientTelemetryReporter.ifPresent(reporter -> reporter.metricRemoval(metric));
+        } else {
+            log.debug("Skipping unregistration for metric {}. Existing consumer metrics cannot be removed.", metric.metricName());
         }
     }
 
@@ -861,15 +864,15 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public void seekToBeginning(Collection<TopicPartition> partitions) {
-        seek(partitions, OffsetResetStrategy.EARLIEST);
+        seek(partitions, AutoOffsetResetStrategy.EARLIEST);
     }
 
     @Override
     public void seekToEnd(Collection<TopicPartition> partitions) {
-        seek(partitions, OffsetResetStrategy.LATEST);
+        seek(partitions, AutoOffsetResetStrategy.LATEST);
     }
 
-    private void seek(Collection<TopicPartition> partitions, OffsetResetStrategy offsetResetStrategy) {
+    private void seek(Collection<TopicPartition> partitions, AutoOffsetResetStrategy offsetResetStrategy) {
         if (partitions == null)
             throw new IllegalArgumentException("Partitions collection cannot be null");
 
@@ -949,7 +952,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void maybeThrowInvalidGroupIdException() {
-        if (!groupMetadata.get().isPresent()) {
+        if (groupMetadata.get().isEmpty()) {
             throw new InvalidGroupIdException("To use the group management or offset commit APIs, you must " +
                 "provide a valid " + ConsumerConfig.GROUP_ID_CONFIG + " in the consumer configuration.");
         }
@@ -1347,7 +1350,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void autoCommitOnClose(final Timer timer) {
-        if (!groupMetadata.get().isPresent())
+        if (groupMetadata.get().isEmpty())
             return;
 
         if (autoCommitEnabled)
@@ -1387,7 +1390,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     }
 
     private void leaveGroupOnClose(final Timer timer) {
-        if (!groupMetadata.get().isPresent())
+        if (groupMetadata.get().isEmpty())
             return;
 
         log.debug("Leaving the consumer group during consumer close");
@@ -1487,7 +1490,7 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
 
     @Override
     public Uuid clientInstanceId(Duration timeout) {
-        if (!clientTelemetryReporter.isPresent()) {
+        if (clientTelemetryReporter.isEmpty()) {
             throw new IllegalStateException("Telemetry is not enabled. Set config `" + ConsumerConfig.ENABLE_METRICS_PUSH_CONFIG + "` to `true`.");
         }
 
@@ -1763,12 +1766,14 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     @Override
     public boolean updateAssignmentMetadataIfNeeded(Timer timer) {
         offsetCommitCallbackInvoker.executeCallbacks();
-        try {
-            applicationEventHandler.addAndGet(new UpdatePatternSubscriptionEvent(calculateDeadlineMs(timer)));
-        } catch (TimeoutException e) {
-            return false;
-        } finally {
-            timer.update();
+        if (subscriptions.hasPatternSubscription()) {
+            try {
+                applicationEventHandler.addAndGet(new UpdatePatternSubscriptionEvent(calculateDeadlineMs(timer)));
+            } catch (TimeoutException e) {
+                return false;
+            } finally {
+                timer.update();
+            }
         }
         processBackgroundEvents();
 
@@ -1791,6 +1796,18 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     @Override
     public void subscribe(Pattern pattern) {
         subscribeInternal(pattern, Optional.empty());
+    }
+
+    @Override
+    public void subscribe(SubscriptionPattern pattern, ConsumerRebalanceListener listener) {
+        if (listener == null)
+            throw new IllegalArgumentException("RebalanceListener cannot be null");
+        subscribeToRegex(pattern, Optional.of(listener));
+    }
+
+    @Override
+    public void subscribe(SubscriptionPattern pattern) {
+        subscribeToRegex(pattern, Optional.empty());
     }
 
     @Override
@@ -1852,6 +1869,36 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 pattern, listener, calculateDeadlineMs(time.timer(defaultApiTimeoutMs))));
         } finally {
             release();
+        }
+    }
+
+    /**
+     * Subscribe to the RE2/J pattern. This will generate an event to update the pattern in the
+     * subscription state, so it's included in the next heartbeat request sent to the broker.
+     * No validation of the pattern is performed by the client (other than null/empty checks).
+     */
+    private void subscribeToRegex(SubscriptionPattern pattern,
+                                  Optional<ConsumerRebalanceListener> listener) {
+        acquireAndEnsureOpen();
+        try {
+            maybeThrowInvalidGroupIdException();
+            throwIfSubscriptionPatternIsInvalid(pattern);
+            log.info("Subscribing to regular expression {}", pattern);
+            applicationEventHandler.addAndGet(new TopicRe2JPatternSubscriptionChangeEvent(
+                pattern,
+                listener,
+                calculateDeadlineMs(time.timer(defaultApiTimeoutMs))));
+        } finally {
+            release();
+        }
+    }
+
+    private void throwIfSubscriptionPatternIsInvalid(SubscriptionPattern subscriptionPattern) {
+        if (subscriptionPattern == null) {
+            throw new IllegalArgumentException("Topic pattern to subscribe to cannot be null");
+        }
+        if (subscriptionPattern.pattern().isEmpty()) {
+            throw new IllegalArgumentException("Topic pattern to subscribe to cannot be empty");
         }
     }
 
