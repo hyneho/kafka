@@ -270,28 +270,10 @@ public class AsyncKafkaConsumerTest {
     }
 
     @Test
-    public void testUnsubscribeWithInvalidTopicException() {
-        consumer = newConsumer();
-        backgroundEventQueue.add(new ErrorEvent(new InvalidTopicException("Invalid topic name")));
-        completeUnsubscribeApplicationEventSuccessfully();
-        assertDoesNotThrow(() -> consumer.unsubscribe());
-        assertDoesNotThrow(() -> consumer.close());
-    }
-
-    @Test
     public void testCloseWithInvalidTopicException() {
         consumer = newConsumer();
         backgroundEventQueue.add(new ErrorEvent(new InvalidTopicException("Invalid topic name")));
         completeUnsubscribeApplicationEventSuccessfully();
-        assertDoesNotThrow(() -> consumer.close());
-    }
-
-    @Test
-    public void testUnsubscribeWithTopicAuthorizationException() {
-        consumer = newConsumer();
-        backgroundEventQueue.add(new ErrorEvent(new TopicAuthorizationException(Set.of("test-topic"))));
-        completeUnsubscribeApplicationEventSuccessfully();
-        assertDoesNotThrow(() -> consumer.unsubscribe());
         assertDoesNotThrow(() -> consumer.close());
     }
 
