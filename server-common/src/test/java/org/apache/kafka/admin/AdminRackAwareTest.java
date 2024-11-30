@@ -43,8 +43,8 @@ public class AdminRackAwareTest {
 
     private static Collection<BrokerMetadata> toBrokerMetadata(Map<Integer, String> rackMap) {
         List<BrokerMetadata> brokerMetadatas = rackMap.entrySet().stream()
-                .map(entry -> new BrokerMetadata(entry.getKey(), Optional.ofNullable(entry.getValue())))
-                .collect(Collectors.toList());
+                .map(entry -> new BrokerMetadata(entry.getKey(), Optional.ofNullable(entry.getValue()))).
+                sorted(Comparator.comparingInt(b -> b.id)).collect(Collectors.toList());
 
         brokerMetadatas.sort(Comparator.comparingInt(b -> b.id));
 
@@ -61,21 +61,19 @@ public class AdminRackAwareTest {
             List<Integer> replicaList = entry.getValue();
 
             // The leader is the first broker in the list
-            Integer leader = replicaList.get(0);
-            leaderCount.put(leader, leaderCount.getOrDefault(leader, 0) + 1);
+            leaderCount.merge(replicaList.get(0), 1, Integer::sum);
 
             for (Integer brokerId : replicaList) {
-                partitionCount.put(brokerId, partitionCount.getOrDefault(brokerId, 0) + 1);
-
-                String rack = brokerRackMapping.get(brokerId);
+                partitionCount.merge(brokerId, 1, Integer::sum);
 
                 // Add the rack to the list of racks for this partition
-                partitionRackMap.computeIfAbsent(partitionId, k -> new ArrayList<>()).add(rack);
+                partitionRackMap.computeIfAbsent(partitionId, k -> new ArrayList<>()).add(brokerRackMapping.get(brokerId));
             }
         }
 
         return new ReplicaDistributions(partitionRackMap, leaderCount, partitionCount);
     }
+
 
     public static void assertReplicaDistribution(
             Map<Integer, List<Integer>> assignment,
@@ -367,6 +365,8 @@ public class AdminRackAwareTest {
         for (List<Integer> replicas : assignment.values()) {
             assertEquals(replicationFactor, replicas.size());
         }
+        assignment.values().forEach(replicas-> {
+            assertEquals(replicationFactor, replicas.size());});
 
         ReplicaDistributions distribution = getReplicaDistribution(assignment, brokerRackMapping);
 
@@ -396,9 +396,9 @@ public class AdminRackAwareTest {
                 AdminUtils.assignReplicasToBrokers(toBrokerMetadata(brokerRackMapping), numPartitions, replicationFactor);
 
         // Assert that each partition is assigned to the correct number of replicas
-        for (List<Integer> replicas : assignment.values()) {
+        assignment.values().forEach(replicas -> {
             assertEquals(replicationFactor, replicas.size());
-        }
+        });
 
         // Get the replica distribution
         ReplicaDistributions distribution = getReplicaDistribution(assignment, brokerRackMapping);
@@ -429,9 +429,9 @@ public class AdminRackAwareTest {
         Map<Integer, List<Integer>> assignment =
                 AdminUtils.assignReplicasToBrokers(toBrokerMetadata(brokerRackMapping), numPartitions, replicationFactor);
 
-        for (List<Integer> replicas : assignment.values()) {
+        assignment.values().forEach(replicas -> {
             assertEquals(replicationFactor, replicas.size());
-        }
+        });
 
         ReplicaDistributions distribution = getReplicaDistribution(assignment, brokerRackMapping);
 
@@ -441,11 +441,9 @@ public class AdminRackAwareTest {
             assertEquals(1, distinctRackCount);
         }
 
-        for (Integer broker : brokerRackMapping.keySet()) {
-            int leaderCount = distribution.getBrokerLeaderCount().getOrDefault(broker, 0);
-            assertEquals(1, leaderCount);
-        }
-
+        brokerRackMapping.keySet().forEach(broker -> {
+            assertEquals(1, distribution.getBrokerLeaderCount().getOrDefault(broker, 0));
+        });
     }
 
     @Test
@@ -463,7 +461,7 @@ public class AdminRackAwareTest {
         int numPartitions = 6;
         int replicationFactor = 4;
 
-        List<BrokerMetadata> brokerMetadatas = toBrokerMetadata(rackInfo).stream().collect(Collectors.toList());
+        List<BrokerMetadata> brokerMetadatas = new ArrayList<>(toBrokerMetadata(rackInfo));
 
         List<Integer> brokerIds = brokerMetadatas.stream().map(b -> b.id).collect(Collectors.toList());
         assertEquals(brokerList, brokerIds);
