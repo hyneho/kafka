@@ -25,10 +25,9 @@ import org.apache.kafka.common.message.DeleteGroupsResponseData.{DeletableGroupR
 import org.apache.kafka.common.message.LeaveGroupRequestData.MemberIdentity
 import org.apache.kafka.common.message.LeaveGroupResponseData.MemberResponse
 import org.apache.kafka.common.message.SyncGroupRequestData.SyncGroupRequestAssignment
-import org.apache.kafka.common.message.WriteTxnMarkersRequestData.WritableTxnMarker
-import org.apache.kafka.common.message.{AddOffsetsToTxnRequestData, AddOffsetsToTxnResponseData, ConsumerGroupDescribeRequestData, ConsumerGroupDescribeResponseData, ConsumerGroupHeartbeatRequestData, ConsumerGroupHeartbeatResponseData, DeleteGroupsRequestData, DeleteGroupsResponseData, DescribeGroupsRequestData, DescribeGroupsResponseData, HeartbeatRequestData, HeartbeatResponseData, InitProducerIdRequestData, JoinGroupRequestData, JoinGroupResponseData, LeaveGroupResponseData, ListGroupsRequestData, ListGroupsResponseData, OffsetCommitRequestData, OffsetCommitResponseData, OffsetDeleteRequestData, OffsetDeleteResponseData, OffsetFetchResponseData, ShareGroupDescribeRequestData, ShareGroupDescribeResponseData, ShareGroupHeartbeatRequestData, ShareGroupHeartbeatResponseData, SyncGroupRequestData, SyncGroupResponseData, TxnOffsetCommitRequestData, TxnOffsetCommitResponseData, WriteTxnMarkersRequestData, WriteTxnMarkersResponseData}
+import org.apache.kafka.common.message.{AddOffsetsToTxnRequestData, AddOffsetsToTxnResponseData, ConsumerGroupDescribeRequestData, ConsumerGroupDescribeResponseData, ConsumerGroupHeartbeatRequestData, ConsumerGroupHeartbeatResponseData, DeleteGroupsRequestData, DeleteGroupsResponseData, DescribeGroupsRequestData, DescribeGroupsResponseData, EndTxnRequestData, HeartbeatRequestData, HeartbeatResponseData, InitProducerIdRequestData, JoinGroupRequestData, JoinGroupResponseData, LeaveGroupResponseData, ListGroupsRequestData, ListGroupsResponseData, OffsetCommitRequestData, OffsetCommitResponseData, OffsetDeleteRequestData, OffsetDeleteResponseData, OffsetFetchResponseData, ShareGroupDescribeRequestData, ShareGroupDescribeResponseData, ShareGroupHeartbeatRequestData, ShareGroupHeartbeatResponseData, SyncGroupRequestData, SyncGroupResponseData, TxnOffsetCommitRequestData, TxnOffsetCommitResponseData}
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
-import org.apache.kafka.common.requests.{AbstractRequest, AbstractResponse, AddOffsetsToTxnRequest, AddOffsetsToTxnResponse, ConsumerGroupDescribeRequest, ConsumerGroupDescribeResponse, ConsumerGroupHeartbeatRequest, ConsumerGroupHeartbeatResponse, DeleteGroupsRequest, DeleteGroupsResponse, DescribeGroupsRequest, DescribeGroupsResponse, HeartbeatRequest, HeartbeatResponse, InitProducerIdRequest, InitProducerIdResponse, JoinGroupRequest, JoinGroupResponse, LeaveGroupRequest, LeaveGroupResponse, ListGroupsRequest, ListGroupsResponse, OffsetCommitRequest, OffsetCommitResponse, OffsetDeleteRequest, OffsetDeleteResponse, OffsetFetchRequest, OffsetFetchResponse, ShareGroupDescribeRequest, ShareGroupDescribeResponse, ShareGroupHeartbeatRequest, ShareGroupHeartbeatResponse, SyncGroupRequest, SyncGroupResponse, TxnOffsetCommitRequest, TxnOffsetCommitResponse, WriteTxnMarkersRequest, WriteTxnMarkersResponse}
+import org.apache.kafka.common.requests.{AbstractRequest, AbstractResponse, AddOffsetsToTxnRequest, AddOffsetsToTxnResponse, ConsumerGroupDescribeRequest, ConsumerGroupDescribeResponse, ConsumerGroupHeartbeatRequest, ConsumerGroupHeartbeatResponse, DeleteGroupsRequest, DeleteGroupsResponse, DescribeGroupsRequest, DescribeGroupsResponse, EndTxnRequest, EndTxnResponse, HeartbeatRequest, HeartbeatResponse, InitProducerIdRequest, InitProducerIdResponse, JoinGroupRequest, JoinGroupResponse, LeaveGroupRequest, LeaveGroupResponse, ListGroupsRequest, ListGroupsResponse, OffsetCommitRequest, OffsetCommitResponse, OffsetDeleteRequest, OffsetDeleteResponse, OffsetFetchRequest, OffsetFetchResponse, ShareGroupDescribeRequest, ShareGroupDescribeResponse, ShareGroupHeartbeatRequest, ShareGroupHeartbeatResponse, SyncGroupRequest, SyncGroupResponse, TxnOffsetCommitRequest, TxnOffsetCommitResponse}
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.ProducerIdAndEpoch
 import org.apache.kafka.controller.ControllerRequestContextUtil.ANONYMOUS_CONTEXT
@@ -290,21 +289,31 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
         .setProducerEpoch(producerIdAndEpoch.epoch))
       .build(version)
 
-    val response = connectAndReceive[InitProducerIdResponse](request).data()
-    assertEquals(expectedError.code(), response.errorCode())
-    new ProducerIdAndEpoch(response.producerId(), response.producerEpoch())
+    val response = connectAndReceive[InitProducerIdResponse](request).data
+    assertEquals(expectedError.code, response.errorCode)
+    new ProducerIdAndEpoch(response.producerId, response.producerEpoch)
   }
 
-  protected def writeTxnMarkers(
-    writableTxnMarkers: java.util.List[WritableTxnMarker],
-    version: Short = ApiKeys.WRITE_TXN_MARKERS.latestVersion(isUnstableApiEnabled)
-  ): java.util.List[WriteTxnMarkersResponseData.WritableTxnMarkerResult] = {
-    val request = new WriteTxnMarkersRequest.Builder(
-      new WriteTxnMarkersRequestData()
-        .setMarkers(writableTxnMarkers)
+  protected def endTxn(
+    producerId: Long,
+    producerEpoch: Short,
+    transactionalId: String,
+    isTransactionV2Enabled: Boolean,
+    committed: Boolean,
+    expectedError: Errors,
+    version: Short = ApiKeys.END_TXN.latestVersion(isUnstableApiEnabled)
+  ): Unit = {
+    val request = new EndTxnRequest.Builder(
+      new EndTxnRequestData()
+        .setProducerId(producerId)
+        .setProducerEpoch(producerEpoch)
+        .setTransactionalId(transactionalId)
+        .setCommitted(committed),
+      isUnstableApiEnabled,
+      isTransactionV2Enabled
     ).build(version)
 
-    connectAndReceive[WriteTxnMarkersResponse](request).data().markers()
+    assertEquals(expectedError, connectAndReceive[EndTxnResponse](request).error)
   }
 
   protected def fetchOffsets(

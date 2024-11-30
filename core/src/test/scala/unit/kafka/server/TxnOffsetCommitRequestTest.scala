@@ -19,8 +19,6 @@ package kafka.server
 import org.apache.kafka.common.test.api.{ClusterConfigProperty, ClusterInstance, ClusterTest, ClusterTestDefaults, ClusterTestExtensions, Type}
 import kafka.utils.TestUtils
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.internals.Topic
-import org.apache.kafka.common.message.WriteTxnMarkersRequestData.{WritableTxnMarker, WritableTxnMarkerTopic}
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
 import org.apache.kafka.common.requests.JoinGroupRequest
 import org.apache.kafka.common.utils.ProducerIdAndEpoch
@@ -29,7 +27,6 @@ import org.apache.kafka.coordinator.transaction.TransactionLogConfig
 import org.junit.jupiter.api.Assertions.{assertEquals, assertTrue, fail}
 import org.junit.jupiter.api.extension.ExtendWith
 
-import java.util.Collections
 import scala.jdk.CollectionConverters.IterableHasAsScala
 
 @ExtendWith(value = Array(classOf[ClusterTestExtensions]))
@@ -85,34 +82,35 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
 
     createTopic(topic, 1)
 
-    var producerIdAndEpoch: ProducerIdAndEpoch = null
-    // Wait until ALLOCATE_PRODUCER_ID request finished
-    TestUtils.waitUntilTrue(() =>
-      try {
-        producerIdAndEpoch = initProducerId(
-          transactionalId = transactionalId,
-          producerIdAndEpoch = ProducerIdAndEpoch.NONE,
-          expectedError = Errors.NONE)
-        true
-      } catch {
-        case _: Throwable => false
-      }, "initProducerId request failed"
-    )
-
-    addOffsetsToTxn(
-      groupId = groupId,
-      producerId = producerIdAndEpoch.producerId,
-      producerEpoch = producerIdAndEpoch.epoch,
-      transactionalId = transactionalId
-    )
-
     def verifyTxnCommitAndFetch(
       groupId: String,
       memberId: String,
       generationId: Int,
       offset: Long,
-      version: Short
+      version: Short,
     ): Unit = {
+      var producerIdAndEpoch: ProducerIdAndEpoch = null
+      // Wait until ALLOCATE_PRODUCER_ID request finished
+      TestUtils.waitUntilTrue(() =>
+        try {
+          producerIdAndEpoch = initProducerId(
+            transactionalId = transactionalId,
+            producerIdAndEpoch = ProducerIdAndEpoch.NONE,
+            expectedError = Errors.NONE
+          )
+          true
+        } catch {
+          case _: Throwable => false
+        }, "initProducerId request failed"
+      )
+
+      addOffsetsToTxn(
+        groupId = groupId,
+        producerId = producerIdAndEpoch.producerId,
+        producerEpoch = producerIdAndEpoch.epoch,
+        transactionalId = transactionalId
+      )
+
       commitTxnOffset(
         groupId = groupId,
         memberId = memberId,
@@ -127,33 +125,31 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
         version = version
       )
 
-      // Send writeTxnMarker to force transaction from pending to completed
-      // hence we can retrieve offsets from OFFSET_FETCH request
-      val writableTxnMarkersResult = writeTxnMarkers(
-        Collections.singletonList(new WritableTxnMarker()
-          .setTopics(Collections.singletonList(new WritableTxnMarkerTopic()
-            .setName(Topic.GROUP_METADATA_TOPIC_NAME)
-            .setPartitionIndexes(Collections.singletonList(0))))
-          .setProducerId(producerIdAndEpoch.producerId)
-          .setProducerEpoch(producerIdAndEpoch.epoch)
-          .setCoordinatorEpoch(0.toShort)
-          .setTransactionResult(true))
+      endTxn(
+        producerId = producerIdAndEpoch.producerId,
+        producerEpoch = producerIdAndEpoch.epoch,
+        transactionalId = transactionalId,
+        isTransactionV2Enabled = false,
+        committed = true,
+        expectedError = Errors.NONE
       )
-      assertEquals(1, writableTxnMarkersResult.size())
-      val writableTxnMarkerTopic = writableTxnMarkersResult.asScala.head.topics().asScala.head
-      assertEquals(Topic.GROUP_METADATA_TOPIC_NAME, writableTxnMarkerTopic.name())
-      assertEquals(1, writableTxnMarkerTopic.partitions().size())
-      assertEquals(Errors.NONE.code(), writableTxnMarkerTopic.partitions().asScala.head.errorCode())
 
-      val fetchOffsetsResp = fetchOffsets(
-        groups = Map(groupId -> List(new TopicPartition(topic, partition))),
-        requireStable = true,
-        version = ApiKeys.OFFSET_FETCH.latestVersion()
+      TestUtils.waitUntilTrue(() =>
+        try {
+          val fetchOffsetsResp = fetchOffsets(
+            groups = Map(groupId -> List(new TopicPartition(topic, partition))),
+            requireStable = true,
+            version = ApiKeys.OFFSET_FETCH.latestVersion
+          )
+          val groupIdRecord = fetchOffsetsResp.find(_.groupId == groupId).head
+          val topicRecord = groupIdRecord.topics.asScala.find(_.name == topic).head
+          val partitionRecord = topicRecord.partitions.asScala.find(_.partitionIndex == partition).head
+          assertEquals(offset, partitionRecord.committedOffset)
+          true
+        } catch {
+          case _: Throwable => false
+        }, "txn commit offset validation failed"
       )
-      val groupIdRecord = fetchOffsetsResp.find(_.groupId() == groupId).head
-      val topicRecord = groupIdRecord.topics().asScala.find(_.name() == topic).head
-      val partitionRecord = topicRecord.partitions().asScala.find(_.partitionIndex() == partition).head
-      assertEquals(offset, partitionRecord.committedOffset())
     }
 
     for (version <- 0 to ApiKeys.TXN_OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)) {
