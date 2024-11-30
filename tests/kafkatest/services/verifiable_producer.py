@@ -41,7 +41,6 @@ class VerifiableProducer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
     STDERR_CAPTURE = os.path.join(PERSISTENT_ROOT, "verifiable_producer.stderr")
     LOG_DIR = os.path.join(PERSISTENT_ROOT, "logs")
     LOG_FILE = os.path.join(LOG_DIR, "verifiable_producer.log")
-    LOG4J_CONFIG = os.path.join(PERSISTENT_ROOT, "tools-log4j.properties")
     CONFIG_FILE = os.path.join(PERSISTENT_ROOT, "verifiable_producer.properties")
 
     logs = {
@@ -128,7 +127,7 @@ class VerifiableProducer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
 
         # Create and upload log properties
         log_config = self.render(get_log4j_config_for_tools(node), log_file=VerifiableProducer.LOG_FILE)
-        node.account.create_file(VerifiableProducer.LOG4J_CONFIG, log_config)
+        node.account.create_file(get_log4j_config_for_tools(node), log_config)
 
         # Configure security
         self.security_config = self.kafka.security_config.client_config(node=node,
@@ -222,7 +221,7 @@ class VerifiableProducer(KafkaPathResolverMixin, VerifiableClientMixin, Backgrou
             cmd += " export KAFKA_OPTS=%s;" % self.security_config.kafka_opts
 
         cmd += fix_opts_for_new_jvm(node)
-        cmd += " export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), VerifiableProducer.LOG4J_CONFIG)
+        cmd += " export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), get_log4j_config_for_tools(node))
         cmd += self.impl.exec_cmd(node)
         version = get_version(node)
         if version >= V_2_5_0:

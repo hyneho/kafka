@@ -22,7 +22,8 @@ from requests.packages.urllib3 import Retry
 from ducktape.services.service import Service
 from ducktape.utils.util import wait_until
 from kafkatest.directory_layout.kafka_path import KafkaPathResolverMixin
-from kafkatest.services.kafka.util import get_log4j_config_param, get_log4j_config
+from kafkatest.services.kafka.util import get_log4j_config_param, get_log4j_config, \
+    get_log4j_config_for_trogdor_coordinator, get_log4j_config_for_trogdor_agent
 
 
 class TrogdorService(KafkaPathResolverMixin, Service):
@@ -49,8 +50,6 @@ class TrogdorService(KafkaPathResolverMixin, Service):
     AGENT_STDOUT_STDERR = os.path.join(PERSISTENT_ROOT, "trogdor-agent-stdout-stderr.log")
     COORDINATOR_LOG = os.path.join(PERSISTENT_ROOT, "trogdor-coordinator.log")
     AGENT_LOG = os.path.join(PERSISTENT_ROOT, "trogdor-agent.log")
-    COORDINATOR_LOG4J_PROPERTIES = os.path.join(PERSISTENT_ROOT, "trogdor-coordinator-log4j.properties")
-    AGENT_LOG4J_PROPERTIES = os.path.join(PERSISTENT_ROOT, "trogdor-agent-log4j.properties")
     CONFIG_PATH = os.path.join(PERSISTENT_ROOT, "trogdor.conf")
     DEFAULT_AGENT_PORT=8888
     DEFAULT_COORDINATOR_PORT=8889
@@ -142,20 +141,20 @@ class TrogdorService(KafkaPathResolverMixin, Service):
             self._start_agent_node(node)
 
     def _start_coordinator_node(self, node):
-        node.account.create_file(TrogdorService.COORDINATOR_LOG4J_PROPERTIES,
+        node.account.create_file(get_log4j_config_for_trogdor_coordinator(node),
                                  self.render(get_log4j_config(node),
                                              log_path=TrogdorService.COORDINATOR_LOG))
         self._start_trogdor_daemon("coordinator", TrogdorService.COORDINATOR_STDOUT_STDERR,
-                                   TrogdorService.COORDINATOR_LOG4J_PROPERTIES,
+                                   get_log4j_config_for_trogdor_coordinator(node),
                                    TrogdorService.COORDINATOR_LOG, node)
         self.logger.info("Started trogdor coordinator on %s." % node.name)
 
     def _start_agent_node(self, node):
-        node.account.create_file(TrogdorService.AGENT_LOG4J_PROPERTIES,
+        node.account.create_file(get_log4j_config_for_trogdor_agent(node),
                                  self.render(get_log4j_config(node),
                                              log_path=TrogdorService.AGENT_LOG))
         self._start_trogdor_daemon("agent", TrogdorService.AGENT_STDOUT_STDERR,
-                                   TrogdorService.AGENT_LOG4J_PROPERTIES,
+                                   get_log4j_config_for_trogdor_agent(node),
                                    TrogdorService.AGENT_LOG, node)
         self.logger.info("Started trogdor agent on %s." % node.name)
 

@@ -37,8 +37,17 @@ def get_log4j_config_param(node):
 def get_log4j_config(node):
     return 'log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'log4j.properties'
 
+def get_log4j_config_for_kafka(node):
+    return 'kafka_log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'kafka_log4j.properties'
+
 def get_log4j_config_for_connect(node):
     return 'connect_log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'connect_log4j.properties'
 
 def get_log4j_config_for_tools(node):
     return 'tools_log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'tools_log4j.properties'
+
+def get_log4j_config_for_trogdor_coordinator(node):
+    return 'trogdor-coordinator-log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'trogdor-coordinator-log4j.properties'
+
+def get_log4j_config_for_trogdor_agent(node):
+    return 'trogdor-agent-log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'trogdor-agent-log4j.properties'

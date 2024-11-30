@@ -18,7 +18,7 @@ from ducktape.mark import matrix
 from ducktape.mark.resource import cluster
 from ducktape.utils.util import wait_until
 from kafkatest.services.kafka import quorum
-from kafkatest.services.kafka.util import get_log4j_config_param
+from kafkatest.services.kafka.util import get_log4j_config_param, get_log4j_config_for_tools
 from kafkatest.services.streams import StreamsTestBaseService
 from kafkatest.tests.kafka_test import KafkaTest
 from kafkatest.version import LATEST_4_0
@@ -43,7 +43,7 @@ class StreamsRelationalSmokeTestService(StreamsTestBaseService):
                " %(mode)s %(kafka)s %(nodeId)s %(processing_guarantee)s %(state_dir)s" \
                " & echo $! >&3 ) 1>> %(stdout)s 2>> %(stderr)s 3> %(pidfile)s" % {
                    "log4j_param": get_log4j_config_param(node),
-                   "log4j": self.LOG4J_CONFIG_FILE,
+                   "log4j": get_log4j_config_for_tools(node),
                    "kafka_run_class": self.path.script("kafka-run-class.sh", node),
                    "mode": self.mode,
                    "kafka": self.kafka.bootstrap_servers(),
@@ -57,7 +57,7 @@ class StreamsRelationalSmokeTestService(StreamsTestBaseService):
 
     def start_node(self, node):
         node.account.mkdirs(self.PERSISTENT_ROOT)
-        node.account.create_file(self.LOG4J_CONFIG_FILE,
+        node.account.create_file(get_log4j_config_for_tools(node),
                                  self.render("log4j2_template.yaml" if node.version >= LATEST_4_0 else "log4j_template.properties",
                                              log_file=self.LOG_FILE))
 

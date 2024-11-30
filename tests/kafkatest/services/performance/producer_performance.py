@@ -33,7 +33,6 @@ class ProducerPerformanceService(HttpMetricsCollector, PerformanceService):
     STDERR_CAPTURE = os.path.join(PERSISTENT_ROOT, "producer_performance.stderr")
     LOG_DIR = os.path.join(PERSISTENT_ROOT, "logs")
     LOG_FILE = os.path.join(LOG_DIR, "producer_performance.log")
-    LOG4J_CONFIG = os.path.join(PERSISTENT_ROOT, "tools-log4j.properties")
 
     def __init__(self, context, num_nodes, kafka, topic, num_records, record_size, throughput, version=DEV_BRANCH, settings=None,
                  intermediate_stats=False, client_id="producer-performance"):
@@ -90,7 +89,7 @@ class ProducerPerformanceService(HttpMetricsCollector, PerformanceService):
                 cmd += "for file in %s; do CLASSPATH=$CLASSPATH:$file; done; " % jar
             cmd += "export CLASSPATH; "
 
-        cmd += " export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), ProducerPerformanceService.LOG4J_CONFIG)
+        cmd += " export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), get_log4j_config_for_tools(node))
         cmd += "KAFKA_OPTS=%(kafka_opts)s KAFKA_HEAP_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError\" %(kafka_run_class)s org.apache.kafka.tools.ProducerPerformance " \
               "--topic %(topic)s --num-records %(num_records)d --record-size %(record_size)d --throughput %(throughput)d --producer-props bootstrap.servers=%(bootstrap_servers)s client.id=%(client_id)s %(metrics_props)s" % args
 
@@ -120,7 +119,7 @@ class ProducerPerformanceService(HttpMetricsCollector, PerformanceService):
 
         # Create and upload log properties
         log_config = self.render(get_log4j_config_for_tools(node), log_file=ProducerPerformanceService.LOG_FILE)
-        node.account.create_file(ProducerPerformanceService.LOG4J_CONFIG, log_config)
+        node.account.create_file(get_log4j_config_for_tools(node), log_config)
 
         cmd = self.start_cmd(node)
         self.logger.debug("Producer performance %d command: %s", idx, cmd)

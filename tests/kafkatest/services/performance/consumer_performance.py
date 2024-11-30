@@ -49,7 +49,6 @@ class ConsumerPerformanceService(PerformanceService):
     STDOUT_CAPTURE = os.path.join(PERSISTENT_ROOT, "consumer_performance.stdout")
     STDERR_CAPTURE = os.path.join(PERSISTENT_ROOT, "consumer_performance.stderr")
     LOG_FILE = os.path.join(LOG_DIR, "consumer_performance.log")
-    LOG4J_CONFIG = os.path.join(PERSISTENT_ROOT, "tools-log4j.properties")
     CONFIG_FILE = os.path.join(PERSISTENT_ROOT, "consumer.properties")
 
     logs = {
@@ -111,7 +110,7 @@ class ConsumerPerformanceService(PerformanceService):
         cmd = fix_opts_for_new_jvm(node)
         cmd += "export LOG_DIR=%s;" % ConsumerPerformanceService.LOG_DIR
         cmd += " export KAFKA_OPTS=%s;" % self.security_config.kafka_opts
-        cmd += " export KAFKA_LOG4J_OPTS=\"%s%s\";" % (get_log4j_config_param(node), ConsumerPerformanceService.LOG4J_CONFIG)
+        cmd += " export KAFKA_LOG4J_OPTS=\"%s%s\";" % (get_log4j_config_param(node), get_log4j_config_for_tools(node))
         cmd += " %s" % self.path.script("kafka-consumer-perf-test.sh", node)
         for key, value in self.args(node.version).items():
             cmd += " --%s %s" % (key, value)
@@ -129,7 +128,7 @@ class ConsumerPerformanceService(PerformanceService):
         node.account.ssh("mkdir -p %s" % ConsumerPerformanceService.PERSISTENT_ROOT, allow_fail=False)
 
         log_config = self.render(get_log4j_config_for_tools(node), log_file=ConsumerPerformanceService.LOG_FILE)
-        node.account.create_file(ConsumerPerformanceService.LOG4J_CONFIG, log_config)
+        node.account.create_file(get_log4j_config_for_tools(node), log_config)
         node.account.create_file(ConsumerPerformanceService.CONFIG_FILE, str(self.security_config))
         self.security_config.setup_node(node)
 
