@@ -489,6 +489,24 @@ EOF
     exec 3>&-
 }
 
+correct_latest_link() {
+    local result_dir="${kafka_dir}/results"
+    local latest_link="${result_dir}/latest"
+    local latest_test_dirname=""
+    local latest_test_dir=""
+
+    # Correct the link if it's a symbolic link and broken.
+    if [[ -L "${latest_link}" ]] && [[ ! -e "${latest_link}" ]]; then
+        latest_test_dirname=$(basename "$(readlink "${latest_link}")")
+        latest_test_dir="${result_dir}/${latest_test_dirname}"
+        if [[ ! -d "${latest_test_dir}" ]]; then
+                exit 0
+        fi
+        unlink "${latest_link}" || exit 0
+        ln -s "${latest_test_dir}" "${latest_link}"
+    fi
+}
+
 ducker_test() {
     require_commands docker
     docker inspect ducker01 &>/dev/null || \
@@ -529,7 +547,10 @@ ducker_test() {
 
     cmd="cd /opt/kafka-dev && ${ducktape_cmd} --cluster-file /opt/kafka-dev/tests/docker/build/cluster.json $test_names $ducktape_args"
     echo "docker exec ducker01 bash -c \"${cmd}\""
-    exec docker exec --user=ducker ducker01 bash -c "${cmd}"
+    docker exec --user=ducker ducker01 bash -c "${cmd}"
+    docker_status=$?
+    correct_latest_link
+    exit "${docker_status}"
 }
 
 ducker_ssh() {
