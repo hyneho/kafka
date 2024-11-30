@@ -499,10 +499,7 @@ correct_latest_link() {
     if [[ -L "${latest_link}" ]] && [[ ! -e "${latest_link}" ]]; then
         latest_test_dirname=$(basename "$(readlink "${latest_link}")")
         latest_test_dir="${result_dir}/${latest_test_dirname}"
-        if [[ ! -d "${latest_test_dir}" ]]; then
-                exit 0
-        fi
-        unlink "${latest_link}" || exit 0
+        unlink "${latest_link}"
         ln -s "${latest_test_dir}" "${latest_link}"
     fi
 }
