@@ -2700,16 +2700,8 @@ class ReplicaManagerTest {
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = Array(true, false))
+  @Test
   def testFullLeaderAndIsrStrayPartitions(): Unit = {
-    val props = TestUtils.createBrokerConfig(1, TestUtils.MockKraftConnect)
-    props.put(QuorumConfig.QUORUM_VOTERS_CONFIG, "3000@localhost:9071")
-    props.put(KRaftConfigs.CONTROLLER_LISTENER_NAMES_CONFIG, "CONTROLLER")
-    props.put(SocketServerConfigs.LISTENER_SECURITY_PROTOCOL_MAP_CONFIG, "CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT")
-    config = KafkaConfig.fromProps(props)
-
-
     val logManager = TestUtils.createLogManager(config.logDirs.map(new File(_)), defaultConfig = new LogConfig(new Properties()), time = time)
     val quotaManager = QuotaFactory.instantiate(config, metrics, time, "")
     val replicaManager = new ReplicaManager(
@@ -2769,7 +2761,7 @@ class ReplicaManagerTest {
 
       val stray0 = replicaManager.getPartition(new TopicPartition("hosted-stray", 0))
 
-      assertEquals(HostedPartition.None, stray0)
+      assertTrue(stray0.isInstanceOf[HostedPartition.Online])
     } finally {
       Utils.tryAll(util.Arrays.asList[Callable[Void]] (
         () => {
