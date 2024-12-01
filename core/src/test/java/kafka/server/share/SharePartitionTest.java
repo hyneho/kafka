@@ -490,11 +490,14 @@ public class SharePartitionTest {
             if (!executorService.awaitTermination(30, TimeUnit.MILLISECONDS))
                 executorService.shutdown();
         }
+        int futuresCompleted = 0;
 
         for (CompletableFuture<Void> result : results) {
             assertTrue(result.isDone());
-            assertFalse(result.isCompletedExceptionally());
+            if (!result.isCompletedExceptionally())
+                futuresCompleted++;
         }
+        assertTrue(futuresCompleted > 0 && futuresCompleted < 10);
 
         assertEquals(SharePartitionState.ACTIVE, sharePartition.partitionState());
         // Verify the persister read state is called only once.

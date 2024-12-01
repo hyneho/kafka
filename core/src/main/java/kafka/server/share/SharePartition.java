@@ -380,6 +380,14 @@ public class SharePartition {
 
             // Update state to initializing to avoid any concurrent requests to be processed.
             partitionState = SharePartitionState.INITIALIZING;
+        } catch (Exception e) {
+            log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, e);
+            completeInitializationWithException(future, e);
+            return future;
+        } finally {
+            lock.writeLock().unlock();
+        }
+        try {
             // Initialize the share partition by reading the state from the persister.
             persister.readState(new ReadShareGroupStateParameters.Builder()
                 .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
@@ -471,8 +479,6 @@ public class SharePartition {
         } catch (Exception e) {
             log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, e);
             completeInitializationWithException(future, e);
-        } finally {
-            lock.writeLock().unlock();
         }
 
         return future;
