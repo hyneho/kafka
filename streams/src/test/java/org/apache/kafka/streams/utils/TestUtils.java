@@ -121,6 +121,7 @@ public class TestUtils {
 
         private Set<String> wrappedProcessorNames;
 
+        @SuppressWarnings("unchecked")
         @Override
         public void configure(final Map<String, ?> configs) {
             if (configs.containsKey(PROCESSOR_WRAPPER_COUNTER_CONFIG)) {

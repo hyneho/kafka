@@ -181,7 +181,7 @@ public class ListConsumerGroupOffsetsHandlerTest {
                     put(groupZero, offsetAndMetadataMapZero);
                     put(groupOne, offsetAndMetadataMapOne);
                     put(groupTwo, offsetAndMetadataMapTwo);
-            }};
+                }};
 
         assertCompletedForMultipleGroups(
             handleWithPartitionErrorMultipleGroups(Errors.UNKNOWN_TOPIC_OR_PARTITION), expectedResult);
@@ -308,7 +308,7 @@ public class ListConsumerGroupOffsetsHandlerTest {
                     put(groupZero, responseDataZero);
                     put(groupOne, responseDataOne);
                     put(groupTwo, responseDataTwo);
-            }};
+                }};
 
         Map<String, Errors> errorMap = errorMap(groups, Errors.NONE);
         return new OffsetFetchResponse(0, errorMap, responseData);
