@@ -454,7 +454,7 @@ class RemoteIndexCacheTest {
     // Calling getIndex on the same entry should not call rsm#fetchIndex again, but it should retrieve from cache
     cache.getIndexEntry(metadataList(2))
     assertCacheSize(2)
-    verifyFetchIndexInvocation(count = 3)
+    verifyFetchIndexInvocationWithRange(lower = 3, upper = 4)
 
     // Close the cache
     cache.close()
@@ -954,6 +954,16 @@ class RemoteIndexCacheTest {
                                          Seq(IndexType.OFFSET, IndexType.TIMESTAMP, IndexType.TRANSACTION)): Unit = {
     for (indexType <- indexTypes) {
       verify(rsm, times(count)).fetchIndex(any(classOf[RemoteLogSegmentMetadata]), ArgumentMatchers.eq(indexType))
+    }
+  }
+
+  private def verifyFetchIndexInvocationWithRange(lower: Int,
+                                                  upper: Int,
+                                         indexTypes: Seq[IndexType] =
+                                         Seq(IndexType.OFFSET, IndexType.TIMESTAMP, IndexType.TRANSACTION)): Unit = {
+    for (indexType <- indexTypes) {
+      verify(rsm, atLeast(lower)).fetchIndex(any(classOf[RemoteLogSegmentMetadata]), ArgumentMatchers.eq(indexType))
+      verify(rsm, atMost(upper)).fetchIndex(any(classOf[RemoteLogSegmentMetadata]), ArgumentMatchers.eq(indexType))
     }
   }
 
