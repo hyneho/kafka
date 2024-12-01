@@ -57,7 +57,7 @@ versions += [
   // Version >=3.1.2 includes an improvement to prevent hash DOS attacks, 
   // but currently, tests are failing in >=3.1.2. Therefore, we are temporarily using version 3.1.1. 
   // The failing tests should be fixed under KAFKA-18089, allowing us to upgrade to >=3.1.2.
-  caffeine: "3.1.1",
+  caffeine: "3.1.8",
   // when updating checkstyle, check whether the exclusion of
   // CVE-2023-2976 and CVE-2020-8908 can be dropped from
   // gradle/resources/dependencycheck-suppressions.xml
