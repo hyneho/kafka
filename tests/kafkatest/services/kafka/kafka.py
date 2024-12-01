@@ -33,8 +33,7 @@ from kafkatest.services.security.listener_security_config import ListenerSecurit
 from kafkatest.services.security.security_config import SecurityConfig
 from kafkatest.version import DEV_BRANCH
 from kafkatest.version import KafkaVersion
-from kafkatest.services.kafka.util import fix_opts_for_new_jvm, get_log4j_config_param, get_log4j_config, \
-    get_log4j_config_for_kafka
+from kafkatest.services.kafka.util import fix_opts_for_new_jvm, get_log4j_config_param, get_log4j_config
 
 
 class KafkaListener:
@@ -805,7 +804,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         kafka_mode = self.context.globals.get("kafka_mode", "")
         cmd = f"export KAFKA_MODE={kafka_mode}; "
         cmd += "export JMX_PORT=%d; " % self.jmx_port
-        cmd += "export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), get_log4j_config_for_kafka(node))
+        cmd += "export KAFKA_LOG4J_OPTS=\"%s%s\"; " % (get_log4j_config_param(node), os.path.join(self.PERSISTENT_ROOT, get_log4j_config(node)))
         heap_kafka_opts = "-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=%s" % \
                           self.logs["kafka_heap_dump_file"]["path"]
         security_kafka_opts = self.security_config.kafka_opts.strip('\"')
@@ -874,7 +873,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         self.logger.info("kafka.properties:")
         self.logger.info(prop_file)
         node.account.create_file(KafkaService.CONFIG_FILE, prop_file)
-        node.account.create_file(get_log4j_config_for_kafka(node), self.render(get_log4j_config(node), log_dir=KafkaService.OPERATIONAL_LOG_DIR))
+        node.account.create_file(os.path.join(self.PERSISTENT_ROOT, get_log4j_config(node)),
+                                 self.render(get_log4j_config(node), log_dir=KafkaService.OPERATIONAL_LOG_DIR))
 
         if self.quorum_info.using_kraft:
             # format log directories if necessary

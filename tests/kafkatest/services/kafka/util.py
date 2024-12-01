@@ -37,9 +37,6 @@ def get_log4j_config_param(node):
 def get_log4j_config(node):
     return 'log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'log4j.properties'
 
-def get_log4j_config_for_kafka(node):
-    return 'kafka_log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'kafka_log4j.properties'
-
 def get_log4j_config_for_connect(node):
     return 'connect_log4j2.yaml' if get_version(node) >= LATEST_4_0 else 'connect_log4j.properties'
 
