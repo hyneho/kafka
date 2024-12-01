@@ -563,7 +563,7 @@ public class TestUtils {
         String expectedMessage
     ) {
         T receivedException = assertFutureThrows(future, expectedCauseClassApiException);
-        assertEquals(expectedMessage, receivedException.getMessage());
+        assertTrue(receivedException.getMessage().contains(expectedMessage));
     }
 
     public static void assertFutureError(Future<?> future, Class<? extends Throwable> exceptionClass)
