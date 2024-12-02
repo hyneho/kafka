@@ -77,7 +77,7 @@ object PartitionTest {
     private var highWatermark: Long = -1L
     private var failed: Boolean = false
     private var deleted: Boolean = false
-    private var leaderToFollower: Boolean = false
+    private var follower: Boolean = false
 
     override def onHighWatermarkUpdated(partition: TopicPartition, offset: Long): Unit = {
       highWatermark = offset
@@ -91,14 +91,15 @@ object PartitionTest {
       deleted = true
     }
 
-    override def onLeaderToFollower(partition: TopicPartition): Unit = {
-      leaderToFollower = true
+    override def onBecomingFollower(partition: TopicPartition): Unit = {
+      follower = true
     }
 
     private def clear(): Unit = {
       highWatermark = -1L
       failed = false
       deleted = false
+      follower = false
     }
 
     /**
@@ -110,7 +111,7 @@ object PartitionTest {
       expectedHighWatermark: Long = -1L,
       expectedFailed: Boolean = false,
       expectedDeleted: Boolean = false,
-      expectedLeaderToFollower: Boolean = false
+      expectedFollower: Boolean = false
     ): Unit = {
       assertEquals(expectedHighWatermark, highWatermark,
         "Unexpected high watermark")
@@ -118,8 +119,8 @@ object PartitionTest {
         "Unexpected failed")
       assertEquals(expectedDeleted, deleted,
         "Unexpected deleted")
-      assertEquals(expectedLeaderToFollower, leaderToFollower,
-        "Unexpected leaderToFollower")
+      assertEquals(expectedFollower, follower,
+        "Unexpected follower")
       clear()
     }
   }

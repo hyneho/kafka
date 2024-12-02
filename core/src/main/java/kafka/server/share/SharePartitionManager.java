@@ -614,8 +614,8 @@ public class SharePartitionManager implements AutoCloseable {
                     // However, as there could be multiple share partitions (per group name) for a single topic-partition,
                     // hence create separate listeners per share partition which holds the share partition key
                     // to identify the respective share partition.
-                    replicaManager.maybeAddListener(sharePartitionKey.topicIdPartition().topicPartition(),
-                        new SharePartitionListener(sharePartitionKey, partitionCacheMap));
+                    SharePartitionListener listener = new SharePartitionListener(sharePartitionKey, replicaManager, partitionCacheMap);
+                    replicaManager.maybeAddListener(sharePartitionKey.topicIdPartition().topicPartition(), listener);
                     SharePartition partition = new SharePartition(
                             sharePartitionKey.groupId(),
                             sharePartitionKey.topicIdPartition(),
@@ -627,7 +627,8 @@ public class SharePartitionManager implements AutoCloseable {
                             time,
                             persister,
                             replicaManager,
-                            groupConfigManager
+                            groupConfigManager,
+                            listener
                     );
                     this.shareGroupMetrics.partitionLoadTime(start);
                     return partition;
@@ -647,7 +648,7 @@ public class SharePartitionManager implements AutoCloseable {
         }
 
         // Remove the partition from the cache as it's failed to initialize.
-        removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap);
+        removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap, replicaManager);
         // The partition initialization failed, so add the partition to the erroneous partitions.
         log.debug("Error initializing share partition with key {}", sharePartitionKey, throwable);
         shareFetch.addErroneous(sharePartitionKey.topicIdPartition(), throwable);
@@ -669,7 +670,7 @@ public class SharePartitionManager implements AutoCloseable {
             // The share partition is fenced hence remove the partition from map and let the client retry.
             // But surface the error to the client so client might take some action i.e. re-fetch
             // the metadata and retry the fetch on new leader.
-            removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap);
+            removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap, replicaManager);
         }
     }
 
@@ -677,10 +678,12 @@ public class SharePartitionManager implements AutoCloseable {
         return new SharePartitionKey(groupId, topicIdPartition);
     }
 
-    private static void removeSharePartitionFromCache(SharePartitionKey sharePartitionKey, Map<SharePartitionKey, SharePartition> map) {
+    private static void removeSharePartitionFromCache(SharePartitionKey sharePartitionKey,
+        Map<SharePartitionKey, SharePartition> map, ReplicaManager replicaManager) {
         SharePartition sharePartition = map.remove(sharePartitionKey);
         if (sharePartition != null) {
             sharePartition.markFenced();
+            replicaManager.removeListener(sharePartitionKey.topicIdPartition().topicPartition(), sharePartition.listener());
         }
     }
 
@@ -692,34 +695,39 @@ public class SharePartitionManager implements AutoCloseable {
      * group and topic-partition. Instead of maintaining a separate map for topic-partition to share partitions,
      * we can maintain the share partition key in the listener and create a new listener for each share partition.
      */
-    // Visible for testing.
     static class SharePartitionListener implements PartitionListener {
 
         private final SharePartitionKey sharePartitionKey;
+        private final ReplicaManager replicaManager;
         private final Map<SharePartitionKey, SharePartition> partitionCacheMap;
 
-        SharePartitionListener(SharePartitionKey sharePartitionKey, Map<SharePartitionKey, SharePartition> partitionCacheMap) {
+        SharePartitionListener(
+            SharePartitionKey sharePartitionKey,
+            ReplicaManager replicaManager,
+            Map<SharePartitionKey, SharePartition> partitionCacheMap
+        ) {
             this.sharePartitionKey = sharePartitionKey;
+            this.replicaManager = replicaManager;
             this.partitionCacheMap = partitionCacheMap;
         }
 
         @Override
         public void onFailed(TopicPartition topicPartition) {
-            log.info("The share partition failed listener is invoked for the topic-partition: {}, share-partition: {}",
+            log.debug("The share partition failed listener is invoked for the topic-partition: {}, share-partition: {}",
                 topicPartition, sharePartitionKey);
             onUpdate(topicPartition);
         }
 
         @Override
         public void onDeleted(TopicPartition topicPartition) {
-            log.info("The share partition delete listener is invoked for the topic-partition: {}, share-partition: {}",
+            log.debug("The share partition delete listener is invoked for the topic-partition: {}, share-partition: {}",
                 topicPartition, sharePartitionKey);
             onUpdate(topicPartition);
         }
 
         @Override
-        public void onLeaderToFollower(TopicPartition topicPartition) {
-            log.info("The share partition leader change listener is invoked for the topic-partition: {}, share-partition: {}",
+        public void onBecomingFollower(TopicPartition topicPartition) {
+            log.debug("The share partition leader change listener is invoked for the topic-partition: {}, share-partition: {}",
                 topicPartition, sharePartitionKey);
             onUpdate(topicPartition);
         }
@@ -730,7 +738,7 @@ public class SharePartitionManager implements AutoCloseable {
                     topicPartition, sharePartitionKey);
                 return;
             }
-            removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap);
+            removeSharePartitionFromCache(sharePartitionKey, partitionCacheMap, replicaManager);
         }
     }
 

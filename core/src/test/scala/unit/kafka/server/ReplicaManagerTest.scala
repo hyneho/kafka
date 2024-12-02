@@ -6799,7 +6799,50 @@ class ReplicaManagerTest {
   }
 
   @Test
-  def testBecomeFollowerInvokeLeaderToFollowerListener(): Unit = {
+  def testBecomeFollowerInvokeOnBecomingFollowerListener(): Unit = {
+    val localId = 1
+    val topicPartition = new TopicPartition("foo", 0)
+    val replicaManager = setupReplicaManagerWithMockedPurgatories(new MockTimer(time), localId)
+    // Attach listener to partition.
+    val offsetCheckpoints = new LazyOffsetCheckpoints(replicaManager.highWatermarkCheckpoints.asJava)
+    replicaManager.createPartition(topicPartition).createLogIfNotExists(isNew = false, isFutureReplica = false, offsetCheckpoints, None)
+    val listener = new MockPartitionListener
+    assertTrue(replicaManager.maybeAddListener(topicPartition, listener))
+    listener.verify()
+
+    try {
+      // Make the local replica the leader
+      val leaderTopicsDelta = topicsCreateDelta(localId, true)
+      val leaderMetadataImage = imageFromTopics(leaderTopicsDelta.apply())
+
+      replicaManager.applyDelta(leaderTopicsDelta, leaderMetadataImage)
+
+      // Check the state of that partition and fetcher
+      val HostedPartition.Online(leaderPartition) = replicaManager.getPartition(topicPartition)
+      assertTrue(leaderPartition.isLeader)
+      assertEquals(0, leaderPartition.getLeaderEpoch)
+      // On becoming follower listener should not be invoked yet.
+      listener.verify()
+
+      // Change the local replica to follower
+      val followerTopicsDelta = topicsChangeDelta(leaderMetadataImage.topics(), localId, false)
+      val followerMetadataImage = imageFromTopics(followerTopicsDelta.apply())
+      replicaManager.applyDelta(followerTopicsDelta, followerMetadataImage)
+
+      // On becoming follower listener should be invoked.
+      listener.verify(expectedFollower = true)
+
+      // Check the state of that partition.
+      val HostedPartition.Online(followerPartition) = replicaManager.getPartition(topicPartition)
+      assertFalse(followerPartition.isLeader)
+      assertEquals(1, followerPartition.getLeaderEpoch)
+    } finally {
+      replicaManager.shutdown(checkpointHW = false)
+    }
+  }
+
+  @Test
+  def testBecomeFollowerNotInvokeOnBecomingFollowerListenerOnZk(): Unit = {
     val mockTimer = new MockTimer(time)
     val replicaManager = setupReplicaManagerWithMockedPurgatories(mockTimer, aliveBrokerIds = Seq(0, 1))
 
@@ -6847,8 +6890,8 @@ class ReplicaManagerTest {
         topicIds.asJava,
         Set(new Node(0, "host1", 0), new Node(1, "host2", 1)).asJava).build()
       replicaManager.becomeLeaderOrFollower(0, becomeFollowerRequest, (_, _) => ())
-      // Leader to follower listener should be invoked.
-      listener.verify(expectedLeaderToFollower = true)
+      // On becoming follower listener should not be invoked.
+      listener.verify()
     } finally {
       replicaManager.shutdown(checkpointHW = false)
     }

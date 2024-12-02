@@ -2455,8 +2455,7 @@ class ReplicaManager(val config: KafkaConfig,
           if (metadataCache.hasAliveBroker(newLeaderBrokerId)) {
             // Only change partition state when the leader is available
             if (partition.makeFollower(partitionState, highWatermarkCheckpoints, topicIds(partitionState.topicName))) {
-              // Invoke the follower transition listeners for the partition.
-              partition.invokeLeaderToFollowerListeners()
+              // Skip invoking onBecomingFollower listeners as the listeners are not registered for zk-based features.
               partitionsToMakeFollower += partition
             }
           } else {
@@ -3016,7 +3015,7 @@ class ReplicaManager(val config: KafkaConfig,
             partitionsToStopFetching.put(tp, false)
           } else if (isNewLeaderEpoch) {
             // Invoke the follower transition listeners for the partition.
-            partition.invokeLeaderToFollowerListeners()
+            partition.invokeOnBecomingFollowerListeners()
             // Otherwise, fetcher is restarted if the leader epoch has changed.
             partitionsToStartFetching.put(tp, partition)
           }

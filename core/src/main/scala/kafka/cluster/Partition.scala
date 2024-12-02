@@ -84,9 +84,9 @@ trait PartitionListener {
   def onDeleted(partition: TopicPartition): Unit = {}
 
   /**
-   * Called when the Partition on this broker is transitioned to follower from leader.
+   * Called when the Partition on this broker is transitioned to follower.
    */
-  def onLeaderToFollower(partition: TopicPartition): Unit = {}
+  def onBecomingFollower(partition: TopicPartition): Unit = {}
 }
 
 trait AlterPartitionListener {
@@ -707,11 +707,11 @@ class Partition(val topicPartition: TopicPartition,
   }
 
   /**
-   * Invoke the partition listeners when the partition has been transitioned to follower from leader.
+   * Invoke the partition listeners when the partition has been transitioned to follower.
    */
-  def invokeLeaderToFollowerListeners(): Unit = {
+  def invokeOnBecomingFollowerListeners(): Unit = {
     listeners.forEach { listener =>
-      listener.onLeaderToFollower(topicPartition)
+      listener.onBecomingFollower(topicPartition)
     }
   }
 

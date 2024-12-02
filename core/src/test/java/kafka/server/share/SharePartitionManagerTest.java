@@ -2528,9 +2528,10 @@ public class SharePartitionManagerTest {
         SharePartitionKey sharePartitionKey = new SharePartitionKey("grp",
             new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0)));
         Map<SharePartitionKey, SharePartition> partitionCacheMap = new HashMap<>();
+        ReplicaManager mockReplicaManager = mock(ReplicaManager.class);
 
-        SharePartitionListener partitionListener = new SharePartitionListener(sharePartitionKey, partitionCacheMap);
-        testSharePartitionListener(sharePartitionKey, partitionCacheMap, partitionListener::onFailed);
+        SharePartitionListener partitionListener = new SharePartitionListener(sharePartitionKey, mockReplicaManager, partitionCacheMap);
+        testSharePartitionListener(sharePartitionKey, partitionCacheMap, mockReplicaManager, partitionListener::onFailed);
     }
 
     @Test
@@ -2538,23 +2539,29 @@ public class SharePartitionManagerTest {
         SharePartitionKey sharePartitionKey = new SharePartitionKey("grp",
             new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0)));
         Map<SharePartitionKey, SharePartition> partitionCacheMap = new HashMap<>();
+        ReplicaManager mockReplicaManager = mock(ReplicaManager.class);
 
-        SharePartitionListener partitionListener = new SharePartitionListener(sharePartitionKey, partitionCacheMap);
-        testSharePartitionListener(sharePartitionKey, partitionCacheMap, partitionListener::onDeleted);
+        SharePartitionListener partitionListener = new SharePartitionListener(sharePartitionKey, mockReplicaManager, partitionCacheMap);
+        testSharePartitionListener(sharePartitionKey, partitionCacheMap, mockReplicaManager, partitionListener::onDeleted);
     }
 
     @Test
-    public void testSharePartitionListenerOnLeaderToFollower() {
+    public void testSharePartitionListenerOnBecomingFollower() {
         SharePartitionKey sharePartitionKey = new SharePartitionKey("grp",
             new TopicIdPartition(Uuid.randomUuid(), new TopicPartition("foo", 0)));
         Map<SharePartitionKey, SharePartition> partitionCacheMap = new HashMap<>();
+        ReplicaManager mockReplicaManager = mock(ReplicaManager.class);
 
-        SharePartitionListener partitionListener = new SharePartitionListener(sharePartitionKey, partitionCacheMap);
-        testSharePartitionListener(sharePartitionKey, partitionCacheMap, partitionListener::onLeaderToFollower);
+        SharePartitionListener partitionListener = new SharePartitionListener(sharePartitionKey, mockReplicaManager, partitionCacheMap);
+        testSharePartitionListener(sharePartitionKey, partitionCacheMap, mockReplicaManager, partitionListener::onBecomingFollower);
     }
 
-    private void testSharePartitionListener(SharePartitionKey sharePartitionKey,
-        Map<SharePartitionKey, SharePartition> partitionCacheMap, Consumer<TopicPartition> listenerConsumer) {
+    private void testSharePartitionListener(
+        SharePartitionKey sharePartitionKey,
+        Map<SharePartitionKey, SharePartition> partitionCacheMap,
+        ReplicaManager mockReplicaManager,
+        Consumer<TopicPartition> listenerConsumer
+    ) {
         // Add another share partition to the cache.
         TopicPartition tp = new TopicPartition("foo", 1);
         TopicIdPartition tpId = new TopicIdPartition(Uuid.randomUuid(), tp);
@@ -2572,12 +2579,15 @@ public class SharePartitionManagerTest {
         assertEquals(1, partitionCacheMap.size());
         assertFalse(partitionCacheMap.containsKey(sharePartitionKey));
         verify(sp0, times(1)).markFenced();
+        verify(mockReplicaManager, times(1)).removeListener(any(), any());
 
         // Invoke listener for second share partition.
         listenerConsumer.accept(tp);
         // The second share partition should not be removed as the listener is attached to single topic partition.
         assertEquals(1, partitionCacheMap.size());
         verify(sp1, times(0)).markFenced();
+        // Verify the remove listener is not called for the second share partition.
+        verify(mockReplicaManager, times(1)).removeListener(any(), any());
     }
 
     private ShareFetchResponseData.PartitionData noErrorShareFetchResponse() {
