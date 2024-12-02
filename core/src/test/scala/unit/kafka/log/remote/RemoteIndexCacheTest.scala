@@ -451,7 +451,8 @@ class RemoteIndexCacheTest {
     // The cache max size is 2, it will remove one entry and keep the overall size to 2
     cache.getIndexEntry(metadataList(2))
     assertCacheSize(2)
-    // Calling getIndex on the same entry should not call rsm#fetchIndex again, but it should retrieve from cache
+    // Calling getIndex on the same entry may call rsm#fetchIndex or not, it only depend on cache implementation so
+    // we only need to verify the number of calling is in our range.
     cache.getIndexEntry(metadataList(2))
     assertCacheSize(2)
     verifyFetchIndexInvocationWithRange(lower = 3, upper = 4)
@@ -559,19 +560,19 @@ class RemoteIndexCacheTest {
       metadataToVerify.filter(s => { cache.internalCache().asMap().keySet().contains(s.remoteLogSegmentId().id())})
     }
 
-    def verifyEntryIsEvicted(metadataToVerify: List[RemoteLogSegmentMetadata], entryToVerify: List[Entry], numOfDeleted: Int): Unit = {
-      TestUtils.waitUntilTrue(() => entryToVerify.count(_.isMarkedForCleanup).equals(numOfDeleted),
+    def verifyEntryIsEvicted(metadataToVerify: List[RemoteLogSegmentMetadata], entriesToVerify: List[Entry], numOfDeleted: Int): Unit = {
+      TestUtils.waitUntilTrue(() => entriesToVerify.count(_.isMarkedForCleanup).equals(numOfDeleted),
         "Failed to mark evicted cache entry for cleanup after resizing cache.")
 
-      TestUtils.waitUntilTrue(() => entryToVerify.count(_.isCleanStarted).equals(numOfDeleted),
+      TestUtils.waitUntilTrue(() => entriesToVerify.count(_.isCleanStarted).equals(numOfDeleted),
         "Failed to cleanup evicted cache entry after resizing cache.")
 
-      val entriesIsMarkedForCleanup = entryToVerify.filter(_.isMarkedForCleanup)
-      val entriesIsCleanStarted = entryToVerify.filter(_.isCleanStarted)
+      val entriesIsMarkedForCleanup = entriesToVerify.filter(_.isMarkedForCleanup)
+      val entriesIsCleanStarted = entriesToVerify.filter(_.isCleanStarted)
       // clean up entries and clean start entries should be the same
       assertTrue(entriesIsMarkedForCleanup.equals(entriesIsCleanStarted))
 
-      // get the UUID are evicted
+      // get the logSegMetadata are evicted
       val metedataDeleted = metadataToVerify.filter(s => { !cache.internalCache().asMap().keySet().contains(s.remoteLogSegmentId().id())})
       assertEquals(numOfDeleted, metedataDeleted.size)
       for (metadata <- metedataDeleted) {
@@ -651,7 +652,6 @@ class RemoteIndexCacheTest {
     cache.resizeCacheSize(1 * estimateEntryBytesSize)
 
     val entriesKept = getRemoteLogSegMetadataIsKept(metadataList)
-    println(entriesKept)
     // verify all existing entries (`cache.getIndexEntry(metadataList(2))`) are kept
     verifyEntryIsKept(entriesKept)
     assertCacheSize(1)
@@ -659,7 +659,7 @@ class RemoteIndexCacheTest {
     // increase the size
     cache.resizeCacheSize(2 * estimateEntryBytesSize)
 
-    // verify all existing entries (`cache.getIndexEntry(metadataList(2))`) are kept
+    // verify all entries are kept
     verifyEntryIsKept(entriesKept)
     assertCacheSize(1)
   }
