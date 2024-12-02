@@ -87,8 +87,8 @@ public class ShareFetchUtils {
                 // would be returned for other share partitions in the fetch request.
                 if (fetchPartitionData.error.code() == Errors.OFFSET_OUT_OF_RANGE.code()) {
                     try {
-                        long startOffset = offsetForEarliestTimestamp(topicIdPartition, replicaManager, sharePartition.leaderEpoch());
-                        sharePartition.updateCacheAndOffsets(startOffset);
+                        sharePartition.updateCacheAndOffsets(offsetForEarliestTimestamp(topicIdPartition,
+                            replicaManager, sharePartition.leaderEpoch()));
                     } catch (Exception e) {
                         log.error("Error while fetching offset for earliest timestamp for topicIdPartition: {}", topicIdPartition, e);
                         shareFetch.addErroneous(topicIdPartition, e);

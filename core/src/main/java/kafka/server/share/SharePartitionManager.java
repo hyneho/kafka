@@ -280,7 +280,7 @@ public class SharePartitionManager implements AutoCloseable {
                 CompletableFuture<Errors> future = new CompletableFuture<>();
                 sharePartition.acknowledge(memberId, acknowledgePartitionBatches).whenComplete((result, throwable) -> {
                     if (throwable != null) {
-                        handleFencedSharePartitionException().accept(sharePartitionKey, throwable);
+                        fencedSharePartitionHandler().accept(sharePartitionKey, throwable);
                         future.complete(Errors.forException(throwable));
                         return;
                     }
@@ -353,7 +353,7 @@ public class SharePartitionManager implements AutoCloseable {
                 CompletableFuture<Errors> future = new CompletableFuture<>();
                 sharePartition.releaseAcquiredRecords(memberId).whenComplete((result, throwable) -> {
                     if (throwable != null) {
-                        handleFencedSharePartitionException().accept(sharePartitionKey, throwable);
+                        fencedSharePartitionHandler().accept(sharePartitionKey, throwable);
                         future.complete(Errors.forException(throwable));
                         return;
                     }
@@ -602,7 +602,7 @@ public class SharePartitionManager implements AutoCloseable {
         // Add the share fetch to the delayed share fetch purgatory to process the fetch request.
         // The request will be added irrespective of whether the share partition is initialized or not.
         // Once the share partition is initialized, the delayed share fetch will be completed.
-        addDelayedShareFetch(new DelayedShareFetch(shareFetch, replicaManager, handleFencedSharePartitionException(), sharePartitions), delayedShareFetchWatchKeys);
+        addDelayedShareFetch(new DelayedShareFetch(shareFetch, replicaManager, fencedSharePartitionHandler(), sharePartitions), delayedShareFetchWatchKeys);
     }
 
     private SharePartition getOrCreateSharePartition(SharePartitionKey sharePartitionKey) {
@@ -652,11 +652,11 @@ public class SharePartitionManager implements AutoCloseable {
 
     /**
      * The method returns a BiConsumer that handles share partition exceptions. The BiConsumer accepts
-     * a share partition key and a throwable and handles the exception.
+     * a share partition key and a throwable which specifies the exception.
      *
      * @return A BiConsumer that handles share partition exceptions.
      */
-    public BiConsumer<SharePartitionKey, Throwable> handleFencedSharePartitionException() {
+    private BiConsumer<SharePartitionKey, Throwable> fencedSharePartitionHandler() {
         return (sharePartitionKey, throwable) -> {
             if (throwable instanceof NotLeaderOrFollowerException || throwable instanceof FencedStateEpochException ||
                 throwable instanceof GroupIdNotFoundException || throwable instanceof UnknownTopicOrPartitionException) {
