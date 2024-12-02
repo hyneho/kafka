@@ -40,6 +40,31 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class AdminRackAwareTest {
+    public static class ReplicaDistributions {
+        private final Map<Integer, List<String>> partitionRacks;
+        private final Map<Integer, Integer> brokerLeaderCount;
+        private final Map<Integer, Integer> brokerReplicasCount;
+
+        public ReplicaDistributions(Map<Integer, List<String>> partitionRacks,
+                                    Map<Integer, Integer> brokerLeaderCount,
+                                    Map<Integer, Integer> brokerReplicasCount) {
+            this.partitionRacks = partitionRacks;
+            this.brokerLeaderCount = brokerLeaderCount;
+            this.brokerReplicasCount = brokerReplicasCount;
+        }
+
+        public Map<Integer, List<String>> getPartitionRacks() {
+            return partitionRacks;
+        }
+
+        public Map<Integer, Integer> getBrokerLeaderCount() {
+            return brokerLeaderCount;
+        }
+
+        public Map<Integer, Integer> getBrokerReplicasCount() {
+            return brokerReplicasCount;
+        }
+    }
 
     private static Collection<BrokerMetadata> toBrokerMetadata(Map<Integer, String> rackMap) {
         List<BrokerMetadata> brokerMetadatas = rackMap.entrySet().stream()
