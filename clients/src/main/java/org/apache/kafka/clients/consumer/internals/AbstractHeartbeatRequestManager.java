@@ -382,13 +382,12 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
                 break;
 
             case UNSUPPORTED_VERSION:
-                if (errorMessage == null || Errors.UNSUPPORTED_VERSION.message().equals(errorMessage)) {
-                    // Customize default message to clarify that new protocol is not supported.
+                if (errorMessage == null) {
                     message = "The cluster does not support the new consumer group protocol. " +
                         "Set group.protocol=classic on the consumer configs to revert to " +
                         "the classic protocol until the cluster is upgraded.";
                 } else {
-                    // Custom message present in the error, so keep it. This is expected to be the case where
+                    // Keep custom message present in the error. This is expected to be the case where
                     // HB version required for a feature being used is not available (ex. regex requires HB v>0).
                     message = errorMessage;
                 }
