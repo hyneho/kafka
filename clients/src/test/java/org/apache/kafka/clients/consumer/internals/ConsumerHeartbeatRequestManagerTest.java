@@ -604,7 +604,7 @@ public class ConsumerHeartbeatRequestManagerTest {
 
     @Test
     public void testUnsupportedVersion() {
-        mockErrorResponse(Errors.UNSUPPORTED_VERSION, Errors.UNSUPPORTED_VERSION.message());
+        mockErrorResponse(Errors.UNSUPPORTED_VERSION, null);
         ArgumentCaptor<ErrorEvent> errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
         verify(backgroundEventHandler).add(errorEventArgumentCaptor.capture());
         ErrorEvent errorEvent = errorEventArgumentCaptor.getValue();
@@ -619,7 +619,7 @@ public class ConsumerHeartbeatRequestManagerTest {
         // UnsupportedApiVersion in HB response with custom message. Specific to required version not present, should
         // keep the custom message.
         String hbVersionNotSupportedMsg = "The cluster does not support resolution of SubscriptionPattern on version 0. " +
-            "It must be upgraded to allow to subscribe to a SubscriptionPattern.";
+            "It must be upgraded to version >= 1 to allow to subscribe to a SubscriptionPattern.";
         mockErrorResponse(Errors.UNSUPPORTED_VERSION, hbVersionNotSupportedMsg);
         errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
         verify(backgroundEventHandler).add(errorEventArgumentCaptor.capture());
