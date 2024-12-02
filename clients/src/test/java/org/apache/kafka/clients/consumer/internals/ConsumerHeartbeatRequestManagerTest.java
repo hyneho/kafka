@@ -610,7 +610,7 @@ public class ConsumerHeartbeatRequestManagerTest {
         ErrorEvent errorEvent = errorEventArgumentCaptor.getValue();
 
         // UnsupportedApiVersion in HB response without any custom message. It's considered as new protocol not supported.
-        String hbNotSupportedMsg = "The cluster doesn't support the new consumer group protocol. Set group" +
+        String hbNotSupportedMsg = "The cluster does not support the new consumer group protocol. Set group" +
             ".protocol=classic on the consumer configs to revert to the classic protocol until the cluster is upgraded.";
         assertInstanceOf(Errors.UNSUPPORTED_VERSION.exception().getClass(), errorEvent.error());
         assertEquals(hbNotSupportedMsg, errorEvent.error().getMessage());
@@ -618,7 +618,8 @@ public class ConsumerHeartbeatRequestManagerTest {
 
         // UnsupportedApiVersion in HB response with custom message. Specific to required version not present, should
         // keep the custom message.
-        String hbVersionNotSupportedMsg = "Broker does not support resolution of SubscriptionPattern on version 0";
+        String hbVersionNotSupportedMsg = "The cluster does not support resolution of SubscriptionPattern on version 0. " +
+            "It must be upgraded to allow to subscribe to a SubscriptionPattern.";
         mockErrorResponse(Errors.UNSUPPORTED_VERSION, hbVersionNotSupportedMsg);
         errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
         verify(backgroundEventHandler).add(errorEventArgumentCaptor.capture());

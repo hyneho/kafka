@@ -384,7 +384,7 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
             case UNSUPPORTED_VERSION:
                 if (errorMessage == null || Errors.UNSUPPORTED_VERSION.message().equals(errorMessage)) {
                     // Customize default message to clarify that new protocol is not supported.
-                    message = "The cluster doesn't support the new consumer group protocol. " +
+                    message = "The cluster does not support the new consumer group protocol. " +
                         "Set group.protocol=classic on the consumer configs to revert to " +
                         "the classic protocol until the cluster is upgraded.";
                 } else {
