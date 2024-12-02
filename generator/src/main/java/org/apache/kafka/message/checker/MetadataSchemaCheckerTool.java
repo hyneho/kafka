@@ -65,6 +65,9 @@ public class MetadataSchemaCheckerTool {
         evolutionGitVerifierParser.addArgument("--file", "-3").
             required(true).
             help("The edited JSON file");
+        evolutionGitVerifierParser.addArgument("--directoryPath", "-p").
+                required(false).
+                help("Optional argument to specify the directory.");
         Namespace namespace;
         if (args.length == 0) {
             namespace = argumentParser.parseArgs(new String[] {"--help"});
@@ -92,7 +95,12 @@ public class MetadataSchemaCheckerTool {
             }
             case "verify-evolution-git": {
                 String filePath = "/metadata/src/main/resources/common/metadata/" + namespace.getString("file");
-                Path rootKafkaDirectory = Paths.get("").toAbsolutePath();
+                Path rootKafkaDirectory;
+                if (namespace.getString("directoryPath") == null) {
+                    rootKafkaDirectory = Paths.get("").toAbsolutePath();
+                } else {
+                    rootKafkaDirectory = Paths.get(namespace.getString("directoryPath"));
+                }
                 while (!rootKafkaDirectory.endsWith("kafka")) {
                     rootKafkaDirectory = rootKafkaDirectory.getParent();
                     if (rootKafkaDirectory == null) {
