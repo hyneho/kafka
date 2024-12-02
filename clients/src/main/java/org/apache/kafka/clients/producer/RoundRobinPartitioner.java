@@ -38,6 +38,7 @@ public class RoundRobinPartitioner implements Partitioner {
     private final ConcurrentMap<String, AtomicInteger> topicCounterMap = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Integer> topicLastPartitionMap = new ConcurrentHashMap<>();
 
+    @Override
     public void configure(Map<String, ?> configs) {}
 
     /**
