@@ -387,8 +387,9 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
                         "Set group.protocol=classic on the consumer configs to revert to " +
                         "the classic protocol until the cluster is upgraded.";
                 } else {
-                    // Keep custom message present in the error. This is expected to be the case where
-                    // HB version required for a feature being used is not available (ex. regex requires HB v>0).
+                    // Keep custom message present in the error. This could be the case where
+                    // HB version required for a feature being used is not available
+                    // (ex. regex requires HB v>0), or any other custom message included in the response.
                     message = errorMessage;
                 }
                 logger.error("{} failed due to {}: {}", heartbeatRequestName(), error, errorMessage);
