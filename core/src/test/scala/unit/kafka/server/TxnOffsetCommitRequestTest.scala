@@ -158,7 +158,7 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
     }
   }
 
-  def verifyTxnCommitAndFetch(
+  private def verifyTxnCommitAndFetch(
     topic: String,
     partition: Int,
     transactionalId: String,
