@@ -555,21 +555,32 @@ class RemoteIndexCacheTest {
   @Test
   def testCorrectnessForCacheAndIndexFilesWhenResizeCache(): Unit = {
 
-    def verifyEntryIsEvicted(metadataToVerify: RemoteLogSegmentMetadata, entryToVerify: Entry): Unit = {
-      // wait until `entryToVerify` is marked for deletion
-      TestUtils.waitUntilTrue(() => entryToVerify.isMarkedForCleanup,
+    def verifyEntryIsEvicted(metadataToVerify: List[RemoteLogSegmentMetadata], entryToVerify: List[Entry], numOfDeleted: Int): Unit = {
+      TestUtils.waitUntilTrue(() => entryToVerify.count(_.isMarkedForCleanup).equals(numOfDeleted),
         "Failed to mark evicted cache entry for cleanup after resizing cache.")
-      TestUtils.waitUntilTrue(() => entryToVerify.isCleanStarted,
+
+      TestUtils.waitUntilTrue(() => entryToVerify.count(_.isCleanStarted).equals(numOfDeleted),
         "Failed to cleanup evicted cache entry after resizing cache.")
-      // verify no index files for `entryToVerify` on remote cache dir
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteOffsetIndexFileName(metadataToVerify)).isPresent,
-        s"Offset index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteTimeIndexFileName(metadataToVerify)).isPresent,
-        s"Time index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteTransactionIndexFileName(metadataToVerify)).isPresent,
-        s"Txn index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
-      TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteDeletedSuffixIndexFileName(metadataToVerify)).isPresent,
-        s"Index file marked for deletion for evicted entry should not be present on disk at ${cache.cacheDir()}")
+
+      val entriesIsMarkedForCleanup = entryToVerify.filter(_.isMarkedForCleanup)
+      val entriesIsCleanStarted = entryToVerify.filter(_.isCleanStarted)
+      // clean up entries and clean start entries should be the same
+      assertTrue(entriesIsMarkedForCleanup.equals(entriesIsCleanStarted))
+
+      // get the UUID are evicted
+      val metedataDeleted = metadataToVerify.filter(s => { !cache.internalCache().asMap().keySet().contains(s.remoteLogSegmentId().id())})
+      assertEquals(numOfDeleted, metedataDeleted.size)
+      for (metadata <- metedataDeleted) {
+        // verify no index files for `entryToVerify` on remote cache dir
+        TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteOffsetIndexFileName(metadata)).isPresent,
+          s"Offset index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
+        TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteTimeIndexFileName(metadata)).isPresent,
+          s"Time index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
+        TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteTransactionIndexFileName(metadata)).isPresent,
+          s"Txn index file for evicted entry should not be present on disk at ${cache.cacheDir()}")
+        TestUtils.waitUntilTrue(() => !getIndexFileFromRemoteCacheDir(cache, remoteDeletedSuffixIndexFileName(metadata)).isPresent,
+          s"Index file marked for deletion for evicted entry should not be present on disk at ${cache.cacheDir()}")
+      }
     }
 
     def verifyEntryIsKept(metadataToVerify: RemoteLogSegmentMetadata): Unit = {
@@ -620,14 +631,15 @@ class RemoteIndexCacheTest {
 
     val entry0 = cache.getIndexEntry(metadataList(0))
     val entry1 = cache.getIndexEntry(metadataList(1))
-    cache.getIndexEntry(metadataList(2))
+    val entry2 = cache.getIndexEntry(metadataList(2))
+    val entries = List(entry0, entry1, entry2)
     assertCacheSize(2)
-    verifyEntryIsEvicted(metadataList(0), entry0)
+    verifyEntryIsEvicted(metadataList, entries, 1)
 
     // Reduce cache capacity to only store 1 entry
     cache.resizeCacheSize(1 * estimateEntryBytesSize)
     assertCacheSize(1)
-    verifyEntryIsEvicted(metadataList(1), entry1)
+    verifyEntryIsEvicted(metadataList, entries, 2)
 
     // resize to the same size, all entries should be kept
     cache.resizeCacheSize(1 * estimateEntryBytesSize)
