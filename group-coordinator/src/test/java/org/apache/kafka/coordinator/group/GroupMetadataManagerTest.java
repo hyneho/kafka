@@ -297,6 +297,7 @@ public class GroupMetadataManagerTest {
         ex = assertThrows(InvalidRequestException.class, () -> context.streamsGroupHeartbeat(
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
+                .setMemberId(Uuid.randomUuid().toString())
                 .setMemberEpoch(0)));
         assertEquals("RebalanceTimeoutMs must be provided in first request.", ex.getMessage());
 
@@ -417,6 +418,7 @@ public class GroupMetadataManagerTest {
     @Test
     public void testJoiningNonExistingStreamsGroupNoMissingTopics() {
         String groupId = "group-id";
+        String memberId = Uuid.randomUuid().toString();
         int rebalanceTimeoutMs = 300000;
         int topologyEpoch = 0;
         String processId = "process-id";
@@ -439,7 +441,7 @@ public class GroupMetadataManagerTest {
             .setStateChangelogTopics(Collections.emptyList())
         );
         StreamsGroupHeartbeatRequestData heartbeat =
-            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs);
+            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs, null);
         prepareStreamsGroupAssignment(assignor, heartbeat.memberId(), "subtopology-id");
 
         CoordinatorResult<StreamsGroupHeartbeatResult, CoordinatorRecord> result = context.streamsGroupHeartbeat(heartbeat);
@@ -500,6 +502,7 @@ public class GroupMetadataManagerTest {
     @Test
     public void testJoiningNonExistingStreamsGroupMissingTopics() {
         String groupId = "group-id";
+        String memberId = Uuid.randomUuid().toString();
         int rebalanceTimeoutMs = 300000;
         int topologyEpoch = 0;
         String processId = "process-id";
@@ -522,7 +525,7 @@ public class GroupMetadataManagerTest {
             .setStateChangelogTopics(Collections.singletonList(new TopicInfo().setName("changelog-topic")))
         );
         StreamsGroupHeartbeatRequestData heartbeat =
-            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs);
+            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs, memberId);
         prepareStreamsGroupAssignment(assignor, heartbeat.memberId(), "subtopology-id");
 
         CoordinatorResult<StreamsGroupHeartbeatResult, CoordinatorRecord> result = context.streamsGroupHeartbeat(heartbeat);
@@ -586,6 +589,7 @@ public class GroupMetadataManagerTest {
     @Test
     public void testJoiningExistingNotReadyStreamsGroupMissingTopics() {
         String groupId = "group-id";
+        String memberId = Uuid.randomUuid().toString();
         int rebalanceTimeoutMs = 300000;
         int topologyEpoch = 0;
         String processId = "process-id";
@@ -629,12 +633,12 @@ public class GroupMetadataManagerTest {
                 )
         );
         StreamsGroupHeartbeatRequestData heartbeatToCreateGroup =
-            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs);
+            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs, memberId);
         prepareStreamsGroupAssignment(assignor, heartbeatToCreateGroup.memberId(), "subtopology-id");
         context.streamsGroupHeartbeat(heartbeatToCreateGroup);
 
         StreamsGroupHeartbeatRequestData heartbeat =
-            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs);
+            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs, memberId);
 
         CoordinatorResult<StreamsGroupHeartbeatResult, CoordinatorRecord> result = context.streamsGroupHeartbeat(heartbeat);
 
@@ -676,7 +680,7 @@ public class GroupMetadataManagerTest {
         StreamsGroupHeartbeatResponseData response = result.response().responseData();
         assertEquals(Errors.NONE.code(), response.errorCode());
         assertFalse(response.memberId().isEmpty());
-        assertEquals(2, response.memberEpoch());
+        assertEquals(1, response.memberEpoch());
         assertTrue(response.activeTasks().isEmpty());
         assertTrue(response.standbyTasks().isEmpty());
         assertTrue(response.warmupTasks().isEmpty());
@@ -717,14 +721,15 @@ public class GroupMetadataManagerTest {
     }
 
     private StreamsGroupHeartbeatRequestData buildFirstStreamsGroupHeartbeatRequest(
-        final String groupId,
-        final StreamsGroupHeartbeatRequestData.Topology topology,
-        final String processId,
-        final int rebalanceTimeoutMs) {
+            final String groupId,
+            final StreamsGroupHeartbeatRequestData.Topology topology,
+            final String processId,
+            final int rebalanceTimeoutMs,
+            final String memberId) {
 
         return new StreamsGroupHeartbeatRequestData()
             .setGroupId(groupId)
-            .setMemberId("")
+            .setMemberId(memberId)
             .setMemberEpoch(0)
             .setInstanceId(null)
             .setRackId(null)

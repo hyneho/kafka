@@ -188,6 +188,7 @@ import static org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.CON
 import static org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.LEAVE_GROUP_MEMBER_EPOCH;
 import static org.apache.kafka.common.requests.ConsumerGroupHeartbeatRequest.LEAVE_GROUP_STATIC_MEMBER_EPOCH;
 import static org.apache.kafka.common.requests.JoinGroupRequest.UNKNOWN_MEMBER_ID;
+import static org.apache.kafka.common.requests.StreamsGroupHeartbeatRequest.STREAMS_CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION;
 import static org.apache.kafka.coordinator.group.Group.GroupType.CLASSIC;
 import static org.apache.kafka.coordinator.group.Group.GroupType.CONSUMER;
 import static org.apache.kafka.coordinator.group.Group.GroupType.SHARE;
@@ -1675,18 +1676,21 @@ public class GroupMetadataManager {
      * Validates the request.
      *
      * @param request The request to validate.
-     *
+     * @param apiVersion The version of the StreamsGroupHeartbeat RPC
      * @throws InvalidRequestException if the request is not valid.
      * @throws UnsupportedAssignorException if the assignor is not supported.
      */
     private void throwIfStreamsGroupHeartbeatRequestIsInvalid(
-        StreamsGroupHeartbeatRequestData request
+        StreamsGroupHeartbeatRequestData request,
+        short apiVersion
     ) throws InvalidRequestException, UnsupportedAssignorException {
         throwIfEmptyString(request.groupId(), "GroupId can't be empty.");
         throwIfEmptyString(request.instanceId(), "InstanceId can't be empty.");
         throwIfEmptyString(request.rackId(), "RackId can't be empty.");
 
-        if (request.memberEpoch() > 0 || request.memberEpoch() == LEAVE_GROUP_MEMBER_EPOCH) {
+        if (apiVersion >= STREAMS_CONSUMER_GENERATED_MEMBER_ID_REQUIRED_VERSION ||
+                request.memberEpoch() > 0 ||
+                request.memberEpoch() == LEAVE_GROUP_MEMBER_EPOCH) {
             throwIfEmptyString(request.memberId(), "MemberId can't be empty.");
         } else if (request.memberEpoch() == 0) {
             if (request.rebalanceTimeoutMs() == -1) {
@@ -2256,7 +2260,6 @@ public class GroupMetadataManager {
         throwIfStreamsGroupIsFull(group, memberId);
 
         // Get or create the member.
-        if (memberId.isEmpty()) memberId = Uuid.randomUuid().toString();
         StreamsGroupMember member;
         StreamsGroupMember.Builder updatedMemberBuilder;
         boolean staticMemberReplaced = false;
@@ -4792,7 +4795,7 @@ public class GroupMetadataManager {
         RequestContext context,
         StreamsGroupHeartbeatRequestData request
     ) throws ApiException {
-        throwIfStreamsGroupHeartbeatRequestIsInvalid(request);
+        throwIfStreamsGroupHeartbeatRequestIsInvalid(request, context.apiVersion());
 
         if (request.memberEpoch() == LEAVE_GROUP_MEMBER_EPOCH || request.memberEpoch() == LEAVE_GROUP_STATIC_MEMBER_EPOCH) {
             // -2 means that a static member wants to leave the group.
