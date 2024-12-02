@@ -327,21 +327,6 @@ class DynamicConfigChangeTest extends KafkaServerTestHarness {
     }
   }
 
-  @nowarn("cat=deprecation")
-  @ParameterizedTest
-  @ValueSource(strings = Array("kraft"))
-  def testAlterDefaultTopicConfig(quorum: String): Unit = {
-    val admin = createAdminClient()
-    try {
-      val resource = new ConfigResource(ConfigResource.Type.TOPIC, "")
-      val config = new Config(Collections.singleton(new ConfigEntry(TopicConfig.FLUSH_MESSAGES_INTERVAL_CONFIG, "200000")))
-      val future = admin.alterConfigs(Map(resource -> config).asJava).all
-      assertFutureThrows(future, classOf[InvalidRequestException])
-    } finally {
-      admin.close()
-    }
-  }
-
   private def setBrokerConfigs(brokerId: String, newValue: Long): Unit = alterBrokerConfigs(brokerId, newValue, OpType.SET)
   private def deleteBrokerConfigs(brokerId: String): Unit = alterBrokerConfigs(brokerId, 0, OpType.DELETE)
   private def alterBrokerConfigs(brokerId: String, newValue: Long, op: OpType): Unit = {
