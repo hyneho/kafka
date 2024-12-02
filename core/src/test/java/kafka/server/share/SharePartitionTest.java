@@ -4456,6 +4456,17 @@ public class SharePartitionTest {
         CompletableFuture<Void> writeResult = sharePartition.writeShareGroupState(anyList());
         assertTrue(writeResult.isCompletedExceptionally());
         assertFutureThrows(writeResult, IllegalStateException.class);
+
+        persister = Mockito.mock(Persister.class);
+        // Throw exception for write state.
+        mockPersisterReadStateMethod(persister);
+        sharePartition = SharePartitionBuilder.builder().withPersister(persister).build();
+
+        Mockito.when(persister.writeState(Mockito.any())).thenThrow(new RuntimeException("Write exception"));
+        writeResult = sharePartition.writeShareGroupState(anyList());
+        assertTrue(writeResult.isCompletedExceptionally());
+        assertFutureThrows(writeResult, IllegalStateException.class);
+
     }
 
     @Test
