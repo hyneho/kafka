@@ -2865,7 +2865,7 @@ public class KafkaAdminClient extends AdminClient {
         }
         return configSource;
     }
-    
+
     @Override
     public AlterConfigsResult incrementalAlterConfigs(Map<ConfigResource, Collection<AlterConfigOp>> configs,
                                                       final AlterConfigsOptions options) {
