@@ -24,6 +24,7 @@ import org.apache.kafka.server.common.KRaftVersion;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
@@ -568,21 +569,21 @@ public class LeaderStateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testGrantVote(boolean isLogUpToDate) {
+    @CsvSource({ "true,true", "true,false", "false,true", "false,false"})
+    public void testGrantVote(boolean isLogUpToDate, boolean isPreVote) {
         LeaderState<?> state = newLeaderState(
             VoterSetTest.voterSet(VoterSetTest.voterMap(IntStream.of(1, 2, 3), false)),
             1
         );
 
         assertFalse(
-            state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
         assertFalse(
-            state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
         assertFalse(
-            state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
     }
 

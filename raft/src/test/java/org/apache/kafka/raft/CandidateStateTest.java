@@ -208,8 +208,9 @@ public class CandidateStateTest {
     }
 
     @ParameterizedTest
-    @CsvSource({ "true,true", "true,false", "false,true", "false,false" })
-    public void testGrantVote(boolean isLogUpToDate, boolean withDirectoryId) {
+    @CsvSource({ "true,true,true", "true,true,false", "true,false,true", "true,false,false",
+        "false,true,true", "false,true,false", "false,false,true", "false,false,false" })
+    public void testGrantVote(boolean isLogUpToDate, boolean withDirectoryId, boolean isPreVote) {
         ReplicaKey node0 = replicaKey(0, withDirectoryId);
         ReplicaKey node1 = replicaKey(1, withDirectoryId);
         ReplicaKey node2 = replicaKey(2, withDirectoryId);
@@ -219,10 +220,10 @@ public class CandidateStateTest {
             voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId)
         );
 
-        assertFalse(state.canGrantVote(node0, isLogUpToDate));
-        assertFalse(state.canGrantVote(node1, isLogUpToDate));
-        assertFalse(state.canGrantVote(node2, isLogUpToDate));
-        assertFalse(state.canGrantVote(node3, isLogUpToDate));
+        assertFalse(state.canGrantVote(node0, isLogUpToDate, isPreVote));
+        assertFalse(state.canGrantVote(node1, isLogUpToDate, isPreVote));
+        assertFalse(state.canGrantVote(node2, isLogUpToDate, isPreVote));
+        assertFalse(state.canGrantVote(node3, isLogUpToDate, isPreVote));
     }
 
     @ParameterizedTest

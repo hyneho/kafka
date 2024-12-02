@@ -33,9 +33,10 @@ public interface EpochState extends Closeable {
      *
      * @param replicaKey the id and directory of the replica requesting the vote
      * @param isLogUpToDate whether the replica's log is at least as up-to-date as receiver’s log
+     * @param isPreVote whether or not this is a pre-vote
      * @return true if it can grant the vote, false otherwise
      */
-    boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate);
+    boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote);
 
     /**
      * Get the current election state, which is guaranteed to be immutable.

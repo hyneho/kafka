@@ -46,6 +46,7 @@ public class FollowerState implements EpochState {
     private final Timer updateVoterPeriodTimer;
 
     private final Logger log;
+    private boolean hasFetchedFromLeader;
 
     public FollowerState(
         Time time,
@@ -66,6 +67,7 @@ public class FollowerState implements EpochState {
         this.updateVoterPeriodTimer = time.timer(updateVoterPeriodMs());
         this.highWatermark = highWatermark;
         this.log = logContext.logger(FollowerState.class);
+        this.hasFetchedFromLeader = false;
     }
 
     @Override
@@ -118,9 +120,10 @@ public class FollowerState implements EpochState {
         return fetchTimer.isExpired();
     }
 
-    public void resetFetchTimeout(long currentTimeMs) {
+    public void resetFetchTimeoutForSuccessfulFetch(long currentTimeMs) {
         fetchTimer.update(currentTimeMs);
         fetchTimer.reset(fetchTimeoutMs);
+        hasFetchedFromLeader = true;
     }
 
     public void overrideFetchTimeout(long currentTimeMs, long timeoutMs) {
@@ -202,13 +205,24 @@ public class FollowerState implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
-        log.debug(
-            "Rejecting vote request from replica ({}) since we already have a leader {} in epoch {}",
-            replicaKey,
-            leaderId,
-            epoch
-        );
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
+        if (hasFetchedFromLeader) {
+            log.debug(
+                "Rejecting vote request from replica ({}) since we already have a leader {} in epoch {}",
+                replicaKey,
+                leaderId,
+                epoch
+            );
+            return false;
+        } else if (isPreVote && isLogUpToDate) {
+            log.debug(
+                "Granting PreVote request from replica ({}) since their log is up to date and we have not successfully " +
+                "fetched from leader {} yet in epoch {}",
+                replicaKey,
+                leaderId,
+                epoch);
+            return true;
+        }
         return false;
     }
 

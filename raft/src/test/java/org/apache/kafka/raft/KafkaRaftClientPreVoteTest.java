@@ -18,7 +18,10 @@ package org.apache.kafka.raft;
 
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.protocol.Errors;
+import org.apache.kafka.common.record.MemoryRecords;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.OptionalInt;
 import java.util.Set;
@@ -29,8 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class KafkaRaftClientPreVoteTest {
-    @Test
-    public void testHandlePreVoteRequestAsFollowerWithElectedLeader() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testHandlePreVoteRequestAsFollowerWithElectedLeader(boolean hasFetchedFromLeader) throws Exception {
         int localId = randomReplicaId();
         int epoch = 2;
         ReplicaKey otherNodeKey = replicaKey(localId + 1, true);
@@ -42,11 +46,24 @@ public class KafkaRaftClientPreVoteTest {
             .withKip853Rpc(true)
             .build();
 
-        // follower should reject pre-vote requests with the same epoch
+        if (hasFetchedFromLeader) {
+            context.pollUntilRequest();
+            RaftRequest.Outbound fetchRequest = context.assertSentFetchRequest();
+            context.assertFetchRequestData(fetchRequest, epoch, 0L, 0);
+
+            context.deliverResponse(
+                fetchRequest.correlationId(),
+                fetchRequest.destination(),
+                context.fetchResponse(epoch, electedLeaderId, MemoryRecords.EMPTY, 0L, Errors.NONE)
+            );
+        }
+
+        // follower should reject pre-vote requests with the same epoch if it has successfully fetched from the leader
         context.deliverRequest(context.preVoteRequest(epoch, otherNodeKey, epoch, 1));
         context.pollUntilResponse();
 
-        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(electedLeaderId), false);
+        boolean voteGranted = !hasFetchedFromLeader;
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(electedLeaderId), voteGranted);
         context.assertElectedLeader(epoch, electedLeaderId);
 
         // follower will transition to unattached if pre-vote request has a higher epoch
@@ -141,11 +158,13 @@ public class KafkaRaftClientPreVoteTest {
         context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
     }
 
-    @Test
-    public void testHandlePreVoteRequestAsFollowerObserver() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testHandlePreVoteRequestAsFollowerObserver(boolean hasFetchedFromLeader) throws Exception {
         int localId = randomReplicaId();
         int epoch = 2;
-        ReplicaKey leader = replicaKey(localId + 1, true);
+        int leaderId = localId + 1;
+        ReplicaKey leader = replicaKey(leaderId, true);
         ReplicaKey follower = replicaKey(localId + 2, true);
         Set<Integer> voters = Set.of(leader.id(), follower.id());
 
@@ -155,10 +174,23 @@ public class KafkaRaftClientPreVoteTest {
             .build();
         context.assertElectedLeader(epoch, leader.id());
 
+        if (hasFetchedFromLeader) {
+            context.pollUntilRequest();
+            RaftRequest.Outbound fetchRequest = context.assertSentFetchRequest();
+            context.assertFetchRequestData(fetchRequest, epoch, 0L, 0);
+
+            context.deliverResponse(
+                fetchRequest.correlationId(),
+                fetchRequest.destination(),
+                context.fetchResponse(epoch, leaderId, MemoryRecords.EMPTY, 0L, Errors.NONE)
+            );
+        }
+
         context.deliverRequest(context.preVoteRequest(epoch, follower, epoch, 1));
         context.pollUntilResponse();
 
-        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(leader.id()), false);
+        boolean voteGranted = !hasFetchedFromLeader;
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.of(leader.id()), voteGranted);
         assertTrue(context.client.quorum().isFollower());
     }
 

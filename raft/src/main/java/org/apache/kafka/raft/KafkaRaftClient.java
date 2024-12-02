@@ -848,7 +848,8 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         );
         boolean voteGranted = quorum.canGrantVote(
             replicaKey,
-            lastEpochEndOffsetAndEpoch.compareTo(endOffset()) >= 0
+            lastEpochEndOffsetAndEpoch.compareTo(endOffset()) >= 0,
+            preVote
         );
 
         if (!preVote && voteGranted && quorum.isUnattachedNotVoted()) {
@@ -1703,7 +1704,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                 updateFollowerHighWatermark(state, highWatermark);
             }
 
-            state.resetFetchTimeout(currentTimeMs);
+            state.resetFetchTimeoutForSuccessfulFetch(currentTimeMs);
             return true;
         } else {
             return handleUnexpectedError(error, responseMetadata);
@@ -2007,7 +2008,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
                 partitionSnapshot.snapshotId()
             );
             state.setFetchingSnapshot(Optional.empty());
-            state.resetFetchTimeout(currentTimeMs);
+            state.resetFetchTimeoutForSuccessfulFetch(currentTimeMs);
             return true;
         }
 
@@ -2085,7 +2086,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             }
         }
 
-        state.resetFetchTimeout(currentTimeMs);
+        state.resetFetchTimeoutForSuccessfulFetch(currentTimeMs);
         return true;
     }
 

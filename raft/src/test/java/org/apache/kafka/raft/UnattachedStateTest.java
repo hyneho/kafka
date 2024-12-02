@@ -21,7 +21,7 @@ import org.apache.kafka.common.utils.MockTime;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -76,21 +76,21 @@ public class UnattachedStateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testGrantVote(boolean isLogUpToDate) {
+    @CsvSource({ "true,true", "true,false", "false,true", "false,false"})
+    public void testGrantVote(boolean isLogUpToDate, boolean isPreVote) {
         UnattachedState state = newUnattachedState(Set.of(1, 2, 3), OptionalInt.empty());
 
         assertEquals(
             isLogUpToDate,
-            state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
         assertEquals(
             isLogUpToDate,
-            state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
         assertEquals(
             isLogUpToDate,
-            state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
     }
 
@@ -102,8 +102,8 @@ public class UnattachedStateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void testUnattachedWithLeader(boolean isLogUpToDate) {
+    @CsvSource({ "true,true", "true,false", "false,true", "false,false"})
+    void testUnattachedWithLeader(boolean isLogUpToDate, boolean isPreVote) {
         int leaderId = 3;
         Set<Integer> voters = Set.of(1, 2, leaderId);
 
@@ -113,8 +113,8 @@ public class UnattachedStateTest {
         assertEquals(ElectionState.withElectedLeader(epoch, leaderId, voters), state.election());
 
         // Check that the replica rejects all votes request if the leader is known
-        assertFalse(state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
-        assertFalse(state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
-        assertFalse(state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote));
+        assertFalse(state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote));
+        assertFalse(state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote));
     }
 }

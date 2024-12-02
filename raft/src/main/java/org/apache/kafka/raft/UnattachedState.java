@@ -119,15 +119,17 @@ public class UnattachedState implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
+        String voteType = isPreVote ? "PreVote" : "Vote";
         if (votedKey.isPresent()) {
             ReplicaKey votedReplicaKey = votedKey.get();
             if (votedReplicaKey.id() == replicaKey.id()) {
                 return votedReplicaKey.directoryId().isEmpty() || votedReplicaKey.directoryId().equals(replicaKey.directoryId());
             }
             log.debug(
-                "Rejecting vote request from replica ({}), already have voted for another " +
+                "Rejecting {} request from replica ({}), already have voted for another " +
                     "replica ({}) in epoch {}",
+                voteType,
                 replicaKey,
                 votedKey,
                 epoch
@@ -136,7 +138,8 @@ public class UnattachedState implements EpochState {
         } else if (leaderId.isPresent()) {
             // If the leader id is known it should behave similar to the follower state
             log.debug(
-                "Rejecting vote request from replica ({}) since we already have a leader {} in epoch {}",
+                "Rejecting {} request from replica ({}) since we already have a leader {} in epoch {}",
+                voteType,
                 replicaKey,
                 leaderId,
                 epoch
@@ -144,7 +147,8 @@ public class UnattachedState implements EpochState {
             return false;
         } else if (!isLogUpToDate) {
             log.debug(
-                "Rejecting vote request from replica ({}) since replica epoch/offset is not up to date with us",
+                "Rejecting {} request from replica ({}) since replica epoch/offset is not up to date with us",
+                voteType,
                 replicaKey
             );
         }

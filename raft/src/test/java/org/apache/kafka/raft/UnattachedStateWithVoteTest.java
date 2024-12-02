@@ -22,6 +22,7 @@ import org.apache.kafka.common.utils.MockTime;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Collections;
@@ -79,39 +80,41 @@ class UnattachedStateWithVoteTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testCanGrantVoteWithoutDirectoryId(boolean isLogUpToDate) {
+    @CsvSource({ "true,true", "true,false", "false,true", "false,false"})
+    public void testCanGrantVoteWithoutDirectoryId(boolean isLogUpToDate, boolean isPreVote) {
         UnattachedState state = newUnattachedVotedState(ReplicaKey.NO_DIRECTORY_ID);
 
         assertTrue(
-            state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
         assertTrue(
             state.canGrantVote(
                 ReplicaKey.of(votedId, Uuid.randomUuid()),
-                isLogUpToDate
+                isLogUpToDate,
+                isPreVote
             )
         );
 
         assertFalse(
-            state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+            state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote)
         );
     }
 
-    @Test
-    void testCanGrantVoteWithDirectoryId() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testCanGrantVoteWithDirectoryId(boolean isPreVote) {
         Uuid votedDirectoryId = Uuid.randomUuid();
         UnattachedState state = newUnattachedVotedState(votedDirectoryId);
 
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), false));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), false, isPreVote));
 
         assertFalse(
-            state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), false)
+            state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), false, isPreVote)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), false));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), false, isPreVote));
 
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), false));
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), false));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), false, isPreVote));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), false, isPreVote));
     }
 
     @Test
