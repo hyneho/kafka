@@ -244,7 +244,7 @@ class TransactionStateManagerTest {
     val records = MemoryRecords.withRecords(startOffset, Compression.NONE,
       new SimpleRecord(txnMessageKeyBytes1, TransactionLog.valueToBytes(txnMetadata1.prepareNoTransit(), TV_2)))
 
-    // We create a latch which is awaited while the log is loading. This ensures that the deletion
+    // We create a latch which is awaited while the log is loading. This ensures that the follower transition
     // is triggered before the loading returns
     val latch = new CountDownLatch(1)
 
