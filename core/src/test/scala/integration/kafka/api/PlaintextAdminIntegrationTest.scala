@@ -3214,7 +3214,7 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
     ).asJava, new AlterConfigsOptions().validateOnly(true))
 
     assertFutureThrows(alterResult.values().get(topic1Resource), classOf[InvalidConfigurationException],
-      "Invalid value zip for configuration compression.type")
+      "Invalid value zip for configuration compression.type: String must be one of: uncompressed, zstd, lz4, snappy, gzip, producer")
   }
 
   @ParameterizedTest
