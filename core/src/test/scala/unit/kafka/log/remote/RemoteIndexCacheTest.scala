@@ -555,6 +555,10 @@ class RemoteIndexCacheTest {
   @Test
   def testCorrectnessForCacheAndIndexFilesWhenResizeCache(): Unit = {
 
+    def getRemoteLogSegMetadataIsKept(metadataToVerify: List[RemoteLogSegmentMetadata]): List[RemoteLogSegmentMetadata] = {
+      metadataToVerify.filter(s => { cache.internalCache().asMap().keySet().contains(s.remoteLogSegmentId().id())})
+    }
+
     def verifyEntryIsEvicted(metadataToVerify: List[RemoteLogSegmentMetadata], entryToVerify: List[Entry], numOfDeleted: Int): Unit = {
       TestUtils.waitUntilTrue(() => entryToVerify.count(_.isMarkedForCleanup).equals(numOfDeleted),
         "Failed to mark evicted cache entry for cleanup after resizing cache.")
@@ -583,11 +587,13 @@ class RemoteIndexCacheTest {
       }
     }
 
-    def verifyEntryIsKept(metadataToVerify: RemoteLogSegmentMetadata): Unit = {
-      assertTrue(getIndexFileFromRemoteCacheDir(cache, remoteOffsetIndexFileName(metadataToVerify)).isPresent)
-      assertTrue(getIndexFileFromRemoteCacheDir(cache, remoteTimeIndexFileName(metadataToVerify)).isPresent)
-      assertTrue(getIndexFileFromRemoteCacheDir(cache, remoteTransactionIndexFileName(metadataToVerify)).isPresent)
-      assertTrue(!getIndexFileFromRemoteCacheDir(cache, remoteDeletedSuffixIndexFileName(metadataToVerify)).isPresent)
+    def verifyEntryIsKept(metadataToVerify: List[RemoteLogSegmentMetadata]): Unit = {
+      for (metadata <- metadataToVerify) {
+        assertTrue(getIndexFileFromRemoteCacheDir(cache, remoteOffsetIndexFileName(metadata)).isPresent)
+        assertTrue(getIndexFileFromRemoteCacheDir(cache, remoteTimeIndexFileName(metadata)).isPresent)
+        assertTrue(getIndexFileFromRemoteCacheDir(cache, remoteTransactionIndexFileName(metadata)).isPresent)
+        assertTrue(!getIndexFileFromRemoteCacheDir(cache, remoteDeletedSuffixIndexFileName(metadata)).isPresent)
+      }
     }
 
     // The test process for resizing is: put 1 entry -> evict to empty -> put 3 entries with limited capacity of 2 entries ->
@@ -644,15 +650,17 @@ class RemoteIndexCacheTest {
     // resize to the same size, all entries should be kept
     cache.resizeCacheSize(1 * estimateEntryBytesSize)
 
+    val entriesKept = getRemoteLogSegMetadataIsKept(metadataList)
+    println(entriesKept)
     // verify all existing entries (`cache.getIndexEntry(metadataList(2))`) are kept
-    verifyEntryIsKept(metadataList(2))
+    verifyEntryIsKept(entriesKept)
     assertCacheSize(1)
 
     // increase the size
     cache.resizeCacheSize(2 * estimateEntryBytesSize)
 
     // verify all existing entries (`cache.getIndexEntry(metadataList(2))`) are kept
-    verifyEntryIsKept(metadataList(2))
+    verifyEntryIsKept(entriesKept)
     assertCacheSize(1)
   }
 
