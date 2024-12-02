@@ -214,6 +214,8 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
       expectedError = Errors.NONE
     )
 
+    if (expectedTxnCommitError != Errors.NONE) return
+
     TestUtils.waitUntilTrue(() =>
       try {
         val fetchOffsetsResp = fetchOffsets(
