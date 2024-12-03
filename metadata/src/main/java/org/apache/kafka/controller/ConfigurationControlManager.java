@@ -467,16 +467,15 @@ public class ConfigurationControlManager {
      *   4. static configs
      * If the config value is not found, return null.
      *
-     * @param topicName                         The topic name for the config.
-     * @param configKey                         The key for the config.
+     * @param topicName            The topic name for the config.
+     * @param configKey            The key for the config.
      * @return the config value for the provided config key in the topic
      */
     ConfigEntry getTopicConfig(String topicName, String configKey) throws NoSuchElementException {
         return configSchema.resolveEffectiveTopicConfig(configKey,
             staticConfig,
             clusterConfig(),
-            currentControllerConfig(),
-            currentTopicConfig(topicName));
+            currentControllerConfig(), currentTopicConfig(topicName));
     }
 
     public Map<ConfigResource, ResultOrError<Map<String, String>>> describeConfigs(
