@@ -281,6 +281,7 @@ public class GroupMetadataManagerTest {
         GroupMetadataManagerTestContext context = new GroupMetadataManagerTestContext.Builder()
             .build();
         Exception ex;
+        String memberId = Uuid.randomUuid().toString();
 
         // GroupId must be present in all requests.
         ex = assertThrows(InvalidRequestException.class, () -> context.streamsGroupHeartbeat(
@@ -292,12 +293,12 @@ public class GroupMetadataManagerTest {
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("   ")));
         assertEquals("GroupId can't be empty.", ex.getMessage());
-
+        
         // RebalanceTimeoutMs must be present in the first request (epoch == 0).
         ex = assertThrows(InvalidRequestException.class, () -> context.streamsGroupHeartbeat(
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
-                .setMemberId(Uuid.randomUuid().toString())
+                .setMemberId(memberId)
                 .setMemberEpoch(0)));
         assertEquals("RebalanceTimeoutMs must be provided in first request.", ex.getMessage());
 
@@ -306,6 +307,7 @@ public class GroupMetadataManagerTest {
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
                 .setMemberEpoch(0)
+                .setMemberId(memberId)
                 .setRebalanceTimeoutMs(5000)
                 .setStandbyTasks(Collections.emptyList())
                 .setWarmupTasks(Collections.emptyList())));
@@ -316,6 +318,7 @@ public class GroupMetadataManagerTest {
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
                 .setMemberEpoch(0)
+                .setMemberId(memberId)
                 .setRebalanceTimeoutMs(5000)
                 .setActiveTasks(Collections.emptyList())
                 .setWarmupTasks(Collections.emptyList())));
@@ -326,24 +329,24 @@ public class GroupMetadataManagerTest {
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
                 .setMemberEpoch(0)
+                .setMemberId(memberId)
                 .setRebalanceTimeoutMs(5000)
                 .setActiveTasks(Collections.emptyList())
                 .setStandbyTasks(Collections.emptyList())));
         assertEquals("WarmupTasks must be empty when (re-)joining.", ex.getMessage());
 
-        // MemberId must be non-empty in all requests except for the first one where it
-        // could be empty (epoch != 0).
+        // MemberId must be non-empty in all requests
         ex = assertThrows(InvalidRequestException.class, () -> context.streamsGroupHeartbeat(
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
-                .setMemberEpoch(1)));
+                .setMemberEpoch(0)));
         assertEquals("MemberId can't be empty.", ex.getMessage());
 
         // InstanceId must be non-empty if provided in all requests.
         ex = assertThrows(InvalidRequestException.class, () -> context.streamsGroupHeartbeat(
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
-                .setMemberId(Uuid.randomUuid().toString())
+                .setMemberId(memberId)
                 .setMemberEpoch(1)
                 .setInstanceId("")));
         assertEquals("InstanceId can't be empty.", ex.getMessage());
@@ -352,7 +355,7 @@ public class GroupMetadataManagerTest {
         ex = assertThrows(InvalidRequestException.class, () -> context.streamsGroupHeartbeat(
             new StreamsGroupHeartbeatRequestData()
                 .setGroupId("foo")
-                .setMemberId(Uuid.randomUuid().toString())
+                .setMemberId(memberId)
                 .setMemberEpoch(1)
                 .setRackId("")));
         assertEquals("RackId can't be empty.", ex.getMessage());
@@ -441,7 +444,7 @@ public class GroupMetadataManagerTest {
             .setStateChangelogTopics(Collections.emptyList())
         );
         StreamsGroupHeartbeatRequestData heartbeat =
-            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs, null);
+            buildFirstStreamsGroupHeartbeatRequest(groupId, topology, processId, rebalanceTimeoutMs, memberId);
         prepareStreamsGroupAssignment(assignor, heartbeat.memberId(), "subtopology-id");
 
         CoordinatorResult<StreamsGroupHeartbeatResult, CoordinatorRecord> result = context.streamsGroupHeartbeat(heartbeat);

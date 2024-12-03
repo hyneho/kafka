@@ -1692,7 +1692,9 @@ public class GroupMetadataManager {
                 request.memberEpoch() > 0 ||
                 request.memberEpoch() == LEAVE_GROUP_MEMBER_EPOCH) {
             throwIfEmptyString(request.memberId(), "MemberId can't be empty.");
-        } else if (request.memberEpoch() == 0) {
+        }
+
+        if (request.memberEpoch() == 0) {
             if (request.rebalanceTimeoutMs() == -1) {
                 throw new InvalidRequestException("RebalanceTimeoutMs must be provided in first request.");
             }
