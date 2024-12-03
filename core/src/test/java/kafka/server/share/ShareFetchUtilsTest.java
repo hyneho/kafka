@@ -62,7 +62,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -100,9 +99,6 @@ public class ShareFetchUtilsTest {
         when(sp1.acquire(anyString(), anyInt(), any(FetchPartitionData.class))).thenReturn(
             ShareAcquiredRecords.fromAcquiredRecords(new ShareFetchResponseData.AcquiredRecords()
                 .setFirstOffset(100).setLastOffset(103).setDeliveryCount((short) 1)));
-
-        doNothing().when(sp1).updateCacheAndOffsets(any(Long.class));
-        doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
 
         LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp0, sp0);
@@ -166,9 +162,6 @@ public class ShareFetchUtilsTest {
 
         when(sp0.acquire(anyString(), anyInt(), any(FetchPartitionData.class))).thenReturn(ShareAcquiredRecords.empty());
         when(sp1.acquire(anyString(), anyInt(), any(FetchPartitionData.class))).thenReturn(ShareAcquiredRecords.empty());
-
-        doNothing().when(sp1).updateCacheAndOffsets(any(Long.class));
-        doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
 
         LinkedHashMap<TopicIdPartition, SharePartition> sharePartitions = new LinkedHashMap<>();
         sharePartitions.put(tp0, sp0);
@@ -236,9 +229,6 @@ public class ShareFetchUtilsTest {
             ShareAcquiredRecords.fromAcquiredRecords(new ShareFetchResponseData.AcquiredRecords()
                 .setFirstOffset(100).setLastOffset(103).setDeliveryCount((short) 1)),
             ShareAcquiredRecords.empty());
-
-        doNothing().when(sp1).updateCacheAndOffsets(any(Long.class));
-        doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
 
         MemoryRecords records1 = MemoryRecords.withRecords(Compression.NONE,
             new SimpleRecord("0".getBytes(), "v".getBytes()),
@@ -319,7 +309,6 @@ public class ShareFetchUtilsTest {
         FileRecords.TimestampAndOffset timestampAndOffset = new FileRecords.TimestampAndOffset(100L, 1L, Optional.empty());
         doReturn(new OffsetResultHolder(Option.apply(timestampAndOffset), Option.empty())).when(replicaManager).fetchOffsetForTimestamp(any(TopicPartition.class), anyLong(), any(), any(), anyBoolean());
         when(sp0.acquire(anyString(), anyInt(), any(FetchPartitionData.class))).thenReturn(ShareAcquiredRecords.empty());
-        doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
 
         MemoryRecords records = MemoryRecords.withRecords(Compression.NONE,
             new SimpleRecord("0".getBytes(), "v".getBytes()),
@@ -451,7 +440,6 @@ public class ShareFetchUtilsTest {
         Throwable exception = new FencedLeaderEpochException("Fenced exception");
         doThrow(exception).when(replicaManager).fetchOffsetForTimestamp(any(TopicPartition.class), anyLong(), any(), any(), anyBoolean());
         when(sp0.acquire(anyString(), anyInt(), any(FetchPartitionData.class))).thenReturn(ShareAcquiredRecords.empty());
-        doNothing().when(sp0).updateCacheAndOffsets(any(Long.class));
 
         // When no records are acquired from share partition.
         Map<TopicIdPartition, FetchPartitionData> responseData = Collections.singletonMap(
@@ -466,7 +454,7 @@ public class ShareFetchUtilsTest {
 
         assertTrue(resultData.isEmpty());
         Mockito.verify(shareFetch, times(1)).addErroneous(tp0, exception);
-        Mockito.verify(exceptionHandler, times(1)).accept(any(SharePartitionKey.class), any(Throwable.class));
-        Mockito.verify(sp0, times(0)).updateCacheAndOffsets(1L);
+        Mockito.verify(exceptionHandler, times(1)).accept(new SharePartitionKey("grp", tp0), exception);
+        Mockito.verify(sp0, times(0)).updateCacheAndOffsets(any(Long.class));
     }
 }

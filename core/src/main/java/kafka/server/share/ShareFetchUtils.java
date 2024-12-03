@@ -140,7 +140,7 @@ public class ShareFetchUtils {
                 topicIdPartition.topicPartition(), ListOffsetsRequest.EARLIEST_TIMESTAMP, Option.empty(),
                 Optional.of(leaderEpoch), true).timestampAndOffsetOpt();
         if (timestampAndOffset.isEmpty()) {
-            throw new OffsetNotAvailableException("offset for Earliest timestamp not found for topic partition: " + topicIdPartition);
+            throw new OffsetNotAvailableException("Offset for earliest timestamp not found for topic partition: " + topicIdPartition);
         }
         return timestampAndOffset.get().offset;
     }
@@ -156,7 +156,7 @@ public class ShareFetchUtils {
             topicIdPartition.topicPartition(), ListOffsetsRequest.LATEST_TIMESTAMP, new Some<>(IsolationLevel.READ_UNCOMMITTED),
             Optional.of(leaderEpoch), true).timestampAndOffsetOpt();
         if (timestampAndOffset.isEmpty()) {
-            throw new OffsetNotAvailableException("offset for Latest timestamp not found for topic partition: " + topicIdPartition);
+            throw new OffsetNotAvailableException("Offset for latest timestamp not found for topic partition: " + topicIdPartition);
         }
         return timestampAndOffset.get().offset;
     }
