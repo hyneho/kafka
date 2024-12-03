@@ -159,6 +159,10 @@ public class ShareCoordinatorConfig {
         return compressionType;
     }
 
+    public int shareCoordinatorTopicPruneIntervalMs() {
+        return pruneIntervalMs;
+    }
+
     private void validate() {
         Utils.require(snapshotUpdateRecordsPerSnapshot >= 0 && snapshotUpdateRecordsPerSnapshot <= 500,
             String.format("%s must be between [0, 500]", SNAPSHOT_UPDATE_RECORDS_PER_SNAPSHOT_CONFIG));

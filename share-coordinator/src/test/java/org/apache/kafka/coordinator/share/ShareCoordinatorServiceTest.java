@@ -35,9 +35,12 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRuntime;
+import org.apache.kafka.coordinator.common.runtime.PartitionWriter;
 import org.apache.kafka.coordinator.share.metrics.ShareCoordinatorMetrics;
 import org.apache.kafka.server.share.SharePartitionKey;
 import org.apache.kafka.server.util.FutureUtils;
+import org.apache.kafka.server.util.timer.MockTimer;
+import org.apache.kafka.server.util.timer.Timer;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -77,7 +80,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            new MockTimer(),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -98,7 +103,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             coordinatorMetrics,
-            time
+            time,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -206,7 +213,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -305,7 +314,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -350,7 +361,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -395,7 +408,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         String groupId = "group1";
@@ -472,7 +487,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         String groupId = "group1";
@@ -533,7 +550,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -581,7 +600,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -622,7 +643,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 50);
@@ -645,11 +668,13 @@ class ShareCoordinatorServiceTest {
     public void testPartitionFor() {
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
         ShareCoordinatorService service = new ShareCoordinatorService(
-                new LogContext(),
-                ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
-                runtime,
-                new ShareCoordinatorMetrics(),
-                Time.SYSTEM
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         String groupId = "group1";

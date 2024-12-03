@@ -48,6 +48,7 @@ import org.apache.kafka.server.config.ShareCoordinatorConfig;
 import org.apache.kafka.server.record.BrokerCompressionType;
 import org.apache.kafka.server.share.SharePartitionKey;
 import org.apache.kafka.server.util.timer.Timer;
+import org.apache.kafka.server.util.timer.TimerTask;
 
 import org.slf4j.Logger;
 
@@ -75,6 +76,8 @@ public class ShareCoordinatorService implements ShareCoordinator {
     private final ShareCoordinatorMetrics shareCoordinatorMetrics;
     private volatile int numPartitions = -1; // Number of partitions for __share_group_state. Provided when component is started.
     private final Time time;
+    private final Timer timer;
+    private final PartitionWriter writer;
 
     public static class Builder {
         private final int nodeId;
@@ -184,7 +187,9 @@ public class ShareCoordinatorService implements ShareCoordinator {
                 config,
                 runtime,
                 coordinatorMetrics,
-                time
+                time,
+                timer,
+                writer
             );
         }
     }
@@ -194,12 +199,16 @@ public class ShareCoordinatorService implements ShareCoordinator {
         ShareCoordinatorConfig config,
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime,
         ShareCoordinatorMetrics shareCoordinatorMetrics,
-        Time time) {
+        Time time,
+        Timer timer,
+        PartitionWriter writer) {
         this.log = logContext.logger(ShareCoordinatorService.class);
         this.config = config;
         this.runtime = runtime;
         this.shareCoordinatorMetrics = shareCoordinatorMetrics;
         this.time = time;
+        this.timer = timer;
+        this.writer = writer;
     }
 
     @Override
@@ -240,7 +249,41 @@ public class ShareCoordinatorService implements ShareCoordinator {
 
         log.info("Starting up.");
         numPartitions = shareGroupTopicPartitionCount.getAsInt();
+        setupRecordPruning();
         log.info("Startup complete.");
+    }
+
+    private void setupRecordPruning() {
+        timer.add(new TimerTask(config.shareCoordinatorTopicPruneIntervalMs()) {
+            @Override
+            public void run() {
+                for (int i = 0; i < numPartitions; i++) {
+                    performRecordPruning(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, i));
+                }
+                // perpetual recursion
+                setupRecordPruning();
+            }
+        });
+    }
+
+    private void performRecordPruning(TopicPartition tp) {
+        runtime.scheduleWriteOperation(
+            "write-state-record-prune",
+            tp,
+            Duration.ofMillis(config.shareCoordinatorWriteTimeoutMs()),
+            ShareCoordinatorShard::lastRedundantOffset
+        ).whenComplete((result, exception) -> {
+            if (exception != null) {
+                result.ifPresent(
+                    off -> {
+                        // guard and optimization
+                        if (off != Long.MAX_VALUE && off > 0) {
+                            writer.deleteRecords(tp, off, true);
+                        }
+                    }
+                );
+            }
+        });
     }
 
     @Override
