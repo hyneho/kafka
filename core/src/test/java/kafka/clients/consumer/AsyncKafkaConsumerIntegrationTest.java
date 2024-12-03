@@ -64,8 +64,9 @@ public class AsyncKafkaConsumerIntegrationTest {
                     consumer.poll(Duration.ofMillis(1000));
                     return false;
                 } catch (UnsupportedVersionException e) {
-                    return e.getMessage().contains("The cluster doesn't yet support the new consumer group protocol. " +
-                        "Set group.protocol=classic to revert to the classic protocol until the cluster is upgraded.");
+                    return e.getMessage().contains("The cluster does not support the new consumer group protocol. " +
+                        "Set group.protocol=classic on the consumer configs to revert to the classic protocol until " +
+                        "the cluster is upgraded.");
                 }
             }, "Should get UnsupportedVersionException and how to revert to classic protocol");
         }
