@@ -251,9 +251,9 @@ public enum Feature {
      * 1. The latest production value is one of the feature values.
      * 2. The latest production value >= the default value.
      * 3. The dependencies of the latest production value <= their latest production values.
-     * 4. The dependencies of the default value <= their default values.
+     * 4. The dependencies of all default values <= their default values.
      * 5. If the latest production depends on MetadataVersion, the value should be <= MetadataVersion.LATEST_PRODUCTION.
-     * 6. If the default value depends on MetadataVersion, the value should be <= the default value bootstrap MV.
+     * 6. If any default value depends on MetadataVersion, the value should be <= the default value bootstrap MV.
      *
      * Suppose we have feature X as the feature being validated.
      * Invalid examples:
@@ -318,22 +318,30 @@ public enum Feature {
             }
         }
 
-        for (Map.Entry<String, Short> dependency: defaultVersion.dependencies().entrySet()) {
-            String dependencyFeatureName = dependency.getKey();
-            if (!dependencyFeatureName.equals(MetadataVersion.FEATURE_NAME)) {
-                Feature dependencyFeature = featureFromName(dependencyFeatureName);
-                if (dependency.getValue() > dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)) {
-                    throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
-                            "a dependency %s=%s that is ahead of its default value %s.",
-                        feature.name(), defaultVersion.featureLevel(), dependencyFeature.name(), dependency.getValue(),
-                        dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)));
-                }
-            } else {
-                if (dependency.getValue() > defaultVersion.bootstrapMetadataVersion().featureLevel()) {
-                    throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
-                            "a dependency %s=%s that is ahead of its bootstrap MV %s.",
-                        feature.name(), defaultVersion.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
-                        defaultVersion.bootstrapMetadataVersion().featureLevel()));
+        for (MetadataVersion metadataVersion: MetadataVersion.values()) {
+            // Only checking the kraft metadata versions.
+            if (metadataVersion.compareTo(MetadataVersion.MINIMUM_KRAFT_VERSION) < 0) {
+                continue;
+            }
+
+            defaultVersion = feature.defaultVersion(metadataVersion);
+            for (Map.Entry<String, Short> dependency: defaultVersion.dependencies().entrySet()) {
+                String dependencyFeatureName = dependency.getKey();
+                if (!dependencyFeatureName.equals(MetadataVersion.FEATURE_NAME)) {
+                    Feature dependencyFeature = featureFromName(dependencyFeatureName);
+                    if (dependency.getValue() > dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)) {
+                        throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
+                                "a dependency %s=%s that is ahead of its default value %s.",
+                            feature.name(), defaultVersion.featureLevel(), dependencyFeature.name(), dependency.getValue(),
+                            dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)));
+                    }
+                } else {
+                    if (dependency.getValue() > defaultVersion.bootstrapMetadataVersion().featureLevel()) {
+                        throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
+                                "a dependency %s=%s that is ahead of its bootstrap MV %s.",
+                            feature.name(), defaultVersion.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
+                            defaultVersion.bootstrapMetadataVersion().featureLevel()));
+                    }
                 }
             }
         }
