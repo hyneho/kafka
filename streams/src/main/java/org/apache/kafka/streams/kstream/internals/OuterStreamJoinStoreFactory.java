@@ -155,7 +155,7 @@ public class OuterStreamJoinStoreFactory<K, V1, V2> extends AbstractConfigurable
     }
 
     @Override
-    public String name() {
+    public String storeName() {
         return name;
     }
 

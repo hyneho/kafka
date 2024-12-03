@@ -90,7 +90,7 @@ public class StoreBuilderWrapper implements StoreFactory {
     }
 
     @Override
-    public String name() {
+    public String storeName() {
         return builder.name();
     }
 

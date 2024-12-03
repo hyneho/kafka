@@ -62,7 +62,7 @@ public interface StoreFactory {
 
     boolean loggingEnabled();
 
-    String name();
+    String storeName();
 
     boolean isWindowStore();
 
@@ -147,7 +147,7 @@ public interface StoreFactory {
 
         @Override
         public String name() {
-            return storeFactory.name();
+            return storeFactory.storeName();
         }
     }
 

@@ -53,9 +53,9 @@ public class KStreamReduce<K, V> implements KStreamAggProcessorSupplier<K, V, K,
 
     private boolean sendOldValues = false;
 
-    KStreamReduce(final MaterializedInternal<K, V, KeyValueStore<Bytes, byte[]>> materialized, final Reducer<V> reducer) {
-        this.storeFactory = new KeyValueStoreMaterializer<>(materialized);
-        this.storeName = materialized.storeName();
+    KStreamReduce(final StoreFactory storeFactory, final Reducer<V> reducer) {
+        this.storeFactory = storeFactory;
+        this.storeName = storeFactory.storeName();
         this.reducer = reducer;
     }
 

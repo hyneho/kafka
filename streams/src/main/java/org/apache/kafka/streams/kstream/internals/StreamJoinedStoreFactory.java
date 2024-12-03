@@ -126,7 +126,7 @@ public class StreamJoinedStoreFactory<K, V1, V2> extends AbstractConfigurableSto
     }
 
     @Override
-    public String name() {
+    public String storeName() {
         return name;
     }
 

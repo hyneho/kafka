@@ -78,7 +78,7 @@ public class SubscriptionStoreFactory<K> extends AbstractConfigurableStoreFactor
     }
 
     @Override
-    public String name() {
+    public String storeName() {
         return name;
     }
 
