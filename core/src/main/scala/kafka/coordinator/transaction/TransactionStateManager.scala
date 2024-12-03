@@ -616,6 +616,7 @@ class TransactionStateManager(brokerId: Int,
     loadingPartitions.find(_.txnPartitionId == partitionId).foreach { partitionAndLeaderEpoch =>
       if (partitionAndLeaderEpoch.coordinatorEpoch < coordinatorEpoch) {
         loadingPartitions.remove(partitionAndLeaderEpoch)
+        info(s"Cancelling load of currently loading partition $partitionAndLeaderEpoch")
       }
     }
   }
