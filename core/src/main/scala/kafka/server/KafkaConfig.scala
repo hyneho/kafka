@@ -383,6 +383,13 @@ class KafkaConfig private(doLog: Boolean, val props: util.Map[_, _])
   val connectionSetupTimeoutMs = getLong(ServerConfigs.SOCKET_CONNECTION_SETUP_TIMEOUT_MS_CONFIG)
   val connectionSetupTimeoutMaxMs = getLong(ServerConfigs.SOCKET_CONNECTION_SETUP_TIMEOUT_MAX_MS_CONFIG)
 
+  def internalTopicsRecordDeleteAllowList: Set[String] = {
+    getString(ServerConfigs.INTERNAL_TOPICS_DELETE_RECORDS_ALLOW_LIST)
+      .split(",")
+      .map(item => item.trim)
+      .toSet
+  }
+
   def getNumReplicaAlterLogDirsThreads: Int = {
     val numThreads: Integer = Option(getInt(ServerConfigs.NUM_REPLICA_ALTER_LOG_DIRS_THREADS_CONFIG)).getOrElse(logDirs.size)
     numThreads

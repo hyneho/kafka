@@ -18,7 +18,9 @@ package org.apache.kafka.server.config;
 
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.TopicConfig;
+import org.apache.kafka.common.internals.Topic;
 import org.apache.kafka.common.record.CompressionType;
 import org.apache.kafka.server.authorizer.Authorizer;
 import org.apache.kafka.server.record.BrokerCompressionType;
@@ -92,6 +94,10 @@ public class ServerConfigs {
     public static final String COMPRESSION_LZ4_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to 'lz4'.";
     public static final String COMPRESSION_ZSTD_LEVEL_CONFIG = ServerTopicConfigSynonyms.serverSynonym(TopicConfig.COMPRESSION_ZSTD_LEVEL_CONFIG);
     public static final String COMPRESSION_ZSTD_LEVEL_DOC = "The compression level to use if " + COMPRESSION_TYPE_CONFIG + " is set to 'zstd'.";
+
+    public static final String INTERNAL_TOPICS_DELETE_RECORDS_ALLOW_LIST = "delete.records.internal.topics.allow.list";
+    public static final String INTERNAL_TOPICS_DELETE_RECORDS_ALLOW_LIST_DEFAULT = Topic.SHARE_GROUP_STATE_TOPIC_NAME;
+    public static final String INTERNAL_TOPICS_DELETE_RECORDS_ALLOW_LIST_DOC = "Comma separated list of internal topics where record deletion is allowed.";
 
     /***************** rack configuration *************/
     public static final String BROKER_RACK_CONFIG = "broker.rack";
@@ -173,5 +179,16 @@ public class ServerConfigs {
             // This indicates whether unreleased APIs should be advertised by this node.
             .defineInternal(UNSTABLE_API_VERSIONS_ENABLE_CONFIG, BOOLEAN, false, HIGH)
             // This indicates whether unreleased MetadataVersions should be enabled on this node.
-            .defineInternal(UNSTABLE_FEATURE_VERSIONS_ENABLE_CONFIG, BOOLEAN, false, HIGH);
+            .defineInternal(UNSTABLE_FEATURE_VERSIONS_ENABLE_CONFIG, BOOLEAN, false, HIGH)
+            // List of internal topic from which record deletion is allowed
+            .defineInternal(INTERNAL_TOPICS_DELETE_RECORDS_ALLOW_LIST, STRING, INTERNAL_TOPICS_DELETE_RECORDS_ALLOW_LIST_DEFAULT, (name, value) -> {
+                if (!(value instanceof String)) {
+                    throw new ConfigException("Invalid value for internal topics delete value allow list: " + value);
+                }
+                for (String topic : value.toString().split(",")) {
+                    if (!Topic.isInternal(topic.trim())) {
+                        throw new ConfigException("Topic " + topic + " is not a valid internal topic: " + value);
+                    }
+                }
+            }, LOW, INTERNAL_TOPICS_DELETE_RECORDS_ALLOW_LIST_DOC);
 }
