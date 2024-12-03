@@ -19,6 +19,21 @@ package org.apache.kafka.streams.kstream.internals.foreignkeyjoin;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+/**
+ * An interface for extracting foreign keys from input records during foreign key joins in Kafka Streams.
+ * This extractor is used to determine the key of the foreign table to join with based on the primary
+ * table's record key and value.
+ * <p>
+ * The interface provides two factory methods:
+ * <ul>
+ *   <li>{@link #fromFunction(Function)} - when the foreign key depends only on the value</li>
+ *   <li>{@link #fromBiFunction(BiFunction)} - when the foreign key depends on both key and value</li>
+ * </ul>
+ *
+ * @param <K>  Type of primary table's key
+ * @param <V>  Type of primary table's value
+ * @param <KO> Type of the foreign key to extract
+ */
 @FunctionalInterface
 public interface ForeignKeyExtractor<K, V, KO> {
     KO extract(K key, V value);
