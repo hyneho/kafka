@@ -17,7 +17,7 @@
 package org.apache.kafka.streams.scala
 package kstream
 
-import java.util.function.BiFunction
+import scala.jdk.FunctionWrappers.AsJavaBiFunction
 import org.apache.kafka.common.utils.Bytes
 import org.apache.kafka.streams.kstream.{KTable => KTableJ, TableJoined, ValueJoiner, ValueTransformerWithKeySupplier}
 import org.apache.kafka.streams.scala.FunctionsCompatConversions.{
@@ -658,11 +658,11 @@ class KTable[K, V](val inner: KTableJ[K, V]) {
    */
   def join[VR, KO, VO](
     other: KTable[KO, VO],
-    keyExtractor: BiFunction[K, V, KO],
+    keyExtractor: (K, V) => KO,
     joiner: ValueJoiner[V, VO, VR],
     materialized: Materialized[K, VR, KeyValueStore[Bytes, Array[Byte]]]
   ): KTable[K, VR] =
-    new KTable(inner.join(other.inner, keyExtractor, joiner, materialized))
+    new KTable(inner.join(other.inner, AsJavaBiFunction[K, V, KO](keyExtractor), joiner, materialized))
 
   /**
    * Join records of this [[KTable]] with another [[KTable]]'s records using non-windowed inner join. Records from this
@@ -703,12 +703,12 @@ class KTable[K, V](val inner: KTableJ[K, V]) {
    */
   def join[VR, KO, VO](
     other: KTable[KO, VO],
-    keyExtractor: BiFunction[K, V, KO],
+    keyExtractor: (K, V) => KO,
     joiner: ValueJoiner[V, VO, VR],
     tableJoined: TableJoined[K, KO],
     materialized: Materialized[K, VR, KeyValueStore[Bytes, Array[Byte]]]
   ): KTable[K, VR] =
-    new KTable(inner.join(other.inner, keyExtractor, joiner, tableJoined, materialized))
+    new KTable(inner.join(other.inner, AsJavaBiFunction[K, V, KO](keyExtractor), joiner, tableJoined, materialized))
 
   /**
    * Join records of this [[KTable]] with another [[KTable]]'s records using non-windowed left join. Records from this
@@ -744,11 +744,11 @@ class KTable[K, V](val inner: KTableJ[K, V]) {
    */
   def leftJoin[VR, KO, VO](
     other: KTable[KO, VO],
-    keyExtractor: BiFunction[K, V, KO],
+    keyExtractor: (K, V) => KO,
     joiner: ValueJoiner[V, VO, VR],
     materialized: Materialized[K, VR, KeyValueStore[Bytes, Array[Byte]]]
   ): KTable[K, VR] =
-    new KTable(inner.leftJoin(other.inner, keyExtractor, joiner, materialized))
+    new KTable(inner.leftJoin(other.inner, AsJavaBiFunction[K, V, KO](keyExtractor), joiner, materialized))
 
   /**
    * Join records of this [[KTable]] with another [[KTable]]'s records using non-windowed left join. Records from this
@@ -789,12 +789,12 @@ class KTable[K, V](val inner: KTableJ[K, V]) {
    */
   def leftJoin[VR, KO, VO](
     other: KTable[KO, VO],
-    keyExtractor: BiFunction[K, V, KO],
+    keyExtractor: (K, V) => KO,
     joiner: ValueJoiner[V, VO, VR],
     tableJoined: TableJoined[K, KO],
     materialized: Materialized[K, VR, KeyValueStore[Bytes, Array[Byte]]]
   ): KTable[K, VR] =
-    new KTable(inner.leftJoin(other.inner, keyExtractor, joiner, tableJoined, materialized))
+    new KTable(inner.leftJoin(other.inner, AsJavaBiFunction[K, V, KO](keyExtractor), joiner, tableJoined, materialized))
 
   /**
    * Get the name of the local state store used that can be used to query this [[KTable]].
