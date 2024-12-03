@@ -37,7 +37,9 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
     public void testV0SupportedInEarliestMV(Features feature) {
         assertTrue(feature.featureVersions().length >= 1);
         assertEquals(MetadataVersion.MINIMUM_KRAFT_VERSION,
@@ -51,7 +53,9 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
     public void testFromFeatureLevelAllFeatures(Features feature) {
         FeatureVersion[] featureImplementations = feature.featureVersions();
         int numFeatures = featureImplementations.length;
@@ -75,7 +79,9 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
     public void testValidateVersionAllFeatures(Features feature) {
         for (FeatureVersion featureImpl : feature.featureVersions()) {
             // Ensure the minimum bootstrap metadata version is included if no metadata version dependency.
@@ -125,7 +131,9 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
     public void testDefaultLevelAllFeatures(Features feature) {
         for (FeatureVersion featureImpl : feature.featureVersions()) {
             // If features have the same bootstrapMetadataVersion, the highest level feature should be chosen.
@@ -145,7 +153,9 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
     public void testLatestProductionIsOneOfFeatureValues(Features features) {
         assertTrue(features.hasFeatureVersion(features.latestProduction));
     }
@@ -157,7 +167,9 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
     public void testLatestProductionIsNotBehindLatestMetadataVersion(Features features) {
         assertTrue(features.latestProduction() >= features.defaultLevel(MetadataVersion.latestProduction()));
     }
@@ -169,7 +181,9 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
     public void testLatestProductionDependencyIsProductionReady(Features features) {
         for (Map.Entry<String, Short> dependency: features.latestProduction.dependencies().entrySet()) {
             String featureName = dependency.getKey();
@@ -187,8 +201,10 @@ public class FeaturesTest {
         "UNIT_TEST_VERSION_2",
         "UNIT_TEST_VERSION_3",
         "UNIT_TEST_VERSION_4",
-        "UNIT_TEST_VERSION_5"}, mode = EnumSource.Mode.EXCLUDE)
-    public void testDefaultVersionDependencyIsProductionReady(Features features) {
+        "UNIT_TEST_VERSION_5",
+        "UNIT_TEST_VERSION_6",
+        "UNIT_TEST_VERSION_7"}, mode = EnumSource.Mode.EXCLUDE)
+    public void testDefaultVersionDependencyIsDefaultReady(Features features) {
         for (Map.Entry<String, Short> dependency: features.defaultVersion(MetadataVersion.LATEST_PRODUCTION).dependencies().entrySet()) {
             String featureName = dependency.getKey();
             if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
@@ -224,7 +240,7 @@ public class FeaturesTest {
     }
 
     @Test
-    public void testValidateDefaultValueAndLatestProductionLevelWithNonExistentLatestProduction() {
+    public void testValidateWithNonExistentLatestProduction() {
         assertThrows(IllegalArgumentException.class, () ->
             validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_0),
             "Feature UNIT_TEST_VERSION_0 has latest production version " +
@@ -232,14 +248,14 @@ public class FeaturesTest {
     }
 
     @Test
-    public void testValidateDefaultValueAndLatestProductionLevelWithLaggingLatestProduction() {
+    public void testValidateWithLaggingLatestProduction() {
         assertThrows(IllegalArgumentException.class, () ->
             validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_1),
             "Feature UNIT_TEST_VERSION_1 has latest production value 0 smaller than its default value 1");
     }
 
     @Test
-    public void testValidateDefaultValueAndLatestProductionLevelWithDependencyNotProductionReady() {
+    public void testValidateWithDependencyNotProductionReady() {
         assertThrows(IllegalArgumentException.class, () ->
                 validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_3),
             "Latest production FeatureVersion UNIT_TEST_VERSION_3=1 has a dependency " +
@@ -247,12 +263,30 @@ public class FeaturesTest {
     }
 
     @Test
-    public void testValidateDefaultValueAndLatestProductionValueWithDefaultValueDependencyAheadOfItsDefaultLevel() {
+    public void testValidateWithDefaultValueDependencyAheadOfItsDefaultLevel() {
         if (MetadataVersion.latestProduction().isLessThan(MetadataVersion.latestTesting())) {
             assertThrows(IllegalArgumentException.class, () ->
                     validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_5),
                 "Default FeatureVersion UNIT_TEST_VERSION_5=1 has a dependency " +
                     "UNIT_TEST_VERSION_4=1 that is ahead of its default value 0");
         }
+    }
+
+    @Test
+    public void testValidateWithMVDependencyNotProductionReady() {
+        if (MetadataVersion.latestProduction().isLessThan(MetadataVersion.latestTesting())) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_6),
+                "Latest production FeatureVersion UNIT_TEST_VERSION_6=1 has a dependency " +
+                    "metadata.version=25 that is not production ready. (metadata.version latest production: 22)");
+        }
+    }
+
+    @Test
+    public void testValidateWithMVDependencyAheadOfBootstrapMV() {
+        assertThrows(IllegalArgumentException.class, () ->
+                validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_7),
+            "Default FeatureVersion UNIT_TEST_VERSION_7=0 has a dependency " +
+                "metadata.version=15 that is ahead of its bootstrap MV 1");
     }
 }
