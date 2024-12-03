@@ -678,8 +678,11 @@ public class SharePartitionManager implements AutoCloseable {
         return new SharePartitionKey(groupId, topicIdPartition);
     }
 
-    private static void removeSharePartitionFromCache(SharePartitionKey sharePartitionKey,
-        Map<SharePartitionKey, SharePartition> map, ReplicaManager replicaManager) {
+    private static void removeSharePartitionFromCache(
+        SharePartitionKey sharePartitionKey,
+        Map<SharePartitionKey, SharePartition> map,
+        ReplicaManager replicaManager
+    ) {
         SharePartition sharePartition = map.remove(sharePartitionKey);
         if (sharePartition != null) {
             sharePartition.markFenced();
