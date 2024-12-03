@@ -492,15 +492,12 @@ EOF
 correct_latest_link() {
     local result_dir="${kafka_dir}/results"
     local latest_link="${result_dir}/latest"
-    local latest_test_dirname=""
-    local latest_test_dir=""
 
     # Correct the link if it's a symbolic link and broken.
     if [[ -L "${latest_link}" ]] && [[ ! -e "${latest_link}" ]]; then
-        latest_test_dirname=$(basename "$(readlink "${latest_link}")")
-        latest_test_dir="${result_dir}/${latest_test_dirname}"
+        local latest_test_dirname=$(basename "$(readlink "${latest_link}")")
         unlink "${latest_link}"
-        ln -s "${latest_test_dir}" "${latest_link}"
+        ln -s "${result_dir}/${latest_test_dirname}" "${latest_link}"
     fi
 }
 
