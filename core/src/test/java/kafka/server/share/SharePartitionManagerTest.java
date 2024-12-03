@@ -2581,9 +2581,9 @@ public class SharePartitionManagerTest {
         verify(sp0, times(1)).markFenced();
         verify(mockReplicaManager, times(1)).removeListener(any(), any());
 
-        // Invoke listener for second share partition.
+        // Invoke listener for non-matching share partition.
         listenerConsumer.accept(tp);
-        // The second share partition should not be removed as the listener is attached to single topic partition.
+        // The non-matching share partition should not be removed as the listener is attached to a different topic partition.
         assertEquals(1, partitionCacheMap.size());
         verify(sp1, times(0)).markFenced();
         // Verify the remove listener is not called for the second share partition.

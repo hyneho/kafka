@@ -727,7 +727,7 @@ public class SharePartitionManager implements AutoCloseable {
 
         @Override
         public void onBecomingFollower(TopicPartition topicPartition) {
-            log.debug("The share partition leader change listener is invoked for the topic-partition: {}, share-partition: {}",
+            log.debug("The share partition becoming follower listener is invoked for the topic-partition: {}, share-partition: {}",
                 topicPartition, sharePartitionKey);
             onUpdate(topicPartition);
         }
