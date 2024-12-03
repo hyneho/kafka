@@ -469,19 +469,14 @@ public class ConfigurationControlManager {
      *
      * @param topicName                         The topic name for the config.
      * @param configKey                         The key for the config.
-     * @param shouldIncludeDynamicNodeConfig    Whether considering the dynamic node overridden configs.
      * @return the config value for the provided config key in the topic
      */
-    ConfigEntry getTopicConfig(String topicName, String configKey, boolean shouldIncludeDynamicNodeConfig) throws NoSuchElementException {
+    ConfigEntry getTopicConfig(String topicName, String configKey) throws NoSuchElementException {
         return configSchema.resolveEffectiveTopicConfig(configKey,
             staticConfig,
             clusterConfig(),
-            shouldIncludeDynamicNodeConfig ? currentControllerConfig() : Collections.emptyMap(),
+            currentControllerConfig(),
             currentTopicConfig(topicName));
-    }
-
-    ConfigEntry getTopicConfig(String topicName, String configKey) throws NoSuchElementException {
-        return getTopicConfig(topicName, configKey, true);
     }
 
     public Map<ConfigResource, ResultOrError<Map<String, String>>> describeConfigs(
@@ -522,7 +517,10 @@ public class ConfigurationControlManager {
     // Also, it will remove all the broker level min ISR config records.
     void maybeResetMinIsrConfig(List<ApiMessageAndVersion> outputRecords) {
         if (!clusterConfig().containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
-            String minIsrDefaultConfigValue = configSchema.getStaticOrDefaultConfig(MIN_IN_SYNC_REPLICAS_CONFIG, staticConfig);
+            String minIsrDefaultConfigValue = configSchema.getStaticOrDefaultConfig(
+                MIN_IN_SYNC_REPLICAS_CONFIG,
+                staticConfig
+            );
             ApiError error = incrementalAlterConfigResource(
                 DEFAULT_NODE,
                 Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(SET, minIsrDefaultConfigValue)),

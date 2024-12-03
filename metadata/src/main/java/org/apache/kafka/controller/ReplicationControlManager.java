@@ -2313,7 +2313,7 @@ public class ReplicationControlManager {
 
     // Visible to test.
     int getTopicEffectiveMinIsr(String topicName) {
-        String minIsrConfig = configurationControl.getTopicConfig(topicName, MIN_IN_SYNC_REPLICAS_CONFIG, false).value();
+        String minIsrConfig = configurationControl.getTopicConfig(topicName, MIN_IN_SYNC_REPLICAS_CONFIG).value();
         int currentMinIsr = Integer.parseInt(minIsrConfig);
         Uuid topicId = topicsByName.get(topicName);
         int replicationFactor = topics.get(topicId).parts.get(0).replicas.length;
