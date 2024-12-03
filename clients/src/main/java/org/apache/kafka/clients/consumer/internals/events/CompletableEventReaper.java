@@ -157,7 +157,7 @@ public class CompletableEventReaper {
         return event != null && tracked.contains(event);
     }
 
-    public List<CompletableEvent<?>> reapUnCompletableApplicationEvents() {
+    public List<CompletableEvent<?>> uncompletedApplicationEvents() {
         return tracked.stream()
                 .filter(e -> e instanceof CompletableApplicationEvent<?>)
                 .map(e -> (CompletableApplicationEvent<?>) e)
