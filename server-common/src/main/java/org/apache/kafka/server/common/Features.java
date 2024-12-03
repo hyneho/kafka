@@ -61,6 +61,7 @@ public enum Features {
     KRAFT_VERSION("kraft.version", KRaftVersion.values(), KRaftVersion.LATEST_PRODUCTION),
     TRANSACTION_VERSION("transaction.version", TransactionVersion.values(), TransactionVersion.LATEST_PRODUCTION),
     GROUP_VERSION("group.version", GroupVersion.values(), GroupVersion.LATEST_PRODUCTION),
+    ELIGIBLE_LEADER_REPLICAS_VERSION("eligible.leader.replicas.version", EligibleLeaderReplicasVersion.values(), EligibleLeaderReplicasVersion.LATEST_PRODUCTION),
 
     /**
      * Features defined only for unit tests and are not used in production.
