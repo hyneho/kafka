@@ -52,7 +52,7 @@ public enum TransactionVersion implements FeatureVersion {
     }
 
     public static TransactionVersion fromFeatureLevel(short version) {
-        return (TransactionVersion) Features.TRANSACTION_VERSION.fromFeatureLevel(version, true);
+        return (TransactionVersion) Feature.TRANSACTION_VERSION.fromFeatureLevel(version, true);
     }
 
     @Override

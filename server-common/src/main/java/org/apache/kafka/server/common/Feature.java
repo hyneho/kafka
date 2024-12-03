@@ -49,7 +49,7 @@ import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV7_0;
  * Having a unified enum for the features that will use a shared type in the API used to set and update them
  * makes it easier to process these features.
  */
-public enum Features {
+public enum Feature {
 
     /**
      * Features defined. If a feature is included in this list, and marked to be used in production they will also be specified when
@@ -75,12 +75,12 @@ public enum Features {
     UNIT_TEST_VERSION_6("unit." + TestFeatureVersion.FEATURE_NAME + ".6", new FeatureVersion[]{UT_FV6_0, UT_FV6_1}, UT_FV6_1),
     UNIT_TEST_VERSION_7("unit." + TestFeatureVersion.FEATURE_NAME + ".7", new FeatureVersion[]{UT_FV7_0}, UT_FV7_0);
 
-    public static final Features[] FEATURES;
+    public static final Feature[] FEATURES;
 
     // The list of features that are not unit test features.
-    public static final List<Features> SUPPORTED_FEATURES;
+    public static final List<Feature> SUPPORTED_FEATURES;
 
-    public static final List<Features> PRODUCTION_FEATURES;
+    public static final List<Feature> PRODUCTION_FEATURES;
 
     public static final List<String> PRODUCTION_FEATURE_NAMES;
     private final String name;
@@ -91,16 +91,16 @@ public enum Features {
     // value calculated with {@link #defaultValue(MetadataVersion)}.
     public final FeatureVersion latestProduction;
 
-    Features(String name,
-             FeatureVersion[] featureVersions,
-             FeatureVersion latestProduction) {
+    Feature(String name,
+            FeatureVersion[] featureVersions,
+            FeatureVersion latestProduction) {
         this.name = name;
         this.featureVersions = featureVersions;
         this.latestProduction = latestProduction;
     }
 
     static {
-        Features[] enumValues = Features.values();
+        Feature[] enumValues = Feature.values();
         FEATURES = Arrays.copyOf(enumValues, enumValues.length);
 
         SUPPORTED_FEATURES = Arrays.stream(FEATURES).filter(feature ->
@@ -115,7 +115,7 @@ public enum Features {
                 feature.name).collect(Collectors.toList());
 
         validateDefaultValueAndLatestProductionValue(TEST_VERSION);
-        for (Features feature : PRODUCTION_FEATURES) {
+        for (Feature feature : PRODUCTION_FEATURES) {
             validateDefaultValueAndLatestProductionValue(feature);
         }
     }
@@ -218,10 +218,10 @@ public enum Features {
         return defaultVersion(metadataVersion).featureLevel();
     }
 
-    public static Features featureFromName(String featureName) {
-        for (Features features : FEATURES) {
-            if (features.name.equals(featureName))
-                return features;
+    public static Feature featureFromName(String featureName) {
+        for (Feature feature : FEATURES) {
+            if (feature.name.equals(featureName))
+                return feature;
         }
         throw new IllegalArgumentException("Feature " + featureName + " not found.");
     }
@@ -276,43 +276,43 @@ public enum Features {
      *     - The feature X has default version = XV_10 (dependency = {MetadataVersion: IBP_4_0_IV0}), boostrap MV = IBP_4_0_IV0,
      *                       latest production = XV_11 (dependency = {MetadataVersion: IBP_4_0_IV1}), MV latest production = IBP_4_0_IV1
      *
-     * @param features the feature to validate.
+     * @param feature the feature to validate.
      * @return true if the feature is valid, false otherwise.
      * @throws IllegalArgumentException if the feature violates any of the rules thus is not valid.
      */
     public static void validateDefaultValueAndLatestProductionValue(
-        Features features
+        Feature feature
     ) throws IllegalArgumentException {
-        FeatureVersion defaultVersion = features.defaultVersion(MetadataVersion.LATEST_PRODUCTION);
-        FeatureVersion latestProduction = features.latestProduction;
+        FeatureVersion defaultVersion = feature.defaultVersion(MetadataVersion.LATEST_PRODUCTION);
+        FeatureVersion latestProduction = feature.latestProduction;
 
-        if (!features.hasFeatureVersion(latestProduction)) {
+        if (!feature.hasFeatureVersion(latestProduction)) {
             throw new IllegalArgumentException(String.format("Feature %s has latest production version %s=%s " +
                     "which is not one of its feature versions.",
-                features.name(), latestProduction.featureName(), latestProduction.featureLevel()));
+                feature.name(), latestProduction.featureName(), latestProduction.featureLevel()));
         }
 
         if (latestProduction.featureLevel() < defaultVersion.featureLevel()) {
             throw new IllegalArgumentException(String.format("Feature %s has latest production value %s " +
                     "smaller than its default value %s.",
-                features.name(), latestProduction.featureLevel(), defaultVersion.featureLevel()));
+                feature.name(), latestProduction.featureLevel(), defaultVersion.featureLevel()));
         }
 
         for (Map.Entry<String, Short> dependency: latestProduction.dependencies().entrySet()) {
             String dependencyFeatureName = dependency.getKey();
             if (!dependencyFeatureName.equals(MetadataVersion.FEATURE_NAME)) {
-                Features dependencyFeature = featureFromName(dependencyFeatureName);
+                Feature dependencyFeature = featureFromName(dependencyFeatureName);
                 if (!dependencyFeature.isProductionReady(dependency.getValue())) {
                     throw new IllegalArgumentException(String.format("Latest production FeatureVersion %s=%s " +
                             "has a dependency %s=%s that is not production ready. (%s latest production: %s)",
-                        features.name(), latestProduction.featureLevel(), dependencyFeature.name(), dependency.getValue(),
+                        feature.name(), latestProduction.featureLevel(), dependencyFeature.name(), dependency.getValue(),
                         dependencyFeature.name(), dependencyFeature.latestProduction()));
                 }
             } else {
                 if (dependency.getValue() > MetadataVersion.LATEST_PRODUCTION.featureLevel()) {
                     throw new IllegalArgumentException(String.format("Latest production FeatureVersion %s=%s " +
                             "has a dependency %s=%s that is not production ready. (%s latest production: %s)",
-                        features.name(), latestProduction.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
+                        feature.name(), latestProduction.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
                         MetadataVersion.FEATURE_NAME, MetadataVersion.LATEST_PRODUCTION.featureLevel()));
                 }
             }
@@ -321,18 +321,18 @@ public enum Features {
         for (Map.Entry<String, Short> dependency: defaultVersion.dependencies().entrySet()) {
             String dependencyFeatureName = dependency.getKey();
             if (!dependencyFeatureName.equals(MetadataVersion.FEATURE_NAME)) {
-                Features dependencyFeature = featureFromName(dependencyFeatureName);
+                Feature dependencyFeature = featureFromName(dependencyFeatureName);
                 if (dependency.getValue() > dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)) {
                     throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
                             "a dependency %s=%s that is ahead of its default value %s.",
-                        features.name(), defaultVersion.featureLevel(), dependencyFeature.name(), dependency.getValue(),
+                        feature.name(), defaultVersion.featureLevel(), dependencyFeature.name(), dependency.getValue(),
                         dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)));
                 }
             } else {
                 if (dependency.getValue() > defaultVersion.bootstrapMetadataVersion().featureLevel()) {
                     throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
                             "a dependency %s=%s that is ahead of its bootstrap MV %s.",
-                        features.name(), defaultVersion.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
+                        feature.name(), defaultVersion.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
                         defaultVersion.bootstrapMetadataVersion().featureLevel()));
                 }
             }
