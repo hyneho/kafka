@@ -19,9 +19,9 @@ package org.apache.kafka.streams.kstream.internals;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.internals.StoreFactory;
+import org.apache.kafka.streams.state.StoreSupplier;
 
 import java.util.Map;
-import org.apache.kafka.streams.state.StoreSupplier;
 
 /**
  * {@code MaterializedStoreFactory} is the base class for any {@link StoreFactory} that
