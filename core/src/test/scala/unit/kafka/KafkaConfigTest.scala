@@ -25,7 +25,7 @@ import kafka.utils.TestUtils.assertBadConfigContainingMessage
 import org.apache.kafka.common.config.SslConfigs
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs
 import org.apache.kafka.common.config.types.Password
-import org.apache.kafka.common.internals.{FatalExitError, Topic}
+import org.apache.kafka.common.internals.FatalExitError
 import org.apache.kafka.common.utils.Exit
 import org.apache.kafka.network.SocketServerConfigs
 import org.apache.kafka.raft.QuorumConfig
@@ -241,20 +241,6 @@ class KafkaConfigTest {
     val expected = 3600000
     val config = KafkaConfig.fromProps(Kafka.getPropsFromArgs(Array(propertiesFile, "--override", s"sasl_ssl.oauthbearer.connections.max.reauth.ms=$expected")))
     assertEquals(expected, config.valuesWithPrefixOverride("sasl_ssl.oauthbearer.").get(BrokerSecurityConfigs.CONNECTIONS_MAX_REAUTH_MS_CONFIG).asInstanceOf[Long])
-  }
-
-  @Test
-  def testInternalTopicsDeleteRecordsAllowList(): Unit = {
-    val propertiesFile = prepareDefaultConfig()
-    var expected = Set[String](Topic.SHARE_GROUP_STATE_TOPIC_NAME)
-    var config = KafkaConfig.fromProps(Kafka.getPropsFromArgs(Array(propertiesFile)))
-    assertEquals(expected, config.internalTopicsRecordDeleteAllowList)
-
-    // trims extraneous space
-    expected = Set[String](Topic.SHARE_GROUP_STATE_TOPIC_NAME, Topic.GROUP_METADATA_TOPIC_NAME)
-    val arg = Topic.SHARE_GROUP_STATE_TOPIC_NAME + "   ,    " + Topic.GROUP_METADATA_TOPIC_NAME;
-    config = KafkaConfig.fromProps(Kafka.getPropsFromArgs(Array(propertiesFile, "--override", s"delete.records.internal.topics.allow.list=$arg")))
-    assertEquals(expected, config.internalTopicsRecordDeleteAllowList)
   }
 
   def prepareDefaultConfig(): String = {
