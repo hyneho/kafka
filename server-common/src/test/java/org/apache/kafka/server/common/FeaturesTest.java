@@ -244,7 +244,7 @@ public class FeaturesTest {
         assertThrows(IllegalArgumentException.class, () ->
             validateDefaultValueAndLatestProductionValue(Features.UNIT_TEST_VERSION_0),
             "Feature UNIT_TEST_VERSION_0 has latest production version " +
-                "unit.test.feature.version=1 which is not one of its feature versions");
+                "test.feature.version=1 which is not one of its feature versions");
     }
 
     @Test
