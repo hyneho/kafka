@@ -133,7 +133,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
           try {
             val createdMetadata = new TransactionMetadata(transactionalId = transactionalId,
               producerId = producerIdManager.generateProducerId(),
-              previousProducerId = RecordBatch.NO_PRODUCER_ID,
+              prevProducerId = RecordBatch.NO_PRODUCER_ID,
               nextProducerId = RecordBatch.NO_PRODUCER_ID,
               producerEpoch = RecordBatch.NO_PRODUCER_EPOCH,
               lastProducerEpoch = RecordBatch.NO_PRODUCER_EPOCH,
@@ -221,7 +221,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
       //      could be a retry after a valid epoch bump that the producer never received the response for
       txnMetadata.producerEpoch == RecordBatch.NO_PRODUCER_EPOCH ||
         producerIdAndEpoch.producerId == txnMetadata.producerId ||
-        (producerIdAndEpoch.producerId == txnMetadata.previousProducerId && TransactionMetadata.isEpochExhausted(producerIdAndEpoch.epoch))
+        (producerIdAndEpoch.producerId == txnMetadata.prevProducerId && TransactionMetadata.isEpochExhausted(producerIdAndEpoch.epoch))
     }
 
     if (txnMetadata.pendingTransitionInProgress) {
@@ -527,7 +527,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
             val currentTxnMetadataIsAtLeastTransactionsV2 = !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.clientTransactionVersion.supportsEpochBump()
             // True if the client used TV_2 and retried a request that had overflowed the epoch, and a new producer ID is stored in the txnMetadata
             val retryOnOverflow = currentTxnMetadataIsAtLeastTransactionsV2 &&
-              txnMetadata.previousProducerId == producerId && producerEpoch == Short.MaxValue - 1 && txnMetadata.producerEpoch == 0
+              txnMetadata.prevProducerId == producerId && producerEpoch == Short.MaxValue - 1 && txnMetadata.producerEpoch == 0
             // True if the client used TV_2 and retried an endTxn request, and the bumped producer epoch is stored in the txnMetadata.
             val retryOnEpochBump = endTxnEpochBumped(txnMetadata, producerEpoch)
 
