@@ -76,6 +76,19 @@ public class MirrorCheckpointConfig extends MirrorConnectorConfig {
     public static final String OFFSET_SYNCS_SOURCE_ADMIN_ROLE = OFFSET_SYNCS_CLIENT_ROLE_PREFIX + "source-admin";
     public static final String OFFSET_SYNCS_TARGET_ADMIN_ROLE = OFFSET_SYNCS_CLIENT_ROLE_PREFIX + "target-admin";
     public static final String CHECKPOINTS_TARGET_CONSUMER_ROLE = "checkpoints-target-consumer";
+    public static final String REVERSE_CHECKPOINTING_ENABLED = "reverse.checkpointing.enabled";
+    private static final String REVERSE_CHECKPOINTING_ENABLED_DOC = "Whether to enable reverse checkpointing." +
+            " Reverse checkpointing requires that there is an opposite (active) flow, and that the ReplicationPolicy can correctly transform downstream topic names to upstream names." +
+            " By default, all replica topics originating from the target cluster will be reverse checkpointed, assuming that the ReplicationPolicy can correctly identify them." +
+            " In other cases (when the ReplicationPolicy cannot identify replica topics), see 'reverse.checkpointing.topic.filter.class'.";
+    public static final boolean REVERSE_CHECKPOINTING_ENABLED_DEFAULT = false;
+    public static final String REVERSE_CHECKPOINTING_TOPIC_FILTER_CONFIG_PREFIX = "reverse.checkpointing.topic.filter.";
+    public static final String REVERSE_CHECKPOINTING_TOPIC_FILTER_CLASS = REVERSE_CHECKPOINTING_TOPIC_FILTER_CONFIG_PREFIX + "class";
+    public static final String REVERSE_CHECKPOINTING_TOPIC_FILTER_CLASS_DOC = "Optional TopicFilter to use to select which topics should be reverse-checkpointed." +
+            " If not specified, all replica topics will be reverse-checkpointed." +
+            " Can be used with ReplicationPolicy implementations unable to identify replica topics (e.g. IdentityReplicationPolicy)." +
+            " Use the '" + REVERSE_CHECKPOINTING_TOPIC_FILTER_CONFIG_PREFIX + "' prefix to pass configurations to the TopicFilter.";
+    public static final Class<?> REVERSE_CHECKPOINTING_TOPIC_FILTER_CLASS_DEFAULT = null;
 
     public MirrorCheckpointConfig(Map<String, String> props) {
         super(CONNECTOR_CONFIG_DEF, props);
@@ -160,6 +173,34 @@ public class MirrorCheckpointConfig extends MirrorConnectorConfig {
 
     Duration consumerPollTimeout() {
         return Duration.ofMillis(getLong(CONSUMER_POLL_TIMEOUT_MILLIS));
+    }
+
+    boolean reverseCheckpointingEnabled() {
+        return getBoolean(REVERSE_CHECKPOINTING_ENABLED);
+    }
+
+    String reverseOffsetSyncsTopic() {
+        String otherClusterAlias = SOURCE_CLUSTER_ALIAS_DEFAULT.equals(offsetSyncsTopicLocation())
+                ? sourceClusterAlias()
+                : targetClusterAlias();
+        return replicationPolicy().offsetSyncsTopic(otherClusterAlias);
+    }
+
+    Map<String, Object> reverseOffsetSyncsTopicConsumerConfig() {
+        return SOURCE_CLUSTER_ALIAS_DEFAULT.equals(offsetSyncsTopicLocation())
+                ? targetConsumerConfig(OFFSET_SYNCS_TARGET_CONSUMER_ROLE)
+                : sourceConsumerConfig(OFFSET_SYNCS_SOURCE_CONSUMER_ROLE);
+    }
+
+    Map<String, Object> reverseOffsetSyncsTopicAdminConfig() {
+        return SOURCE_CLUSTER_ALIAS_DEFAULT.equals(offsetSyncsTopicLocation())
+                ? targetAdminConfig(OFFSET_SYNCS_TARGET_ADMIN_ROLE)
+                : sourceAdminConfig(OFFSET_SYNCS_SOURCE_ADMIN_ROLE);
+    }
+
+    TopicFilter reverseCheckpointingTopicFilter() {
+        return getConfiguredInstance(REVERSE_CHECKPOINTING_TOPIC_FILTER_CLASS, TopicFilter.class,
+                originalsWithPrefix(REVERSE_CHECKPOINTING_TOPIC_FILTER_CONFIG_PREFIX));
     }
 
     public static Map<String, String> validate(Map<String, String> configs) {
@@ -262,7 +303,19 @@ public class MirrorCheckpointConfig extends MirrorConnectorConfig {
                         ConfigDef.Type.CLASS,
                         TOPIC_FILTER_CLASS_DEFAULT,
                         ConfigDef.Importance.LOW,
-                        TOPIC_FILTER_CLASS_DOC);
+                        TOPIC_FILTER_CLASS_DOC)
+                .define(
+                        REVERSE_CHECKPOINTING_ENABLED,
+                        ConfigDef.Type.BOOLEAN,
+                        REVERSE_CHECKPOINTING_ENABLED_DEFAULT,
+                        ConfigDef.Importance.MEDIUM,
+                        REVERSE_CHECKPOINTING_ENABLED_DOC)
+                .define(
+                        REVERSE_CHECKPOINTING_TOPIC_FILTER_CLASS,
+                        ConfigDef.Type.CLASS,
+                        REVERSE_CHECKPOINTING_TOPIC_FILTER_CLASS_DEFAULT,
+                        ConfigDef.Importance.LOW,
+                        REVERSE_CHECKPOINTING_TOPIC_FILTER_CLASS_DOC);
     }
 
     protected static final ConfigDef CONNECTOR_CONFIG_DEF = defineCheckpointConfig(new ConfigDef(BASE_CONNECTOR_CONFIG_DEF));
