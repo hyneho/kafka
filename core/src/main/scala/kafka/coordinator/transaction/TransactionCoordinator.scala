@@ -632,37 +632,46 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                 if (incomingEndTxnIsAtLeastTransactionsV2) {
                   if (txnMarkerResult == TransactionResult.COMMIT) {
                     if (isRetry)
+                      // TV2, commit, retry
                       Left(Errors.NONE)
                     else
-                      logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
+                      // TV2, commit, not retry
+                      logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult) // V2, commit,
                   } else {
                     if (isRetry)
+                      // TV2, abort, retry
                       logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                     else
+                      // TV2, abort, not retry
                       generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                   }
                 } else {
-                  // Transaction V1.
                   if (txnMarkerResult == TransactionResult.COMMIT)
-                      Left(Errors.NONE)
+                    // TV1, commit
+                    Left(Errors.NONE)
                   else
+                    // TV1, abort
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                 }
               case CompleteAbort =>
                 if (incomingEndTxnIsAtLeastTransactionsV2) {
                   if (txnMarkerResult == TransactionResult.ABORT) {
                     if (isRetry)
+                      // TV2, abort, retry
                       Left(Errors.NONE)
                     else
+                      // TV2, abort, not retry
                       generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                   } else {
+                    // TV2, commit
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                   }
                 } else {
-                  // Transaction V1.
                   if (txnMarkerResult == TransactionResult.ABORT)
-                      Left(Errors.NONE)
+                    // TV1, abort
+                    Left(Errors.NONE)
                   else
+                    // TV1, commit
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                 }
               case PrepareCommit =>
