@@ -154,8 +154,8 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
                 .reduce(Long.MAX_VALUE, Math::min);
 
         reapExpiredApplicationEvents(currentTimeMs);
-        List<CompletableEvent<?>> events = applicationEventReaper.uncompletedApplicationEvents();
-        maybeFailOnMetadataError(events);
+        List<CompletableEvent<?>> uncompletedEvents = applicationEventReaper.uncompletedEvents();
+        maybeFailOnMetadataError(uncompletedEvents);
     }
 
     /**
