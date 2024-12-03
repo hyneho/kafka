@@ -432,7 +432,7 @@ public class InternalTopologyBuilder {
         // build global state stores
         for (final StoreFactory storeFactory : globalStateBuilders.values()) {
             storeFactory.configure(config);
-            globalStateStores.put(storeFactory.storeName(), storeFactory.build());
+            globalStateStores.put(storeFactory.storeName(), storeFactory.builder().build());
         }
 
         return this;
@@ -1157,7 +1157,7 @@ public class InternalTopologyBuilder {
                     if (topologyConfigs != null) {
                         storeFactory.configure(topologyConfigs.applicationConfigs);
                     }
-                    store = storeFactory.build();
+                    store = storeFactory.builder().build();
                     stateStoreMap.put(stateStoreName, store);
                 } else {
                     store = globalStateStores.get(stateStoreName);
