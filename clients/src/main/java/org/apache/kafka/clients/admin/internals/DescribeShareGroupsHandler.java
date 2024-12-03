@@ -16,11 +16,11 @@
  */
 package org.apache.kafka.clients.admin.internals;
 
-import org.apache.kafka.clients.admin.MemberAssignment;
-import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.clients.admin.ShareGroupDescription;
+import org.apache.kafka.clients.admin.ShareMemberAssignment;
+import org.apache.kafka.clients.admin.ShareMemberDescription;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.Node;
-import org.apache.kafka.common.ShareGroupState;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.message.ShareGroupDescribeRequestData;
@@ -114,22 +114,22 @@ public class DescribeShareGroupsHandler extends AdminApiHandler.Batched<Coordina
                 continue;
             }
 
-            final List<MemberDescription> memberDescriptions = new ArrayList<>(describedGroup.members().size());
+            final List<ShareMemberDescription> memberDescriptions = new ArrayList<>(describedGroup.members().size());
             final Set<AclOperation> authorizedOperations = validAclOperations(describedGroup.authorizedOperations());
 
             describedGroup.members().forEach(groupMember ->
-                memberDescriptions.add(new MemberDescription(
+                memberDescriptions.add(new ShareMemberDescription(
                     groupMember.memberId(),
                     groupMember.clientId(),
                     groupMember.clientHost(),
-                    new MemberAssignment(convertAssignment(groupMember.assignment()))
+                    new ShareMemberAssignment(convertAssignment(groupMember.assignment()))
                 ))
             );
 
             final ShareGroupDescription shareGroupDescription =
                 new ShareGroupDescription(groupIdKey.idValue,
                     memberDescriptions,
-                    ShareGroupState.parse(describedGroup.groupState()),
+                    GroupState.parse(describedGroup.groupState()),
                     coordinator,
                     authorizedOperations);
             completed.put(groupIdKey, shareGroupDescription);
@@ -184,7 +184,7 @@ public class DescribeShareGroupsHandler extends AdminApiHandler.Batched<Coordina
                 final ShareGroupDescription shareGroupDescription =
                     new ShareGroupDescription(groupId.idValue,
                         Collections.emptySet(),
-                        ShareGroupState.DEAD,
+                        GroupState.DEAD,
                         coordinator,
                         validAclOperations(describedGroup.authorizedOperations()));
                 completed.put(groupId, shareGroupDescription);

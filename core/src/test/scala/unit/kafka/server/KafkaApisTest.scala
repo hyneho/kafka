@@ -11179,7 +11179,7 @@ class KafkaApisTest extends Logging {
   def testConsumerGroupHeartbeatReturnsUnsupportedVersion(): Unit = {
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequestData().setGroupId("group")
 
-    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest, true).build())
+    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest).build())
     metadataCache = MetadataCache.kRaftMetadataCache(brokerId, () => KRaftVersion.KRAFT_VERSION_1)
     kafkaApis = createKafkaApis(raftSupport = true)
     kafkaApis.handle(requestChannelRequest, RequestLocal.noCaching)
@@ -11196,7 +11196,7 @@ class KafkaApisTest extends Logging {
 
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequestData().setGroupId("group")
 
-    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest, true).build())
+    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest).build())
 
     val future = new CompletableFuture[ConsumerGroupHeartbeatResponseData]()
     when(groupCoordinator.consumerGroupHeartbeat(
@@ -11223,7 +11223,7 @@ class KafkaApisTest extends Logging {
 
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequestData().setGroupId("group")
 
-    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest, true).build())
+    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest).build())
 
     val future = new CompletableFuture[ConsumerGroupHeartbeatResponseData]()
     when(groupCoordinator.consumerGroupHeartbeat(
@@ -11247,7 +11247,7 @@ class KafkaApisTest extends Logging {
 
     val consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequestData().setGroupId("group")
 
-    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest, true).build())
+    val requestChannelRequest = buildRequest(new ConsumerGroupHeartbeatRequest.Builder(consumerGroupHeartbeatRequest).build())
 
     val authorizer: Authorizer = mock(classOf[Authorizer])
     when(authorizer.authorize(any[RequestContext], any[util.List[Action]]))
