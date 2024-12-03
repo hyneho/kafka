@@ -1757,6 +1757,31 @@ public class StreamsBuilderTest {
     }
 
     @Test
+    public void shouldWrapProcessorsForStreamTableJoin() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KStream<String, String> stream = builder.stream("input", Consumed.as("source-stream"));
+        final KTable<String, String> table = builder.table("input-table", Consumed.as("source-table"));
+
+        stream.join(table, MockValueJoiner.TOSTRING_JOINER, Joined.as("st-join"))
+            .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(3));
+        assertThat(counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+            "source-stream", "source-table", "st-join"
+        ));
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(1));
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(1));
+    }
+
+    @Test
     public void shouldAllowStreamsFromSameTopic() {
         builder.stream("topic");
         builder.stream("topic");
