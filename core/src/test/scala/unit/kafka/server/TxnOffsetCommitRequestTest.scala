@@ -25,7 +25,7 @@ import org.apache.kafka.common.requests.JoinGroupRequest
 import org.apache.kafka.common.utils.ProducerIdAndEpoch
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.TransactionLogConfig
-import org.junit.jupiter.api.Assertions.{assertEquals, assertThrows, assertTrue, fail}
+import org.junit.jupiter.api.Assertions.{assertThrows, assertTrue, fail}
 import org.junit.jupiter.api.extension.ExtendWith
 
 import scala.jdk.CollectionConverters.IterableHasAsScala
@@ -170,7 +170,7 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
     expectedTxnCommitError: Errors
   ): Unit = {
     var producerIdAndEpoch: ProducerIdAndEpoch = null
-    // Wait until ALLOCATE_PRODUCER_ID request finished
+    // Wait until the coordinator finishes loading.
     TestUtils.waitUntilTrue(() =>
       try {
         producerIdAndEpoch = initProducerId(
@@ -190,6 +190,8 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
       producerEpoch = producerIdAndEpoch.epoch,
       transactionalId = transactionalId
     )
+
+    val originalOffset = fetchOffset(topic, partition, groupId)
 
     commitTxnOffset(
       groupId = groupId,
@@ -214,23 +216,30 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
       expectedError = Errors.NONE
     )
 
-    if (expectedTxnCommitError != Errors.NONE) return
+    val expectedOffset = if (expectedTxnCommitError == Errors.NONE) offset else originalOffset
 
     TestUtils.waitUntilTrue(() =>
       try {
-        val fetchOffsetsResp = fetchOffsets(
-          groups = Map(groupId -> List(new TopicPartition(topic, partition))),
-          requireStable = true,
-          version = ApiKeys.OFFSET_FETCH.latestVersion
-        )
-        val groupIdRecord = fetchOffsetsResp.find(_.groupId == groupId).head
-        val topicRecord = groupIdRecord.topics.asScala.find(_.name == topic).head
-        val partitionRecord = topicRecord.partitions.asScala.find(_.partitionIndex == partition).head
-        assertEquals(offset, partitionRecord.committedOffset)
-        true
+        fetchOffset(topic, partition, groupId) == expectedOffset
       } catch {
         case _: Throwable => false
       }, "txn commit offset validation failed"
     )
+  }
+
+  private def fetchOffset(
+     topic: String,
+     partition: Int,
+     groupId: String
+  ): Long = {
+    val fetchOffsetsResp = fetchOffsets(
+      groups = Map(groupId -> List(new TopicPartition(topic, partition))),
+      requireStable = true,
+      version = ApiKeys.OFFSET_FETCH.latestVersion
+    )
+    val groupIdRecord = fetchOffsetsResp.find(_.groupId == groupId).head
+    val topicRecord = groupIdRecord.topics.asScala.find(_.name == topic).head
+    val partitionRecord = topicRecord.partitions.asScala.find(_.partitionIndex == partition).head
+    partitionRecord.committedOffset
   }
 }
