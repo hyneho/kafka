@@ -306,7 +306,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       TestUtils.waitUntilTrue(() => {
         consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
         consumerGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Did not receive the expected error. Last response $consumerGroupHeartbeatResponse.")
+      }, msg = s"Did not receive the expected successful response. Last response $consumerGroupHeartbeatResponse.")
 
       // Heartbeat request to join the group.
       consumerGroupHeartbeatRequest = new ConsumerGroupHeartbeatRequest.Builder(
@@ -325,7 +325,7 @@ class ConsumerGroupHeartbeatRequestTest(cluster: ClusterInstance) {
       TestUtils.waitUntilTrue(() => {
         consumerGroupHeartbeatResponse = connectAndReceive(consumerGroupHeartbeatRequest)
         consumerGroupHeartbeatResponse.data.errorCode == Errors.NONE.code
-      }, msg = s"Did not receive the expected error. Last response $consumerGroupHeartbeatResponse.")
+      }, msg = s"Did not receive the expected successful response. Last response $consumerGroupHeartbeatResponse.")
     } finally {
       admin.close()
     }
