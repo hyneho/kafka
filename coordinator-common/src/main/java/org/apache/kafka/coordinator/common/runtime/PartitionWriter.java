@@ -110,13 +110,14 @@ public interface PartitionWriter {
 
     /**
      * Delete records from a topic partition until specified offset
-     * @param tp                The partition to delete records from
-     * @param deleteUntilOffset Offset to delete until, starting from the beginning
+     * @param tp                            The partition to delete records from
+     * @param deleteBeforeOffset            Offset to delete until, starting from the beginning
+     * @param allowInternalTopicDeletion    Boolean indicating whether to allow delete operation on internal topics
      * @throws KafkaException   Any KafkaException caught during the operation.
      */
     void deleteRecords(
         TopicPartition tp,
-        long deleteUntilOffset,
+        long deleteBeforeOffset,
         boolean allowInternalTopicDeletion
     ) throws KafkaException;
 }

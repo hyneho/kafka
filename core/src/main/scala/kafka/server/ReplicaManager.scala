@@ -1175,7 +1175,7 @@ class ReplicaManager(val config: KafkaConfig,
   private def deleteRecordsOnLocalLog(offsetPerPartition: Map[TopicPartition, Long], allowInternalTopicDeletion: Boolean): Map[TopicPartition, LogDeleteRecordsResult] = {
     trace("Delete records on local logs to offsets [%s]".format(offsetPerPartition))
     offsetPerPartition.map { case (topicPartition, requestedOffset) =>
-      // reject delete records operation for internal topics if allowInternalTopicDeletion is false
+      // reject delete records operation for internal topics unless allowInternalTopicDeletion is true
       if (Topic.isInternal(topicPartition.topic) && !allowInternalTopicDeletion) {
         (topicPartition, LogDeleteRecordsResult(-1L, -1L, Some(new InvalidTopicException(s"Cannot delete records of internal topic ${topicPartition.topic}"))))
       } else {

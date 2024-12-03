@@ -118,7 +118,7 @@ public class InMemoryPartitionWriter implements PartitionWriter {
     @Override
     public void deleteRecords(
         TopicPartition tp,
-        long deleteUntilOffset,
+        long deleteBeforeOffset,
         boolean allowInternalTopicDeletion
     ) throws KafkaException {
         throw new RuntimeException("method not implemented");
