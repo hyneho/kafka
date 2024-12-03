@@ -29,8 +29,8 @@ import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.metadata.BrokerState;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.storage.FormatterException;
-import org.apache.kafka.server.common.FeatureVersion;
 import org.apache.kafka.server.common.Feature;
+import org.apache.kafka.server.common.FeatureVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.server.fault.FaultHandlerException;
 
