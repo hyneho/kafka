@@ -79,7 +79,12 @@ public class DefaultStatePersister implements Persister {
      * @return A completable future of WriteShareGroupStateResult
      */
     public CompletableFuture<WriteShareGroupStateResult> writeState(WriteShareGroupStateParameters request) throws IllegalArgumentException {
-        validate(request);
+        try {
+            validate(request);
+        } catch (Exception e) {
+            log.error("Unable to validate write state request", e);
+            return CompletableFuture.failedFuture(e);
+        }
         GroupTopicPartitionData<PartitionStateBatchData> gtp = request.groupTopicPartitionData();
         String groupId = gtp.groupId();
 
@@ -170,7 +175,12 @@ public class DefaultStatePersister implements Persister {
      * @return A completable future of ReadShareGroupStateResult
      */
     public CompletableFuture<ReadShareGroupStateResult> readState(ReadShareGroupStateParameters request) throws IllegalArgumentException {
-        validate(request);
+        try {
+            validate(request);
+        } catch (Exception e) {
+            log.error("Unable to validate read state request", e);
+            return CompletableFuture.failedFuture(e);
+        }
         GroupTopicPartitionData<PartitionIdLeaderEpochData> gtp = request.groupTopicPartitionData();
         String groupId = gtp.groupId();
         Map<Uuid, Map<Integer, CompletableFuture<ReadShareGroupStateResponse>>> futureMap = new HashMap<>();
