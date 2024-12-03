@@ -133,7 +133,6 @@ class EdgeCaseRequestTest extends KafkaServerTestHarness {
       val request = requests.ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
           Collections.singletonList(new ProduceRequestData.TopicProduceData()
-            .setName(topicPartition.topic())
             .setTopicId(topicId)
             .setPartitionData(Collections.singletonList(
             new ProduceRequestData.PartitionProduceData()

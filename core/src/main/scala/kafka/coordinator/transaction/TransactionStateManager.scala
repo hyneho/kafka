@@ -49,7 +49,7 @@ import scala.collection.mutable
 /**
  * Transaction state manager is part of the transaction coordinator, it manages:
  *
- * 1. the transaction log, which is a special internal topic.˚
+ * 1. the transaction log, which is a special internal topic.
  * 2. the transaction metadata including its ongoing transaction status.
  * 3. the background expiration of the transaction as well as the transactional id.
  *

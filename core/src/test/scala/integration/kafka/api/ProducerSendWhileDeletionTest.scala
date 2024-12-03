@@ -122,7 +122,7 @@ class ProducerSendWhileDeletionTest extends IntegrationTestHarness {
    * Tests that Producer produce to topic during reassignment where topic metadata change on broker side.
    *
    * Producer will attempt to send messages to the partition specified in each record, and should
-   * succeed as long as the metadata on the leader has been updated with new topic id.
+   * succeed as long as the metadata cache on the leader includes the partition topic id.
    */
   @ParameterizedTest
   @ValueSource(strings = Array("kraft"))
@@ -138,7 +138,8 @@ class ProducerSendWhileDeletionTest extends IntegrationTestHarness {
     TestUtils.assertLeader(admin, partition1, 0)
 
     val topicDetails = topicMetadata(admin, topic)
-    assertEquals(0, topicDetails.partitions().get(0).leader().id())
+    TestUtils.assertLeader(admin, partition1, 0)
+
     val producer = createProducer()
 
     (1 to numRecords).foreach { i =>
@@ -154,13 +155,14 @@ class ProducerSendWhileDeletionTest extends IntegrationTestHarness {
     // Change assignment of one of the replicas from 0 to 2. Leadership moves be 1.
     admin.alterPartitionReassignments(reassignment.asJava).all().get()
     TestUtils.assertLeader(admin, partition1, 1)
+    TestUtils.assertLeader(admin, partition0, 1)
     assertEquals(topicDetails.topicId(), topicMetadata(admin, topic).topicId())
 
     // Producer should be able to send messages even after topic gets reassigned
     assertEquals(topic, producer.send(new ProducerRecord(topic, null, "value".getBytes(StandardCharsets.UTF_8))).get.topic())
   }
 
-  def topicMetadata(admin: Admin, topic: String): TopicDescription = {
+  private def topicMetadata(admin: Admin, topic: String): TopicDescription = {
     admin.describeTopics(util.Collections.singletonList(topic)).allTopicNames().get().get(topic)
   }
 }

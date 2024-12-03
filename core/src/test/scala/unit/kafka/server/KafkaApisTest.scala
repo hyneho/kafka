@@ -2922,7 +2922,6 @@ class KafkaApisTest extends Logging {
 
       reset(replicaManager, clientQuotaManager, clientRequestQuotaManager, requestChannel, txnCoordinator)
 
-
       val produceRequest = ProduceRequest.forCurrentMagic(new ProduceRequestData()
         .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
           Collections.singletonList(new ProduceRequestData.TopicProduceData()

@@ -92,7 +92,8 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
   val requestKeyToError = (topicNames: Map[Uuid, String], version: Short) => Map[ApiKeys, Nothing => Errors](
     ApiKeys.METADATA -> ((resp: requests.MetadataResponse) => resp.errors.asScala.find(_._1 == topic).getOrElse(("test", Errors.NONE))._2),
     ApiKeys.PRODUCE -> ((resp: requests.ProduceResponse) => {
-      val topicId = topicNames.find(topicName => topicName._2 == topic).map(_._1).getOrElse(Uuid.ZERO_UUID)
+
+      val topicId = topicNames.find { case (topicId, topicName) => topicName == topic}.map(_._1).getOrElse(Uuid.ZERO_UUID)
       val topicName = if (version >= 12) "" else topic
       Errors.forCode(
         resp.data
@@ -269,7 +270,7 @@ class AuthorizerIntegrationTest extends AbstractAuthorizerIntegrationTest {
     requests.ProduceRequest.forCurrentMagic(new ProduceRequestData()
       .setTopicData(new ProduceRequestData.TopicProduceDataCollection(
         Collections.singletonList(new ProduceRequestData.TopicProduceData()
-          .setName(tp.topic).setTopicId(id).setPartitionData(Collections.singletonList(
+          .setTopicId(id).setPartitionData(Collections.singletonList(
           new ProduceRequestData.PartitionProduceData()
             .setIndex(tp.partition)
             .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))

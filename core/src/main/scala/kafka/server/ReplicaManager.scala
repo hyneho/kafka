@@ -56,7 +56,7 @@ import org.apache.kafka.image.{LocalReplicaChanges, MetadataImage, TopicsDelta}
 import org.apache.kafka.metadata.LeaderAndIsr
 import org.apache.kafka.metadata.LeaderConstants.NO_LEADER
 import org.apache.kafka.server.{ActionQueue, DelayedActionQueue, common}
-import org.apache.kafka.server.common.{DirectoryEventHandler, RequestLocal, StopPartition, TopicOptionalIdPartition}
+import org.apache.kafka.server.common.{DirectoryEventHandler, RequestLocal, StopPartition}
 import org.apache.kafka.server.common.MetadataVersion._
 import org.apache.kafka.server.metrics.KafkaMetricsGroup
 import org.apache.kafka.server.network.BrokerEndPoint
@@ -840,15 +840,13 @@ class ReplicaManager(val config: KafkaConfig,
     }
 
     val sTime = time.milliseconds
-    val localProduceResultsWithTopicId = appendToLocalLog(internalTopicsAllowed = internalTopicsAllowed,
+    val localProduceResults = appendToLocalLog(internalTopicsAllowed = internalTopicsAllowed,
       origin, entriesPerPartition, requiredAcks, requestLocal, verificationGuards.toMap)
     debug("Produce to local log in %d ms".format(time.milliseconds - sTime))
-    val localProduceResults : Map[TopicIdPartition, LogAppendResult] = localProduceResultsWithTopicId.map {
-      case(k, v) => (new TopicIdPartition(k.topicId().orElse(Uuid.ZERO_UUID), k.topicPartition()), v)}
 
     val produceStatus = buildProducePartitionStatus(localProduceResults)
 
-    addCompletePurgatoryAction(actionQueue, localProduceResultsWithTopicId)
+    addCompletePurgatoryAction(actionQueue, localProduceResults)
     recordValidationStatsCallback(localProduceResults.map { case (k, v) =>
       k -> v.info.recordValidationStats
     })
@@ -1000,19 +998,19 @@ class ReplicaManager(val config: KafkaConfig,
 
   private def addCompletePurgatoryAction(
     actionQueue: ActionQueue,
-    appendResults: Map[TopicOptionalIdPartition, LogAppendResult]
+    appendResults: Map[TopicIdPartition, LogAppendResult]
   ): Unit = {
     actionQueue.add {
-      () => appendResults.foreach { case (topicOptionalIdPartition, result) =>
-        val requestKey = new TopicPartitionOperationKey(topicOptionalIdPartition.topicPartition)
+      () => appendResults.foreach { case (topicIdPartition, result) =>
+        val requestKey = new TopicPartitionOperationKey(topicIdPartition.topicPartition)
         result.info.leaderHwChange match {
           case LeaderHwChange.INCREASED =>
             // some delayed operations may be unblocked after HW changed
             delayedProducePurgatory.checkAndComplete(requestKey)
             delayedFetchPurgatory.checkAndComplete(requestKey)
             delayedDeleteRecordsPurgatory.checkAndComplete(requestKey)
-            if (topicOptionalIdPartition.topicId.isPresent) delayedShareFetchPurgatory.checkAndComplete(new DelayedShareFetchPartitionKey(
-              topicOptionalIdPartition.topicId.get, topicOptionalIdPartition.partition))
+            if (topicIdPartition.topicId != Uuid.ZERO_UUID) delayedShareFetchPurgatory.checkAndComplete(new DelayedShareFetchPartitionKey(
+              topicIdPartition.topicId, topicIdPartition.partition))
           case LeaderHwChange.SAME =>
             // probably unblock some follower fetch requests since log end offset has been updated
             delayedFetchPurgatory.checkAndComplete(requestKey)
@@ -1051,8 +1049,9 @@ class ReplicaManager(val config: KafkaConfig,
     }
   }
 
-  private def sendInvalidRequiredAcksResponse(entries: Map[TopicIdPartition, MemoryRecords],
-                                             responseCallback: Map[TopicIdPartition, PartitionResponse] => Unit): Unit = {
+  private def sendInvalidRequiredAcksResponse(
+    entries: Map[TopicIdPartition, MemoryRecords],
+    responseCallback: Map[TopicIdPartition, PartitionResponse] => Unit): Unit = {
     // If required.acks is outside accepted range, something is wrong with the client
     // Just return an error and don't handle the request at all
     val responseStatus = entries.map { case (topicIdPartition, _) =>
@@ -1455,7 +1454,7 @@ class ReplicaManager(val config: KafkaConfig,
                                requiredAcks: Short,
                                requestLocal: RequestLocal,
                                verificationGuards: Map[TopicPartition, VerificationGuard]):
-  Map[TopicOptionalIdPartition, LogAppendResult] = {
+  Map[TopicIdPartition, LogAppendResult] = {
     val traceEnabled = isTraceEnabled
     def processFailedRecord(topicIdPartition: TopicIdPartition, t: Throwable) = {
       val logStartOffset = onlinePartition(topicIdPartition.topicPartition()).map(_.logStartOffset).getOrElse(-1L)
@@ -1479,10 +1478,9 @@ class ReplicaManager(val config: KafkaConfig,
       brokerTopicStats.allTopicsStats.totalProduceRequestRate.mark()
 
       // reject appending to internal topics if it is not allowed
-      val topicOptionalIdPartition = new TopicOptionalIdPartition(Optional.ofNullable(topicIdPartition.topicId()),
-        topicIdPartition.topicPartition())
+
       if (Topic.isInternal(topicIdPartition.topic) && !internalTopicsAllowed) {
-        (topicOptionalIdPartition, LogAppendResult(
+        (topicIdPartition, LogAppendResult(
           LogAppendInfo.UNKNOWN_LOG_APPEND_INFO,
           Some(new InvalidTopicException(s"Cannot append to internal topic ${topicIdPartition.topic}")),
           hasCustomErrorMessage = false))
@@ -1503,7 +1501,7 @@ class ReplicaManager(val config: KafkaConfig,
             trace(s"${records.sizeInBytes} written to log $topicIdPartition beginning at offset " +
               s"${info.firstOffset} and ending at offset ${info.lastOffset}")
 
-          (topicOptionalIdPartition, LogAppendResult(info, exception = None, hasCustomErrorMessage = false))
+          (topicIdPartition, LogAppendResult(info, exception = None, hasCustomErrorMessage = false))
 
         } catch {
           // NOTE: Failed produce requests metric is not incremented for known exceptions
@@ -1515,21 +1513,20 @@ class ReplicaManager(val config: KafkaConfig,
                    _: CorruptRecordException |
                    _: KafkaStorageException |
                    _: UnknownTopicIdException) =>
-            (topicOptionalIdPartition, LogAppendResult(LogAppendInfo.UNKNOWN_LOG_APPEND_INFO, Some(e), hasCustomErrorMessage = false))
+            (topicIdPartition, LogAppendResult(LogAppendInfo.UNKNOWN_LOG_APPEND_INFO, Some(e), hasCustomErrorMessage = false))
           case rve: RecordValidationException =>
             val logStartOffset = processFailedRecord(topicIdPartition, rve.invalidException)
             val recordErrors = rve.recordErrors
-            (topicOptionalIdPartition, LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithAdditionalInfo(logStartOffset, recordErrors),
+            (topicIdPartition, LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithAdditionalInfo(logStartOffset, recordErrors),
               Some(rve.invalidException), hasCustomErrorMessage = true))
           case t: Throwable =>
             val logStartOffset = processFailedRecord(topicIdPartition, t)
-            (topicOptionalIdPartition, LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithLogStartOffset(logStartOffset),
+            (topicIdPartition, LogAppendResult(LogAppendInfo.unknownLogAppendInfoWithLogStartOffset(logStartOffset),
               Some(t), hasCustomErrorMessage = false))
         }
       }
     }
   }
-
 
   def fetchOffset(topics: Seq[ListOffsetsTopic],
                   duplicatePartitions: Set[TopicPartition],

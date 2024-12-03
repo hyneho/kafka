@@ -1689,9 +1689,11 @@ public final class Utils {
      * Convert a map's keys to another type.
      */
     public static <K1, K2, V> Map<K2, V> convertKeys(Map<K1, V> originalMap, Function<K1, K2> converter) {
-        Map<K2, V> newMap = new HashMap<>();
-        originalMap.forEach((key, value) -> newMap.put(converter.apply(key), value));
-        return newMap;
+        return originalMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                        entry -> converter.apply(entry.getKey()),
+                        Map.Entry::getValue
+                ));
     }
 
     /**

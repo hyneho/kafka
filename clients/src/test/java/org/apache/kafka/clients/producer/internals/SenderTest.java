@@ -595,11 +595,10 @@ public class SenderTest {
                 new BufferPool(totalSize, batchSize, m, time, "producer-internal-metrics"));
 
             SenderMetricsRegistry senderMetrics = new SenderMetricsRegistry(m);
-            ApiVersions apiVersions1 = new ApiVersions();
-            apiVersions1.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12));
+            apiVersions.update("0", NodeApiVersions.create(ApiKeys.PRODUCE.id, (short) 0, (short) 12));
 
             Sender sender = new Sender(logContext, client, metadata, this.accumulator, false, MAX_REQUEST_SIZE, ACKS_ALL, 1,
-                senderMetrics, time, REQUEST_TIMEOUT, 1000L, null, apiVersions1);
+                senderMetrics, time, REQUEST_TIMEOUT, 1000L, null, apiVersions);
 
             // Produce and send batch.
             long time1 = time.milliseconds();
@@ -2441,7 +2440,6 @@ public class SenderTest {
         String metricGrpName = "producer-metrics";
         // Set a good compression ratio.
         CompressionRatioEstimator.setEstimation(topic, CompressionType.GZIP, 0.2f);
-        ApiVersions apiVersions = new ApiVersions();
         try (Metrics m = new Metrics()) {
             accumulator = new RecordAccumulator(logContext, batchSize, Compression.gzip().build(),
                 0, 0L, 0L, deliveryTimeoutMs, m, metricGrpName, time, apiVersions, txnManager,

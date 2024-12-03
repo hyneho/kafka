@@ -677,19 +677,19 @@ class KafkaApis(val requestChannel: RequestChannel,
       var errorInResponse = false
 
       val nodeEndpoints = new mutable.HashMap[Int, Node]
-      mergedResponseStatus.foreachEntry { (topicPartition, status) =>
+      mergedResponseStatus.foreachEntry { (topicIdPartition, status) =>
         if (status.error != Errors.NONE) {
           errorInResponse = true
           debug("Produce request with correlation id %d from client %s on partition %s failed due to %s".format(
             request.header.correlationId,
             request.header.clientId,
-            topicPartition,
+            topicIdPartition,
             status.error.exceptionName))
 
           if (request.header.apiVersion >= 10) {
             status.error match {
               case Errors.NOT_LEADER_OR_FOLLOWER =>
-                val leaderNode = getCurrentLeader(topicPartition.topicPartition(), request.context.listenerName)
+                val leaderNode = getCurrentLeader(topicIdPartition.topicPartition(), request.context.listenerName)
                 leaderNode.node.foreach { node =>
                   nodeEndpoints.put(node.id(), node)
                 }
