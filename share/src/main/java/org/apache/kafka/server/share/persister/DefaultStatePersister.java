@@ -78,7 +78,7 @@ public class DefaultStatePersister implements Persister {
      * @param request WriteShareGroupStateParameters
      * @return A completable future of WriteShareGroupStateResult
      */
-    public CompletableFuture<WriteShareGroupStateResult> writeState(WriteShareGroupStateParameters request) throws IllegalArgumentException {
+    public CompletableFuture<WriteShareGroupStateResult> writeState(WriteShareGroupStateParameters request) {
         try {
             validate(request);
         } catch (Exception e) {
@@ -174,7 +174,7 @@ public class DefaultStatePersister implements Persister {
      * @param request ReadShareGroupStateParameters
      * @return A completable future of ReadShareGroupStateResult
      */
-    public CompletableFuture<ReadShareGroupStateResult> readState(ReadShareGroupStateParameters request) throws IllegalArgumentException {
+    public CompletableFuture<ReadShareGroupStateResult> readState(ReadShareGroupStateParameters request) {
         try {
             validate(request);
         } catch (Exception e) {
