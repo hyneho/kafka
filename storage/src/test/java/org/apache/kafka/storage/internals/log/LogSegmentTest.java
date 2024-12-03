@@ -24,6 +24,7 @@ import org.apache.kafka.common.record.EndTransactionMarker;
 import org.apache.kafka.common.record.FileLogInputStream;
 import org.apache.kafka.common.record.FileRecords;
 import org.apache.kafka.common.record.MemoryRecords;
+import org.apache.kafka.common.record.MemoryRecordsBuilder;
 import org.apache.kafka.common.record.Record;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.record.Records;
@@ -48,6 +49,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -778,6 +780,39 @@ public class LogSegmentTest {
                 () -> segment.deleteIfExists(),
                 "Should not throw exception when transactionIndex.deleteIfExists() returns false");
         }
+    }
+
+    @Test
+    public void testIndexForMultipleBatchesInMemoryRecords() throws IOException {
+        LogSegment segment = createSegment(0, 1, Time.SYSTEM);
+
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        // append first batch
+        MemoryRecordsBuilder builder = MemoryRecords.builder(buffer, Compression.NONE, TimestampType.CREATE_TIME, 0);
+        builder.append(0L, "key1".getBytes(), "value1".getBytes());
+        builder.close();
+
+        // append second batch
+        builder = MemoryRecords.builder(buffer, Compression.NONE, TimestampType.CREATE_TIME, 1);
+        builder.append(1L, "key1".getBytes(), "value1".getBytes());
+        builder.close();
+
+        // append third batch
+        builder = MemoryRecords.builder(buffer, Compression.NONE, TimestampType.CREATE_TIME, 2);
+        builder.append(2L, "key1".getBytes(), "value1".getBytes());
+        builder.close();
+
+        buffer.flip();
+        MemoryRecords record = MemoryRecords.readableRecords(buffer);
+        segment.append(1L, RecordBatch.NO_TIMESTAMP, -1L, record);
+
+        assertEquals(2, segment.offsetIndex().entries());
+        assertEquals(2, segment.timeIndex().entries());
+
+        assertTrue(segment.offsetIndex().lookup(2L).position > segment.offsetIndex().lookup(1L).position);
+
+        assertEquals(1L, segment.timeIndex().lookup(1L).offset);
+        assertEquals(2L, segment.timeIndex().lookup(2L).offset);
     }
 
     private ProducerStateManager newProducerStateManager() throws IOException {

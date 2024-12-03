@@ -253,17 +253,31 @@ public class LogSegment implements Closeable {
             // append the messages
             long appendedBytes = log.append(records);
             LOGGER.trace("Appended {} to {} at end offset {}", appendedBytes, log.file(), largestOffset);
-            // Update the in memory max timestamp and corresponding offset.
-            if (largestTimestampMs > maxTimestampSoFar()) {
-                maxTimestampAndOffsetSoFar = new TimestampOffset(largestTimestampMs, shallowOffsetOfMaxTimestamp);
-            }
+
+            long batchMaxTimestamp = RecordBatch.NO_TIMESTAMP;
+            long batchShallowOffsetOfMaxTimestamp = -1L;
             // append an entry to the index (if needed)
-            if (bytesSinceLastIndexEntry > indexIntervalBytes) {
-                offsetIndex().append(largestOffset, physicalPosition);
-                timeIndex().maybeAppend(maxTimestampSoFar(), shallowOffsetOfMaxTimestampSoFar());
-                bytesSinceLastIndexEntry = 0;
+            for (RecordBatch batch : records.batches()) {
+                if (batch.maxTimestamp() > batchMaxTimestamp) {
+                    batchMaxTimestamp = batch.maxTimestamp();
+                    batchShallowOffsetOfMaxTimestamp = batch.lastOffset();
+                }
+
+                // Update the in memory max timestamp and corresponding offset.
+                if (batchMaxTimestamp > maxTimestampSoFar()) {
+                    maxTimestampAndOffsetSoFar = new TimestampOffset(batchMaxTimestamp, batchShallowOffsetOfMaxTimestamp);
+                }
+
+                if (bytesSinceLastIndexEntry > indexIntervalBytes &&
+                    batch.lastOffset() >= offsetIndex().lastOffset() &&
+                    batchMaxTimestamp >= timeIndex().lastEntry().timestamp) {
+                    offsetIndex().append(batch.lastOffset(), physicalPosition);
+                    timeIndex().maybeAppend(batchMaxTimestamp, shallowOffsetOfMaxTimestampSoFar());
+                    bytesSinceLastIndexEntry = 0;
+                }
+                physicalPosition += batch.sizeInBytes();
+                bytesSinceLastIndexEntry += batch.sizeInBytes();
             }
-            bytesSinceLastIndexEntry += records.sizeInBytes();
         }
     }
 
