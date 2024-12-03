@@ -96,6 +96,10 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
      */
     private final HeartbeatMetricsManager metricsManager;
 
+    public static final String CONSUMER_PROTOCOL_NOT_SUPPORTED_MSG = "The cluster does not support the new CONSUMER " +
+        "group protocol. Set group.protocol=classic on the consumer configs to revert to the CLASSIC protocol " +
+        "until the cluster is upgraded.";
+
     AbstractHeartbeatRequestManager(
             final LogContext logContext,
             final Time time,
@@ -318,10 +322,7 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
             if (isHBApiUnsupportedErrorMsg(exception)) {
                 // This is expected to be the case where building the request fails because the node does not support
                 // the API. Propagate custom message.
-                String msg = "The cluster does not support the new consumer group protocol. " +
-                    "Set group.protocol=classic on the consumer configs to revert to the CLASSIC protocol " +
-                    "until the cluster is upgraded.";
-                handleFatalFailure(new UnsupportedVersionException(msg, exception));
+                handleFatalFailure(new UnsupportedVersionException(CONSUMER_PROTOCOL_NOT_SUPPORTED_MSG, exception));
             } else {
                 // This is the case where building the request fails even though the node supports the API (ex.
                 // required version 1 not available when regex in use).
@@ -407,11 +408,8 @@ public abstract class AbstractHeartbeatRequestManager<R extends AbstractResponse
                 // Broker responded with HB not supported, meaning the new protocol is not enabled, so propagate
                 // custom message for it. Note that the case where the protocol is not supported at all should fail
                 // on the client side when building the request and checking supporting APIs (handled on onFailure).
-                message = "The cluster does not have the new CONSUMER group protocol enabled. Check cluster configs " +
-                    "to enable the CONSUMER protocol, or set group.protocol=classic on the consumer configs to " +
-                    "revert to the CLASSIC protocol until the cluster config is updated.";
                 logger.error("{} failed due to {}: {}", heartbeatRequestName(), error, errorMessage);
-                handleFatalFailure(error.exception(message));
+                handleFatalFailure(error.exception(CONSUMER_PROTOCOL_NOT_SUPPORTED_MSG));
                 break;
 
             case FENCED_MEMBER_EPOCH:
