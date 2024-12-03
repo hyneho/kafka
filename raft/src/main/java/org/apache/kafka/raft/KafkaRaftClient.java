@@ -116,6 +116,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
+import static org.apache.kafka.raft.ElectionState.UNKNOWN_LEADER_ID;
 import static org.apache.kafka.raft.RaftUtil.hasValidTopicPartition;
 import static org.apache.kafka.snapshot.Snapshots.BOOTSTRAP_SNAPSHOT_ID;
 
@@ -741,6 +742,9 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         boolean voteGranted,
         boolean preVote
     ) {
+        // We are granting a PreVote, we do not send our leader id if we have one.
+        // This prevents Prospective and Follower states from ping-ponging as described in KIP-996.
+        int leaderId = preVote && voteGranted ? UNKNOWN_LEADER_ID : quorum.leaderIdOrSentinel();
         return RaftUtil.singletonVoteResponse(
             listenerName,
             apiVersion,
@@ -748,7 +752,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             log.topicPartition(),
             partitionLevelError,
             quorum.epoch(),
-            quorum.leaderIdOrSentinel(),
+            leaderId,
             voteGranted,
             preVote,
             quorum.leaderEndpoints()

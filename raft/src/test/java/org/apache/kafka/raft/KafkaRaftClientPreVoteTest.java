@@ -403,4 +403,43 @@ public class KafkaRaftClientPreVoteTest {
         assertEquals(epoch, context.currentEpoch());
         context.assertElectedLeader(epoch, otherNodeKey.id());
     }
+
+    @Test
+    public void testFollowerGrantsPreVoteIfHasNotFetchedYet() throws Exception {
+        int localId = randomReplicaId();
+        int epoch = 2;
+        ReplicaKey replica1 = replicaKey(localId + 1, true);
+        ReplicaKey replica2 = replicaKey(localId + 2, true);
+        Set<Integer> voters = Set.of(replica1.id(), replica2.id());
+
+        RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
+            .withElectedLeader(epoch, replica1.id())
+            .withKip853Rpc(true)
+            .build();
+        assertTrue(context.client.quorum().isFollower());
+
+        // We will grant PreVotes before fetching successfully from the leader, it will NOT contain the leaderId
+        context.deliverRequest(context.preVoteRequest(epoch, replica2, epoch, 1));
+        context.pollUntilResponse();
+
+        assertTrue(context.client.quorum().isFollower());
+        context.assertSentPreVoteResponse(Errors.NONE, epoch, OptionalInt.empty(), true);
+
+        // After fetching successfully from the leader once, we will no longer grant PreVotes
+        context.pollUntilRequest();
+        RaftRequest.Outbound fetchRequest = context.assertSentFetchRequest();
+        context.assertFetchRequestData(fetchRequest, epoch, 0L, 0);
+
+        context.deliverResponse(
+            fetchRequest.correlationId(),
+            fetchRequest.destination(),
+            context.fetchResponse(epoch, replica1.id(), MemoryRecords.EMPTY, 0L, Errors.NONE)
+        );
+        assertTrue(context.client.quorum().isFollower());
+
+        context.deliverRequest(context.preVoteRequest(epoch, replica2, epoch, 1));
+        context.pollUntilResponse();
+
+        assertTrue(context.client.quorum().isFollower());
+    }
 }
