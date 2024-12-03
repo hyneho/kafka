@@ -3251,7 +3251,7 @@ public class GroupMetadataManager {
 
     /**
      * Maybe delete the resolved regular expressions associated with the provided members
-     * if they were the last ones susbcribed to them.
+     * if they were the last ones subscribed to them.
      *
      * @param records   The record accumulator.
      * @param group     The group.
