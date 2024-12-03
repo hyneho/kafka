@@ -454,7 +454,7 @@ public class GroupMetadataManagerTest {
         assertEquals(Errors.NONE.code(), response.errorCode());
         assertFalse(response.memberId().isEmpty());
         assertEquals(1, response.memberEpoch());
-        assertTrue(response.activeTasks().isEmpty());
+        assertFalse(response.activeTasks().isEmpty());
         assertTrue(response.standbyTasks().isEmpty());
         assertTrue(response.warmupTasks().isEmpty());
         List<CoordinatorRecord> coordinatorRecords = result.records();
@@ -473,7 +473,7 @@ public class GroupMetadataManagerTest {
             CoordinatorStreamsRecordHelpers.newStreamsGroupTargetAssignmentRecord(
                 groupId,
                 member.memberId(),
-                Collections.emptyMap(),
+                Map.of(subtopologyId, Set.of(0, 1, 2)),
                 Collections.emptyMap(),
                 Collections.emptyMap()
             )
@@ -484,12 +484,16 @@ public class GroupMetadataManagerTest {
                 topology
             )
         ));
+
+        StreamsGroupHeartbeatRequestData.TaskIds ownedActiveTasks = new StreamsGroupHeartbeatRequestData.TaskIds();
+        ownedActiveTasks.setSubtopologyId(subtopologyId);
+        ownedActiveTasks.setPartitions(List.of(0, 1, 2));
         StreamsGroupMember updatedMember = new org.apache.kafka.coordinator.group.streams.CurrentAssignmentBuilder(member)
             .withTargetAssignment(
                 1,
-                new org.apache.kafka.coordinator.group.streams.Assignment(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
+                new org.apache.kafka.coordinator.group.streams.Assignment(Map.of(subtopologyId, Set.of(0, 1, 2)), Collections.emptyMap(), Collections.emptyMap())
             )
-            .withOwnedActiveTasks(Collections.emptyList())
+            .withOwnedActiveTasks(List.of(ownedActiveTasks))
             .withOwnedStandbyTasks(Collections.emptyList())
             .withOwnedWarmupTasks(Collections.emptyList())
             .build();
