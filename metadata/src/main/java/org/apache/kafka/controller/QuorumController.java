@@ -82,7 +82,6 @@ import org.apache.kafka.common.metadata.TopicRecord;
 import org.apache.kafka.common.metadata.UnfenceBrokerRecord;
 import org.apache.kafka.common.metadata.UnregisterBrokerRecord;
 import org.apache.kafka.common.metadata.UserScramCredentialRecord;
-import org.apache.kafka.common.metadata.ZkMigrationStateRecord;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.quota.ClientQuotaAlteration;
 import org.apache.kafka.common.quota.ClientQuotaEntity;
@@ -1132,7 +1131,6 @@ public final class QuorumController implements Controller {
                     logReplayTracker.empty(),
                     offsetControl.transactionStartOffset(),
                     bootstrapMetadata,
-                    featureControl.zkMigrationState(),
                     featureControl.metadataVersion());
             } catch (Throwable t) {
                 throw fatalFaultHandler.handleFault("exception while completing controller " +
@@ -1250,8 +1248,7 @@ public final class QuorumController implements Controller {
                 // NoOpRecord is an empty record and doesn't need to be replayed
                 break;
             case ZK_MIGRATION_STATE_RECORD:
-                featureControl.replay((ZkMigrationStateRecord) message);
-                break;
+                throw new UnsupportedOperationException("ZK migration is no longer supported.");
             case BEGIN_TRANSACTION_RECORD:
                 offsetControl.replay((BeginTransactionRecord) message, offset);
                 break;
