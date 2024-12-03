@@ -306,9 +306,7 @@ public class SharePartitionManager implements AutoCloseable {
                 ShareAcknowledgeResponseData.PartitionData partitionData = new ShareAcknowledgeResponseData.PartitionData()
                     .setPartitionIndex(topicIdPartition.partition());
                 Throwable t = future.join();
-                if (t == null) {
-                    partitionData.setErrorCode(Errors.NONE.code());
-                } else {
+                if (t != null) {
                     partitionData.setErrorCode(Errors.forException(t).code())
                         .setErrorMessage(t.getMessage());
                 }
@@ -384,9 +382,7 @@ public class SharePartitionManager implements AutoCloseable {
                 ShareAcknowledgeResponseData.PartitionData partitionData = new ShareAcknowledgeResponseData.PartitionData()
                     .setPartitionIndex(topicIdPartition.partition());
                 Throwable t = future.join();
-                if (t == null) {
-                    partitionData.setErrorCode(Errors.NONE.code());
-                } else {
+                if (t != null) {
                     partitionData.setErrorCode(Errors.forException(t).code())
                         .setErrorMessage(t.getMessage());
                 }
