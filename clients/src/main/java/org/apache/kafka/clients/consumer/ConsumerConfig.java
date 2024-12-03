@@ -761,6 +761,28 @@ public class ConsumerConfig extends AbstractConfig {
         }
     }
 
+    @Override
+    protected Map<String, Object> clearUnsupportedConfigsForLogging(Map<String, Object> values) {
+        String groupProtocol = (String) values.get(GROUP_PROTOCOL_CONFIG);
+        if (groupProtocol != null) {
+            if (GroupProtocol.CLASSIC.name().equalsIgnoreCase(groupProtocol)) {
+                values = clearUnsupportedConfigsForLogging(values, CLASSIC_PROTOCOL_UNSUPPORTED_CONFIGS);
+            } else if (GroupProtocol.CONSUMER.name().equalsIgnoreCase(groupProtocol)) {
+                values = clearUnsupportedConfigsForLogging(values, CONSUMER_PROTOCOL_UNSUPPORTED_CONFIGS);
+            }
+        }
+        return values;
+    }
+
+    private Map<String, Object> clearUnsupportedConfigsForLogging(
+            Map<String, Object> values, 
+            List<String> unSupportConfig
+    ) {
+        Map<String, Object> loggingLog = new HashMap<>(values);
+        unSupportConfig.forEach(loggingLog::remove);
+        return loggingLog;
+    }
+
     public ConsumerConfig(Properties props) {
         super(CONFIG, props);
     }

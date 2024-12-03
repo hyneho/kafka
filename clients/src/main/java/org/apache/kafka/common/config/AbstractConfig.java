@@ -117,8 +117,10 @@ public class AbstractConfig {
         this.values.putAll(configUpdates);
         definition.parse(this.values);
         this.definition = definition;
-        if (doLog)
-            logAll();
+        if (doLog) {
+            Map<String, Object> loggingConfig = clearUnsupportedConfigsForLogging(this.values);
+            logAll(loggingConfig);
+        }
     }
 
     /**
@@ -355,13 +357,20 @@ public class AbstractConfig {
         return nonInternalConfigs;
     }
 
-    private void logAll() {
+    /**
+     * Won't do any filter in the abstract config, but can be overridden in subclasses.
+     */
+    protected Map<String, Object> clearUnsupportedConfigsForLogging(Map<String, Object> values) {
+        return new TreeMap<>(values);
+    }
+
+    private void logAll(Map<String, Object> values) {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName());
         b.append(" values: ");
         b.append(Utils.NL);
 
-        for (Map.Entry<String, Object> entry : new TreeMap<>(this.values).entrySet()) {
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
             b.append('\t');
             b.append(entry.getKey());
             b.append(" = ");
