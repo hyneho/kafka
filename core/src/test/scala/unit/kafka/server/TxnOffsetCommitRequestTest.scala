@@ -85,7 +85,7 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
 
     for (version <- 0 to ApiKeys.TXN_OFFSET_COMMIT.latestVersion(isUnstableApiEnabled)) {
       // Verify that the TXN_OFFSET_COMMIT request is processed correctly when member id is UNKNOWN_MEMBER_ID
-      // and generation id is UNKNOWN_GENERATION_ID under all api versions
+      // and generation id is UNKNOWN_GENERATION_ID under all api versions.
       verifyTxnCommitAndFetch(
         topic = topic,
         partition = partition,
@@ -114,7 +114,7 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
           expectedTxnCommitError = Errors.NONE
         )
 
-        // Verify TXN_OFFSET_COMMIT request failed with incorrect memberId
+        // Verify TXN_OFFSET_COMMIT request failed with incorrect memberId.
         verifyTxnCommitAndFetch(
           topic = topic,
           partition = partition,
@@ -127,7 +127,7 @@ class TxnOffsetCommitRequestTest(cluster:ClusterInstance) extends GroupCoordinat
           expectedTxnCommitError = Errors.UNKNOWN_MEMBER_ID
         )
 
-        // Verify TXN_OFFSET_COMMIT request failed with incorrect generationId
+        // Verify TXN_OFFSET_COMMIT request failed with incorrect generationId.
         verifyTxnCommitAndFetch(
           topic = topic,
           partition = partition,
