@@ -283,8 +283,8 @@ public class CandidateState implements EpochState {
         // Still reject vote request even replicaId = localId, Although the replica votes for
         // itself, this vote is implicit and not "granted".
         log.debug(
-            "Rejecting {} request from replica ({}) since we are already replica in epoch {}",
-            isPreVote ? "PreVote" : "Vote",
+            "Rejecting Vote request with PreVote={} from replica ({}) since we are already replica in epoch {}",
+            isPreVote,
             replicaKey,
             epoch
         );

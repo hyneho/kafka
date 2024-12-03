@@ -208,7 +208,8 @@ public class FollowerState implements EpochState {
     public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
         if (hasFetchedFromLeader) {
             log.debug(
-                "Rejecting vote request from replica ({}) since we already have a leader {} in epoch {}",
+                "Rejecting Vote request with PreVote={} from replica ({}) since we already have a leader {} in epoch {}",
+                isPreVote,
                 replicaKey,
                 leaderId,
                 epoch
