@@ -59,7 +59,7 @@ jobs:
         run: printenv
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
-      - if: github.event.pull_request.author_association != 'MEMBER'
+      - if: github.event.pull_request.author_association != 'MEMBER' && github.event.pull_request.author_association != 'OWNER'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
