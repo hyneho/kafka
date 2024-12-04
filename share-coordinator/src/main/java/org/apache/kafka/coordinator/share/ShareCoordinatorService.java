@@ -253,7 +253,8 @@ public class ShareCoordinatorService implements ShareCoordinator {
         log.info("Startup complete.");
     }
 
-    private void setupRecordPruning() {
+    // visibility for tests
+    void setupRecordPruning() {
         timer.add(new TimerTask(config.shareCoordinatorTopicPruneIntervalMs()) {
             @Override
             public void run() {
@@ -266,7 +267,8 @@ public class ShareCoordinatorService implements ShareCoordinator {
         });
     }
 
-    private void performRecordPruning(TopicPartition tp) {
+    // visibility for tests
+    void performRecordPruning(TopicPartition tp) {
         runtime.scheduleWriteOperation(
             "write-state-record-prune",
             tp,
