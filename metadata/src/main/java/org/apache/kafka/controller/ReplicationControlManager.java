@@ -1423,15 +1423,15 @@ public class ReplicationControlManager {
      */
     void handleBrokerUncleanShutdown(int brokerId, List<ApiMessageAndVersion> records) {
         if (!featureControl.metadataVersion().isElrSupported()) {
-            // ELR is not enabled, handle the unclean shutdown as if the broker was fenced
-            generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", brokerId, NO_LEADER, NO_LEADER, records,
-                brokersToIsrs.partitionsWithBrokerInIsr(brokerId));
-        } else {
             // ELR is enabled, generate unclean shutdown partition change records
             generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", NO_LEADER, NO_LEADER, brokerId, records,
                 brokersToIsrs.partitionsWithBrokerInIsr(brokerId));
             generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", NO_LEADER, NO_LEADER, brokerId, records,
                 brokersToElrs.partitionsWithBrokerInElr(brokerId));
+        } else {
+            // ELR is not enabled, handle the unclean shutdown as if the broker was fenced
+            generateLeaderAndIsrUpdates("handleBrokerUncleanShutdown", brokerId, NO_LEADER, NO_LEADER, records,
+                brokersToIsrs.partitionsWithBrokerInIsr(brokerId));
         }
     }
 
