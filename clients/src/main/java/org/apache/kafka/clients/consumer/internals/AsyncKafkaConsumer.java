@@ -349,7 +349,9 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                     apiVersions,
                     metrics,
                     fetchMetricsManager.throttleTimeSensor(),
-                    clientTelemetryReporter.map(ClientTelemetryReporter::telemetrySender).orElse(null));
+                    clientTelemetryReporter.map(ClientTelemetryReporter::telemetrySender).orElse(null),
+                    backgroundEventHandler,
+                    false);
             this.offsetCommitCallbackInvoker = new OffsetCommitCallbackInvoker(interceptors);
             this.groupMetadata.set(initializeGroupMetadata(config, groupRebalanceConfig));
             final Supplier<RequestManagers> requestManagersSupplier = RequestManagers.supplier(time,
@@ -519,7 +521,9 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
             config,
             logContext,
             client,
-            metadata
+            metadata,
+            backgroundEventHandler,
+            false
         );
         this.offsetCommitCallbackInvoker = new OffsetCommitCallbackInvoker(interceptors);
         Supplier<RequestManagers> requestManagersSupplier = RequestManagers.supplier(

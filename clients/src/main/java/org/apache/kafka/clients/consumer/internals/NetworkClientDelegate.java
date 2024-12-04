@@ -25,6 +25,8 @@ import org.apache.kafka.clients.Metadata;
 import org.apache.kafka.clients.NetworkClientUtils;
 import org.apache.kafka.clients.RequestCompletionHandler;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler;
+import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
@@ -60,6 +62,7 @@ import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.CONSUMER
 public class NetworkClientDelegate implements AutoCloseable {
 
     private final KafkaClient client;
+    private final BackgroundEventHandler backgroundEventHandler;
     private final Metadata metadata;
     private final Time time;
     private final Logger log;
@@ -67,21 +70,26 @@ public class NetworkClientDelegate implements AutoCloseable {
     private final Queue<UnsentRequest> unsentRequests;
     private final long retryBackoffMs;
     private Optional<Exception> metadataError;
+    private final boolean notifyMetadataErrorsViaErrorQueue;
 
     public NetworkClientDelegate(
             final Time time,
             final ConsumerConfig config,
             final LogContext logContext,
             final KafkaClient client,
-            final Metadata metadata) {
+            final Metadata metadata,
+            final BackgroundEventHandler backgroundEventHandler,
+            final boolean notifyMetadataErrorsViaErrorQueue) {
         this.time = time;
         this.client = client;
         this.metadata = metadata;
+        this.backgroundEventHandler = backgroundEventHandler;
         this.log = logContext.logger(getClass());
         this.unsentRequests = new ArrayDeque<>();
         this.requestTimeoutMs = config.getInt(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG);
         this.retryBackoffMs = config.getLong(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG);
         this.metadataError = Optional.empty();
+        this.notifyMetadataErrorsViaErrorQueue = notifyMetadataErrorsViaErrorQueue;
     }
 
     // Visible for testing
@@ -147,7 +155,11 @@ public class NetworkClientDelegate implements AutoCloseable {
         try {
             metadata.maybeThrowAnyException();
         } catch (Exception e) {
-            metadataError = Optional.of(e);
+            if (notifyMetadataErrorsViaErrorQueue) {
+                backgroundEventHandler.add(new ErrorEvent(e));
+            } else {
+                metadataError = Optional.of(e);
+            }
         }
     }
 
@@ -414,7 +426,9 @@ public class NetworkClientDelegate implements AutoCloseable {
                                                            final ApiVersions apiVersions,
                                                            final Metrics metrics,
                                                            final Sensor throttleTimeSensor,
-                                                           final ClientTelemetrySender clientTelemetrySender) {
+                                                           final ClientTelemetrySender clientTelemetrySender,
+                                                           final BackgroundEventHandler backgroundEventHandler,
+                                                           final boolean notifyMetadataErrorsViaErrorQueue) {
         return new CachedSupplier<>() {
             @Override
             protected NetworkClientDelegate create() {
@@ -428,7 +442,7 @@ public class NetworkClientDelegate implements AutoCloseable {
                         metadata,
                         throttleTimeSensor,
                         clientTelemetrySender);
-                return new NetworkClientDelegate(time, config, logContext, client, metadata);
+                return new NetworkClientDelegate(time, config, logContext, client, metadata, backgroundEventHandler, notifyMetadataErrorsViaErrorQueue);
             }
         };
     }
