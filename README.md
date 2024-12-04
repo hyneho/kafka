@@ -9,7 +9,7 @@
 </a>
 <br><br>
 
-* [Building Kafka](#building-kafka)
+* [Building Kafka](#Building Kafka)
   * [Prerequisites](#prerequisites)
   * [Build steps](#build-steps)
     * [Build a jar and run it](#build-a-jar-and-run-it)
@@ -51,7 +51,7 @@
 * [Running in Vagrant](#running-in-vagrant)
 * [Contributing Kafka](#contributing-kafka)
   
-# Building Kafka <a name="building-kafka"></a>
+# Building Kafka 
 
 [**Apache Kafka**](https://kafka.apache.org) is an open-source distributed event streaming platform used by thousands of companies for high-performance data pipelines, streaming analytics, data integration, and mission-critical applications.
 
