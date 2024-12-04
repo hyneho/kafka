@@ -2337,7 +2337,7 @@ public class SharePartition {
 
         void updateAcquisitionLockTimeoutTask(AcquisitionLockTimerTask acquisitionLockTimeoutTask) throws IllegalArgumentException {
             if (this.acquisitionLockTimeoutTask != null) {
-                throw new IllegalArgumentException("An already existing acquisition lock timeout task: " + this.acquisitionLockTimeoutTask + " is being overridden for the offset");
+                throw new IllegalArgumentException("Existing acquisition lock timeout exists, cannot override.");
             }
             this.acquisitionLockTimeoutTask = acquisitionLockTimeoutTask;
         }
