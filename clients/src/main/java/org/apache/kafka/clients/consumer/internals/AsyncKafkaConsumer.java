@@ -80,7 +80,9 @@ import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.GroupAuthorizationException;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.InvalidGroupIdException;
+import org.apache.kafka.common.errors.InvalidTopicException;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.errors.TopicAuthorizationException;
 import org.apache.kafka.common.internals.ClusterResourceListeners;
 import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.metrics.Metrics;
@@ -1576,6 +1578,8 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
                 // When running unsubscribe, these exceptions should be ignored, or users can't unsubscribe successfully.
                 processBackgroundEvents(unsubscribeEvent.future(), timer, e -> e instanceof GroupAuthorizationException);
                 log.info("Unsubscribed all topics or patterns and assigned partitions");
+            } catch (InvalidTopicException | TopicAuthorizationException e) {
+                log.error("Failed to unsubscribe with metadata error", e);
             } catch (TimeoutException e) {
                 log.error("Failed while waiting for the unsubscribe event to complete");
             }
