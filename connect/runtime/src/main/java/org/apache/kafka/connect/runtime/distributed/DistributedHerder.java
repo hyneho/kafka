@@ -1288,6 +1288,11 @@ public class DistributedHerder extends AbstractHerder implements Runnable {
         fenceZombieSourceTasks(connName, callback);
     }
 
+    @Override
+    public void restartTask(ConnectorTaskId id, Callback<Void> cb) {
+        restartTask(0, id, cb);
+    }
+
     // A task on this worker requires a round of zombie fencing
     void fenceZombieSourceTasks(final ConnectorTaskId id, Callback<Void> callback) {
         log.trace("Performing preflight zombie check for task {}", id);
@@ -1449,9 +1454,10 @@ public class DistributedHerder extends AbstractHerder implements Runnable {
     }
 
     @Override
-    public void restartTask(final ConnectorTaskId id, final Callback<Void> callback) {
-        addRequest(
-            () -> {
+    public HerderRequest restartTask(final long delayMs, final ConnectorTaskId id, final Callback<Void> callback) {
+        return addRequest(
+                delayMs,
+                () -> {
                 if (checkRebalanceNeeded(callback))
                     return null;
 
