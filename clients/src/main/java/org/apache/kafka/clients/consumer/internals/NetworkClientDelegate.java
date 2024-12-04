@@ -228,12 +228,10 @@ public class NetworkClientDelegate implements AutoCloseable {
         );
     }
     
-    public Optional<Exception> metadataError() {
+    public Optional<Exception> getAndClearMetadataError() {
+        Optional<Exception> metadataError = this.metadataError;
+        this.metadataError = Optional.empty();
         return metadataError;
-    }
-    
-    public void clearMetadataError() {
-        metadataError = Optional.empty();
     }
 
     public Node leastLoadedNode() {

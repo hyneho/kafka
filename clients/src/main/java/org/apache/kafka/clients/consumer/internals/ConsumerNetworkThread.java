@@ -169,6 +169,7 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
             try {
                 if (event instanceof CompletableEvent) {
                     applicationEventReaper.add((CompletableEvent<?>) event);
+                    // 
                     maybeFailOnMetadataError(List.of((CompletableEvent<?>) event));
                 }
                 applicationEventProcessor.process(event);
@@ -333,12 +334,10 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
      * If there is a metadata error, completed all uncompleted events with the metadata error.
      */
     private void maybeFailOnMetadataError(List<CompletableEvent<?>> events) {
-        if (networkClientDelegate.metadataError().isPresent()) {
-            Throwable metadataError = networkClientDelegate.metadataError().get();
-            if (!events.isEmpty()) {
-                events.forEach(event -> event.future().completeExceptionally(metadataError));
-                networkClientDelegate.clearMetadataError();
-            }
-        }
+        if (events.isEmpty())
+            return;
+        networkClientDelegate.getAndClearMetadataError().ifPresent(metadataError ->
+                events.forEach(event -> event.future().completeExceptionally(metadataError))
+        );
     }
 }

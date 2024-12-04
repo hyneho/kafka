@@ -208,10 +208,10 @@ public class NetworkClientDelegateTest {
         doThrow(authException).when(metadata).maybeThrowAnyException();
 
         NetworkClientDelegate networkClientDelegate = newNetworkClientDelegate();
-        assertTrue(networkClientDelegate.metadataError().isEmpty());
+        assertTrue(networkClientDelegate.getAndClearMetadataError().isEmpty());
         networkClientDelegate.poll(0, time.milliseconds());
         
-        networkClientDelegate.metadataError().ifPresent(
+        networkClientDelegate.getAndClearMetadataError().ifPresent(
                 error -> {
                     assertInstanceOf(AuthenticationException.class, error);
                     assertEquals(authException.getMessage(), error.getMessage());
