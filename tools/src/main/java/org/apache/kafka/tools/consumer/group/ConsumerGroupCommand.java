@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.tools.consumer.group;
 
-import joptsimple.OptionSpec;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.AbstractOptions;
 import org.apache.kafka.clients.admin.Admin;
@@ -88,6 +87,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import joptsimple.OptionException;
+import joptsimple.OptionSpec;
 
 public class ConsumerGroupCommand {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConsumerGroupCommand.class);
