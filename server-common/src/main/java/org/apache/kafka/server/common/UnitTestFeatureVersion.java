@@ -330,7 +330,7 @@ public class UnitTestFeatureVersion {
 
         public static final String FEATURE_NAME = "unit.test.feature.version.7";
 
-        public static final FV7 LATEST_PRODUCTION = UT_FV7_0;
+        public static final FV7 LATEST_PRODUCTION = UT_FV7_1;
 
         FV7(int featureLevel, MetadataVersion bootstrapMetadataVersion, Map<String, Short> dependencies) {
             this.featureLevel = (short) featureLevel;
