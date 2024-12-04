@@ -16,8 +16,6 @@
  */
 package org.apache.kafka.tools.consumer.group;
 
-import com.google.re2j.Pattern;
-import com.google.re2j.PatternSyntaxException;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.AbstractOptions;
 import org.apache.kafka.clients.admin.Admin;
@@ -54,6 +52,8 @@ import org.apache.kafka.server.util.CommandLineUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

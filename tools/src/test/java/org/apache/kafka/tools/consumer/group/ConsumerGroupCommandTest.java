@@ -17,6 +17,7 @@
 package org.apache.kafka.tools.consumer.group;
 
 import org.apache.kafka.tools.ToolsTestUtils;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
