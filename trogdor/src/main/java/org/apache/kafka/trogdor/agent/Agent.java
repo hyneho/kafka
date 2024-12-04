@@ -252,7 +252,7 @@ public final class Agent {
                 agent.beginShutdown();
                 agent.waitForShutdown();
             } catch (Exception e) {
-                System.err.println("Got exception while running agent shutdown hook. " + e);
+                System.out.println("Got exception while running agent shutdown hook. " + e);
             }
         });
         if (taskSpec != null) {
