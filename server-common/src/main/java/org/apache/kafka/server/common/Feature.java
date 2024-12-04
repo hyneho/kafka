@@ -57,15 +57,15 @@ public enum Feature {
      *
      * See {@link TestFeatureVersion} as an example. See {@link FeatureVersion} when implementing a new feature.
      */
-    TEST_VERSION("test.feature.version", TestFeatureVersion.valuesWithoutUnitTestVersions(), TestFeatureVersion.LATEST_PRODUCTION),
-    KRAFT_VERSION("kraft.version", KRaftVersion.values(), KRaftVersion.LATEST_PRODUCTION),
-    TRANSACTION_VERSION("transaction.version", TransactionVersion.values(), TransactionVersion.LATEST_PRODUCTION),
-    GROUP_VERSION("group.version", GroupVersion.values(), GroupVersion.LATEST_PRODUCTION),
-    ELIGIBLE_LEADER_REPLICAS_VERSION("eligible.leader.replicas.version", EligibleLeaderReplicasVersion.values(), EligibleLeaderReplicasVersion.LATEST_PRODUCTION),
+    KRAFT_VERSION(KRaftVersion.FEATURE_NAME, KRaftVersion.values(), KRaftVersion.LATEST_PRODUCTION),
+    TRANSACTION_VERSION(TransactionVersion.FEATURE_NAME, TransactionVersion.values(), TransactionVersion.LATEST_PRODUCTION),
+    GROUP_VERSION(GroupVersion.FEATURE_NAME, GroupVersion.values(), GroupVersion.LATEST_PRODUCTION),
+    ELIGIBLE_LEADER_REPLICAS_VERSION(EligibleLeaderReplicasVersion.FEATURE_NAME, EligibleLeaderReplicasVersion.values(), EligibleLeaderReplicasVersion.LATEST_PRODUCTION),
 
     /**
      * Features defined only for unit tests and are not used in production.
      */
+    TEST_VERSION(TestFeatureVersion.FEATURE_NAME, TestFeatureVersion.valuesWithoutUnitTestVersions(), TestFeatureVersion.LATEST_PRODUCTION),
     UNIT_TEST_VERSION_0("unit." + TestFeatureVersion.FEATURE_NAME + ".0", new FeatureVersion[]{UT_FV0_0}, UT_FV0_1),
     UNIT_TEST_VERSION_1("unit." + TestFeatureVersion.FEATURE_NAME + ".1", new FeatureVersion[]{UT_FV1_0, UT_FV1_1}, UT_FV1_0),
     UNIT_TEST_VERSION_2("unit." + TestFeatureVersion.FEATURE_NAME + ".2", new FeatureVersion[]{UT_FV2_0, UT_FV2_1}, UT_FV2_0),
@@ -78,7 +78,7 @@ public enum Feature {
     public static final Feature[] FEATURES;
 
     // The list of features that are not unit test features.
-    public static final List<Feature> SUPPORTED_FEATURES;
+    public static final List<Feature> TEST_AND_PRODUCTION_FEATURES;
 
     public static final List<Feature> PRODUCTION_FEATURES;
 
@@ -103,7 +103,7 @@ public enum Feature {
         Feature[] enumValues = Feature.values();
         FEATURES = Arrays.copyOf(enumValues, enumValues.length);
 
-        SUPPORTED_FEATURES = Arrays.stream(FEATURES).filter(feature ->
+        TEST_AND_PRODUCTION_FEATURES = Arrays.stream(FEATURES).filter(feature ->
             !feature.name.startsWith("unit." + TestFeatureVersion.FEATURE_NAME)
         ).collect(Collectors.toList());
 
@@ -226,13 +226,6 @@ public enum Feature {
         throw new IllegalArgumentException("Feature " + featureName + " not found.");
     }
 
-    /**
-     * Utility method to map a list of FeatureVersion to a map of feature name to feature level
-     */
-    public static Map<String, Short> featureImplsToMap(List<FeatureVersion> features) {
-        return features.stream().collect(Collectors.toMap(FeatureVersion::featureName, FeatureVersion::featureLevel));
-    }
-
     public boolean isProductionReady(short featureVersion) {
         return featureVersion <= latestProduction();
     }
@@ -266,7 +259,7 @@ public enum Feature {
      *       The feature Y has default version = YV_3 (dependency = {})
      *       (Violating rule 4. For default version XV_10, Y's default value YV_3 is smaller than the dependency value YV_4)
      *     - The feature X has latest production = XV_11 (dependency = {MetadataVersion: IBP_4_0_IV1}), MetadataVersion.LATEST_PRODUCTION is IBP_4_0_IV0
-     *       (Violating rule 5. The dependency MV IBP_4_0_IV1 is ahead of MV latest production IBP_4_0_IV0)
+     *       (Violating rule 5. The dependency MV IBP_4_0_IV1 is behind MV latest production IBP_4_0_IV0)
      *     - The feature X has default version = XV_10 (dependency = {MetadataVersion: IBP_4_0_IV1}) and bootstrap MV = IBP_4_0_IV0
      *       (Violating rule 6. When MV latest production is IBP_4_0_IV0, feature X will be set to XV_10 by default whereas it depends on MV IBP_4_0_IV1)
      * Valid examples:
@@ -287,15 +280,14 @@ public enum Feature {
         FeatureVersion latestProduction = feature.latestProduction;
 
         if (!feature.hasFeatureVersion(latestProduction)) {
-            throw new IllegalArgumentException(String.format("Feature %s has latest production version %s=%s " +
-                    "which is not one of its feature versions.",
-                feature.name(), latestProduction.featureName(), latestProduction.featureLevel()));
+            throw new IllegalArgumentException(String.format("Feature %s has latest production version %s " +
+                    "which is not one of its feature versions.", feature.name(), latestProduction));
         }
 
         if (latestProduction.featureLevel() < defaultVersion.featureLevel()) {
             throw new IllegalArgumentException(String.format("Feature %s has latest production value %s " +
-                    "smaller than its default value %s.",
-                feature.name(), latestProduction.featureLevel(), defaultVersion.featureLevel()));
+                    "smaller than its default version %s with latest production MV.",
+                feature.name(), latestProduction, defaultVersion));
         }
 
         for (Map.Entry<String, Short> dependency: latestProduction.dependencies().entrySet()) {
@@ -303,17 +295,17 @@ public enum Feature {
             if (!dependencyFeatureName.equals(MetadataVersion.FEATURE_NAME)) {
                 Feature dependencyFeature = featureFromName(dependencyFeatureName);
                 if (!dependencyFeature.isProductionReady(dependency.getValue())) {
-                    throw new IllegalArgumentException(String.format("Latest production FeatureVersion %s=%s " +
-                            "has a dependency %s=%s that is not production ready. (%s latest production: %s)",
-                        feature.name(), latestProduction.featureLevel(), dependencyFeature.name(), dependency.getValue(),
-                        dependencyFeature.name(), dependencyFeature.latestProduction()));
+                    throw new IllegalArgumentException(String.format("Feature %s has latest production FeatureVersion %s " +
+                            "with dependency %s that is not production ready. (%s latest production: %s)",
+                        feature.name(), latestProduction, dependencyFeature.fromFeatureLevel(dependency.getValue(), true),
+                        dependencyFeatureName, dependencyFeature.latestProduction));
                 }
             } else {
                 if (dependency.getValue() > MetadataVersion.LATEST_PRODUCTION.featureLevel()) {
-                    throw new IllegalArgumentException(String.format("Latest production FeatureVersion %s=%s " +
-                            "has a dependency %s=%s that is not production ready. (%s latest production: %s)",
-                        feature.name(), latestProduction.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
-                        MetadataVersion.FEATURE_NAME, MetadataVersion.LATEST_PRODUCTION.featureLevel()));
+                    throw new IllegalArgumentException(String.format("Feature %s has latest production FeatureVersion %s " +
+                            "with MV dependency %s that is not production ready. (MV latest production: %s)",
+                        feature.name(), latestProduction, MetadataVersion.fromFeatureLevel(dependency.getValue()),
+                        MetadataVersion.LATEST_PRODUCTION));
                 }
             }
         }
@@ -329,18 +321,20 @@ public enum Feature {
                 String dependencyFeatureName = dependency.getKey();
                 if (!dependencyFeatureName.equals(MetadataVersion.FEATURE_NAME)) {
                     Feature dependencyFeature = featureFromName(dependencyFeatureName);
-                    if (dependency.getValue() > dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)) {
-                        throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
-                                "a dependency %s=%s that is ahead of its default value %s.",
-                            feature.name(), defaultVersion.featureLevel(), dependencyFeature.name(), dependency.getValue(),
-                            dependencyFeature.defaultLevel(MetadataVersion.LATEST_PRODUCTION)));
+                    if (dependency.getValue() > dependencyFeature.defaultLevel(metadataVersion)) {
+                        throw new IllegalArgumentException(String.format("Feature %s has default FeatureVersion %s " +
+                                "when MV=%s with dependency %s that is behind its default version %s.",
+                            feature.name(), defaultVersion, metadataVersion,
+                            dependencyFeature.fromFeatureLevel(dependency.getValue(), true),
+                            dependencyFeature.defaultVersion(metadataVersion)));
                     }
                 } else {
                     if (dependency.getValue() > defaultVersion.bootstrapMetadataVersion().featureLevel()) {
-                        throw new IllegalArgumentException(String.format("Default FeatureVersion %s=%s has " +
-                                "a dependency %s=%s that is ahead of its bootstrap MV %s.",
-                            feature.name(), defaultVersion.featureLevel(), MetadataVersion.FEATURE_NAME, dependency.getValue(),
-                            defaultVersion.bootstrapMetadataVersion().featureLevel()));
+                        throw new IllegalArgumentException(String.format("Feature %s has default FeatureVersion %s " +
+                                "when MV=%s with MV dependency %s that is behind its bootstrap MV %s.",
+                            feature.name(), defaultVersion, metadataVersion,
+                            MetadataVersion.fromFeatureLevel(dependency.getValue()),
+                            defaultVersion.bootstrapMetadataVersion()));
                     }
                 }
             }

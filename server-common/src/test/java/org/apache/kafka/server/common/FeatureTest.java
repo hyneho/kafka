@@ -243,23 +243,24 @@ public class FeatureTest {
     public void testValidateWithNonExistentLatestProduction() {
         assertThrows(IllegalArgumentException.class, () ->
             validateDefaultValueAndLatestProductionValue(Feature.UNIT_TEST_VERSION_0),
-            "Feature UNIT_TEST_VERSION_0 has latest production version " +
-                "test.feature.version=1 which is not one of its feature versions");
+            "Feature UNIT_TEST_VERSION_0 has latest production version UT_FV0_1 " +
+                "which is not one of its feature versions.");
     }
 
     @Test
     public void testValidateWithLaggingLatestProduction() {
         assertThrows(IllegalArgumentException.class, () ->
             validateDefaultValueAndLatestProductionValue(Feature.UNIT_TEST_VERSION_1),
-            "Feature UNIT_TEST_VERSION_1 has latest production value 0 smaller than its default value 1");
+            "Feature UNIT_TEST_VERSION_1 has latest production value UT_FV1_0 " +
+                "smaller than its default version UT_FV1_1 with latest production MV.");
     }
 
     @Test
     public void testValidateWithDependencyNotProductionReady() {
         assertThrows(IllegalArgumentException.class, () ->
                 validateDefaultValueAndLatestProductionValue(Feature.UNIT_TEST_VERSION_3),
-            "Latest production FeatureVersion UNIT_TEST_VERSION_3=1 has a dependency " +
-                "UNIT_TEST_VERSION_2=1 that is not production ready. (UNIT_TEST_VERSION_2 latest production: 0)");
+            "Feature UNIT_TEST_VERSION_3 has latest production FeatureVersion UT_FV3_1 with dependency " +
+                "UT_FV2_1 that is not production ready. (UNIT_TEST_VERSION_2 latest production: UT_FV2_0)");
     }
 
     @Test
@@ -267,8 +268,8 @@ public class FeatureTest {
         if (MetadataVersion.latestProduction().isLessThan(MetadataVersion.latestTesting())) {
             assertThrows(IllegalArgumentException.class, () ->
                     validateDefaultValueAndLatestProductionValue(Feature.UNIT_TEST_VERSION_5),
-                "Default FeatureVersion UNIT_TEST_VERSION_5=1 has a dependency " +
-                    "UNIT_TEST_VERSION_4=1 that is ahead of its default value 0");
+                "Feature UNIT_TEST_VERSION_5 has default FeatureVersion UT_FV5_1 when MV=3.7-IV0 with " +
+                    "dependency UT_FV4_1 that is behind its default version UT_FV4_0.");
         }
     }
 
@@ -277,8 +278,8 @@ public class FeatureTest {
         if (MetadataVersion.latestProduction().isLessThan(MetadataVersion.latestTesting())) {
             assertThrows(IllegalArgumentException.class, () ->
                     validateDefaultValueAndLatestProductionValue(Feature.UNIT_TEST_VERSION_6),
-                "Latest production FeatureVersion UNIT_TEST_VERSION_6=1 has a dependency " +
-                    "metadata.version=25 that is not production ready. (metadata.version latest production: 22)");
+                "Feature UNIT_TEST_VERSION_6 has latest production FeatureVersion UT_FV6_1 with " +
+                    "MV dependency 4.0-IV3 that is not production ready. (MV latest production: 4.0-IV0)");
         }
     }
 
@@ -286,7 +287,7 @@ public class FeatureTest {
     public void testValidateWithMVDependencyAheadOfBootstrapMV() {
         assertThrows(IllegalArgumentException.class, () ->
                 validateDefaultValueAndLatestProductionValue(Feature.UNIT_TEST_VERSION_7),
-            "Default FeatureVersion UNIT_TEST_VERSION_7=0 has a dependency " +
-                "metadata.version=15 that is ahead of its bootstrap MV 1");
+            "Feature UNIT_TEST_VERSION_7 has default FeatureVersion UT_FV7_0 when MV=3.0-IV1 with " +
+                "MV dependency 3.7-IV0 that is behind its bootstrap MV 3.0-IV1.");
     }
 }

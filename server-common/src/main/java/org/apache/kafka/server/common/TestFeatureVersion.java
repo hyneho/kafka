@@ -34,7 +34,7 @@ public enum TestFeatureVersion implements FeatureVersion {
     UT_FV0_0(0, MetadataVersion.MINIMUM_KRAFT_VERSION, Collections.emptyMap()),
     UT_FV0_1(1, MetadataVersion.IBP_3_7_IV0, Collections.emptyMap()),
 
-    // For testing latest production is lagged behind the default value.
+    // For testing latest production lags behind the default value.
     UT_FV1_0(0, MetadataVersion.MINIMUM_KRAFT_VERSION, Collections.emptyMap()),
     UT_FV1_1(1, MetadataVersion.IBP_3_7_IV0, Collections.emptyMap()),
 
@@ -54,7 +54,7 @@ public enum TestFeatureVersion implements FeatureVersion {
     UT_FV6_0(0, MetadataVersion.MINIMUM_KRAFT_VERSION, Collections.emptyMap()),
     UT_FV6_1(1, MetadataVersion.latestTesting(), Collections.singletonMap(MetadataVersion.FEATURE_NAME, MetadataVersion.latestTesting().featureLevel())),
 
-    // For testing the default value has MV dependency that is ahead of the bootstrap MV.
+    // For testing the default value has MV dependency that is behind the bootstrap MV.
     UT_FV7_0(0, MetadataVersion.MINIMUM_KRAFT_VERSION, Collections.singletonMap(MetadataVersion.FEATURE_NAME, MetadataVersion.IBP_3_7_IV0.featureLevel())),
     UT_FV7_1(1, MetadataVersion.IBP_3_8_IV0, Collections.singletonMap(MetadataVersion.FEATURE_NAME, MetadataVersion.IBP_3_8_IV0.featureLevel()));
 

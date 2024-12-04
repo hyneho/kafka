@@ -331,7 +331,7 @@ public class FormatterTest {
     public void testFeatureFlag(short version) throws Exception {
         try (TestEnv testEnv = new TestEnv(1)) {
             FormatterContext formatter1 = testEnv.newFormatter();
-            formatter1.formatter.setSupportedFeatures(Feature.SUPPORTED_FEATURES);
+            formatter1.formatter.setSupportedFeatures(Feature.TEST_AND_PRODUCTION_FEATURES);
             formatter1.formatter.setFeatureLevel(TestFeatureVersion.FEATURE_NAME, version);
             formatter1.formatter.run();
             BootstrapMetadata bootstrapMetadata =
@@ -357,7 +357,7 @@ public class FormatterTest {
     public void testInvalidFeatureFlag() throws Exception {
         try (TestEnv testEnv = new TestEnv(2)) {
             FormatterContext formatter1 = testEnv.newFormatter();
-            formatter1.formatter.setSupportedFeatures(Feature.SUPPORTED_FEATURES);
+            formatter1.formatter.setSupportedFeatures(Feature.TEST_AND_PRODUCTION_FEATURES);
             formatter1.formatter.setFeatureLevel("nonexistent.feature", (short) 1);
             assertEquals("Unsupported feature: nonexistent.feature. Supported features " +
                     "are: eligible.leader.replicas.version, group.version, kraft.version, " +
