@@ -432,7 +432,7 @@ public class InternalTopologyBuilder {
         // build global state stores
         for (final StoreFactory storeFactory : globalStateBuilders.values()) {
             storeFactory.configure(config);
-            globalStateStores.put(storeFactory.name(), storeFactory.build());
+            globalStateStores.put(storeFactory.storeName(), storeFactory.builder().build());
         }
 
         return this;
@@ -607,7 +607,7 @@ public class InternalTopologyBuilder {
 
     public final void addStateStore(final StoreBuilder<?> storeBuilder,
                                     final String... processorNames) {
-        addStateStore(new StoreBuilderWrapper(storeBuilder), false, processorNames);
+        addStateStore(StoreBuilderWrapper.wrapStoreBuilder(storeBuilder), false, processorNames);
     }
 
     public final void addStateStore(final StoreFactory storeFactory,
@@ -619,27 +619,26 @@ public class InternalTopologyBuilder {
                                     final boolean allowOverride,
                                     final String... processorNames) {
         Objects.requireNonNull(storeFactory, "stateStoreFactory can't be null");
-        final StoreFactory stateFactory = stateFactories.get(storeFactory.name());
+        final StoreFactory stateFactory = stateFactories.get(storeFactory.storeName());
         if (!allowOverride && stateFactory != null && !stateFactory.isCompatibleWith(storeFactory)) {
-            throw new TopologyException("A different StateStore has already been added with the name " + storeFactory.name());
+            throw new TopologyException("A different StateStore has already been added with the name " + storeFactory.storeName());
         }
-        if (globalStateBuilders.containsKey(storeFactory.name())) {
-            throw new TopologyException("A different GlobalStateStore has already been added with the name " + storeFactory.name());
+        if (globalStateBuilders.containsKey(storeFactory.storeName())) {
+            throw new TopologyException("A different GlobalStateStore has already been added with the name " + storeFactory.storeName());
         }
 
-        stateFactories.put(storeFactory.name(), storeFactory);
+        stateFactories.put(storeFactory.storeName(), storeFactory);
 
         if (processorNames != null) {
             for (final String processorName : processorNames) {
                 Objects.requireNonNull(processorName, "processor name must not be null");
-                connectProcessorAndStateStore(processorName, storeFactory.name());
+                connectProcessorAndStateStore(processorName, storeFactory.storeName());
             }
         }
         nodeGroups = null;
     }
 
-    public final <KIn, VIn> void addGlobalStore(final StoreFactory storeFactory,
-                                                final String sourceName,
+    public final <KIn, VIn> void addGlobalStore(final String sourceName,
                                                 final TimestampExtractor timestampExtractor,
                                                 final Deserializer<KIn> keyDeserializer,
                                                 final Deserializer<VIn> valueDeserializer,
@@ -647,13 +646,20 @@ public class InternalTopologyBuilder {
                                                 final String processorName,
                                                 final ProcessorSupplier<KIn, VIn, Void, Void> stateUpdateSupplier,
                                                 final boolean reprocessOnRestore) {
-        Objects.requireNonNull(storeFactory, "store builder must not be null");
         ApiUtils.checkSupplier(stateUpdateSupplier);
+        final Set<StoreBuilder<?>> stores = stateUpdateSupplier.stores();
+        if (stores == null || stores.size() != 1) {
+            throw new IllegalArgumentException(
+                    "Global stores must pass in suppliers with exactly one store but got " +
+                            (stores != null ? stores.size() : 0));
+        }
+        final StoreFactory storeFactory =
+                StoreBuilderWrapper.wrapStoreBuilder(stores.iterator().next());
         validateGlobalStoreArguments(sourceName,
                                      topic,
                                      processorName,
                                      stateUpdateSupplier,
-                                     storeFactory.name(),
+                                     storeFactory.storeName(),
                                      storeFactory.loggingEnabled());
         validateTopicNotAlreadyRegistered(topic);
 
@@ -675,18 +681,18 @@ public class InternalTopologyBuilder {
             keyDeserializer,
             valueDeserializer)
         );
-        storeNameToReprocessOnRestore.put(storeFactory.name(),
+        storeNameToReprocessOnRestore.put(storeFactory.storeName(),
             reprocessOnRestore ?
                 Optional.of(new ReprocessFactory<>(stateUpdateSupplier, keyDeserializer, valueDeserializer))
                 : Optional.empty());
         nodeToSourceTopics.put(sourceName, Arrays.asList(topics));
         nodeGrouper.add(sourceName);
-        nodeFactory.addStateStore(storeFactory.name());
+        nodeFactory.addStateStore(storeFactory.storeName());
         nodeFactories.put(processorName, nodeFactory);
         nodeGrouper.add(processorName);
         nodeGrouper.unite(processorName, predecessors);
-        globalStateBuilders.put(storeFactory.name(), storeFactory);
-        connectSourceStoreAndTopic(storeFactory.name(), topic);
+        globalStateBuilders.put(storeFactory.storeName(), storeFactory);
+        connectSourceStoreAndTopic(storeFactory.storeName(), topic);
         nodeGroups = null;
     }
 
@@ -1151,7 +1157,7 @@ public class InternalTopologyBuilder {
                     if (topologyConfigs != null) {
                         storeFactory.configure(topologyConfigs.applicationConfigs);
                     }
-                    store = storeFactory.build();
+                    store = storeFactory.builder().build();
                     stateStoreMap.put(stateStoreName, store);
                 } else {
                     store = globalStateStores.get(stateStoreName);
@@ -1251,8 +1257,8 @@ public class InternalTopologyBuilder {
                 // if the node is connected to a state store whose changelog topics are not predefined,
                 // add to the changelog topics
                 for (final StoreFactory stateFactory : stateFactories.values()) {
-                    if (stateFactory.connectedProcessorNames().contains(node) && storeToChangelogTopic.containsKey(stateFactory.name())) {
-                        final String topicName = storeToChangelogTopic.get(stateFactory.name());
+                    if (stateFactory.connectedProcessorNames().contains(node) && storeToChangelogTopic.containsKey(stateFactory.storeName())) {
+                        final String topicName = storeToChangelogTopic.get(stateFactory.storeName());
                         if (!stateChangelogTopics.containsKey(topicName)) {
                             final InternalTopicConfig internalTopicConfig =
                                 createChangelogTopicConfig(stateFactory, topicName);
@@ -2105,8 +2111,8 @@ public class InternalTopologyBuilder {
     private static final SubtopologyComparator SUBTOPOLOGY_COMPARATOR = new SubtopologyComparator();
 
     public static final class TopologyDescription implements org.apache.kafka.streams.TopologyDescription {
-        private final TreeSet<TopologyDescription.Subtopology> subtopologies = new TreeSet<>(SUBTOPOLOGY_COMPARATOR);
-        private final TreeSet<TopologyDescription.GlobalStore> globalStores = new TreeSet<>(GLOBALSTORE_COMPARATOR);
+        private final TreeSet<Subtopology> subtopologies = new TreeSet<>(SUBTOPOLOGY_COMPARATOR);
+        private final TreeSet<GlobalStore> globalStores = new TreeSet<>(GLOBALSTORE_COMPARATOR);
         private final String namedTopology;
 
         public TopologyDescription() {
@@ -2117,21 +2123,21 @@ public class InternalTopologyBuilder {
             this.namedTopology = namedTopology;
         }
 
-        public void addSubtopology(final TopologyDescription.Subtopology subtopology) {
+        public void addSubtopology(final Subtopology subtopology) {
             subtopologies.add(subtopology);
         }
 
-        public void addGlobalStore(final TopologyDescription.GlobalStore globalStore) {
+        public void addGlobalStore(final GlobalStore globalStore) {
             globalStores.add(globalStore);
         }
 
         @Override
-        public Set<TopologyDescription.Subtopology> subtopologies() {
+        public Set<Subtopology> subtopologies() {
             return Collections.unmodifiableSet(subtopologies);
         }
 
         @Override
-        public Set<TopologyDescription.GlobalStore> globalStores() {
+        public Set<GlobalStore> globalStores() {
             return Collections.unmodifiableSet(globalStores);
         }
 
@@ -2144,17 +2150,17 @@ public class InternalTopologyBuilder {
             } else {
                 sb.append("Topology: ").append(namedTopology).append(":\n ");
             }
-            final TopologyDescription.Subtopology[] sortedSubtopologies =
-                subtopologies.descendingSet().toArray(new TopologyDescription.Subtopology[0]);
-            final TopologyDescription.GlobalStore[] sortedGlobalStores =
+            final Subtopology[] sortedSubtopologies =
+                subtopologies.descendingSet().toArray(new Subtopology[0]);
+            final GlobalStore[] sortedGlobalStores =
                 globalStores.descendingSet().toArray(new GlobalStore[0]);
             int expectedId = 0;
             int subtopologiesIndex = sortedSubtopologies.length - 1;
             int globalStoresIndex = sortedGlobalStores.length - 1;
             while (subtopologiesIndex != -1 && globalStoresIndex != -1) {
                 sb.append("  ");
-                final TopologyDescription.Subtopology subtopology = sortedSubtopologies[subtopologiesIndex];
-                final TopologyDescription.GlobalStore globalStore = sortedGlobalStores[globalStoresIndex];
+                final Subtopology subtopology = sortedSubtopologies[subtopologiesIndex];
+                final GlobalStore globalStore = sortedGlobalStores[globalStoresIndex];
                 if (subtopology.id() == expectedId) {
                     sb.append(subtopology);
                     subtopologiesIndex--;
@@ -2165,13 +2171,13 @@ public class InternalTopologyBuilder {
                 expectedId++;
             }
             while (subtopologiesIndex != -1) {
-                final TopologyDescription.Subtopology subtopology = sortedSubtopologies[subtopologiesIndex];
+                final Subtopology subtopology = sortedSubtopologies[subtopologiesIndex];
                 sb.append("  ");
                 sb.append(subtopology);
                 subtopologiesIndex--;
             }
             while (globalStoresIndex != -1) {
-                final TopologyDescription.GlobalStore globalStore = sortedGlobalStores[globalStoresIndex];
+                final GlobalStore globalStore = sortedGlobalStores[globalStoresIndex];
                 sb.append("  ");
                 sb.append(globalStore);
                 globalStoresIndex--;
