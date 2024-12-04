@@ -643,7 +643,7 @@ public class SharePartition {
                         // acquire subset of offsets from the in-flight batch but only if the
                         // complete batch is available yet. Hence, do a pre-check to avoid exploding
                         // the in-flight offset tracking unnecessarily.
-                        if (inFlightBatch.batchState() != RecordState.AVAILABLE || inFlightBatch.batchRollbackState() != null) {
+                        if (inFlightBatch.batchState() != RecordState.AVAILABLE || inFlightBatch.batchHasOngoingStateTransition()) {
                             log.trace("The batch is not available to acquire in share partition: {}-{}, skipping: {}"
                                     + " skipping offset tracking for batch as well.", groupId,
                                 topicIdPartition, inFlightBatch);
@@ -662,7 +662,7 @@ public class SharePartition {
                 }
 
                 // The in-flight batch is a full match hence change the state of the complete batch.
-                if (inFlightBatch.batchState() != RecordState.AVAILABLE || inFlightBatch.batchRollbackState() != null) {
+                if (inFlightBatch.batchState() != RecordState.AVAILABLE || inFlightBatch.batchHasOngoingStateTransition()) {
                     log.trace("The batch is not available to acquire in share partition: {}-{}, skipping: {}",
                         groupId, topicIdPartition, inFlightBatch);
                     continue;
@@ -1225,7 +1225,7 @@ public class SharePartition {
                     break;
                 }
 
-                if (offsetState.getValue().state != RecordState.AVAILABLE || offsetState.getValue().rollbackState() != null) {
+                if (offsetState.getValue().state != RecordState.AVAILABLE || offsetState.getValue().hasOngoingStateTransition()) {
                     log.trace("The offset {} is not available in share partition: {}-{}, skipping: {}",
                         offsetState.getKey(), groupId, topicIdPartition, inFlightBatch);
                     continue;
@@ -2188,13 +2188,6 @@ public class SharePartition {
             return lastOffset;
         }
 
-        private InFlightState inFlightState() {
-            if (batchState == null) {
-                throw new IllegalStateException("The batch state is not available as the offset state is maintained");
-            }
-            return batchState;
-        }
-
         // Visible for testing.
         RecordState batchState() {
             return inFlightState().state;
@@ -2221,13 +2214,20 @@ public class SharePartition {
             return inFlightState().acquisitionLockTimeoutTask;
         }
 
-        private RecordState batchRollbackState() {
-            return inFlightState().rollbackState();
-        }
-
         // Visible for testing.
         NavigableMap<Long, InFlightState> offsetState() {
             return offsetState;
+        }
+
+        private InFlightState inFlightState() {
+            if (batchState == null) {
+                throw new IllegalStateException("The batch state is not available as the offset state is maintained");
+            }
+            return batchState;
+        }
+
+        private boolean batchHasOngoingStateTransition() {
+            return inFlightState().hasOngoingStateTransition();
         }
 
         private void archiveBatch(String newMemberId) {
@@ -2330,6 +2330,23 @@ public class SharePartition {
             return memberId;
         }
 
+        // Visible for testing.
+        TimerTask acquisitionLockTimeoutTask() {
+            return acquisitionLockTimeoutTask;
+        }
+
+        void updateAcquisitionLockTimeoutTask(AcquisitionLockTimerTask acquisitionLockTimeoutTask) throws IllegalArgumentException {
+            if (this.acquisitionLockTimeoutTask != null) {
+                throw new IllegalArgumentException("The acquisition lock timeout task is being overridden");
+            }
+            this.acquisitionLockTimeoutTask = acquisitionLockTimeoutTask;
+        }
+
+        void cancelAndClearAcquisitionLockTimeoutTask() {
+            acquisitionLockTimeoutTask.cancel();
+            acquisitionLockTimeoutTask = null;
+        }
+
         private RecordState rollbackState() {
             if (rollbackState == null) {
                 // This case could occur when the batch/offset hasn't transitioned even once or the state transitions have
@@ -2339,21 +2356,8 @@ public class SharePartition {
             return rollbackState.state;
         }
 
-        // Visible for testing.
-        TimerTask acquisitionLockTimeoutTask() {
-            return acquisitionLockTimeoutTask;
-        }
-
-        void updateAcquisitionLockTimeoutTask(AcquisitionLockTimerTask acquisitionLockTimeoutTask) throws IllegalStateException {
-            if (this.acquisitionLockTimeoutTask != null) {
-                throw new IllegalStateException("The acquisition lock timeout task is being overridden");
-            }
-            this.acquisitionLockTimeoutTask = acquisitionLockTimeoutTask;
-        }
-
-        void cancelAndClearAcquisitionLockTimeoutTask() {
-            acquisitionLockTimeoutTask.cancel();
-            acquisitionLockTimeoutTask = null;
+        private boolean hasOngoingStateTransition() {
+            return rollbackState() != null;
         }
 
         /**
