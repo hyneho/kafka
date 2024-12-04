@@ -9,7 +9,7 @@
 </a>
 <br><br>
 
-* [Building Kafka](#Building Kafka)
+* [Building Kafka](#building-kafka)
   * [Prerequisites](#prerequisites)
   * [Build steps](#build-steps)
     * [Build a jar and run it](#build-a-jar-and-run-it)
