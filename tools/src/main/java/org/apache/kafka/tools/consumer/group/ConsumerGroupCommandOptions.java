@@ -35,7 +35,7 @@ import static org.apache.kafka.tools.ToolsUtils.minus;
 public class ConsumerGroupCommandOptions extends CommandDefaultOptions {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConsumerGroupCommandOptions.class);
 
-    private static final String BOOTSTRAP_SERVER_DOC = "REQUIRED: The server(s) to connect to.";
+    private static final String BOOTSTRAP_SERVER_DOC = "The server(s) to connect to. REQUIRED for all options except for --validate-regex.";
     private static final String GROUP_DOC = "The consumer group we wish to act on.";
     private static final String TOPIC_DOC = "The topic whose consumer group information should be deleted or topic whose should be included in the reset offset process. " +
         "In `reset-offsets` case, partitions can be specified using this format: `topic1:0,1,2`, where 0,1,2 are the partition to be included in the process. " +
