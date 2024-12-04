@@ -60,7 +60,32 @@ public class FetchConfig {
         this.checkCrcs = checkCrcs;
         this.clientRackId = clientRackId;
         this.isolationLevel = isolationLevel;
-        this.tempFetchMode = TempFetchMode.SKIP_BUFFERED;
+        this.tempFetchMode = ConsumerConfig.DEFAULT_TEMP_FETCH_MODE;
+    }
+
+    /**
+     * Constructs a new {@link FetchConfig} using explicitly provided values. This is provided here for tests that
+     * want to exercise different scenarios can construct specific configuration values rather than going through
+     * the hassle of constructing a {@link ConsumerConfig}.
+     */
+    public FetchConfig(int minBytes,
+                       int maxBytes,
+                       int maxWaitMs,
+                       int fetchSize,
+                       int maxPollRecords,
+                       boolean checkCrcs,
+                       String clientRackId,
+                       IsolationLevel isolationLevel,
+                       TempFetchMode tempFetchMode) {
+        this.minBytes = minBytes;
+        this.maxBytes = maxBytes;
+        this.maxWaitMs = maxWaitMs;
+        this.fetchSize = fetchSize;
+        this.maxPollRecords = maxPollRecords;
+        this.checkCrcs = checkCrcs;
+        this.clientRackId = clientRackId;
+        this.isolationLevel = isolationLevel;
+        this.tempFetchMode = tempFetchMode;
     }
 
     /**

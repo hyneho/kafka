@@ -51,7 +51,6 @@ import static org.apache.kafka.clients.consumer.CooperativeStickyAssignor.COOPER
 import static org.apache.kafka.clients.consumer.RangeAssignor.RANGE_ASSIGNOR_NAME;
 import static org.apache.kafka.clients.consumer.RoundRobinAssignor.ROUNDROBIN_ASSIGNOR_NAME;
 import static org.apache.kafka.clients.consumer.StickyAssignor.STICKY_ASSIGNOR_NAME;
-import static org.apache.kafka.clients.consumer.internals.TempFetchMode.SKIP_BUFFERED;
 import static org.apache.kafka.common.config.ConfigDef.Range.atLeast;
 import static org.apache.kafka.common.config.ConfigDef.ValidString.in;
 
@@ -379,7 +378,7 @@ public class ConsumerConfig extends AbstractConfig {
     /** <code>temp.fetch.mode</code> */
     public static final String TEMP_FETCH_MODE_CONFIG = "temp.fetch.mode";
     private static final String TEMP_FETCH_MODE_DOC = "This is a temporary configuration for testing";
-    public static final int DEFAULT_TEMP_FETCH_MODE = SKIP_BUFFERED.option();
+    public static final TempFetchMode DEFAULT_TEMP_FETCH_MODE = TempFetchMode.SKIP_NODE;
 
     /**
      * <code>security.providers</code>
@@ -688,7 +687,7 @@ public class ConsumerConfig extends AbstractConfig {
                                         CommonClientConfigs.METADATA_RECOVERY_REBOOTSTRAP_TRIGGER_MS_DOC)
                                 .define(TEMP_FETCH_MODE_CONFIG,
                                         Type.INT,
-                                        DEFAULT_TEMP_FETCH_MODE,
+                                        DEFAULT_TEMP_FETCH_MODE.option(),
                                         (name, optionObj) -> TempFetchMode.of((Integer) optionObj),
                                         Importance.LOW,
                                         TEMP_FETCH_MODE_DOC);

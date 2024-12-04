@@ -1279,7 +1279,8 @@ public class OffsetFetcherTest {
                 maxPollRecords,
                 true, // check crc
                 CommonClientConfigs.DEFAULT_CLIENT_RACK,
-                isolationLevel);
+                isolationLevel,
+                TempFetchMode.SKIP_BUFFERED);
         Fetcher<byte[], byte[]> fetcher = new Fetcher<>(
                 logContext,
                 consumerClient,
