@@ -274,15 +274,17 @@ public class ShareCoordinatorService implements ShareCoordinator {
             ShareCoordinatorShard::lastRedundantOffset
         ).whenComplete((result, exception) -> {
             if (exception != null) {
-                result.ifPresent(
-                    off -> {
-                        // guard and optimization
-                        if (off != Long.MAX_VALUE && off > 0) {
-                            writer.deleteRecords(tp, off, true);
-                        }
-                    }
-                );
+                log.error("Last redundant offset lookup threw an error.", exception);
+                return;
             }
+            result.ifPresent(
+                off -> {
+                    // guard and optimization
+                    if (off != Long.MAX_VALUE && off > 0) {
+                        writer.deleteRecords(tp, off, true);
+                    }
+                }
+            );
         });
     }
 
