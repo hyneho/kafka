@@ -16,6 +16,8 @@
  */
 package org.apache.kafka.tools.consumer.group;
 
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.AbstractOptions;
 import org.apache.kafka.clients.admin.Admin;
@@ -95,7 +97,14 @@ public class ConsumerGroupCommand {
         ConsumerGroupCommandOptions opts = ConsumerGroupCommandOptions.fromArgs(args);
         try {
             // should have exactly one action
-            long actions = Stream.of(opts.listOpt, opts.describeOpt, opts.deleteOpt, opts.resetOffsetsOpt, opts.deleteOffsetsOpt).filter(opts.options::has).count();
+            long actions = Stream.of(
+                opts.listOpt,
+                opts.describeOpt,
+                opts.deleteOpt,
+                opts.resetOffsetsOpt,
+                opts.deleteOffsetsOpt,
+                opts.validateRegexOpt
+            ).filter(opts.options::has).count();
             if (actions != 1)
                 CommandLineUtils.printUsageAndExit(opts.parser, "Command must include exactly one action: --list, --describe, --delete, --reset-offsets, --delete-offsets");
 
@@ -106,6 +115,11 @@ public class ConsumerGroupCommand {
     }
 
     static void run(ConsumerGroupCommandOptions opts) {
+        if (opts.options.has(opts.validateRegexOpt)) {
+            validateRegex(opts.options.valueOf(opts.validateRegexOpt));
+            return;
+        }
+
         try (ConsumerGroupService consumerGroupService = new ConsumerGroupService(opts, Collections.emptyMap())) {
             if (opts.options.has(opts.listOpt))
                 consumerGroupService.listGroups();
@@ -127,6 +141,15 @@ public class ConsumerGroupCommand {
             CommandLineUtils.printUsageAndExit(opts.parser, e.getMessage());
         } catch (Throwable e) {
             printError("Executing consumer group command failed due to " + e.getMessage(), Optional.of(e));
+        }
+    }
+
+    static void validateRegex(String regex) {
+        try {
+            Pattern.compile(regex);
+            System.out.printf("The regular expressions `%s` is valid.%n", regex);
+        } catch (PatternSyntaxException ex) {
+            System.out.printf("The regular expressions `%s` is invalid: %s.%n", regex, ex.getDescription());
         }
     }
 
