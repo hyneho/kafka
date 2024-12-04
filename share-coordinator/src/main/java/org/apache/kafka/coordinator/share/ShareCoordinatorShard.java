@@ -73,7 +73,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     private final TimelineHashMap<SharePartitionKey, Integer> snapshotUpdateCount;
     private final TimelineHashMap<SharePartitionKey, Integer> stateEpochMap;
     private MetadataImage metadataImage;
-    private final ShareCoordinatorOffsetsManager offsetsManager = new ShareCoordinatorOffsetsManager();
+    private final ShareCoordinatorOffsetsManager offsetsManager;
 
     public static final Exception NULL_TOPIC_ID = new Exception("The topic id cannot be null.");
     public static final Exception NEGATIVE_PARTITION_ID = new Exception("The partition id cannot be a negative number.");
@@ -164,6 +164,17 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         CoordinatorMetricsShard metricsShard,
         SnapshotRegistry snapshotRegistry
     ) {
+        this(logContext, config, coordinatorMetrics, metricsShard, snapshotRegistry, new ShareCoordinatorOffsetsManager());
+    }
+
+    ShareCoordinatorShard(
+        LogContext logContext,
+        ShareCoordinatorConfig config,
+        CoordinatorMetrics coordinatorMetrics,
+        CoordinatorMetricsShard metricsShard,
+        SnapshotRegistry snapshotRegistry,
+        ShareCoordinatorOffsetsManager offsetsManager
+    ) {
         this.log = logContext.logger(ShareCoordinatorShard.class);
         this.config = config;
         this.coordinatorMetrics = coordinatorMetrics;
@@ -172,6 +183,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         this.leaderEpochMap = new TimelineHashMap<>(snapshotRegistry, 0);
         this.snapshotUpdateCount = new TimelineHashMap<>(snapshotRegistry, 0);
         this.stateEpochMap = new TimelineHashMap<>(snapshotRegistry, 0);
+        this.offsetsManager = offsetsManager;
     }
 
     @Override
