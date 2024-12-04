@@ -16,6 +16,7 @@
  */
 package org.apache.kafka.tools.consumer.group;
 
+import joptsimple.OptionSpec;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.AbstractOptions;
 import org.apache.kafka.clients.admin.Admin;
@@ -96,17 +97,27 @@ public class ConsumerGroupCommand {
     public static void main(String[] args) {
         ConsumerGroupCommandOptions opts = ConsumerGroupCommandOptions.fromArgs(args);
         try {
-            // should have exactly one action
-            long actions = Stream.of(
+            List<OptionSpec<?>> actions = List.of(
                 opts.listOpt,
                 opts.describeOpt,
                 opts.deleteOpt,
                 opts.resetOffsetsOpt,
                 opts.deleteOffsetsOpt,
                 opts.validateRegexOpt
-            ).filter(opts.options::has).count();
-            if (actions != 1)
-                CommandLineUtils.printUsageAndExit(opts.parser, "Command must include exactly one action: --list, --describe, --delete, --reset-offsets, --delete-offsets");
+            );
+
+            // Should have exactly one action.
+            if (actions.stream().filter(opts.options::has).count() != 1) {
+                CommandLineUtils.printUsageAndExit(
+                    opts.parser,
+                    String.format(
+                        "Command must include exactly one action: %s",
+                        actions.stream().map(opt ->
+                            "--" + opt.options().get(0)
+                        ).collect(Collectors.joining(", "))
+                    )
+                );
+            }
 
             run(opts);
         } catch (OptionException e) {
