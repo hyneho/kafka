@@ -43,7 +43,6 @@ import org.apache.kafka.server.util.timer.MockTimer;
 import org.apache.kafka.server.util.timer.Timer;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -61,7 +60,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -178,7 +176,7 @@ class ShareCoordinatorServiceTest {
             eq("write-share-group-state"),
             eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
             eq(Duration.ofMillis(5000)),
-            ArgumentMatchers.any()
+            any()
         ))
             .thenReturn(CompletableFuture.completedFuture(response1))
             .thenReturn(CompletableFuture.completedFuture(response2));
@@ -291,7 +289,7 @@ class ShareCoordinatorServiceTest {
         when(runtime.scheduleReadOperation(
             eq("read-share-group-state"),
             eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
-            ArgumentMatchers.any()
+            any()
         ))
             .thenReturn(CompletableFuture.completedFuture(new ReadShareGroupStateResponseData()
                 .setResults(Collections.singletonList(topicData1))))
@@ -714,9 +712,9 @@ class ShareCoordinatorServiceTest {
 
         when(runtime.scheduleWriteOperation(
             eq("write-state-record-prune"),
-            ArgumentMatchers.any(),
-            ArgumentMatchers.any(),
-            ArgumentMatchers.any()
+            any(),
+            any(),
+            any()
         )).thenReturn(
             CompletableFuture.completedFuture(Optional.of(20L))
         );
@@ -735,28 +733,28 @@ class ShareCoordinatorServiceTest {
         verify(runtime, times(0))
             .scheduleWriteOperation(
                 eq("write-state-record-prune"),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any());
+                any(),
+                any(),
+                any());
 
         timer.advanceClock(30005L); // prune should be called
         verify(runtime, times(1))
             .scheduleWriteOperation(
                 eq("write-state-record-prune"),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any());
+                any(),
+                any(),
+                any());
 
         timer.advanceClock(30005L); // prune should be called
         verify(runtime, times(2))
             .scheduleWriteOperation(
                 eq("write-state-record-prune"),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any());
+                any(),
+                any(),
+                any());
 
         verify(writer, times(2))
-            .deleteRecords(any(), eq(20L), eq(true));
+            .deleteRecords(any(), eq(20L));
         service.shutdown();
     }
 
@@ -769,9 +767,9 @@ class ShareCoordinatorServiceTest {
 
         when(runtime.scheduleWriteOperation(
             eq("write-state-record-prune"),
-            ArgumentMatchers.any(),
-            ArgumentMatchers.any(),
-            ArgumentMatchers.any()
+            any(),
+            any(),
+            any()
         )).thenReturn(CompletableFuture.failedFuture(Errors.UNKNOWN_SERVER_ERROR.exception()));
 
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
@@ -788,20 +786,20 @@ class ShareCoordinatorServiceTest {
         verify(runtime, times(0))
             .scheduleWriteOperation(
                 eq("write-state-record-prune"),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any());
+                any(),
+                any(),
+                any());
 
         timer.advanceClock(30005L); // prune should be called
         verify(runtime, times(1))
             .scheduleWriteOperation(
                 eq("write-state-record-prune"),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any());
+                any(),
+                any(),
+                any());
 
         verify(writer, times(0))
-            .deleteRecords(any(), anyLong(), anyBoolean());
+            .deleteRecords(any(), anyLong());
         service.shutdown();
     }
 
@@ -814,9 +812,9 @@ class ShareCoordinatorServiceTest {
 
         when(runtime.scheduleWriteOperation(
             eq("write-state-record-prune"),
-            ArgumentMatchers.any(),
-            ArgumentMatchers.any(),
-            ArgumentMatchers.any()
+            any(),
+            any(),
+            any()
         )).thenReturn(CompletableFuture.completedFuture(Optional.of(20L)));
 
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
@@ -833,20 +831,20 @@ class ShareCoordinatorServiceTest {
         verify(runtime, times(0))
             .scheduleWriteOperation(
                 eq("write-state-record-prune"),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any());
+                any(),
+                any(),
+                any());
 
         timer.advanceClock(30005L); // prune should be called
         verify(runtime, times(1))
             .scheduleWriteOperation(
                 eq("write-state-record-prune"),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any());
+                any(),
+                any(),
+                any());
 
         verify(writer, times(1))
-            .deleteRecords(any(), eq(20L), eq(true));
+            .deleteRecords(any(), eq(20L));
         service.shutdown();
     }
 }

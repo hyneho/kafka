@@ -266,8 +266,7 @@ class CoordinatorPartitionWriterTest {
       classOf[IllegalStateException],
       () => partitionRecordWriter.deleteRecords(
         new TopicPartition("random-topic", 0),
-        10L,
-        allowInternalTopicDeletion = true
+        10L
       )
     )
   }
@@ -299,8 +298,7 @@ class CoordinatorPartitionWriterTest {
       Errors.NOT_LEADER_OR_FOLLOWER.exception().getClass,
       () => partitionRecordWriter.deleteRecords(
         new TopicPartition("random-topic", 0),
-        10L,
-        allowInternalTopicDeletion = true
+        10L
       )
     )
   }
@@ -331,8 +329,7 @@ class CoordinatorPartitionWriterTest {
     assertDoesNotThrow(() => {
       partitionRecordWriter.deleteRecords(
         new TopicPartition("random-topic", 0),
-        10L,
-        allowInternalTopicDeletion = true
+        10L
       )
       true
     })

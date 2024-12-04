@@ -283,7 +283,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
                 off -> {
                     // guard and optimization
                     if (off != Long.MAX_VALUE && off > 0) {
-                        writer.deleteRecords(tp, off, true);
+                        writer.deleteRecords(tp, off);
                     }
                 }
             );

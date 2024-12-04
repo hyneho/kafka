@@ -167,13 +167,13 @@ class CoordinatorPartitionWriter(
     partitionResult.lastOffset + 1
   }
 
-  override def deleteRecords(tp: TopicPartition, deleteBeforeOffset: Long, allowInternalTopicDeletion: Boolean): Unit = {
+  override def deleteRecords(tp: TopicPartition, deleteBeforeOffset: Long): Unit = {
     var deleteResults: Map[TopicPartition, DeleteRecordsPartitionResult] = Map.empty
     replicaManager.deleteRecords(
       timeout = 0L,
       offsetPerPartition = Map(tp -> deleteBeforeOffset),
       responseCallback = results => deleteResults = results,
-      allowInternalTopicDeletion
+      allowInternalTopicDeletion = true
     )
 
     val partitionResult = deleteResults.getOrElse(tp,
