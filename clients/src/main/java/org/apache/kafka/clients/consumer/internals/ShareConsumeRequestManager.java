@@ -998,7 +998,7 @@ public class ShareConsumeRequestManager implements RequestManager, MemberStateLi
 
             BiConsumer<ClientResponse, Throwable> responseHandler = (clientResponse, error) -> {
                 if (error != null) {
-                    handleShareAcknowledgeFailure(nodeToSend, requestBuilder.data(), this, error, clientResponse.receivedTimeMs());
+                    handleShareAcknowledgeFailure(nodeToSend, requestBuilder.data(), this, error, time.milliseconds());
                 } else {
                     handleShareAcknowledgeSuccess(nodeToSend, requestBuilder.data(), this, clientResponse, clientResponse.receivedTimeMs());
                 }
