@@ -128,7 +128,7 @@ See [Test Retry Gradle Plugin](https://github.com/gradle/test-retry-gradle-plugi
     ./bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/reconfig-server.properties
     ./bin/kafka-server-start.sh config/kraft/reconfig-server.properties
 
-## Using docker image <a name="using-docker-image></a>
+## Using docker image <a name="using-docker-image"></a>
     docker run -p 9092:9092 apache/kafka:3.7.0
 
 # Test Coverage <a name="test-coverage"></a>
