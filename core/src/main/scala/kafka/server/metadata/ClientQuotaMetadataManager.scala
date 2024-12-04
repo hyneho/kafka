@@ -24,7 +24,7 @@ import org.apache.kafka.common.metrics.Quota
 import org.apache.kafka.common.quota.ClientQuotaEntity
 import org.apache.kafka.common.utils.Sanitizer
 
-import java.net.{InetAddress, UnknownHostException}
+import java.net.InetAddress
 import org.apache.kafka.image.{ClientQuotaDelta, ClientQuotasDelta}
 import org.apache.kafka.server.config.{QuotaConfig, ZooKeeperInternals}
 
@@ -107,12 +107,7 @@ class ClientQuotaMetadataManager(private[metadata] val quotaManagers: QuotaManag
 
   private def handleIpQuota(ipEntity: QuotaEntity, quotaDelta: ClientQuotaDelta): Unit = {
     val inetAddress = ipEntity match {
-      case IpEntity(ip) =>
-        try {
-          Some(InetAddress.getByName(ip))
-        } catch {
-          case _: UnknownHostException => throw new IllegalArgumentException(s"Unable to resolve address $ip")
-        }
+      case IpEntity(ip) => Some(InetAddress.getByName(ip))
       case DefaultIpEntity => None
       case _ => throw new IllegalStateException("Should only handle IP quota entities here")
     }
@@ -124,11 +119,7 @@ class ClientQuotaMetadataManager(private[metadata] val quotaManagers: QuotaManag
       if (!quotaName.equals(QuotaConfig.IP_CONNECTION_RATE_OVERRIDE_CONFIG)) {
         warn(s"Ignoring unexpected quota key $quotaName for entity $ipEntity")
       } else {
-        try {
-          connectionQuotas.updateIpConnectionRateQuota(inetAddress, quotaValue.toScala.map(_.toInt))
-        } catch {
-          case t: Throwable => error(s"Failed to update IP quota $ipEntity", t)
-        }
+        connectionQuotas.updateIpConnectionRateQuota(inetAddress, quotaValue.toScala.map(_.toInt))
       }
     }
   }
@@ -158,14 +149,10 @@ class ClientQuotaMetadataManager(private[metadata] val quotaManagers: QuotaManag
     }
 
     val quotaValue = newValue.map(new Quota(_, true))
-    try {
-      manager.updateQuota(
-        sanitizedUser = sanitizedUser,
-        clientId = sanitizedClientId.map(Sanitizer.desanitize),
-        sanitizedClientId = sanitizedClientId,
-        quota = quotaValue)
-    } catch {
-      case t: Throwable => error(s"Failed to update user-client quota $quotaEntity", t)
-    }
+    manager.updateQuota(
+      sanitizedUser = sanitizedUser,
+      clientId = sanitizedClientId.map(Sanitizer.desanitize),
+      sanitizedClientId = sanitizedClientId,
+      quota = quotaValue)
   }
 }
