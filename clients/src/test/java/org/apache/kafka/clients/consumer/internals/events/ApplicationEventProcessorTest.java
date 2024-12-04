@@ -357,7 +357,6 @@ public class ApplicationEventProcessorTest {
         when(subscriptionState.subscribeFromPattern(any())).thenReturn(true);
         processor.process(event);
         verify(membershipManager).onSubscriptionUpdated();
-
     }
 
     @Test

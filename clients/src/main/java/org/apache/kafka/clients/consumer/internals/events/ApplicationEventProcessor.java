@@ -613,7 +613,6 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
         // to the broker on the next poll. Note that this is done even if no topics matched
         // the regex, to ensure the member joins the group if needed (with empty subscription).
         requestManagers.consumerHeartbeatRequestManager.get().membershipManager().onSubscriptionUpdated();
-
     }
 
     // Visible for testing
