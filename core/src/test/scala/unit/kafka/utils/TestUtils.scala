@@ -106,6 +106,10 @@ object TestUtils extends Logging {
   val MockZkPort = 1
   /** ZooKeeper connection string to use for unit tests that mock/don't require a real ZK server. */
   val MockZkConnect = "127.0.0.1:" + MockZkPort
+
+  val MockKraftPort = 1
+
+  val MockKraftConnect = "127.0.0.1:" + MockKraftPort
   // CN in SSL certificates - this is used for endpoint validation when enabled
   val SslCertificateCn = "localhost"
 
@@ -493,6 +497,23 @@ object TestUtils extends Logging {
       brokers = brokers,
       controllers = controllers,
       topicConfig = broker.groupCoordinator.groupMetadataTopicConfigs,
+    )
+  }
+
+  def createTransactionStateTopicWithAdmin[B <: KafkaBroker](
+    admin: Admin,
+    brokers: Seq[B],
+    controllers: Seq[ControllerServer]
+  ): Map[Int, Int] = {
+    val broker = brokers.head
+    createTopicWithAdmin(
+      admin = admin,
+      topic = Topic.TRANSACTION_STATE_TOPIC_NAME,
+      numPartitions = broker.config.getInt(TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG),
+      replicationFactor = broker.config.getShort(TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG).toInt,
+      brokers = brokers,
+      controllers = controllers,
+      topicConfig = new Properties(),
     )
   }
 
@@ -1014,8 +1035,8 @@ object TestUtils extends Logging {
     TestUtils.waitUntilTrue(
       () => {
         brokers.forall { broker =>
-          val metadataOffset = broker.asInstanceOf[BrokerServer].sharedServer.loader.lastAppliedOffset()
-          metadataOffset >= controllerOffset
+          val loader = broker.asInstanceOf[BrokerServer].sharedServer.loader
+          loader == null || loader.lastAppliedOffset() >= controllerOffset
         }
       }, msg)
   }
@@ -1535,15 +1556,6 @@ object TestUtils extends Logging {
       },
       s"Expected brokers $brokerIds to be in the ISR for $partition"
     )
-  }
-
-  def assertFutureExceptionTypeEquals(future: KafkaFuture[_], clazz: Class[_ <: Throwable],
-                                      expectedErrorMessage: Option[String] = None): Unit = {
-    val cause = assertThrows(classOf[ExecutionException], () => future.get()).getCause
-    assertTrue(clazz.isInstance(cause), "Expected an exception of type " + clazz.getName + "; got type " +
-      cause.getClass.getName)
-    expectedErrorMessage.foreach(message => assertTrue(cause.getMessage.contains(message), s"Received error message : ${cause.getMessage}" +
-      s" does not contain expected error message : $message"))
   }
 
   def assertBadConfigContainingMessage(props: Properties, expectedExceptionContainsText: String): Unit = {

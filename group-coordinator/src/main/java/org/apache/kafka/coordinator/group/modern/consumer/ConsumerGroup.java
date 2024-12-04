@@ -26,6 +26,7 @@ import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerProtocolSubscription;
 import org.apache.kafka.common.protocol.Errors;
+import org.apache.kafka.common.requests.JoinGroupRequest;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers;
 import org.apache.kafka.coordinator.group.OffsetExpirationCondition;
@@ -48,6 +49,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -380,14 +382,47 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
     }
 
     /**
+     * @return The last time resolved regular expressions were refreshed or Long.MIN_VALUE if
+     * there are no resolved regular expression. Note that we use the timestamp of the first
+     * entry as a proxy for all of them. They are always resolved together.
+     */
+    public long lastResolvedRegularExpressionRefreshTimeMs() {
+        Iterator<ResolvedRegularExpression> iterator = resolvedRegularExpressions.values().iterator();
+        if (iterator.hasNext()) {
+            return iterator.next().timestamp;
+        } else {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    /**
+     * @return The version of the regular expressions or Zero if there are no resolved regular expression.
+     */
+    public long lastResolvedRegularExpressionVersion() {
+        Iterator<ResolvedRegularExpression> iterator = resolvedRegularExpressions.values().iterator();
+        if (iterator.hasNext()) {
+            return iterator.next().version;
+        } else {
+            return 0L;
+        }
+    }
+
+    /**
      * Return an optional containing the resolved regular expression corresponding to the provided regex
      * or an empty optional.
      *
      * @param regex The regular expression.
      * @return The optional containing the resolved regular expression or an empty optional.
      */
-    public Optional<ResolvedRegularExpression> regularExpression(String regex) {
+    public Optional<ResolvedRegularExpression> resolvedRegularExpression(String regex) {
         return Optional.ofNullable(resolvedRegularExpressions.get(regex));
+    }
+
+    /**
+     * @return The number of resolved regular expressions.
+     */
+    public int numResolvedRegularExpressions() {
+        return resolvedRegularExpressions.size();
     }
 
     /**
@@ -395,6 +430,14 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
      */
     public int numSubscribedMembers(String regex) {
         return subscribedRegularExpressions.getOrDefault(regex, 0);
+    }
+
+    /**
+     * @return An immutable map containing all the subscribed regular expressions
+     *         with the subscribers counts.
+     */
+    public Map<String, Integer> subscribedRegularExpressions() {
+        return Collections.unmodifiableMap(subscribedRegularExpressions);
     }
 
     /**
@@ -513,6 +556,12 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         // or a consumer which does not use the group management facility. In this case,
         // the request can commit offsets if the group is empty.
         if (memberEpoch < 0 && members().isEmpty()) return;
+
+        // The TxnOffsetCommit API does not require the member id, the generation id and the group instance id fields.
+        // Hence, they are only validated if any of them is provided
+        if (isTransactional && memberEpoch == JoinGroupRequest.UNKNOWN_GENERATION_ID &&
+            memberId.equals(JoinGroupRequest.UNKNOWN_MEMBER_ID) && groupInstanceId == null)
+            return;
 
         final ConsumerGroupMember member = getOrMaybeCreateMember(memberId, false);
 
@@ -747,11 +796,11 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
         ConsumerGroupMember newMember
     ) {
         // Decrement the count of the old regex.
-        if (oldMember != null && oldMember.subscribedTopicRegex() != null) {
+        if (oldMember != null && oldMember.subscribedTopicRegex() != null && !oldMember.subscribedTopicRegex().isEmpty()) {
             subscribedRegularExpressions.compute(oldMember.subscribedTopicRegex(), Utils::decValue);
         }
         // Increment the count of the new regex.
-        if (newMember != null && newMember.subscribedTopicRegex() != null) {
+        if (newMember != null && newMember.subscribedTopicRegex() != null && !newMember.subscribedTopicRegex().isEmpty()) {
             subscribedRegularExpressions.compute(newMember.subscribedTopicRegex(), Utils::incValue);
         }
     }

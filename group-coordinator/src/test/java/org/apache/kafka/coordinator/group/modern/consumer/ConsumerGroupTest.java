@@ -1037,7 +1037,7 @@ public class ConsumerGroupTest {
     }
 
     @ParameterizedTest
-    @ApiKeyVersionsSource(apiKey = ApiKeys.OFFSET_COMMIT)
+    @ApiKeyVersionsSource(apiKey = ApiKeys.TXN_OFFSET_COMMIT)
     public void testValidateTransactionalOffsetCommit(short version) {
         boolean isTransactional = true;
         ConsumerGroup group = createConsumerGroup("group-foo");
@@ -1063,6 +1063,9 @@ public class ConsumerGroupTest {
 
         // This should succeed.
         group.validateOffsetCommit("member-id", "", 0, isTransactional, version);
+
+        // This should succeed.
+        group.validateOffsetCommit("", null, -1, isTransactional, version);
     }
 
     @ParameterizedTest
@@ -1093,6 +1096,8 @@ public class ConsumerGroupTest {
         // A call from the admin client should fail as the group is not empty.
         assertThrows(UnknownMemberIdException.class, () ->
             group.validateOffsetCommit("", "", -1, isTransactional, version));
+        assertThrows(UnknownMemberIdException.class, () ->
+            group.validateOffsetCommit("", null, -1, isTransactional, version));
 
         // The member epoch is stale.
         if (version >= 9) {
@@ -1278,9 +1283,11 @@ public class ConsumerGroupTest {
                 new ConsumerGroupDescribeResponseData.Member()
                     .setMemberId("member1")
                     .setSubscribedTopicNames(Collections.singletonList("foo"))
-                    .setSubscribedTopicRegex(""),
+                    .setSubscribedTopicRegex("")
+                    .setMemberType((byte) 1),
                 new ConsumerGroupDescribeResponseData.Member().setMemberId("member2")
                     .setSubscribedTopicRegex("")
+                    .setMemberType((byte) 1)
             ));
         ConsumerGroupDescribeResponseData.DescribedGroup actual = group.asDescribedGroup(1, "",
             new MetadataImageBuilder().build().topics());
@@ -1615,26 +1622,39 @@ public class ConsumerGroupTest {
         ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
             .setSubscribedTopicRegex("regex1")
             .build();
+        ConsumerGroupMember member4 = new ConsumerGroupMember.Builder("member4")
+            .build();
 
         // Assert the initial state.
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
 
         // Add member 1.
         consumerGroup.updateMember(member1);
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(1, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
 
         // Add member 2.
         consumerGroup.updateMember(member2);
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(1, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(1, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
 
         // Add member 3.
         consumerGroup.updateMember(member3);
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
+        assertEquals(2, consumerGroup.numSubscribedMembers("regex1"));
+        assertEquals(1, consumerGroup.numSubscribedMembers("regex2"));
+        assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
+
+        // Add member 4.
+        consumerGroup.updateMember(member4);
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(2, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(1, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
@@ -1644,24 +1664,28 @@ public class ConsumerGroupTest {
             .setSubscribedTopicRegex("regex2")
             .build();
         consumerGroup.updateMember(member3);
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(1, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(2, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
 
         // Remove member 1.
         consumerGroup.removeMember(member1.memberId());
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(2, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
 
         // Remove member 2.
         consumerGroup.removeMember(member2.memberId());
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(1, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
 
         // Remove member 3.
         consumerGroup.removeMember(member3.memberId());
+        assertEquals(0, consumerGroup.numSubscribedMembers(""));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex1"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex2"));
         assertEquals(0, consumerGroup.numSubscribedMembers("regex3"));
