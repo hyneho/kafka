@@ -122,7 +122,7 @@
                         </li>
                         <li>The <code>--topic-white-list</code> option was removed from the <code>kafka-replica-verification</code> command line tool.
                             Please use <code>--topics-include</code> instead.
-                        </li>li>
+                        </li>
                         <li>The <code>--broker-list</code> option was removed from the <code>kafka-verifiable-consumer</code> command line tool.
                             Please use <code>--bootstrap-server</code> instead.
                         </li>
@@ -155,6 +155,14 @@
                         <li>The <code>enable.idempotence</code> configuration will no longer automatically fall back when the <code>max.in.flight.requests.per.connection</code> value exceeds 5.
                         </li>
                         <li>The deprecated <code>sendOffsetsToTransaction(Map&lt;TopicPartition, OffsetAndMetadata&gt;, String)</code> method has been removed from the Producer API.
+                        </li>
+                    </ul>
+                </li>
+                <li><b>Admin</b>
+                    <ul>
+                        <li>
+                            The <code>alterConfigs</code> method was removed from the <code>org.apache.kafka.clients.admin.Admin</code>
+                            Please use <code>incrementalAlterConfigs</code> instead.
                         </li>
                     </ul>
                 </li>
