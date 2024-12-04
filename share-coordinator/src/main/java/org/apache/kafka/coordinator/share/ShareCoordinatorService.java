@@ -276,7 +276,12 @@ public class ShareCoordinatorService implements ShareCoordinator {
             ShareCoordinatorShard::lastRedundantOffset
         ).whenComplete((result, exception) -> {
             if (exception != null) {
-                log.error("Last redundant offset lookup threw an error.", exception);
+                Errors error = Errors.forException(exception);
+                // we are optimistically sending requests for all partitions,
+                // so we do not want to record these as they'll result in a lot of noise
+                if (!(error.equals(Errors.COORDINATOR_LOAD_IN_PROGRESS) || error.equals(Errors.NOT_COORDINATOR))) {
+                    log.error("Last redundant offset lookup threw an error.", exception);
+                }
                 return;
             }
             result.ifPresent(
