@@ -611,15 +611,13 @@ public class ApplicationEventProcessor implements EventProcessor<ApplicationEven
             final IsolationLevel isolationLevel = event.isolationLevel();
             final Long lag = subscriptions.partitionLag(topicPartition, isolationLevel);
 
-            // if the log end offset is not known and hence cannot return lag and there is
-            // no in-flight list offset requested yet,
-            // issue a list offset request for that partition so that next time
-            // we may get the answer; we do not need to wait for the return value
-            // since we would not try to poll the network client synchronously
             final OptionalLong lagOpt;
             if (lag == null) {
                 if (subscriptions.partitionEndOffset(topicPartition, isolationLevel) == null &&
                     !subscriptions.partitionEndOffsetRequested(topicPartition)) {
+                    // If the log end offset is unknown and there isn't already an in-flight list offset
+                    // request, issue one with the goal that the lag will be available the next time the
+                    // user calls currentLag().
                     log.info("Requesting the log end offset for {} in order to compute lag", topicPartition);
                     subscriptions.requestPartitionEndOffset(topicPartition);
 

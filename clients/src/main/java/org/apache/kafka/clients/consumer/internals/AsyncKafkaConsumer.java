@@ -1045,7 +1045,10 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public void pause(Collection<TopicPartition> partitions) {
         acquireAndEnsureOpen();
         try {
-            applicationEventHandler.addAndGet(new PausePartitionsEvent(partitions, defaultApiTimeoutDeadlineMs()));
+            Objects.requireNonNull(partitions, "The partitions to pause must be nonnull");
+
+            if (!partitions.isEmpty())
+                applicationEventHandler.addAndGet(new PausePartitionsEvent(partitions, defaultApiTimeoutDeadlineMs()));
         } finally {
             release();
         }
@@ -1055,7 +1058,10 @@ public class AsyncKafkaConsumer<K, V> implements ConsumerDelegate<K, V> {
     public void resume(Collection<TopicPartition> partitions) {
         acquireAndEnsureOpen();
         try {
-            applicationEventHandler.addAndGet(new ResumePartitionsEvent(partitions, defaultApiTimeoutDeadlineMs()));
+            Objects.requireNonNull(partitions, "The partitions to resume must be nonnull");
+
+            if (!partitions.isEmpty())
+                applicationEventHandler.addAndGet(new ResumePartitionsEvent(partitions, defaultApiTimeoutDeadlineMs()));
         } finally {
             release();
         }
