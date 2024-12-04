@@ -27,6 +27,22 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Util class to track the last redundant offset within a share group state
+ * partition.
+ * <p>
+ * The class utilises a priority queue (min-heap) and a hashmap to store and
+ * track the redundant offsets. It also maintains a long variable minOffset
+ * to track the global minimum.
+ * <p>
+ * The map is mainly used to invalidate queue entries since JAVA priority queue
+ * does not support heap.modifyKey operation. When the last redundant offset is
+ * queried, the ACTIVE element at the top of the queue which is less than the
+ * global minimum offset seen so far is returned, otherwise empty optional.
+ * <p>
+ * Callers supply the offset information via updateState and can fetch the current
+ * redundant offset using a getter.
+ */
 public class ShareCoordinatorOffsetsManager {
     private enum State {
         ACTIVE,
@@ -79,6 +95,14 @@ public class ShareCoordinatorOffsetsManager {
         });
     }
 
+    /**
+     * Used to add new offset information to the
+     * existing state. The offsets are key upon the
+     * {@link SharePartitionKey} object.
+     * @param key       {@link SharePartitionKey} object whose snapshot offset is being updated
+     * @param offset    Long value representing the partition record offset
+     * @return Optional of the last redundant offset value, if present
+     */
     public Optional<Long> updateState(SharePartitionKey key, long offset) {
         minOffset = Math.min(minOffset, offset);
         if (entries.containsKey(key)) {
@@ -112,6 +136,10 @@ public class ShareCoordinatorOffsetsManager {
         return Optional.of(candidate.offset());
     }
 
+    /**
+     * Fetch the current last redundant offset.
+     * @return  Optional of the long value representing the offset
+     */
     public Optional<Long> lastRedundantOffset() {
         return Optional.of(lastRedundantOffset.get());
     }
