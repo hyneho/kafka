@@ -27,6 +27,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEvent;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler;
 import org.apache.kafka.clients.consumer.internals.events.ShareAcknowledgementCommitCallbackEvent;
+import org.apache.kafka.clients.consumer.internals.metrics.AsyncConsumerMetrics;
 import org.apache.kafka.common.Cluster;
 import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.KafkaException;
@@ -113,6 +114,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -1598,7 +1600,7 @@ public class ShareConsumeRequestManagerTest {
                 subscriptions,
                 fetchConfig,
                 deserializers);
-        BackgroundEventHandler backgroundEventHandler = new TestableBackgroundEventHandler(completedAcknowledgements);
+        BackgroundEventHandler backgroundEventHandler = new TestableBackgroundEventHandler(time, completedAcknowledgements);
         shareConsumeRequestManager = spy(new TestableShareConsumeRequestManager<>(
                 logContext,
                 groupId,
@@ -1629,7 +1631,9 @@ public class ShareConsumeRequestManagerTest {
         properties.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(requestTimeoutMs));
         properties.setProperty(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG, String.valueOf(retryBackoffMs));
         ConsumerConfig config = new ConsumerConfig(properties);
-        networkClientDelegate = spy(new TestableNetworkClientDelegate(time, config, logContext, client, metadata, new BackgroundEventHandler(new LinkedBlockingQueue<>())));
+        networkClientDelegate = spy(new TestableNetworkClientDelegate(
+            time, config, logContext, client, metadata,
+            new BackgroundEventHandler(new LinkedBlockingQueue<>(), time, mock(AsyncConsumerMetrics.class))));
     }
 
     private class TestableShareConsumeRequestManager<K, V> extends ShareConsumeRequestManager {
@@ -1682,7 +1686,7 @@ public class ShareConsumeRequestManagerTest {
                                              KafkaClient client,
                                              Metadata metadata,
                                              BackgroundEventHandler backgroundEventHandler) {
-            super(time, config, logContext, client, metadata, backgroundEventHandler);
+            super(time, config, logContext, client, metadata, backgroundEventHandler, mock(AsyncConsumerMetrics.class));
         }
 
         @Override
@@ -1777,8 +1781,8 @@ public class ShareConsumeRequestManagerTest {
     private static class TestableBackgroundEventHandler extends BackgroundEventHandler {
         List<Map<TopicIdPartition, Acknowledgements>> completedAcknowledgements;
 
-        public TestableBackgroundEventHandler(List<Map<TopicIdPartition, Acknowledgements>> completedAcknowledgements) {
-            super(new LinkedBlockingQueue<>());
+        public TestableBackgroundEventHandler(Time time, List<Map<TopicIdPartition, Acknowledgements>> completedAcknowledgements) {
+            super(new LinkedBlockingQueue<>(), time, mock(AsyncConsumerMetrics.class));
             this.completedAcknowledgements = completedAcknowledgements;
         }
 
