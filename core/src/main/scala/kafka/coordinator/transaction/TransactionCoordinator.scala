@@ -488,8 +488,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                            clientTransactionVersion: TransactionVersion,
                            responseCallback: EndTxnCallback,
                            requestLocal: RequestLocal = RequestLocal.noCaching): Unit = {
-    endTransaction(
-      transactionalId,
+    endTransaction(transactionalId,
       producerId,
       producerEpoch,
       txnMarkerResult,
@@ -499,35 +498,17 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
       requestLocal)
   }
 
-  private def endTransaction(transactionalId: String,
-                             producerId: Long,
-                             producerEpoch: Short,
-                             txnMarkerResult: TransactionResult,
-                             isFromClient: Boolean,
-                             clientTransactionVersion: TransactionVersion,
-                             responseCallback: EndTxnCallback,
-                             requestLocal: RequestLocal): Unit = {
-    if (clientTransactionVersion.supportsEpochBump()) {
-      endTransactionWithEpochBumpSupported(
-        transactionalId,
-        producerId,
-        producerEpoch,
-        txnMarkerResult,
-        isFromClient = isFromClient,
-        clientTransactionVersion,
-        responseCallback,
-        requestLocal)
-    } else {
-      endTransactionWithTV1(transactionalId,
-        producerId,
-        producerEpoch,
-        txnMarkerResult,
-        isFromClient = isFromClient,
-        responseCallback,
-        requestLocal)
-    }
-  }
-
+  /**
+   * Handling the endTxn request under the Transaction Version 1.
+   *
+   * @param transactionalId     The transaction ID from the endTxn request
+   * @param producerId          The producer ID from the endTxn request
+   * @param producerEpoch       The producer epoch from the endTxn request
+   * @param txnMarkerResult     To commit or abort the transaction
+   * @param isFromClient        Is the request from client
+   * @param responseCallback    The response callback
+   * @param requestLocal        The request local object
+   */
   private def endTransactionWithTV1(transactionalId: String,
                              producerId: Long,
                              producerEpoch: Short,
@@ -731,14 +712,30 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
     +----------------+-------+---------+-------+---------+
    */
 
-  private def endTransactionWithEpochBumpSupported(transactionalId: String,
-                                                   producerId: Long,
-                                                   producerEpoch: Short,
-                                                   txnMarkerResult: TransactionResult,
-                                                   isFromClient: Boolean,
-                                                   clientTransactionVersion: TransactionVersion,
-                                                   responseCallback: EndTxnCallback,
-                                                   requestLocal: RequestLocal): Unit = {
+  /**
+   * Handling the endTxn request above the Transaction Version 2.
+   *
+   * @param transactionalId           The transaction ID from the endTxn request
+   * @param producerId                The producer ID from the endTxn request
+   * @param producerEpoch             The producer epoch from the endTxn request
+   * @param txnMarkerResult           To commit or abort the transaction
+   * @param isFromClient              Is the request from client
+   * @param clientTransactionVersion  The transaction version for the endTxn request
+   * @param responseCallback          The response callback
+   * @param requestLocal              The request local object
+   */
+  private def endTransaction(transactionalId: String,
+                             producerId: Long,
+                             producerEpoch: Short,
+                             txnMarkerResult: TransactionResult,
+                             isFromClient: Boolean,
+                             clientTransactionVersion: TransactionVersion,
+                             responseCallback: EndTxnCallback,
+                             requestLocal: RequestLocal): Unit = {
+    if (!clientTransactionVersion.supportsEpochBump()) {
+      endTransactionWithTV1(transactionalId, producerId, producerEpoch, txnMarkerResult, isFromClient, responseCallback, requestLocal)
+      return
+    }
     var isEpochFence = false
     if (transactionalId == null || transactionalId.isEmpty)
       responseCallback(Errors.INVALID_REQUEST, RecordBatch.NO_PRODUCER_ID, RecordBatch.NO_PRODUCER_EPOCH)
@@ -758,15 +755,15 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
             producerEpochCopy = txnMetadata.producerEpoch
             // PrepareEpochFence has slightly different epoch bumping logic so don't include it here.
             // Note that, it can only happen when the current state is Ongoing.
-            val isPrepareEpochFence = txnMetadata.pendingState.contains(PrepareEpochFence)
+            isEpochFence = txnMetadata.pendingState.contains(PrepareEpochFence)
             // True if the client used TV_2 and retried a request that had overflowed the epoch, and a new producer ID is stored in the txnMetadata
-            val retryOnOverflow = !isPrepareEpochFence && txnMetadata.previousProducerId == producerId &&
+            val retryOnOverflow = !isEpochFence && txnMetadata.previousProducerId == producerId &&
               producerEpoch == Short.MaxValue - 1 && txnMetadata.producerEpoch == 0
             // True if the client used TV_2 and retried an endTxn request, and the bumped producer epoch is stored in the txnMetadata.
-            val retryOnEpochBump = endTxnEpochBumped(txnMetadata, producerEpoch, !isPrepareEpochFence)
+            val retryOnEpochBump = endTxnEpochBumped(txnMetadata, producerEpoch)
 
             val isValidEpoch = {
-              if (!isPrepareEpochFence) {
+              if (!isEpochFence) {
                 // With transactions V2, state + same epoch is not sufficient to determine if a retry transition is valid. If the epoch is the
                 // same it actually indicates the next endTransaction call. Instead, we want to check the epoch matches with the epoch in the retry conditions.
                 // Return producer fenced even in the cases where the epoch is higher and could indicate an invalid state transition.
@@ -790,7 +787,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
             def generateTxnTransitMetadataForTxnCompletion(nextState: TransactionState, noPartitionAdded: Boolean): ApiResult[(Int, TxnTransitMetadata)] = {
               // Maybe allocate new producer ID if we are bumping epoch and epoch is exhausted
               val nextProducerIdOrErrors =
-                if (!isPrepareEpochFence && txnMetadata.isProducerEpochExhausted) {
+                if (!isEpochFence && txnMetadata.isProducerEpochExhausted) {
                   try {
                     Right(producerIdManager.generateProducerId())
                   } catch {
@@ -803,7 +800,6 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
               if (nextState == PrepareAbort && txnMetadata.pendingState.contains(PrepareEpochFence)) {
                 // We should clear the pending state to make way for the transition to PrepareAbort and also bump
                 // the epoch in the transaction metadata we are about to append.
-                isEpochFence = true
                 txnMetadata.pendingState = None
                 txnMetadata.producerEpoch = producerEpoch
                 txnMetadata.lastProducerEpoch = RecordBatch.NO_PRODUCER_EPOCH
@@ -903,7 +899,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                     txnMetadata.inLock {
                       if (txnMetadata.producerId != producerId)
                         Left(Errors.INVALID_PRODUCER_ID_MAPPING)
-                      else if (txnMetadata.producerEpoch != producerEpoch && !endTxnEpochBumped(txnMetadata, producerEpoch, !isEpochFence))
+                      else if (txnMetadata.producerEpoch != producerEpoch && !endTxnEpochBumped(txnMetadata, producerEpoch))
                         Left(Errors.PRODUCER_FENCED)
                       else if (txnMetadata.pendingTransitionInProgress)
                         Left(Errors.CONCURRENT_TRANSACTIONS)
@@ -980,8 +976,8 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
   // When a client and server support V2, every endTransaction call bumps the producer epoch. When checking epoch, we want to
   // check epoch + 1. Epoch bumps from PrepareEpochFence state are handled separately, so this method should not be used to check that case.
   // Returns true if the transaction state epoch is the specified producer epoch + 1 and epoch bump on every transaction is expected.
-  private def endTxnEpochBumped(txnMetadata: TransactionMetadata, producerEpoch: Short, supportsEpochBump: Boolean): Boolean = {
-    !txnMetadata.pendingState.contains(PrepareEpochFence) && supportsEpochBump && txnMetadata.producerEpoch == producerEpoch + 1
+  private def endTxnEpochBumped(txnMetadata: TransactionMetadata, producerEpoch: Short): Boolean = {
+    !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.producerEpoch == producerEpoch + 1
   }
 
   def transactionTopicConfigs: Properties = txnManager.transactionTopicConfigs
