@@ -572,8 +572,15 @@ public class ConsumerGroupCommand {
                 }
 
                 return preparedOffsets;
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
+            } catch (InterruptedException ie) {
+                throw new RuntimeException(ie);
+            } catch (ExecutionException ee) {
+                Throwable cause = ee.getCause();
+                if (cause instanceof KafkaException) {
+                    throw (KafkaException) cause;
+                } else {
+                    throw new RuntimeException(cause);
+                }
             }
         }
 
@@ -682,7 +689,7 @@ public class ConsumerGroupCommand {
                     System.out.printf(format,
                         tp.topic(),
                         tp.partition() >= 0 ? tp.partition() : "Not Provided",
-                        error != null ? "Error: :" + error.getMessage() : "Successful"
+                        error != null ? "Error: " + error.getMessage() : "Successful"
                     );
                 });
             System.out.println();
@@ -1211,8 +1218,10 @@ public class ConsumerGroupCommand {
                 try {
                     f.get();
                     success.put(g, null);
-                } catch (ExecutionException | InterruptedException e) {
-                    failed.put(g, e);
+                } catch (InterruptedException ie) {
+                    failed.put(g, ie);
+                } catch (ExecutionException e) {
+                    failed.put(g, e.getCause());
                 }
             });
 
