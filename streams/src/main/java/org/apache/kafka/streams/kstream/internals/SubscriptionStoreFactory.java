@@ -57,7 +57,7 @@ public class SubscriptionStoreFactory<K> extends AbstractConfigurableStoreFactor
             builder = builder.withLoggingDisabled();
         }
         builder = builder.withCachingDisabled();
-        return builder();
+        return builder;
     }
 
     @Override
