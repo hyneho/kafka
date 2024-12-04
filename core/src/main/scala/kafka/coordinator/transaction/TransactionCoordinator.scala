@@ -176,24 +176,14 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
               }
             }
 
-            if (txnManager.transactionVersionLevel().supportsEpochBump()) {
-              endTransactionWithEpochBumpSupported(transactionalId,
-                newMetadata.producerId,
-                newMetadata.producerEpoch,
-                TransactionResult.ABORT,
-                isFromClient = false,
-                clientTransactionVersion = txnManager.transactionVersionLevel(), // Since this is not from client, use server TV
-                sendRetriableErrorCallback,
-                requestLocal)
-            } else {
-              endTransaction(transactionalId,
-                newMetadata.producerId,
-                newMetadata.producerEpoch,
-                TransactionResult.ABORT,
-                isFromClient = false,
-                sendRetriableErrorCallback,
-                requestLocal)
-            }
+            endTransaction(transactionalId,
+              newMetadata.producerId,
+              newMetadata.producerEpoch,
+              TransactionResult.ABORT,
+              isFromClient = false,
+              clientTransactionVersion = txnManager.transactionVersionLevel(), // Since this is not from client, use server TV
+              sendRetriableErrorCallback,
+              requestLocal)
           } else {
             def sendPidResponseCallback(error: Errors): Unit = {
               if (error == Errors.NONE) {
@@ -498,28 +488,47 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                            clientTransactionVersion: TransactionVersion,
                            responseCallback: EndTxnCallback,
                            requestLocal: RequestLocal = RequestLocal.noCaching): Unit = {
+    endTransaction(
+      transactionalId,
+      producerId,
+      producerEpoch,
+      txnMarkerResult,
+      isFromClient = true,
+      clientTransactionVersion,
+      responseCallback,
+      requestLocal)
+  }
+
+  private def endTransaction(transactionalId: String,
+                             producerId: Long,
+                             producerEpoch: Short,
+                             txnMarkerResult: TransactionResult,
+                             isFromClient: Boolean,
+                             clientTransactionVersion: TransactionVersion,
+                             responseCallback: EndTxnCallback,
+                             requestLocal: RequestLocal): Unit = {
     if (clientTransactionVersion.supportsEpochBump()) {
       endTransactionWithEpochBumpSupported(
         transactionalId,
         producerId,
         producerEpoch,
         txnMarkerResult,
-        isFromClient = true,
+        isFromClient = isFromClient,
         clientTransactionVersion,
         responseCallback,
         requestLocal)
     } else {
-      endTransaction(transactionalId,
+      endTransactionWithTV1(transactionalId,
         producerId,
         producerEpoch,
         txnMarkerResult,
-        isFromClient = true,
+        isFromClient = isFromClient,
         responseCallback,
         requestLocal)
     }
   }
 
-  private def endTransaction(transactionalId: String,
+  private def endTransactionWithTV1(transactionalId: String,
                              producerId: Long,
                              producerEpoch: Short,
                              txnMarkerResult: TransactionResult,
@@ -771,7 +780,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                     retryOnEpochBump || retryOnOverflow || producerEpoch == txnMetadata.producerEpoch
                 }
               } else {
-                // If the epoch is going to be fenced, it should not use the V2 logic.
+                // If the epoch is going to be fenced, it bumps the epoch differently with TV2.
                 (!isFromClient || producerEpoch == txnMetadata.producerEpoch) && producerEpoch >= txnMetadata.producerEpoch
               }
             }
@@ -827,6 +836,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                   else
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                 } else {
+                  // Abort.
                   if (isRetry)
                     logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                   else
@@ -839,6 +849,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                   else
                     generateTxnTransitMetadataForTxnCompletion(PrepareAbort, true)
                 } else {
+                  // Commit.
                   logInvalidStateTransitionAndReturnError(transactionalId, txnMetadata.state, txnMarkerResult)
                 }
               case PrepareCommit =>
@@ -1020,24 +1031,14 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
           }
 
           transitMetadataOpt.foreach { txnTransitMetadata =>
-            if (txnManager.transactionVersionLevel().supportsEpochBump()) {
-              endTransactionWithEpochBumpSupported(txnMetadata.transactionalId,
-                txnTransitMetadata.producerId,
-                txnTransitMetadata.producerEpoch,
-                TransactionResult.ABORT,
-                isFromClient = false,
-                clientTransactionVersion = txnManager.transactionVersionLevel(), // Since this is not from client, use server TV
-                onComplete(txnIdAndPidEpoch),
-                RequestLocal.noCaching)
-            } else {
-              endTransaction(txnMetadata.transactionalId,
-                txnTransitMetadata.producerId,
-                txnTransitMetadata.producerEpoch,
-                TransactionResult.ABORT,
-                isFromClient = false,
-                onComplete(txnIdAndPidEpoch),
-                RequestLocal.noCaching)
-            }
+            endTransaction(txnMetadata.transactionalId,
+              txnTransitMetadata.producerId,
+              txnTransitMetadata.producerEpoch,
+              TransactionResult.ABORT,
+              isFromClient = false,
+              clientTransactionVersion = txnManager.transactionVersionLevel(), // Since this is not from client, use server TV
+              onComplete(txnIdAndPidEpoch),
+              RequestLocal.noCaching)
           }
       }
     }
