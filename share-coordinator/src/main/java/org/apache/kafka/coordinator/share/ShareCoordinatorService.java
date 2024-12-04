@@ -277,8 +277,8 @@ public class ShareCoordinatorService implements ShareCoordinator {
         ).whenComplete((result, exception) -> {
             if (exception != null) {
                 Errors error = Errors.forException(exception);
-                // we are optimistically sending requests for all partitions,
-                // so we do not want to record these as they'll result in a lot of noise
+                // These errors might result from partition metadata not loaded
+                // or shard re-election. Will cause unnecessary noise, hence not logging
                 if (!(error.equals(Errors.COORDINATOR_LOAD_IN_PROGRESS) || error.equals(Errors.NOT_COORDINATOR))) {
                     log.error("Last redundant offset lookup threw an error.", exception);
                 }
@@ -287,8 +287,16 @@ public class ShareCoordinatorService implements ShareCoordinator {
             result.ifPresent(
                 off -> {
                     // guard and optimization
-                    if (off != Long.MAX_VALUE && off > 0) {
+                    if (off == Long.MAX_VALUE || off <= 0) {
+                        log.warn("Last redundant offset value {} not suitable to make delete call for {}.", off, tp);
+                        return;
+                    }
+
+                    log.info("Pruning records in {} till offset {}.", tp, off);
+                    try {
                         writer.deleteRecords(tp, off);
+                    } catch (Exception e) {
+                        log.error("Failed to delete records in {} till offset {}.", tp, off, e);
                     }
                 }
             );
