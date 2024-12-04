@@ -3420,7 +3420,7 @@ class GroupCoordinatorTest {
 
     val (errorV6, errorMessageV6, summaryV6) = groupCoordinator.handleDescribeGroup(groupId, 6)
     assertEquals(Errors.GROUP_ID_NOT_FOUND, errorV6)
-    assertTrue(errorMessageV6.isDefined)
+    assertEquals(s"Group $groupId not found.", errorMessageV6.get)
     assertEquals(GroupCoordinator.DeadGroup, summaryV6)
   }
 

@@ -556,7 +556,7 @@ public class ConsumerGroupCommand {
             return result;
         }
 
-        Map<TopicPartition, OffsetAndMetadata> resetOffsetsForInactiveGroup(String groupId) {
+        private Map<TopicPartition, OffsetAndMetadata> resetOffsetsForInactiveGroup(String groupId) {
             try {
                 Collection<TopicPartition> partitionsToReset = getPartitionsToReset(groupId);
                 Map<TopicPartition, OffsetAndMetadata> preparedOffsets = prepareOffsetsToReset(groupId, partitionsToReset);

@@ -73,7 +73,7 @@ class DescribeGroupsRequestTest(cluster: ClusterInstance) extends GroupCoordinat
       completeRebalance = false
     )
 
-    for (version <- ApiKeys.DESCRIBE_GROUPS.oldestVersion() to 5) {
+    for (version <- ApiKeys.DESCRIBE_GROUPS.oldestVersion() to ApiKeys.DESCRIBE_GROUPS.latestVersion(isUnstableApiEnabled)) {
       assertEquals(
         List(
           new DescribedGroup()
@@ -106,49 +106,8 @@ class DescribeGroupsRequestTest(cluster: ClusterInstance) extends GroupCoordinat
           new DescribedGroup()
             .setGroupId("grp-unknown")
             .setGroupState(ClassicGroupState.DEAD.toString) // Return DEAD group when the group does not exist.
-        ),
-        describeGroups(
-          groupIds = List("grp-1", "grp-2", "grp-unknown"),
-          version = version.toShort
-        )
-      )
-    }
-
-    for (version <- 6 to ApiKeys.DESCRIBE_GROUPS.latestVersion(isUnstableApiEnabled)) {
-      assertEquals(
-        List(
-          new DescribedGroup()
-            .setGroupId("grp-1")
-            .setGroupState(ClassicGroupState.STABLE.toString)
-            .setProtocolType("consumer")
-            .setProtocolData("consumer-range")
-            .setMembers(List(
-              new DescribedGroupMember()
-                .setMemberId(memberId1)
-                .setGroupInstanceId(null)
-                .setClientId("client-id")
-                .setClientHost("/127.0.0.1")
-                .setMemberMetadata(Array(1, 2, 3))
-                .setMemberAssignment(Array(4, 5, 6))
-            ).asJava),
-          new DescribedGroup()
-            .setGroupId("grp-2")
-            .setGroupState(ClassicGroupState.COMPLETING_REBALANCE.toString)
-            .setProtocolType("consumer")
-            .setMembers(List(
-              new DescribedGroupMember()
-                .setMemberId(memberId2)
-                .setGroupInstanceId(null)
-                .setClientId("client-id")
-                .setClientHost("/127.0.0.1")
-                .setMemberMetadata(Array.empty)
-                .setMemberAssignment(Array.empty)
-            ).asJava),
-          new DescribedGroup()
-            .setGroupId("grp-unknown")
-            .setGroupState(ClassicGroupState.DEAD.toString) // Return DEAD group when the group does not exist.
-            .setErrorCode(Errors.GROUP_ID_NOT_FOUND.code())
-            .setErrorMessage("Group grp-unknown not found.")
+            .setErrorCode(if (version >= 6) Errors.GROUP_ID_NOT_FOUND.code() else Errors.NONE.code())
+            .setErrorMessage(if (version >= 6) "Group grp-unknown not found." else null)
         ),
         describeGroups(
           groupIds = List("grp-1", "grp-2", "grp-unknown"),
