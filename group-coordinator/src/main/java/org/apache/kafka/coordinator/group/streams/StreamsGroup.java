@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.coordinator.group.streams;
 
-import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.ApiException;
@@ -40,7 +39,6 @@ import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineInteger;
 import org.apache.kafka.timeline.TimelineObject;
-
 import org.slf4j.Logger;
 
 import java.util.Collections;
@@ -251,7 +249,7 @@ public class StreamsGroup implements Group {
     public ListGroupsResponseData.ListedGroup asListedGroup(long committedOffset) {
         return new ListGroupsResponseData.ListedGroup()
             .setGroupId(groupId)
-            .setProtocolType(ConsumerProtocol.PROTOCOL_TYPE)
+            .setProtocolType("streams")
             .setGroupState(state.get(committedOffset).toString())
             .setGroupType(type().toString());
     }
