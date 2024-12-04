@@ -284,7 +284,7 @@ public enum Feature {
                     throw new IllegalArgumentException(String.format("Feature %s has latest production FeatureVersion %s " +
                             "with dependency %s that is not production ready. (%s latest production: %s)",
                         feature.name(), latestProduction, dependencyFeature.fromFeatureLevel(dependency.getValue(), true),
-                        dependencyFeatureName, dependencyFeature.latestProduction));
+                        dependencyFeature, dependencyFeature.latestProduction));
                 }
             } else {
                 if (dependency.getValue() > MetadataVersion.LATEST_PRODUCTION.featureLevel()) {
