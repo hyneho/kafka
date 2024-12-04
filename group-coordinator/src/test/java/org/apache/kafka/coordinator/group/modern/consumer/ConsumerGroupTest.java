@@ -1829,16 +1829,17 @@ public class ConsumerGroupTest {
         ConsumerGroup consumerGroup = createConsumerGroup("foo");
 
         ConsumerGroupMember member1 = new ConsumerGroupMember.Builder("member1")
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar", "zar"))
+            .setSubscribedTopicNames(List.of("foo", "bar", "zar"))
             .build();
         consumerGroup.updateMember(member1);
 
         ConsumerGroupMember member2 = new ConsumerGroupMember.Builder("member2")
-            .setSubscribedTopicNames(Arrays.asList("foo", "bar"))
+            .setSubscribedTopicNames(List.of("foo", "bar"))
             .build();
         consumerGroup.updateMember(member2);
 
         ConsumerGroupMember member3 = new ConsumerGroupMember.Builder("member3")
+            .setSubscribedTopicNames(List.of("foo"))
             .setSubscribedTopicRegex("foo*")
             .build();
         consumerGroup.updateMember(member3);
@@ -1855,7 +1856,7 @@ public class ConsumerGroupTest {
         // Verify initial state.
         assertEquals(
             Map.of(
-                "foo", 3,
+                "foo", 4,
                 "fooo", 1,
                 "bar", 2,
                 "zar", 1
@@ -1866,7 +1867,7 @@ public class ConsumerGroupTest {
         // Compute subscribed topic names without changing the regex.
         assertEquals(
             Map.of(
-                "foo", 3,
+                "foo", 4,
                 "fooo", 1,
                 "bar", 2,
                 "zar", 1
@@ -1874,7 +1875,38 @@ public class ConsumerGroupTest {
             consumerGroup.computeSubscribedTopicNames(member3, member3)
         );
 
-        // Compute subscribed topic names with changing the regex.
+        // Compute subscribed topic names with removing the regex.
+        assertEquals(
+            Map.of(
+                "foo", 3,
+                "bar", 2,
+                "zar", 1
+            ),
+            consumerGroup.computeSubscribedTopicNames(
+                member3,
+                new ConsumerGroupMember.Builder(member3)
+                    .setSubscribedTopicRegex("")
+                    .build()
+            )
+        );
+
+        // Compute subscribed topic names with removing the names.
+        assertEquals(
+            Map.of(
+                "foo", 3,
+                "fooo", 1,
+                "bar", 2,
+                "zar", 1
+            ),
+            consumerGroup.computeSubscribedTopicNames(
+                member3,
+                new ConsumerGroupMember.Builder(member3)
+                    .setSubscribedTopicNames(Collections.emptyList())
+                    .build()
+            )
+        );
+
+        // Compute subscribed topic names with removing both.
         assertEquals(
             Map.of(
                 "foo", 2,
@@ -1884,6 +1916,7 @@ public class ConsumerGroupTest {
             consumerGroup.computeSubscribedTopicNames(
                 member3,
                 new ConsumerGroupMember.Builder(member3)
+                    .setSubscribedTopicNames(Collections.emptyList())
                     .setSubscribedTopicRegex("")
                     .build()
             )
