@@ -686,14 +686,12 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
     expectedMemberErrors: List[Errors],
     version: Short = ApiKeys.LEAVE_GROUP.latestVersion(isUnstableApiEnabled)
   ): Unit = {
-    val leaveGroupRequest = new LeaveGroupRequest.Builder(
+    val leaveGroupResponse = classicLeaveGroup(
       groupId,
-      List.tabulate(memberIds.length) { i =>
-        new MemberIdentity()
-          .setMemberId(memberIds(i))
-          .setGroupInstanceId(if (groupInstanceIds == null) null else groupInstanceIds(i))
-      }.asJava
-    ).build(version)
+      memberIds,
+      groupInstanceIds,
+      version
+    )
 
     val expectedResponseData = new LeaveGroupResponseData()
     if (expectedLeaveGroupError != Errors.NONE) {
@@ -708,8 +706,7 @@ class GroupCoordinatorBaseRequestTest(cluster: ClusterInstance) {
         }.asJava)
     }
 
-    val leaveGroupResponse = connectAndReceive[LeaveGroupResponse](leaveGroupRequest)
-    assertEquals(expectedResponseData, leaveGroupResponse.data)
+    assertEquals(expectedResponseData, leaveGroupResponse)
   }
 
   protected def leaveGroup(
