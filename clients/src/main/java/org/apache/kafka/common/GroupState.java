@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  *         <tr><td>EMPTY</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
  *         <tr><td>ASSIGNING</td><td></td><td>Yes</td><td></td><td>Yes</td></tr>
  *         <tr><td>RECONCILING</td><td></td><td>Yes</td><td></td><td>Yes</td></tr>
- *         <tr><td>NOT_READY</td><td></td><td>Yes</td><td></td><td>Yes</td></tr>
+ *         <tr><td>NOT_READY</td><td></td><td></td><td></td><td>Yes</td></tr>
  *     </tbody>
  * </table>
  */
