@@ -24,21 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV0_0;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV0_1;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV1_0;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV1_1;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV2_0;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV2_1;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV3_0;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV3_1;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV4_0;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV4_1;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV5_0;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV5_1;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV6_0;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV6_1;
-import static org.apache.kafka.server.common.TestFeatureVersion.UT_FV7_0;
+import static org.apache.kafka.server.common.UnitTestFeatureVersion.FV0.UT_FV0_0;
 
 /**
  * This is enum for the various features implemented for Kafka clusters.
@@ -66,14 +52,14 @@ public enum Feature {
      * Features defined only for unit tests and are not used in production.
      */
     TEST_VERSION(TestFeatureVersion.FEATURE_NAME, TestFeatureVersion.valuesWithoutUnitTestVersions(), TestFeatureVersion.LATEST_PRODUCTION),
-    UNIT_TEST_VERSION_0("unit." + TestFeatureVersion.FEATURE_NAME + ".0", new FeatureVersion[]{UT_FV0_0}, UT_FV0_1),
-    UNIT_TEST_VERSION_1("unit." + TestFeatureVersion.FEATURE_NAME + ".1", new FeatureVersion[]{UT_FV1_0, UT_FV1_1}, UT_FV1_0),
-    UNIT_TEST_VERSION_2("unit." + TestFeatureVersion.FEATURE_NAME + ".2", new FeatureVersion[]{UT_FV2_0, UT_FV2_1}, UT_FV2_0),
-    UNIT_TEST_VERSION_3("unit." + TestFeatureVersion.FEATURE_NAME + ".3", new FeatureVersion[]{UT_FV3_0, UT_FV3_1}, UT_FV3_1),
-    UNIT_TEST_VERSION_4("unit." + TestFeatureVersion.FEATURE_NAME + ".4", new FeatureVersion[]{UT_FV4_0, UT_FV4_1}, UT_FV4_1),
-    UNIT_TEST_VERSION_5("unit." + TestFeatureVersion.FEATURE_NAME + ".5", new FeatureVersion[]{UT_FV5_0, UT_FV5_1}, UT_FV5_1),
-    UNIT_TEST_VERSION_6("unit." + TestFeatureVersion.FEATURE_NAME + ".6", new FeatureVersion[]{UT_FV6_0, UT_FV6_1}, UT_FV6_1),
-    UNIT_TEST_VERSION_7("unit." + TestFeatureVersion.FEATURE_NAME + ".7", new FeatureVersion[]{UT_FV7_0}, UT_FV7_0);
+    UNIT_TEST_VERSION_0(UnitTestFeatureVersion.FV0.FEATURE_NAME, new FeatureVersion[]{UT_FV0_0}, UnitTestFeatureVersion.FV0.LATEST_PRODUCTION),
+    UNIT_TEST_VERSION_1(UnitTestFeatureVersion.FV1.FEATURE_NAME, UnitTestFeatureVersion.FV1.values(), UnitTestFeatureVersion.FV1.LATEST_PRODUCTION),
+    UNIT_TEST_VERSION_2(UnitTestFeatureVersion.FV2.FEATURE_NAME, UnitTestFeatureVersion.FV2.values(), UnitTestFeatureVersion.FV2.LATEST_PRODUCTION),
+    UNIT_TEST_VERSION_3(UnitTestFeatureVersion.FV3.FEATURE_NAME, UnitTestFeatureVersion.FV3.values(), UnitTestFeatureVersion.FV3.LATEST_PRODUCTION),
+    UNIT_TEST_VERSION_4(UnitTestFeatureVersion.FV4.FEATURE_NAME, UnitTestFeatureVersion.FV4.values(), UnitTestFeatureVersion.FV4.LATEST_PRODUCTION),
+    UNIT_TEST_VERSION_5(UnitTestFeatureVersion.FV5.FEATURE_NAME, UnitTestFeatureVersion.FV5.values(), UnitTestFeatureVersion.FV5.LATEST_PRODUCTION),
+    UNIT_TEST_VERSION_6(UnitTestFeatureVersion.FV6.FEATURE_NAME, UnitTestFeatureVersion.FV6.values(), UnitTestFeatureVersion.FV6.LATEST_PRODUCTION),
+    UNIT_TEST_VERSION_7(UnitTestFeatureVersion.FV7.FEATURE_NAME, UnitTestFeatureVersion.FV7.values(), UnitTestFeatureVersion.FV7.LATEST_PRODUCTION);
 
     public static final Feature[] FEATURES;
 
