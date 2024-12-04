@@ -2005,7 +2005,7 @@ public class SharePartition {
             stateBatches.add(new PersisterStateBatch(inFlightBatch.firstOffset(), inFlightBatch.lastOffset(),
                     updateResult.state.id, (short) updateResult.deliveryCount));
 
-            // Update acquisition lock timeout task for the batch to null since it is completed now.
+            // Cancel the acquisition lock timeout task for the batch since it is completed now.
             updateResult.cancelAndClearAcquisitionLockTimeoutTask();
             if (updateResult.state != RecordState.ARCHIVED) {
                 findNextFetchOffset.set(true);
@@ -2052,7 +2052,7 @@ public class SharePartition {
             stateBatches.add(new PersisterStateBatch(offsetState.getKey(), offsetState.getKey(),
                     updateResult.state.id, (short) updateResult.deliveryCount));
 
-            // Update acquisition lock timeout task for the offset to null since it is completed now.
+            // Cancel the acquisition lock timeout task for the offset since it is completed now.
             updateResult.cancelAndClearAcquisitionLockTimeoutTask();
             if (updateResult.state != RecordState.ARCHIVED) {
                 findNextFetchOffset.set(true);
@@ -2347,17 +2347,13 @@ public class SharePartition {
             acquisitionLockTimeoutTask = null;
         }
 
-        private RecordState rollbackState() {
+        private boolean hasOngoingStateTransition() {
             if (rollbackState == null) {
                 // This case could occur when the batch/offset hasn't transitioned even once or the state transitions have
                 // been committed.
-                return null;
+                return false;
             }
-            return rollbackState.state;
-        }
-
-        private boolean hasOngoingStateTransition() {
-            return rollbackState() != null;
+            return rollbackState.state != null;
         }
 
         /**
