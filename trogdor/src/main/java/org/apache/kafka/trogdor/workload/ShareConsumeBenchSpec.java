@@ -37,8 +37,7 @@ import java.util.Set;
 /**
  * The specification for a benchmark that consumes messages from a set of topic/partitions.
  *
- * If a share group is not given to the specification, a random one will be generated and
- *  used to subscribe to topics.
+ * If a share group is not given to the specification, the default group name "share" will be used.
  *
  * This specification uses a specific way to represent a topic partition via its "activeTopics" field.
  * The notation for that is topic_name:partition_number (e.g "foo:1" represents partition-1 of topic "foo")
@@ -58,8 +57,6 @@ import java.util.Set;
  * This specification supports the spawning of multiple share consumers in the single Trogdor worker agent.
  * The "threadsPerWorker" field denotes how many consumers should be spawned for this spec.
  * It is worth noting that the "targetMessagesPerSec", "maxMessages" and "activeTopics" fields apply for every share consumer individually.
- *
- * If a share group is not specified, every consumer is assigned a different, random group. When specified, all consumers use the same group.
  *
  * The "recordProcessor" field allows the specification of tasks to run on records that are consumed.  This is run
  * immediately after the messages are polled.  See the `RecordProcessor` interface for more information.

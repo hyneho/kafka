@@ -127,16 +127,15 @@ public class ShareConsumeBenchWorker implements TaskWorker {
         /**
          * Creates a new KafkaConsumer instance
          */
-        private ThreadSafeConsumer consumer(String shareGroup, String clientId) {
+        private ThreadSafeShareConsumer consumer(String shareGroup, String clientId) {
             Properties props = new Properties();
             props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, spec.bootstrapServers());
             props.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
             props.put(ConsumerConfig.GROUP_ID_CONFIG, shareGroup);
-            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
             props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 100000);
             // these defaults maybe over-written by the user-specified commonClientConf or consumerConf
             WorkerUtils.addConfigsToProperties(props, spec.commonClientConf(), spec.consumerConf());
-            return new ThreadSafeConsumer(new KafkaShareConsumer<>(props, new ByteArrayDeserializer(), new ByteArrayDeserializer()), clientId);
+            return new ThreadSafeShareConsumer(new KafkaShareConsumer<>(props, new ByteArrayDeserializer(), new ByteArrayDeserializer()), clientId);
         }
 
         private String shareGroup() {
@@ -150,10 +149,10 @@ public class ShareConsumeBenchWorker implements TaskWorker {
         private final Future<?> statusUpdaterFuture;
         private final Throttle throttle;
         private final String clientId;
-        private final ThreadSafeConsumer consumer;
+        private final ThreadSafeShareConsumer consumer;
         private final Optional<RecordProcessor> recordProcessor;
 
-        private ConsumeMessages(ThreadSafeConsumer consumer,
+        private ConsumeMessages(ThreadSafeShareConsumer consumer,
                                 Optional<RecordProcessor> recordProcessor) {
             this.latencyHistogram = new Histogram(10000);
             this.messageSizeHistogram = new Histogram(2 * 1024 * 1024);
@@ -171,7 +170,7 @@ public class ShareConsumeBenchWorker implements TaskWorker {
             this.recordProcessor = recordProcessor;
         }
 
-        ConsumeMessages(ThreadSafeConsumer consumer,
+        ConsumeMessages(ThreadSafeShareConsumer consumer,
                         Optional<RecordProcessor> recordProcessor,
                         Set<String> topics) {
             this(consumer, recordProcessor);
@@ -286,12 +285,12 @@ public class ShareConsumeBenchWorker implements TaskWorker {
     public class ConsumeStatusUpdater implements Runnable {
         private final Histogram latencyHistogram;
         private final Histogram messageSizeHistogram;
-        private final ThreadSafeConsumer consumer;
+        private final ThreadSafeShareConsumer consumer;
         private final Optional<RecordProcessor> recordProcessor;
 
         ConsumeStatusUpdater(Histogram latencyHistogram,
                              Histogram messageSizeHistogram,
-                             ThreadSafeConsumer consumer,
+                             ThreadSafeShareConsumer consumer,
                              Optional<RecordProcessor> recordProcessor) {
             this.latencyHistogram = latencyHistogram;
             this.messageSizeHistogram = messageSizeHistogram;
@@ -436,13 +435,13 @@ public class ShareConsumeBenchWorker implements TaskWorker {
     /**
      * A thread-safe KafkaShareConsumer wrapper
      */
-    private static class ThreadSafeConsumer {
+    private static class ThreadSafeShareConsumer {
         private final KafkaShareConsumer<byte[], byte[]> consumer;
         private final String clientId;
         private final ReentrantLock consumerLock;
         private boolean closed = false;
 
-        ThreadSafeConsumer(KafkaShareConsumer<byte[], byte[]> consumer, String clientId) {
+        ThreadSafeShareConsumer(KafkaShareConsumer<byte[], byte[]> consumer, String clientId) {
             this.consumer = consumer;
             this.clientId = clientId;
             this.consumerLock = new ReentrantLock();
