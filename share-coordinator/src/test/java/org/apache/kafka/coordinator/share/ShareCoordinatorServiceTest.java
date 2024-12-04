@@ -72,7 +72,10 @@ class ShareCoordinatorServiceTest {
 
     @SuppressWarnings("unchecked")
     private CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> mockRuntime() {
-        return (CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord>) mock(CoordinatorRuntime.class);
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime =  mock(CoordinatorRuntime.class);
+        when(runtime.activeTopicPartitions())
+            .thenReturn(Collections.singletonList(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)));
+        return runtime;
     }
 
     @Test

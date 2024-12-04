@@ -258,9 +258,9 @@ public class ShareCoordinatorService implements ShareCoordinator {
         timer.add(new TimerTask(config.shareCoordinatorTopicPruneIntervalMs()) {
             @Override
             public void run() {
-                for (int i = 0; i < numPartitions; i++) {
-                    performRecordPruning(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, i));
-                }
+                runtime.activeTopicPartitions().forEach(tp -> {
+                    performRecordPruning(tp);
+                });
                 // perpetual recursion
                 setupRecordPruning();
             }
