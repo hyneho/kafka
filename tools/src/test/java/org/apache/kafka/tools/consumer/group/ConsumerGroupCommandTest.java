@@ -35,7 +35,7 @@ public class ConsumerGroupCommandTest {
         );
 
         assertEquals(
-            "The regular expressions `foo.*` is valid.\n",
+            "The regular expression `foo.*` is valid.\n",
             output
         );
     }
@@ -50,7 +50,7 @@ public class ConsumerGroupCommandTest {
         );
 
         assertEquals(
-            "The regular expressions `[foo.*` is invalid: missing closing ].\n",
+            "The regular expression `[foo.*` is invalid: missing closing ].\n",
             output
         );
     }

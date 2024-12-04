@@ -158,9 +158,9 @@ public class ConsumerGroupCommand {
     static void validateRegex(String regex) {
         try {
             Pattern.compile(regex);
-            System.out.printf("The regular expressions `%s` is valid.%n", regex);
+            System.out.printf("The regular expression `%s` is valid.%n", regex);
         } catch (PatternSyntaxException ex) {
-            System.out.printf("The regular expressions `%s` is invalid: %s.%n", regex, ex.getDescription());
+            System.out.printf("The regular expression `%s` is invalid: %s.%n", regex, ex.getDescription());
         }
     }
 
