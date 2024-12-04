@@ -16,9 +16,6 @@
  */
 package org.apache.kafka.connect.runtime.rest.resources;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import org.apache.kafka.connect.errors.NotFoundException;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.Herder;
@@ -37,8 +34,17 @@ import org.apache.kafka.connect.runtime.rest.entities.TaskInfo;
 import org.apache.kafka.connect.runtime.rest.errors.ConnectRestException;
 import org.apache.kafka.connect.util.ConnectorTaskId;
 import org.apache.kafka.connect.util.FutureCallback;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.net.URI;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.inject.Inject;
 import javax.servlet.ServletContext;
@@ -60,11 +66,9 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
-import java.net.URI;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 
 import static org.apache.kafka.connect.runtime.rest.HerderRequestHandler.IdentityTranslator;
 import static org.apache.kafka.connect.runtime.rest.HerderRequestHandler.Translator;
@@ -173,18 +177,6 @@ public class ConnectorsResource {
     }
 
     @GET
-    @Path("/{connector}/tasks-config")
-    @Operation(deprecated = true, summary = "Get the configuration of all tasks for the specified connector")
-    public Map<ConnectorTaskId, Map<String, String>> getTasksConfig(
-            final @PathParam("connector") String connector) throws Throwable {
-        log.warn("The 'GET /connectors/{connector}/tasks-config' endpoint is deprecated and will be removed in the next major release. "
-            + "Please use the 'GET /connectors/{connector}/tasks' endpoint instead.");
-        FutureCallback<Map<ConnectorTaskId, Map<String, String>>> cb = new FutureCallback<>();
-        herder.tasksConfig(connector, cb);
-        return requestHandler.completeRequest(cb);
-    }
-
-    @GET
     @Path("/{connector}/status")
     @Operation(summary = "Get the status for the specified connector")
     public ConnectorStateInfo getConnectorStatus(final @PathParam("connector") String connector) {
@@ -240,6 +232,19 @@ public class ConnectorsResource {
             response = Response.ok();
         }
         return response.entity(createdInfo.result()).build();
+    }
+
+    @PATCH
+    @Path("/{connector}/config")
+    public Response patchConnectorConfig(final @PathParam("connector") String connector,
+                                         final @Context HttpHeaders headers,
+                                         final @Parameter(hidden = true) @QueryParam("forward") Boolean forward,
+                                         final Map<String, String> connectorConfigPatch) throws Throwable {
+        FutureCallback<Herder.Created<ConnectorInfo>> cb = new FutureCallback<>();
+        herder.patchConnectorConfig(connector, connectorConfigPatch, cb);
+        Herder.Created<ConnectorInfo> createdInfo = requestHandler.completeOrForwardRequest(cb, "/connectors/" + connector + "/config",
+                "PATCH", headers, connectorConfigPatch, new TypeReference<ConnectorInfo>() { }, new CreatedConnectorInfoTranslator(), forward);
+        return Response.ok().entity(createdInfo.result()).build();
     }
 
     @POST

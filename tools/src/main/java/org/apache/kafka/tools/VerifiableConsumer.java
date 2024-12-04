@@ -16,20 +16,6 @@
  */
 package org.apache.kafka.tools;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import net.sourceforge.argparse4j.ArgumentParsers;
-import net.sourceforge.argparse4j.inf.ArgumentParser;
-import net.sourceforge.argparse4j.inf.ArgumentParserException;
-import net.sourceforge.argparse4j.inf.MutuallyExclusiveGroup;
-import net.sourceforge.argparse4j.inf.Namespace;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -45,6 +31,23 @@ import org.apache.kafka.common.errors.FencedInstanceIdException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.utils.Utils;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+
+import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.inf.ArgumentParser;
+import net.sourceforge.argparse4j.inf.ArgumentParserException;
+import net.sourceforge.argparse4j.inf.MutuallyExclusiveGroup;
+import net.sourceforge.argparse4j.inf.Namespace;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +56,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
@@ -271,7 +276,7 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
     }
 
     @JsonPropertyOrder({ "timestamp", "name" })
-    private static abstract class ConsumerEvent {
+    private abstract static class ConsumerEvent {
         private final long timestamp = System.currentTimeMillis();
 
         @JsonProperty
@@ -509,18 +514,11 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
                 .required(true);
         connectionGroup.addArgument("--bootstrap-server")
                 .action(store())
-                .required(false)
+                .required(true)
                 .type(String.class)
                 .metavar("HOST1:PORT1[,HOST2:PORT2[...]]")
                 .dest("bootstrapServer")
-                .help("REQUIRED unless --broker-list(deprecated) is specified. The server(s) to connect to. Comma-separated list of Kafka brokers in the form HOST1:PORT1,HOST2:PORT2,...");
-        connectionGroup.addArgument("--broker-list")
-                .action(store())
-                .required(false)
-                .type(String.class)
-                .metavar("HOST1:PORT1[,HOST2:PORT2[...]]")
-                .dest("brokerList")
-                .help("DEPRECATED, use --bootstrap-server instead; ignored if --bootstrap-server is specified.  Comma-separated list of Kafka brokers in the form HOST1:PORT1,HOST2:PORT2,...");
+                .help("The server(s) to connect to. Comma-separated list of Kafka brokers in the form HOST1:PORT1,HOST2:PORT2,...");
 
         parser.addArgument("--topic")
                 .action(store())
@@ -536,7 +534,8 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
                 .setDefault(ConsumerConfig.DEFAULT_GROUP_PROTOCOL)
                 .metavar("GROUP_PROTOCOL")
                 .dest("groupProtocol")
-                .help(String.format("Group protocol (must be one of %s)", Utils.join(GroupProtocol.values(), ", ")));
+                .help(String.format("Group protocol (must be one of %s)", Arrays.stream(GroupProtocol.values())
+                        .map(Object::toString).collect(Collectors.joining(", "))));
 
         parser.addArgument("--group-remote-assignor")
                 .action(store())
@@ -625,7 +624,7 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
 
         boolean useAutoCommit = res.getBoolean("useAutoCommit");
         String configFile = res.getString("consumer.config");
-        String brokerHostandPort = null;
+        String brokerHostandPort = res.getString("bootstrapServer");
 
         Properties consumerProps = new Properties();
         if (configFile != null) {
@@ -661,16 +660,6 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
             consumerProps.put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, groupInstanceId);
         }
 
-
-        if (res.get("bootstrapServer") != null) {
-            brokerHostandPort = res.getString("bootstrapServer");
-        } else if (res.getString("brokerList") != null) {
-            brokerHostandPort = res.getString("brokerList");
-        } else {
-            parser.printHelp();
-            // Can't use `Exit.exit` here because it didn't exist until 0.11.0.0.
-            System.exit(0);
-        }
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerHostandPort);
 
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, useAutoCommit);

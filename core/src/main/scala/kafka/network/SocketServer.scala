@@ -25,8 +25,7 @@ import java.util
 import java.util.Optional
 import java.util.concurrent._
 import java.util.concurrent.atomic._
-import kafka.cluster.{BrokerEndPoint, EndPoint}
-import kafka.network.ConnectionQuotas._
+import kafka.cluster.EndPoint
 import kafka.network.Processor._
 import kafka.network.RequestChannel.{CloseConnectionResponse, EndThrottlingResponse, NoOpResponse, SendResponse, StartThrottlingResponse}
 import kafka.network.SocketServer._
@@ -39,16 +38,19 @@ import org.apache.kafka.common.memory.{MemoryPool, SimpleMemoryPool}
 import org.apache.kafka.common.metrics._
 import org.apache.kafka.common.metrics.stats.{Avg, CumulativeSum, Meter, Rate}
 import org.apache.kafka.common.network.KafkaChannel.ChannelMuteEvent
-import org.apache.kafka.common.network.{ChannelBuilder, ChannelBuilders, ClientInformation, KafkaChannel, ListenerName, ListenerReconfigurable, NetworkSend, Selectable, Send, Selector => KSelector}
+import org.apache.kafka.common.network.{ChannelBuilder, ChannelBuilders, ClientInformation, KafkaChannel, ListenerName, ListenerReconfigurable, NetworkSend, Selectable, Send, ServerConnectionId, Selector => KSelector}
 import org.apache.kafka.common.protocol.ApiKeys
 import org.apache.kafka.common.requests.{ApiVersionsRequest, RequestContext, RequestHeader}
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.utils.{KafkaThread, LogContext, Time, Utils}
 import org.apache.kafka.common.{Endpoint, KafkaException, MetricName, Reconfigurable}
-import org.apache.kafka.network.SocketServerConfigs
+import org.apache.kafka.network.{ConnectionQuotaEntity, ConnectionThrottledException, SocketServerConfigs, TooManyConnectionsException}
 import org.apache.kafka.security.CredentialProvider
-import org.apache.kafka.server.config.QuotaConfigs
+import org.apache.kafka.server.ServerSocketFactory
+import org.apache.kafka.server.config.QuotaConfig
 import org.apache.kafka.server.metrics.KafkaMetricsGroup
+import org.apache.kafka.server.network.ConnectionDisconnectListener
+import org.apache.kafka.server.quota.QuotaUtils
 import org.apache.kafka.server.util.FutureUtils
 import org.slf4j.event.Level
 
@@ -75,12 +77,15 @@ import scala.util.control.ControlThrowable
  *      Acceptor has 1 Processor thread that has its own selector and read requests from the socket.
  *      1 Handler thread that handles requests and produces responses back to the processor thread for writing.
  */
-class SocketServer(val config: KafkaConfig,
-                   val metrics: Metrics,
-                   val time: Time,
-                   val credentialProvider: CredentialProvider,
-                   val apiVersionManager: ApiVersionManager)
-  extends Logging with BrokerReconfigurable {
+class SocketServer(
+  val config: KafkaConfig,
+  val metrics: Metrics,
+  val time: Time,
+  val credentialProvider: CredentialProvider,
+  val apiVersionManager: ApiVersionManager,
+  val socketFactory: ServerSocketFactory = ServerSocketFactory.INSTANCE,
+  val connectionDisconnectListeners: Seq[ConnectionDisconnectListener] = Seq.empty
+) extends Logging with BrokerReconfigurable {
 
   private val metricsGroup = new KafkaMetricsGroup(this.getClass)
 
@@ -413,19 +418,16 @@ object SocketServer {
 
   val ListenerReconfigurableConfigs: Set[String] = Set(SocketServerConfigs.MAX_CONNECTIONS_CONFIG, SocketServerConfigs.MAX_CONNECTION_CREATION_RATE_CONFIG)
 
-  def closeSocket(
-    channel: SocketChannel,
-    logging: Logging
-  ): Unit = {
-    CoreUtils.swallow(channel.socket().close(), logging, Level.ERROR)
-    CoreUtils.swallow(channel.close(), logging, Level.ERROR)
+  def closeSocket(channel: SocketChannel): Unit = {
+    Utils.closeQuietly(channel.socket, "channel socket")
+    Utils.closeQuietly(channel, "channel")
   }
 }
 
 object DataPlaneAcceptor {
   val ThreadPrefix: String = "data-plane"
   val MetricPrefix: String = ""
-  val ListenerReconfigurableConfigs: Set[String] = Set(KafkaConfig.NumNetworkThreadsProp)
+  val ListenerReconfigurableConfigs: Set[String] = Set(SocketServerConfigs.NUM_NETWORK_THREADS_CONFIG)
 }
 
 class DataPlaneAcceptor(socketServer: SocketServer,
@@ -506,7 +508,7 @@ class DataPlaneAcceptor(socketServer: SocketServer,
    * the configs have passed validation using [[validateReconfiguration( Map )]].
    */
   override def reconfigure(configs: util.Map[String, _]): Unit = {
-    val newNumNetworkThreads = configs.get(KafkaConfig.NumNetworkThreadsProp).asInstanceOf[Int]
+    val newNumNetworkThreads = configs.get(SocketServerConfigs.NUM_NETWORK_THREADS_CONFIG).asInstanceOf[Int]
 
     if (newNumNetworkThreads != processors.length) {
       info(s"Resizing network thread pool size for ${endPoint.listenerName} listener from ${processors.length} to $newNumNetworkThreads")
@@ -522,7 +524,7 @@ class DataPlaneAcceptor(socketServer: SocketServer,
    * Configure this class with the given key-value pairs
    */
   override def configure(configs: util.Map[String, _]): Unit = {
-    addProcessors(configs.get(KafkaConfig.NumNetworkThreadsProp).asInstanceOf[Int])
+    addProcessors(configs.get(SocketServerConfigs.NUM_NETWORK_THREADS_CONFIG).asInstanceOf[Int])
   }
 }
 
@@ -609,15 +611,14 @@ private[kafka] abstract class Acceptor(val socketServer: SocketServer,
 
   private[network] val processors = new ArrayBuffer[Processor]()
   // Build the metric name explicitly in order to keep the existing name for compatibility
-  private val blockedPercentMeterMetricName = KafkaMetricsGroup.explicitMetricName(
-    "kafka.network",
-    "Acceptor",
+  private val backwardCompatibilityMetricGroup = new KafkaMetricsGroup("kafka.network", "Acceptor")
+  private val blockedPercentMeterMetricName = backwardCompatibilityMetricGroup.metricName(
     s"${metricPrefix()}AcceptorBlockedPercent",
     Map(ListenerMetricTag -> endPoint.listenerName.value).asJava)
   private val blockedPercentMeter = metricsGroup.newMeter(blockedPercentMeterMetricName,"blocked time", TimeUnit.NANOSECONDS)
   private var currentProcessorIndex = 0
   private[network] val throttledSockets = new mutable.PriorityQueue[DelayedCloseSocket]()
-  private var started = false
+  private val started = new AtomicBoolean()
   private[network] val startedFuture = new CompletableFuture[Void]()
 
   val thread: KafkaThread = KafkaThread.nonDaemon(
@@ -638,7 +639,7 @@ private[kafka] abstract class Acceptor(val socketServer: SocketServer,
       debug(s"Starting acceptor thread for listener ${endPoint.listenerName}")
       thread.start()
       startedFuture.complete(null)
-      started = true
+      started.set(true)
     } catch {
       case e: ClosedChannelException =>
         debug(s"Refusing to start acceptor for ${endPoint.listenerName} since the acceptor has already been shut down.")
@@ -675,6 +676,9 @@ private[kafka] abstract class Acceptor(val socketServer: SocketServer,
   def close(): Unit = {
     beginShutdown()
     thread.join()
+    if (!started.get) {
+      closeAll()
+    }
     synchronized {
       processors.foreach(_.close())
     }
@@ -700,35 +704,34 @@ private[kafka] abstract class Acceptor(val socketServer: SocketServer,
         }
       }
     } finally {
-      debug("Closing server socket, selector, and any throttled sockets.")
-      CoreUtils.swallow(serverChannel.close(), this, Level.ERROR)
-      CoreUtils.swallow(nioSelector.close(), this, Level.ERROR)
-      throttledSockets.foreach(throttledSocket => closeSocket(throttledSocket.socket, this))
-      throttledSockets.clear()
+      closeAll()
     }
+  }
+
+  private def closeAll(): Unit = {
+    debug("Closing server socket, selector, and any throttled sockets.")
+    // The serverChannel will be null if Acceptor's thread is not started
+    Utils.closeQuietly(serverChannel, "Acceptor serverChannel")
+    Utils.closeQuietly(nioSelector, "Acceptor nioSelector")
+    throttledSockets.foreach(throttledSocket => closeSocket(throttledSocket.socket))
+    throttledSockets.clear()
   }
 
   /**
    * Create a server socket to listen for connections on.
    */
   private def openServerSocket(host: String, port: Int, listenBacklogSize: Int): ServerSocketChannel = {
-    val socketAddress =
-      if (Utils.isBlank(host))
-        new InetSocketAddress(port)
-      else
-        new InetSocketAddress(host, port)
-    val serverChannel = ServerSocketChannel.open()
-    serverChannel.configureBlocking(false)
-    if (recvBufferSize != Selectable.USE_DEFAULT_BUFFER_SIZE)
-      serverChannel.socket().setReceiveBufferSize(recvBufferSize)
-
-    try {
-      serverChannel.socket.bind(socketAddress, listenBacklogSize)
-      info(s"Awaiting socket connections on ${socketAddress.getHostString}:${serverChannel.socket.getLocalPort}.")
-    } catch {
-      case e: SocketException =>
-        throw new KafkaException(s"Socket server failed to bind to ${socketAddress.getHostString}:$port: ${e.getMessage}.", e)
+    val socketAddress = if (Utils.isBlank(host)) {
+      new InetSocketAddress(port)
+    } else {
+      new InetSocketAddress(host, port)
     }
+    val serverChannel = socketServer.socketFactory.openServerSocket(
+      endPoint.listenerName.value(),
+      socketAddress,
+      listenBacklogSize,
+      recvBufferSize)
+    info(s"Awaiting socket connections on ${socketAddress.getHostString}:${serverChannel.socket.getLocalPort}.")
     serverChannel
   }
 
@@ -816,7 +819,7 @@ private[kafka] abstract class Acceptor(val socketServer: SocketServer,
     while (throttledSockets.headOption.exists(_.endThrottleTimeMs < timeMs)) {
       val closingSocket = throttledSockets.dequeue()
       debug(s"Closing socket from ip ${closingSocket.socket.getRemoteAddress}")
-      closeSocket(closingSocket.socket, this)
+      closeSocket(closingSocket.socket)
     }
   }
 
@@ -842,18 +845,21 @@ private[kafka] abstract class Acceptor(val socketServer: SocketServer,
     val listenerProcessors = new ArrayBuffer[Processor]()
 
     for (_ <- 0 until toCreate) {
-      val processor = newProcessor(socketServer.nextProcessorId(), listenerName, securityProtocol)
+      val processor = newProcessor(socketServer.nextProcessorId(), listenerName, securityProtocol, socketServer.connectionDisconnectListeners)
       listenerProcessors += processor
       requestChannel.addProcessor(processor)
 
-      if (started) {
+      if (started.get) {
         processor.start()
       }
     }
     processors ++= listenerProcessors
   }
 
-  def newProcessor(id: Int, listenerName: ListenerName, securityProtocol: SecurityProtocol): Processor = {
+  def newProcessor(id: Int,
+                   listenerName: ListenerName,
+                   securityProtocol: SecurityProtocol,
+                   connectionDisconnectListeners: Seq[ConnectionDisconnectListener]): Processor = {
     val name = s"${threadPrefix()}-kafka-network-thread-$nodeId-${endPoint.listenerName}-${endPoint.securityProtocol}-$id"
     new Processor(id,
                   time,
@@ -872,7 +878,8 @@ private[kafka] abstract class Acceptor(val socketServer: SocketServer,
                   Processor.ConnectionQueueSize,
                   isPrivilegedListener,
                   apiVersionManager,
-                  name)
+                  name,
+                  connectionDisconnectListeners)
   }
 }
 
@@ -911,28 +918,15 @@ private[kafka] class Processor(
   connectionQueueSize: Int,
   isPrivilegedListener: Boolean,
   apiVersionManager: ApiVersionManager,
-  threadName: String
+  threadName: String,
+  connectionDisconnectListeners: Seq[ConnectionDisconnectListener]
 ) extends Runnable with Logging {
   private val metricsGroup = new KafkaMetricsGroup(this.getClass)
 
   val shouldRun: AtomicBoolean = new AtomicBoolean(true)
+  private val started: AtomicBoolean = new AtomicBoolean()
 
   val thread: KafkaThread = KafkaThread.nonDaemon(threadName, this)
-
-  private object ConnectionId {
-    def fromString(s: String): Option[ConnectionId] = s.split("-") match {
-      case Array(local, remote, index) => BrokerEndPoint.parseHostPort(local).flatMap { case (localHost, localPort) =>
-        BrokerEndPoint.parseHostPort(remote).map { case (remoteHost, remotePort) =>
-          ConnectionId(localHost, localPort, remoteHost, remotePort, Integer.parseInt(index))
-        }
-      }
-      case _ => None
-    }
-  }
-
-  private[network] case class ConnectionId(localHost: String, localPort: Int, remoteHost: String, remotePort: Int, index: Int) {
-    override def toString: String = s"$localHost:$localPort-$remoteHost:$remotePort-$index"
-  }
 
   private val newConnections = new ArrayBlockingQueue[SocketChannel](connectionQueueSize)
   private val inflightResponses = mutable.Map[String, RequestChannel.Response]()
@@ -966,7 +960,7 @@ private[kafka] class Processor(
       credentialProvider.tokenCache,
       time,
       logContext,
-      () => apiVersionManager.apiVersionResponse(throttleTimeMs = 0)
+      version => apiVersionManager.apiVersionResponse(throttleTimeMs = 0, version < 4)
     )
   )
 
@@ -1178,7 +1172,7 @@ private[kafka] class Processor(
         val response = inflightResponses.remove(send.destinationId).getOrElse {
           throw new IllegalStateException(s"Send for ${send.destinationId} completed, but not in `inflightResponses`")
         }
-        
+
         // Invoke send completion callback, and then update request metrics since there might be some
         // request metrics got updated during callback
         response.onComplete.foreach(onComplete => onComplete(send))
@@ -1206,12 +1200,14 @@ private[kafka] class Processor(
   private def processDisconnected(): Unit = {
     selector.disconnected.keySet.forEach { connectionId =>
       try {
-        val remoteHost = ConnectionId.fromString(connectionId).getOrElse {
+        val remoteHost = ServerConnectionId.fromString(connectionId).orElseThrow { () =>
           throw new IllegalStateException(s"connectionId has unexpected format: $connectionId")
         }.remoteHost
         inflightResponses.remove(connectionId).foreach(updateRequestMetrics)
         // the channel has been closed by the selector but the quotas still need to be updated
         connectionQuotas.dec(listenerName, InetAddress.getByName(remoteHost))
+        // Call listeners to notify for closed connection.
+        connectionDisconnectListeners.foreach(listener => CoreUtils.swallow(() -> listener.onDisconnect(connectionId), this, Level.ERROR))
       } catch {
         case e: Throwable => processException(s"Exception while processing disconnection of $connectionId", e)
       }
@@ -1240,6 +1236,8 @@ private[kafka] class Processor(
       if (address != null)
         connectionQuotas.dec(listenerName, address)
       selector.close(connectionId)
+      // Call listeners to notify for closed connection.
+      connectionDisconnectListeners.foreach(listener => CoreUtils.swallow(() -> listener.onDisconnect(connectionId), this, Level.ERROR))
 
       inflightResponses.remove(connectionId).foreach(response => updateRequestMetrics(response))
     }
@@ -1307,11 +1305,7 @@ private[kafka] class Processor(
 
   // 'protected` to allow override for testing
   protected[network] def connectionId(socket: Socket): String = {
-    val localHost = socket.getLocalAddress.getHostAddress
-    val localPort = socket.getLocalPort
-    val remoteHost = socket.getInetAddress.getHostAddress
-    val remotePort = socket.getPort
-    val connId = ConnectionId(localHost, localPort, remoteHost, remotePort, nextConnectionIndex).toString
+    val connId = ServerConnectionId.generateConnectionId(socket, id, nextConnectionIndex)
     nextConnectionIndex = if (nextConnectionIndex == Int.MaxValue) 0 else nextConnectionIndex + 1
     connId
   }
@@ -1352,7 +1346,11 @@ private[kafka] class Processor(
   private[network] def channel(connectionId: String): Option[KafkaChannel] =
     Option(selector.channel(connectionId))
 
-  def start(): Unit = thread.start()
+  def start(): Unit = {
+    if (!started.getAndSet(true)) {
+      thread.start()
+    }
+  }
 
   /**
    * Wakeup the thread for selection.
@@ -1369,51 +1367,13 @@ private[kafka] class Processor(
     try {
       beginShutdown()
       thread.join()
+      if (!started.get) {
+        CoreUtils.swallow(closeAll(), this, Level.ERROR)
+      }
     } finally {
       metricsGroup.removeMetric("IdlePercent", Map("networkProcessor" -> id.toString).asJava)
       metrics.removeMetric(expiredConnectionsKilledCountMetricName)
     }
-  }
-}
-
-/**
- * Interface for connection quota configuration. Connection quotas can be configured at the
- * broker, listener or IP level.
- */
-sealed trait ConnectionQuotaEntity {
-  def sensorName: String
-  def metricName: String
-  def sensorExpiration: Long
-  def metricTags: Map[String, String]
-}
-
-object ConnectionQuotas {
-  private val InactiveSensorExpirationTimeSeconds = TimeUnit.HOURS.toSeconds(1)
-  private val ConnectionRateSensorName = "Connection-Accept-Rate"
-  private val ConnectionRateMetricName = "connection-accept-rate"
-  private val IpMetricTag = "ip"
-  private val ListenerThrottlePrefix = ""
-  private val IpThrottlePrefix = "ip-"
-
-  private case class ListenerQuotaEntity(listenerName: String) extends ConnectionQuotaEntity {
-    override def sensorName: String = s"$ConnectionRateSensorName-$listenerName"
-    override def sensorExpiration: Long = Long.MaxValue
-    override def metricName: String = ConnectionRateMetricName
-    override def metricTags: Map[String, String] = Map(ListenerMetricTag -> listenerName)
-  }
-
-  private case object BrokerQuotaEntity extends ConnectionQuotaEntity {
-    override def sensorName: String = ConnectionRateSensorName
-    override def sensorExpiration: Long = Long.MaxValue
-    override def metricName: String = s"broker-$ConnectionRateMetricName"
-    override def metricTags: Map[String, String] = Map.empty
-  }
-
-  private case class IpQuotaEntity(ip: InetAddress) extends ConnectionQuotaEntity {
-    override def sensorName: String = s"$ConnectionRateSensorName-${ip.getHostAddress}"
-    override def sensorExpiration: Long = InactiveSensorExpirationTimeSeconds
-    override def metricName: String = ConnectionRateMetricName
-    override def metricTags: Map[String, String] = Map(IpMetricTag -> ip.getHostAddress)
   }
 }
 
@@ -1430,11 +1390,11 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
   private[network] val maxConnectionsPerListener = mutable.Map[ListenerName, ListenerConnectionQuota]()
   @volatile private var totalCount = 0
   // updates to defaultConnectionRatePerIp or connectionRatePerIp must be synchronized on `counts`
-  @volatile private var defaultConnectionRatePerIp = QuotaConfigs.IP_CONNECTION_RATE_DEFAULT.intValue()
+  @volatile private var defaultConnectionRatePerIp = QuotaConfig.IP_CONNECTION_RATE_DEFAULT.intValue()
   private val connectionRatePerIp = new ConcurrentHashMap[InetAddress, Int]()
   // sensor that tracks broker-wide connection creation rate and limit (quota)
-  private val brokerConnectionRateSensor = getOrCreateConnectionRateQuotaSensor(config.maxConnectionCreationRate, BrokerQuotaEntity)
-  private val maxThrottleTimeMs = TimeUnit.SECONDS.toMillis(config.quotaWindowSizeSeconds.toLong)
+  private val brokerConnectionRateSensor = getOrCreateConnectionRateQuotaSensor(config.maxConnectionCreationRate, ConnectionQuotaEntity.brokerQuotaEntity())
+  private val maxThrottleTimeMs = TimeUnit.SECONDS.toMillis(config.quotaConfig.quotaWindowSizeSeconds.toLong)
 
   def inc(listenerName: ListenerName, address: InetAddress, acceptorBlockedPercentMeter: com.yammer.metrics.core.Meter): Unit = {
     counts.synchronized {
@@ -1471,7 +1431,7 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
   private[network] def updateBrokerMaxConnectionRate(maxConnectionRate: Int): Unit = {
     // if there is a connection waiting on the rate throttle delay, we will let it wait the original delay even if
     // the rate limit increases, because it is just one connection per listener and the code is simpler that way
-    updateConnectionRateQuota(maxConnectionRate, BrokerQuotaEntity)
+    updateConnectionRateQuota(maxConnectionRate, ConnectionQuotaEntity.brokerQuotaEntity())
   }
 
   /**
@@ -1484,9 +1444,9 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
    */
   def updateIpConnectionRateQuota(ip: Option[InetAddress], maxConnectionRate: Option[Int]): Unit = synchronized {
     def isIpConnectionRateMetric(metricName: MetricName) = {
-      metricName.name == ConnectionRateMetricName &&
+      metricName.name == ConnectionQuotaEntity.CONNECTION_RATE_METRIC_NAME &&
       metricName.group == MetricsGroup &&
-      metricName.tags.containsKey(IpMetricTag)
+      metricName.tags.containsKey(ConnectionQuotaEntity.IP_METRIC_TAG)
     }
 
     def shouldUpdateQuota(metric: KafkaMetric, quotaLimit: Int) = {
@@ -1506,16 +1466,16 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
               connectionRatePerIp.remove(address)
           }
         }
-        updateConnectionRateQuota(connectionRateForIp(address), IpQuotaEntity(address))
+        updateConnectionRateQuota(connectionRateForIp(address), ConnectionQuotaEntity.ipQuotaEntity(address))
       case None =>
         // synchronize on counts to ensure reading an IP connection rate quota and creating a quota config is atomic
         counts.synchronized {
-          defaultConnectionRatePerIp = maxConnectionRate.getOrElse(QuotaConfigs.IP_CONNECTION_RATE_DEFAULT.intValue())
+          defaultConnectionRatePerIp = maxConnectionRate.getOrElse(QuotaConfig.IP_CONNECTION_RATE_DEFAULT.intValue())
         }
         info(s"Updated default max IP connection rate to $defaultConnectionRatePerIp")
         metrics.metrics.forEach { (metricName, metric) =>
           if (isIpConnectionRateMetric(metricName)) {
-            val quota = connectionRateForIp(InetAddress.getByName(metricName.tags.get(IpMetricTag)))
+            val quota = connectionRateForIp(InetAddress.getByName(metricName.tags.get(ConnectionQuotaEntity.IP_METRIC_TAG)))
             if (shouldUpdateQuota(metric, quota)) {
               debug(s"Updating existing connection rate quota config for ${metricName.tags} to $quota")
               metric.config(rateQuotaMetricConfig(quota))
@@ -1688,9 +1648,9 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
    */
   private def recordIpConnectionMaybeThrottle(listenerName: ListenerName, address: InetAddress): Unit = {
     val connectionRateQuota = connectionRateForIp(address)
-    val quotaEnabled = connectionRateQuota != QuotaConfigs.IP_CONNECTION_RATE_DEFAULT
+    val quotaEnabled = connectionRateQuota != QuotaConfig.IP_CONNECTION_RATE_DEFAULT
     if (quotaEnabled) {
-      val sensor = getOrCreateConnectionRateQuotaSensor(connectionRateQuota, IpQuotaEntity(address))
+      val sensor = getOrCreateConnectionRateQuotaSensor(connectionRateQuota, ConnectionQuotaEntity.ipQuotaEntity(address))
       val timeMs = time.milliseconds
       val throttleMs = recordAndGetThrottleTimeMs(sensor, timeMs)
       if (throttleMs > 0) {
@@ -1755,13 +1715,13 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
       connectionQuotaEntity.metricName,
       MetricsGroup,
       s"Tracking rate of accepting new connections (per second)",
-      connectionQuotaEntity.metricTags.asJava)
+      connectionQuotaEntity.metricTags)
   }
 
   private def rateQuotaMetricConfig(quotaLimit: Int): MetricConfig = {
     new MetricConfig()
-      .timeWindow(config.quotaWindowSizeSeconds.toLong, TimeUnit.SECONDS)
-      .samples(config.numQuotaSamples)
+      .timeWindow(config.quotaConfig.quotaWindowSizeSeconds.toLong, TimeUnit.SECONDS)
+      .samples(config.quotaConfig.numQuotaSamples)
       .quota(new Quota(quotaLimit, true))
   }
 
@@ -1772,9 +1732,9 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
 
   class ListenerConnectionQuota(lock: Object, listener: ListenerName) extends ListenerReconfigurable with AutoCloseable {
     @volatile private var _maxConnections = Int.MaxValue
-    private[network] val connectionRateSensor = getOrCreateConnectionRateQuotaSensor(Int.MaxValue, ListenerQuotaEntity(listener.value))
-    private[network] val listenerConnectionRateThrottleSensor = createConnectionRateThrottleSensor(ListenerThrottlePrefix)
-    private[network] val ipConnectionRateThrottleSensor = createConnectionRateThrottleSensor(IpThrottlePrefix)
+    private[network] val connectionRateSensor = getOrCreateConnectionRateQuotaSensor(Int.MaxValue, ConnectionQuotaEntity.listenerQuotaEntity(listener.value))
+    private[network] val listenerConnectionRateThrottleSensor = createConnectionRateThrottleSensor(ConnectionQuotaEntity.LISTENER_THROTTLE_PREFIX)
+    private[network] val ipConnectionRateThrottleSensor = createConnectionRateThrottleSensor(ConnectionQuotaEntity.IP_THROTTLE_PREFIX)
 
     def maxConnections: Int = _maxConnections
 
@@ -1782,7 +1742,7 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
 
     override def configure(configs: util.Map[String, _]): Unit = {
       _maxConnections = maxConnections(configs)
-      updateConnectionRateQuota(maxConnectionCreationRate(configs), ListenerQuotaEntity(listener.value))
+      updateConnectionRateQuota(maxConnectionCreationRate(configs), ConnectionQuotaEntity.listenerQuotaEntity(listener.value))
     }
 
     override def reconfigurableConfigs(): util.Set[String] = {
@@ -1802,7 +1762,7 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
     override def reconfigure(configs: util.Map[String, _]): Unit = {
       lock.synchronized {
         _maxConnections = maxConnections(configs)
-        updateConnectionRateQuota(maxConnectionCreationRate(configs), ListenerQuotaEntity(listener.value))
+        updateConnectionRateQuota(maxConnectionCreationRate(configs), ConnectionQuotaEntity.listenerQuotaEntity(listener.value))
         lock.notifyAll()
       }
     }
@@ -1844,13 +1804,8 @@ class ConnectionQuotas(config: KafkaConfig, time: Time, metrics: Metrics) extend
     if (channel != null) {
       log.debug(s"Closing connection from ${channel.socket.getRemoteSocketAddress}")
       dec(listenerName, channel.socket.getInetAddress)
-      closeSocket(channel, log)
+      closeSocket(channel)
     }
   }
 
 }
-
-class TooManyConnectionsException(val ip: InetAddress, val count: Int) extends KafkaException(s"Too many connections from $ip (maximum = $count)")
-
-class ConnectionThrottledException(val ip: InetAddress, val startThrottleTimeMs: Long, val throttleTimeMs: Long)
-  extends KafkaException(s"$ip throttled for $throttleTimeMs")

@@ -56,7 +56,8 @@ import org.apache.kafka.common.requests.ListOffsetsResponse;
 import org.apache.kafka.common.requests.MetadataResponse;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.junit.Test;
+
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.Duration;
@@ -73,14 +74,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.apache.kafka.common.message.MetadataResponseData.MetadataResponseTopic;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @SuppressWarnings("ClassDataAbstractionCoupling")
 public class TopicAdminTest {
@@ -524,8 +525,6 @@ public class TopicAdminTest {
         Cluster cluster = createCluster(1, "myTopic", 1);
 
         try (final AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(new MockTime(), cluster)) {
-            Map<TopicPartition, Long> offsetMap = new HashMap<>();
-            offsetMap.put(tp1, offset);
             env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
 
             // This error should be treated as non-retriable and cause TopicAdmin::retryEndOffsets to fail
@@ -541,11 +540,8 @@ public class TopicAdminTest {
             );
 
             Throwable cause = exception.getCause();
-            assertNotNull("cause of failure should be preserved", cause);
-            assertTrue(
-                    "cause of failure should be accurately reported; expected topic authorization error, but was " + cause,
-                    cause instanceof TopicAuthorizationException
-            );
+            assertNotNull(cause, "cause of failure should be preserved");
+            assertInstanceOf(TopicAuthorizationException.class, cause, "cause of failure should be accurately reported; expected topic authorization error, but was " + cause);
         }
     }
 
@@ -558,8 +554,6 @@ public class TopicAdminTest {
         Cluster cluster = createCluster(1, "myTopic", 1);
 
         try (AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(new MockTime(), cluster)) {
-            Map<TopicPartition, Long> offsetMap = new HashMap<>();
-            offsetMap.put(tp1, offset);
             env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
             env.kafkaClient().prepareResponse(prepareMetadataResponse(cluster, Errors.UNKNOWN_TOPIC_OR_PARTITION));
             env.kafkaClient().prepareResponse(prepareMetadataResponse(cluster, Errors.NONE));

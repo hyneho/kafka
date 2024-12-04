@@ -20,18 +20,17 @@ import org.apache.kafka.clients.ApiVersions;
 import org.apache.kafka.clients.Metadata;
 import org.apache.kafka.clients.NodeApiVersions;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.consumer.SubscriptionPattern;
 import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.internals.PartitionStates;
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.EpochEndOffset;
 import org.apache.kafka.common.utils.LogContext;
+
 import org.slf4j.Logger;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -77,7 +76,7 @@ public class SubscriptionState {
     private final Logger log;
 
     private enum SubscriptionType {
-        NONE, AUTO_TOPICS, AUTO_PATTERN, USER_ASSIGNED
+        NONE, AUTO_TOPICS, AUTO_PATTERN, AUTO_PATTERN_RE2J, USER_ASSIGNED, AUTO_TOPICS_SHARE
     }
 
     /* the type of subscription */
@@ -85,6 +84,9 @@ public class SubscriptionState {
 
     /* the pattern user has requested */
     private Pattern subscribedPattern;
+
+    /* the Re2J pattern user has requested */
+    private SubscriptionPattern subscribedRe2JPattern;
 
     /* the list of topics the user has requested */
     private Set<String> subscription;
@@ -98,10 +100,10 @@ public class SubscriptionState {
     private final PartitionStates<TopicPartitionState> assignment;
 
     /* Default offset reset strategy */
-    private final OffsetResetStrategy defaultResetStrategy;
+    private final AutoOffsetResetStrategy defaultResetStrategy;
 
     /* User-provided listener to be invoked when assignment changes */
-    private Optional<ConsumerRebalanceListener> rebalanceListener;
+    private Optional<ConsumerRebalanceListener> rebalanceListener = Optional.empty();
 
     private int assignmentId = 0;
 
@@ -109,11 +111,19 @@ public class SubscriptionState {
     public synchronized String toString() {
         return "SubscriptionState{" +
             "type=" + subscriptionType +
-            ", subscribedPattern=" + subscribedPattern +
+            ", subscribedPattern=" + subscribedPatternInUse() +
             ", subscription=" + String.join(",", subscription) +
             ", groupSubscription=" + String.join(",", groupSubscription) +
             ", defaultResetStrategy=" + defaultResetStrategy +
             ", assignment=" + assignment.partitionStateValues() + " (id=" + assignmentId + ")}";
+    }
+
+    private Object subscribedPatternInUse() {
+        if (subscriptionType == SubscriptionType.AUTO_PATTERN_RE2J)
+            return subscribedRe2JPattern;
+        if (subscriptionType == SubscriptionType.AUTO_PATTERN)
+            return subscribedPattern;
+        return null;
     }
 
     public synchronized String prettyString() {
@@ -124,20 +134,25 @@ public class SubscriptionState {
                 return "Subscribe(" + String.join(",", subscription) + ")";
             case AUTO_PATTERN:
                 return "Subscribe(" + subscribedPattern + ")";
+            case AUTO_PATTERN_RE2J:
+                return "Subscribe(" + subscribedRe2JPattern + ")";
             case USER_ASSIGNED:
                 return "Assign(" + assignedPartitions() + " , id=" + assignmentId + ")";
+            case AUTO_TOPICS_SHARE:
+                return "Subscribe to Share Group(" + String.join(",", subscription) + ")";
             default:
                 throw new IllegalStateException("Unrecognized subscription type: " + subscriptionType);
         }
     }
 
-    public SubscriptionState(LogContext logContext, OffsetResetStrategy defaultResetStrategy) {
+    public SubscriptionState(LogContext logContext, AutoOffsetResetStrategy defaultResetStrategy) {
         this.log = logContext.logger(this.getClass());
         this.defaultResetStrategy = defaultResetStrategy;
         this.subscription = new TreeSet<>(); // use a sorted set for better logging
         this.assignment = new PartitionStates<>();
         this.groupSubscription = new HashSet<>();
         this.subscribedPattern = null;
+        this.subscribedRe2JPattern = null;
         this.subscriptionType = SubscriptionType.NONE;
     }
 
@@ -176,11 +191,23 @@ public class SubscriptionState {
         this.subscribedPattern = pattern;
     }
 
+    public synchronized void subscribe(SubscriptionPattern pattern, Optional<ConsumerRebalanceListener> listener) {
+        registerRebalanceListener(listener);
+        setSubscriptionType(SubscriptionType.AUTO_PATTERN_RE2J);
+        this.subscribedRe2JPattern = pattern;
+    }
+
     public synchronized boolean subscribeFromPattern(Set<String> topics) {
         if (subscriptionType != SubscriptionType.AUTO_PATTERN)
             throw new IllegalArgumentException("Attempt to subscribe from pattern while subscription type set to " +
                     subscriptionType);
 
+        return changeSubscription(topics);
+    }
+
+    public synchronized boolean subscribeToShareGroup(Set<String> topics) {
+        registerRebalanceListener(Optional.empty());
+        setSubscriptionType(SubscriptionType.AUTO_TOPICS_SHARE);
         return changeSubscription(topics);
     }
 
@@ -243,7 +270,11 @@ public class SubscriptionState {
     }
 
     /**
-     * @return true if assignments matches subscription, otherwise false
+     * Check if an assignment received while using the classic group protocol matches the subscription.
+     * Note that this only considers the subscribedPattern because this functionality is only used under the
+     * classic protocol, where subscribedRe2JPattern is not supported.
+     *
+     * @return true if assignments matches subscription, otherwise false.
      */
     public synchronized boolean checkAssignmentMatchedSubscription(Collection<TopicPartition> assignments) {
         for (TopicPartition topicPartition : assignments) {
@@ -295,7 +326,7 @@ public class SubscriptionState {
      * Check whether pattern subscription is in use.
      *
      */
-    synchronized boolean hasPatternSubscription() {
+    public synchronized boolean hasPatternSubscription() {
         return this.subscriptionType == SubscriptionType.AUTO_PATTERN;
     }
 
@@ -317,7 +348,7 @@ public class SubscriptionState {
      *
      * @return true if pattern subscription is in use and the topic matches the subscribed pattern, false otherwise
      */
-    synchronized boolean matchesSubscribedPattern(String topic) {
+    public synchronized boolean matchesSubscribedPattern(String topic) {
         Pattern pattern = this.subscribedPattern;
         if (hasPatternSubscription() && pattern != null)
             return pattern.matcher(topic).matches();
@@ -328,6 +359,24 @@ public class SubscriptionState {
         if (hasAutoAssignedPartitions())
             return this.subscription;
         return Collections.emptySet();
+    }
+
+    /**
+     * @return The RE2J compatible pattern in use, provided via a call to
+     * {@link #subscribe(SubscriptionPattern, Optional)}.
+     * Null if there is no SubscriptionPattern in use.
+     */
+    public synchronized SubscriptionPattern subscriptionPattern() {
+        if (hasRe2JPatternSubscription())
+            return this.subscribedRe2JPattern;
+        return null;
+    }
+
+    /**
+     * @return True if subscribed using RE2J pattern. False otherwise.
+     */
+    public synchronized boolean hasRe2JPatternSubscription() {
+        return this.subscriptionType == SubscriptionType.AUTO_PATTERN_RE2J;
     }
 
     public synchronized Set<TopicPartition> pausedPartitions() {
@@ -386,13 +435,13 @@ public class SubscriptionState {
         assignedState(tp).seekUnvalidated(position);
     }
 
-    synchronized void maybeSeekUnvalidated(TopicPartition tp, FetchPosition position, OffsetResetStrategy requestedResetStrategy) {
+    synchronized void maybeSeekUnvalidated(TopicPartition tp, FetchPosition position, AutoOffsetResetStrategy requestedResetStrategy) {
         TopicPartitionState state = assignedStateOrNull(tp);
         if (state == null) {
             log.debug("Skipping reset of partition {} since it is no longer assigned", tp);
         } else if (!state.awaitingReset()) {
             log.debug("Skipping reset of partition {} since reset is no longer needed", tp);
-        } else if (requestedResetStrategy != state.resetStrategy) {
+        } else if (requestedResetStrategy != null && !requestedResetStrategy.equals(state.resetStrategy)) {
             log.debug("Skipping reset of partition {} since an alternative reset has been requested", tp);
         } else {
             log.info("Resetting offset for partition {} to position {}.", tp, position);
@@ -428,7 +477,8 @@ public class SubscriptionState {
         List<TopicPartition> result = new ArrayList<>();
         assignment.forEach((topicPartition, topicPartitionState) -> {
             // Cheap check is first to avoid evaluating the predicate if possible
-            if (topicPartitionState.isFetchable() && isAvailable.test(topicPartition)) {
+            if ((subscriptionType.equals(SubscriptionType.AUTO_TOPICS_SHARE) || topicPartitionState.isFetchable())
+                    && isAvailable.test(topicPartition)) {
                 result.add(topicPartition);
             }
         });
@@ -436,7 +486,8 @@ public class SubscriptionState {
     }
 
     public synchronized boolean hasAutoAssignedPartitions() {
-        return this.subscriptionType == SubscriptionType.AUTO_TOPICS || this.subscriptionType == SubscriptionType.AUTO_PATTERN;
+        return this.subscriptionType == SubscriptionType.AUTO_TOPICS || this.subscriptionType == SubscriptionType.AUTO_PATTERN
+                || this.subscriptionType == SubscriptionType.AUTO_TOPICS_SHARE || this.subscriptionType == SubscriptionType.AUTO_PATTERN_RE2J;
     }
 
     public synchronized void position(TopicPartition tp, FetchPosition position) {
@@ -699,11 +750,11 @@ public class SubscriptionState {
         return allConsumed;
     }
 
-    public synchronized void requestOffsetReset(TopicPartition partition, OffsetResetStrategy offsetResetStrategy) {
+    public synchronized void requestOffsetReset(TopicPartition partition, AutoOffsetResetStrategy offsetResetStrategy) {
         assignedState(partition).reset(offsetResetStrategy);
     }
 
-    public synchronized void requestOffsetReset(Collection<TopicPartition> partitions, OffsetResetStrategy offsetResetStrategy) {
+    public synchronized void requestOffsetReset(Collection<TopicPartition> partitions, AutoOffsetResetStrategy offsetResetStrategy) {
         partitions.forEach(tp -> {
             log.info("Seeking to {} offset of partition {}", offsetResetStrategy, tp);
             assignedState(tp).reset(offsetResetStrategy);
@@ -736,14 +787,14 @@ public class SubscriptionState {
     }
 
     boolean hasDefaultOffsetResetPolicy() {
-        return defaultResetStrategy != OffsetResetStrategy.NONE;
+        return defaultResetStrategy != AutoOffsetResetStrategy.NONE;
     }
 
     public synchronized boolean isOffsetResetNeeded(TopicPartition partition) {
         return assignedState(partition).awaitingReset();
     }
 
-    public synchronized OffsetResetStrategy resetStrategy(TopicPartition partition) {
+    public synchronized AutoOffsetResetStrategy resetStrategy(TopicPartition partition) {
         return assignedState(partition).resetStrategy();
     }
 
@@ -773,22 +824,18 @@ public class SubscriptionState {
     }
 
     /**
-     * Note: this will not attempt to reset partitions that are in the process of being assigned
-     * and are pending the completion of any {@link ConsumerRebalanceListener#onPartitionsAssigned(Collection)}
-     * callbacks.
+     * Request reset for partitions that require a position, using the configured reset strategy.
      *
-     * <p/>
-     *
-     * This method only appears to be invoked the by the {@link KafkaConsumer} during its
-     * {@link KafkaConsumer#poll(Duration)} logic. <em>Direct</em> calls to methods like
-     * {@link #requestOffsetReset(TopicPartition)}, {@link #requestOffsetResetIfPartitionAssigned(TopicPartition)},
-     * etc. do <em>not</em> skip partitions pending assignment.
+     * @param initPartitionsToInclude Initializing partitions to include in the reset. Assigned partitions that
+     *                                require a positions but are not included in this set won't be reset.
+     * @throws NoOffsetForPartitionException If there are partitions assigned that require a position but
+     *                                       there is no reset strategy configured.
      */
-    public synchronized void resetInitializingPositions() {
+    public synchronized void resetInitializingPositions(Predicate<TopicPartition> initPartitionsToInclude) {
         final Set<TopicPartition> partitionsWithNoOffsets = new HashSet<>();
         assignment.forEach((tp, partitionState) -> {
-            if (partitionState.shouldInitialize()) {
-                if (defaultResetStrategy == OffsetResetStrategy.NONE)
+            if (partitionState.shouldInitialize() && initPartitionsToInclude.test(tp)) {
+                if (defaultResetStrategy == AutoOffsetResetStrategy.NONE)
                     partitionsWithNoOffsets.add(tp);
                 else
                     requestOffsetReset(tp);
@@ -797,6 +844,10 @@ public class SubscriptionState {
 
         if (!partitionsWithNoOffsets.isEmpty())
             throw new NoOffsetForPartitionException(partitionsWithNoOffsets);
+    }
+
+    public synchronized void resetInitializingPositions() {
+        resetInitializingPositions(tp -> true);
     }
 
     public synchronized Set<TopicPartition> partitionsNeedingReset(long nowMs) {
@@ -899,7 +950,7 @@ public class SubscriptionState {
         private boolean paused;  // whether this partition has been paused by the user
         private boolean pendingRevocation;
         private boolean pendingOnAssignedCallback;
-        private OffsetResetStrategy resetStrategy;  // the strategy to use if the offset needs resetting
+        private AutoOffsetResetStrategy resetStrategy;  // the strategy to use if the offset needs resetting
         private Long nextRetryTimeMs;
         private Integer preferredReadReplica;
         private Long preferredReadReplicaExpireTimeMs;
@@ -968,7 +1019,7 @@ public class SubscriptionState {
             }
         }
 
-        private void reset(OffsetResetStrategy strategy) {
+        private void reset(AutoOffsetResetStrategy strategy) {
             transitionState(FetchStates.AWAIT_RESET, () -> {
                 this.resetStrategy = strategy;
                 this.nextRetryTimeMs = null;
@@ -993,7 +1044,7 @@ public class SubscriptionState {
                 return false;
             }
 
-            if (!currentLeaderAndEpoch.leader.isPresent()) {
+            if (currentLeaderAndEpoch.leader.isEmpty()) {
                 return false;
             }
 
@@ -1121,13 +1172,14 @@ public class SubscriptionState {
         }
 
         /**
-         * Only partitions that are {@link FetchStates#INITIALIZING initializing} <em>and not</em>
-         * {@link #pendingOnAssignedCallback pending} the completion of the
-         * {@link ConsumerRebalanceListener#onPartitionsAssigned(Collection) onPartitionsAssigned} callback
-         * should be considered as initialize-able.
+         * True if the partition is in {@link FetchStates#INITIALIZING} state. While in this
+         * state, a position for the partition can be retrieved (based on committed offsets or
+         * partitions offsets).
+         * Note that retrieving a position does not mean that we can start fetching from the
+         * partition (see {@link #isFetchable()})
          */
         private boolean shouldInitialize() {
-            return fetchState.equals(FetchStates.INITIALIZING) && !pendingOnAssignedCallback;
+            return fetchState.equals(FetchStates.INITIALIZING);
         }
 
         private boolean isFetchable() {
@@ -1148,7 +1200,7 @@ public class SubscriptionState {
             this.endOffsetRequested = false;
         }
 
-        private OffsetResetStrategy resetStrategy() {
+        private AutoOffsetResetStrategy resetStrategy() {
             return resetStrategy;
         }
     }

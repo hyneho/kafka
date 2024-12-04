@@ -29,6 +29,7 @@ import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.requests.MetadataResponse;
 import org.apache.kafka.common.requests.RequestHeader;
 import org.apache.kafka.common.utils.LogContext;
+
 import org.slf4j.Logger;
 
 import java.util.Collections;
@@ -83,6 +84,15 @@ public class AdminMetadataManager {
     private long lastMetadataFetchAttemptMs = 0;
 
     /**
+     * The time in wall-clock milliseconds when we started attempts to fetch metadata. If empty,
+     * metadata has not been requested. This is the start time based on which rebootstrap is
+     * triggered if metadata is not obtained for the configured rebootstrap trigger interval.
+     * Set to Optional.of(0L) to force rebootstrap immediately.
+     */
+    private Optional<Long> metadataAttemptStartMs = Optional.empty();
+
+
+    /**
      * The current cluster information.
      */
     private Cluster cluster = Cluster.empty();
@@ -91,6 +101,11 @@ public class AdminMetadataManager {
      * If this is non-null, it is a fatal exception that will terminate all attempts at communication.
      */
     private ApiException fatalException = null;
+
+    /**
+     * The cluster with which the metadata was bootstrapped.
+     */
+    private Cluster bootstrapCluster;
 
     public class AdminMetadataUpdater implements MetadataUpdater {
         @Override
@@ -122,6 +137,16 @@ public class AdminMetadataManager {
         @Override
         public void handleSuccessfulResponse(RequestHeader requestHeader, long now, MetadataResponse metadataResponse) {
             // Do nothing
+        }
+
+        @Override
+        public boolean needsRebootstrap(long now, long rebootstrapTriggerMs) {
+            return AdminMetadataManager.this.needsRebootstrap(now, rebootstrapTriggerMs);
+        }
+
+        @Override
+        public void rebootstrap(long now) {
+            AdminMetadataManager.this.rebootstrap(now);
         }
 
         @Override
@@ -234,12 +259,18 @@ public class AdminMetadataManager {
         return Math.max(0, refreshBackoffMs - timeSinceAttempt);
     }
 
+    public boolean needsRebootstrap(long now, long rebootstrapTriggerMs) {
+        return metadataAttemptStartMs.filter(startMs -> now - startMs > rebootstrapTriggerMs).isPresent();
+    }
+
     /**
      * Transition into the UPDATE_PENDING state.  Updates lastMetadataFetchAttemptMs.
      */
     public void transitionToUpdatePending(long now) {
         this.state = State.UPDATE_PENDING;
         this.lastMetadataFetchAttemptMs = now;
+        if (metadataAttemptStartMs.isEmpty())
+            metadataAttemptStartMs = Optional.of(now);
     }
 
     public void updateFailed(Throwable exception) {
@@ -275,6 +306,7 @@ public class AdminMetadataManager {
     public void update(Cluster cluster, long now) {
         if (cluster.isBootstrapConfigured()) {
             log.debug("Setting bootstrap cluster metadata {}.", cluster);
+            bootstrapCluster = cluster;
         } else {
             log.debug("Updating cluster metadata to {}", cluster);
             this.lastMetadataUpdateMs = now;
@@ -282,9 +314,23 @@ public class AdminMetadataManager {
 
         this.state = State.QUIESCENT;
         this.fatalException = null;
+        this.metadataAttemptStartMs = Optional.empty();
 
         if (!cluster.nodes().isEmpty()) {
             this.cluster = cluster;
         }
+    }
+
+    public void initiateRebootstrap() {
+        this.metadataAttemptStartMs = Optional.of(0L);
+    }
+
+    /**
+     * Rebootstrap metadata with the cluster previously used for bootstrapping.
+     */
+    public void rebootstrap(long now) {
+        log.info("Rebootstrapping with {}", this.bootstrapCluster);
+        update(bootstrapCluster, now);
+        this.metadataAttemptStartMs = Optional.of(now);
     }
 }

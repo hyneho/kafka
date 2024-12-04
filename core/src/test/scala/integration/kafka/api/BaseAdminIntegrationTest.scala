@@ -19,25 +19,27 @@ package kafka.api
 import java.util
 import java.util.Properties
 import java.util.concurrent.ExecutionException
-import kafka.server.KafkaConfig
 import kafka.utils.Logging
 import kafka.utils.TestUtils._
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, CreateTopicsOptions, CreateTopicsResult, DescribeClusterOptions, DescribeTopicsOptions, NewTopic, TopicDescription}
 import org.apache.kafka.common.Uuid
 import org.apache.kafka.common.acl.AclOperation
+import org.apache.kafka.common.config.SslConfigs
 import org.apache.kafka.common.errors.{TopicExistsException, UnknownTopicOrPartitionException}
 import org.apache.kafka.common.resource.ResourceType
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.security.authorizer.AclEntry
-import org.apache.kafka.server.config.KafkaSecurityConfigs
-import org.apache.kafka.server.config.{ReplicationConfigs, ServerLogConfigs}
+import org.apache.kafka.test.TestUtils.assertFutureThrows
+import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
 import org.junit.jupiter.api.Assertions._
-import org.junit.jupiter.api.{AfterEach, BeforeEach, Test, TestInfo, Timeout}
+import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo, Timeout}
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 
 import scala.jdk.CollectionConverters._
 import scala.collection.Seq
-import scala.compat.java8.OptionConverters._
+import scala.jdk.OptionConverters.RichOption
 
 /**
  * Base integration test cases for [[Admin]]. Each test case added here will be executed
@@ -69,14 +71,15 @@ abstract class BaseAdminIntegrationTest extends IntegrationTestHarness with Logg
     super.tearDown()
   }
 
-  @Test
-  def testCreateDeleteTopics(): Unit = {
-    client = Admin.create(createConfig)
+  @ParameterizedTest
+  @ValueSource(strings = Array("kraft"))
+  def testCreateDeleteTopics(quorum: String): Unit = {
+    client = createAdminClient
     val topics = Seq("mytopic", "mytopic2", "mytopic3")
     val newTopics = Seq(
       new NewTopic("mytopic", Map((0: Integer) -> Seq[Integer](1, 2).asJava, (1: Integer) -> Seq[Integer](2, 0).asJava).asJava),
       new NewTopic("mytopic2", 3, 3.toShort),
-      new NewTopic("mytopic3", Option.empty[Integer].asJava, Option.empty[java.lang.Short].asJava)
+      new NewTopic("mytopic3", Option.empty[Integer].toJava, Option.empty[java.lang.Short].toJava)
     )
     val validateResult = client.createTopics(newTopics.asJava, new CreateTopicsOptions().validateOnly(true))
     validateResult.all.get()
@@ -106,14 +109,14 @@ abstract class BaseAdminIntegrationTest extends IntegrationTestHarness with Logg
     val failedCreateResult = client.createTopics(newTopics.asJava)
     val results = failedCreateResult.values()
     assertTrue(results.containsKey("mytopic"))
-    assertFutureExceptionTypeEquals(results.get("mytopic"), classOf[TopicExistsException])
+    assertFutureThrows(results.get("mytopic"), classOf[TopicExistsException])
     assertTrue(results.containsKey("mytopic2"))
-    assertFutureExceptionTypeEquals(results.get("mytopic2"), classOf[TopicExistsException])
+    assertFutureThrows(results.get("mytopic2"), classOf[TopicExistsException])
     assertTrue(results.containsKey("mytopic3"))
-    assertFutureExceptionTypeEquals(results.get("mytopic3"), classOf[TopicExistsException])
-    assertFutureExceptionTypeEquals(failedCreateResult.numPartitions("mytopic3"), classOf[TopicExistsException])
-    assertFutureExceptionTypeEquals(failedCreateResult.replicationFactor("mytopic3"), classOf[TopicExistsException])
-    assertFutureExceptionTypeEquals(failedCreateResult.config("mytopic3"), classOf[TopicExistsException])
+    assertFutureThrows(results.get("mytopic3"), classOf[TopicExistsException])
+    assertFutureThrows(failedCreateResult.numPartitions("mytopic3"), classOf[TopicExistsException])
+    assertFutureThrows(failedCreateResult.replicationFactor("mytopic3"), classOf[TopicExistsException])
+    assertFutureThrows(failedCreateResult.config("mytopic3"), classOf[TopicExistsException])
 
     val topicToDescription = client.describeTopics(topics.asJava).allTopicNames.get()
     assertEquals(topics.toSet, topicToDescription.keySet.asScala)
@@ -161,9 +164,10 @@ abstract class BaseAdminIntegrationTest extends IntegrationTestHarness with Logg
     waitForTopics(client, List(), topics)
   }
 
-  @Test
-  def testAuthorizedOperations(): Unit = {
-    client = Admin.create(createConfig)
+  @ParameterizedTest
+  @ValueSource(strings = Array("kraft"))
+  def testAuthorizedOperations(quorum: String): Unit = {
+    client = createAdminClient
 
     // without includeAuthorizedOperations flag
     var result = client.describeCluster
@@ -204,18 +208,18 @@ abstract class BaseAdminIntegrationTest extends IntegrationTestHarness with Logg
       })
     }
     configs.foreach { config =>
-      config.setProperty(KafkaConfig.DeleteTopicEnableProp, "true")
+      config.setProperty(ServerConfigs.DELETE_TOPIC_ENABLE_CONFIG, "true")
       config.setProperty(GroupCoordinatorConfig.GROUP_INITIAL_REBALANCE_DELAY_MS_CONFIG, "0")
       config.setProperty(ReplicationConfigs.AUTO_LEADER_REBALANCE_ENABLE_CONFIG, "false")
-      config.setProperty(KafkaConfig.ControlledShutdownEnableProp, "false")
+      config.setProperty(ServerConfigs.CONTROLLED_SHUTDOWN_ENABLE_CONFIG, "false")
       // We set this in order to test that we don't expose sensitive data via describe configs. This will already be
       // set for subclasses with security enabled and we don't want to overwrite it.
-      if (!config.containsKey(KafkaSecurityConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG))
-        config.setProperty(KafkaSecurityConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, "some.invalid.pass")
+      if (!config.containsKey(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG))
+        config.setProperty(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, "some.invalid.pass")
     }
   }
 
-  override def kraftControllerConfigs(): Seq[Properties] = {
+  override def kraftControllerConfigs(testInfo: TestInfo): Seq[Properties] = {
     val controllerConfig = new Properties()
     val controllerConfigs = Seq(controllerConfig)
     modifyConfigs(controllerConfigs)
@@ -226,10 +230,15 @@ abstract class BaseAdminIntegrationTest extends IntegrationTestHarness with Logg
     val config = new util.HashMap[String, Object]
     config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers())
     config.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "20000")
-    val securityProps: util.Map[Object, Object] =
-      adminClientSecurityConfigs(securityProtocol, trustStoreFile, clientSaslProperties)
-    securityProps.forEach { (key, value) => config.put(key.asInstanceOf[String], value) }
+    config.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, "40000")
     config
+  }
+
+  def createAdminClient: Admin = {
+    val props = new Properties()
+    props.putAll(createConfig)
+    val client = createAdminClient(configOverrides = props)
+    client
   }
 
   def waitForTopics(client: Admin, expectedPresent: Seq[String], expectedMissing: Seq[String]): Unit = {

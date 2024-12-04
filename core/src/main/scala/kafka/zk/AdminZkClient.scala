@@ -22,7 +22,6 @@ import kafka.common.TopicAlreadyMarkedForDeletionException
 import kafka.controller.ReplicaAssignment
 import kafka.server.{DynamicConfig, KafkaConfig}
 import kafka.utils._
-import kafka.utils.Implicits._
 import org.apache.kafka.admin.{AdminUtils, BrokerMetadata}
 import org.apache.kafka.common.{TopicPartition, Uuid}
 import org.apache.kafka.common.errors._
@@ -161,9 +160,10 @@ class AdminZkClient(zkClient: KafkaZkClient,
         partitionReplicaAssignment.keys.filter(_ >= 0).sum != sequenceSum)
         throw new InvalidReplicaAssignmentException("partitions should be a consecutive 0-based integer sequence")
 
-    LogConfig.validate(config,
+    LogConfig.validate(Collections.emptyMap(), config,
       kafkaConfig.map(_.extractLogConfigMap).getOrElse(Collections.emptyMap()),
-      kafkaConfig.exists(_.isRemoteLogStorageSystemEnabled))
+      kafkaConfig.exists(_.remoteLogManagerConfig.isRemoteStorageSystemEnabled()),
+      true)
   }
 
   private def writeTopicPartitionAssignment(topic: String, replicaAssignment: Map[Int, ReplicaAssignment],
@@ -310,7 +310,7 @@ class AdminZkClient(zkClient: KafkaZkClient,
                                         expectedReplicationFactor: Int,
                                         availableBrokerIds: Set[Int]): Unit = {
 
-    replicaAssignment.forKeyValue { (partitionId, replicas) =>
+    replicaAssignment.foreachEntry { (partitionId, replicas) =>
       if (replicas.isEmpty)
         throw new InvalidReplicaAssignmentException(
           s"Cannot have replication factor of 0 for partition id $partitionId.")
@@ -479,9 +479,9 @@ class AdminZkClient(zkClient: KafkaZkClient,
     if (!zkClient.topicExists(topic))
       throw new UnknownTopicOrPartitionException(s"Topic '$topic' does not exist.")
     // remove the topic overrides
-    LogConfig.validate(configs,
+    LogConfig.validate(Collections.emptyMap(), configs,
       kafkaConfig.map(_.extractLogConfigMap).getOrElse(Collections.emptyMap()),
-      kafkaConfig.exists(_.isRemoteLogStorageSystemEnabled))
+      kafkaConfig.exists(_.remoteLogManagerConfig.isRemoteStorageSystemEnabled()), true)
   }
 
   /**

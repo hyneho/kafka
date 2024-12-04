@@ -16,24 +16,6 @@
  */
 package org.apache.kafka.storage.internals.log;
 
-import java.io.Closeable;
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.attribute.FileTime;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import com.yammer.metrics.core.MetricName;
-import com.yammer.metrics.core.Timer;
 import org.apache.kafka.common.InvalidRecordException;
 import org.apache.kafka.common.errors.CorruptRecordException;
 import org.apache.kafka.common.record.FileLogInputStream.FileChannelRecordBatch;
@@ -46,9 +28,27 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.server.metrics.KafkaMetricsGroup;
 import org.apache.kafka.storage.internals.epoch.LeaderEpochFileCache;
+
+import com.yammer.metrics.core.Timer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
+
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.attribute.FileTime;
+import java.util.Iterator;
+import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 
@@ -70,14 +70,9 @@ public class LogSegment implements Closeable {
     private static final Pattern FUTURE_DIR_PATTERN = Pattern.compile("^(\\S+)-(\\S+)\\.(\\S+)" + FUTURE_DIR_SUFFIX);
 
     static {
-        KafkaMetricsGroup logFlushStatsMetricsGroup = new KafkaMetricsGroup(LogSegment.class) {
-            @Override
-            public MetricName metricName(String name, Map<String, String> tags) {
-                // Override the group and type names for compatibility - this metrics group was previously defined within
-                // a Scala object named `kafka.log.LogFlushStats`
-                return KafkaMetricsGroup.explicitMetricName("kafka.log", "LogFlushStats", name, tags);
-            }
-        };
+        // For compatibility - this metrics group was previously defined within
+        // a Scala object named `kafka.log.LogFlushStats`
+        KafkaMetricsGroup logFlushStatsMetricsGroup = new KafkaMetricsGroup("kafka.log", "LogFlushStats");
         LOG_FLUSH_TIMER = logFlushStatsMetricsGroup.newTimer("LogFlushRateAndTimeMs", TimeUnit.MILLISECONDS, TimeUnit.SECONDS);
     }
 
@@ -377,7 +372,7 @@ public class LogSegment implements Closeable {
     }
 
     /**
-     * Find the physical file position for the first message with offset >= the requested offset.
+     * Find the physical file position for the message batch that contains the requested offset.
      *
      * The startingFilePosition argument is an optimization that can be used if we already know a valid starting position
      * in the file higher than the greatest-lower-bound from the index.
@@ -387,8 +382,8 @@ public class LogSegment implements Closeable {
      * @param offset The offset we want to translate
      * @param startingFilePosition A lower bound on the file position from which to begin the search. This is purely an optimization and
      * when omitted, the search will begin at the position in the offset index.
-     * @return The position in the log storing the message with the least offset >= the requested offset and the size of the
-     *        message or null if no message meets this criteria.
+     * @return The base offset, position in the log, and size of the message batch that contains the requested offset,
+     * or null if no such batch is found.
      */
     LogOffsetPosition translateOffset(long offset, int startingFilePosition) throws IOException {
         OffsetPosition mapping = offsetIndex().lookup(offset);
@@ -398,7 +393,7 @@ public class LogSegment implements Closeable {
     /**
      * Equivalent to {@code read(startOffset, maxSize, size())}.
      *
-     * See {@link #read(long, int, long, boolean)} for details.
+     * See {@link #read(long, int, Optional, boolean)} for details.
      */
     public FetchDataInfo read(long startOffset, int maxSize) throws IOException {
         return read(startOffset, maxSize, size());
@@ -407,27 +402,27 @@ public class LogSegment implements Closeable {
     /**
      * Equivalent to {@code read(startOffset, maxSize, maxPosition, false)}.
      *
-     * See {@link #read(long, int, long, boolean)} for details.
+     * See {@link #read(long, int, Optional, boolean)} for details.
      */
     public FetchDataInfo read(long startOffset, int maxSize, long maxPosition) throws IOException {
-        return read(startOffset, maxSize, maxPosition, false);
+        return read(startOffset, maxSize, Optional.of(maxPosition), false);
     }
 
     /**
-     * Read a message set from this segment beginning with the first offset >= startOffset. The message set will include
+     * Read a message set from this segment that contains startOffset. The message set will include
      * no more than maxSize bytes and will end before maxOffset if a maxOffset is specified.
      *
      * This method is thread-safe.
      *
-     * @param startOffset A lower bound on the first offset to include in the message set we read
+     * @param startOffset The logical log offset we are trying to read
      * @param maxSize The maximum number of bytes to include in the message set we read
-     * @param maxPosition The maximum position in the log segment that should be exposed for read
+     * @param maxPositionOpt The maximum position in the log segment that should be exposed for read
      * @param minOneMessage If this is true, the first message will be returned even if it exceeds `maxSize` (if one exists)
      *
-     * @return The fetched data and the offset metadata of the first message whose offset is >= startOffset,
+     * @return The fetched data and the base offset metadata of the message batch that contains startOffset,
      *         or null if the startOffset is larger than the largest offset in this log
      */
-    public FetchDataInfo read(long startOffset, int maxSize, long maxPosition, boolean minOneMessage) throws IOException {
+    public FetchDataInfo read(long startOffset, int maxSize, Optional<Long> maxPositionOpt, boolean minOneMessage) throws IOException {
         if (maxSize < 0)
             throw new IllegalArgumentException("Invalid max size " + maxSize + " for log read from segment " + log);
 
@@ -438,28 +433,28 @@ public class LogSegment implements Closeable {
             return null;
 
         int startPosition = startOffsetAndSize.position;
-        LogOffsetMetadata offsetMetadata = new LogOffsetMetadata(startOffset, this.baseOffset, startPosition);
+        LogOffsetMetadata offsetMetadata = new LogOffsetMetadata(startOffsetAndSize.offset, this.baseOffset, startPosition);
 
         int adjustedMaxSize = maxSize;
         if (minOneMessage)
             adjustedMaxSize = Math.max(maxSize, startOffsetAndSize.size);
 
-        // return a log segment but with zero size in the case below
-        if (adjustedMaxSize == 0)
+        // return empty records in the fetch-data-info when:
+        // 1. adjustedMaxSize is 0 (or)
+        // 2. maxPosition to read is unavailable
+        if (adjustedMaxSize == 0 || !maxPositionOpt.isPresent())
             return new FetchDataInfo(offsetMetadata, MemoryRecords.EMPTY);
 
         // calculate the length of the message set to read based on whether or not they gave us a maxOffset
-        int fetchSize = Math.min((int) (maxPosition - startPosition), adjustedMaxSize);
+        int fetchSize = Math.min((int) (maxPositionOpt.get() - startPosition), adjustedMaxSize);
 
         return new FetchDataInfo(offsetMetadata, log.slice(startPosition, fetchSize),
             adjustedMaxSize < startOffsetAndSize.size, Optional.empty());
     }
 
     public OptionalLong fetchUpperBoundOffset(OffsetPosition startOffsetPosition, int fetchSize) throws IOException {
-        Optional<OffsetPosition> position = offsetIndex().fetchUpperBoundOffset(startOffsetPosition, fetchSize);
-        if (position.isPresent())
-            return OptionalLong.of(position.get().offset);
-        return OptionalLong.empty();
+        return offsetIndex().fetchUpperBoundOffset(startOffsetPosition, fetchSize)
+                .map(offsetPosition -> OptionalLong.of(offsetPosition.offset)).orElseGet(OptionalLong::empty);
     }
 
     /**
@@ -717,9 +712,9 @@ public class LogSegment implements Closeable {
     }
 
     /**
-     * @return the first batch timestamp if the timestamp is available. Otherwise return Long.MaxValue
+     * @return the first batch timestamp if the timestamp is available. Otherwise, return Long.MaxValue
      */
-    long getFirstBatchTimestamp() {
+    public long getFirstBatchTimestamp() {
         loadFirstBatchTimestamp();
         OptionalLong timestamp = rollingBasedTimestamp;
         if (timestamp.isPresent() && timestamp.getAsLong() >= 0)
@@ -809,6 +804,9 @@ public class LogSegment implements Closeable {
             else {
                 if (logIfMissing) {
                     LOGGER.info("Failed to delete {} {} because it does not exist.", fileType, file.getAbsolutePath());
+                }
+                if (file.getParent() == null) {
+                    return null;
                 }
 
                 // During alter log dir, the log segment may be moved to a new directory, so async delete may fail.

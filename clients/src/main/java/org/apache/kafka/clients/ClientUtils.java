@@ -31,6 +31,7 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.telemetry.internals.ClientTelemetrySender;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,7 +125,7 @@ public final class ClientUtils {
         InetAddress[] addresses = hostResolver.resolve(host);
         List<InetAddress> result = filterPreferredAddresses(addresses);
         if (log.isDebugEnabled())
-            log.debug("Resolved host {} as {}", host, result.stream().map(i -> i.getHostAddress()).collect(Collectors.joining(",")));
+            log.debug("Resolved host {} as {}", host, result.stream().map(InetAddress::getHostAddress).collect(Collectors.joining(",")));
         return result;
     }
 
@@ -245,7 +246,10 @@ public final class ClientUtils {
                     throttleTimeSensor,
                     logContext,
                     hostResolver,
-                    clientTelemetrySender);
+                    clientTelemetrySender,
+                    config.getLong(CommonClientConfigs.METADATA_RECOVERY_REBOOTSTRAP_TRIGGER_MS_CONFIG),
+                    MetadataRecoveryStrategy.forName(config.getString(CommonClientConfigs.METADATA_RECOVERY_STRATEGY_CONFIG))
+            );
         } catch (Throwable t) {
             closeQuietly(selector, "Selector");
             closeQuietly(channelBuilder, "ChannelBuilder");

@@ -38,6 +38,7 @@ import org.apache.kafka.server.mutable.BoundedListTooLongException;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.apache.kafka.timeline.TimelineHashSet;
+
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -158,6 +159,12 @@ public class AclControlManager {
         }
         if (binding.pattern().name() == null || binding.pattern().name().isEmpty()) {
             throw new InvalidRequestException("Resource name should not be empty");
+        }
+        int colonIndex = binding.entry().principal().indexOf(":");
+        if (colonIndex == -1) {
+            throw new InvalidRequestException("Could not parse principal from `" +
+                binding.entry().principal() + "` " + "(no colon is present separating the " +
+                "principal type from the principal name)");
         }
     }
 

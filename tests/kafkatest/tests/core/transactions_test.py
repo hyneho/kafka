@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from kafkatest.services.zookeeper import ZookeeperService
 from kafkatest.services.kafka import KafkaService, quorum, consumer_group
 from kafkatest.services.console_consumer import ConsoleConsumer
 from kafkatest.services.verifiable_producer import VerifiableProducer
-from kafkatest.services.transactional_message_copier import TransactionalMessageCopier
 from kafkatest.utils import is_int
+from kafkatest.utils.transactions_utils import create_and_start_copiers
 
 from ducktape.tests.test import Test
 from ducktape.mark import matrix
@@ -59,15 +58,10 @@ class TransactionsTest(Test):
         self.progress_timeout_sec = 60
         self.consumer_group = "transactions-test-consumer-group"
 
-        self.zk = ZookeeperService(test_context, num_nodes=1) if quorum.for_test(test_context) == quorum.zk else None
         self.kafka = KafkaService(test_context,
                                   num_nodes=self.num_brokers,
-                                  zk=self.zk,
+                                  zk=None,
                                   controller_num_nodes_override=1)
-
-    def setUp(self):
-        if self.zk:
-            self.zk.start()
 
     def seed_messages(self, topic, num_seed_messages):
         seed_timeout_sec = 10000
@@ -96,40 +90,14 @@ class TransactionsTest(Test):
             else:
                 self.kafka.stop_node(node, clean_shutdown = False)
                 gracePeriodSecs = 5
-                if self.zk:
-                    wait_until(lambda: not self.kafka.pids(node) and not self.kafka.is_registered(node),
-                               timeout_sec=self.kafka.zk_session_timeout + gracePeriodSecs,
-                               err_msg="Failed to see timely deregistration of hard-killed broker %s" % str(node.account))
-                else:
-                    brokerSessionTimeoutSecs = 18
-                    wait_until(lambda: not self.kafka.pids(node),
-                               timeout_sec=brokerSessionTimeoutSecs + gracePeriodSecs,
-                               err_msg="Failed to see timely disappearance of process for hard-killed broker %s" % str(node.account))
-                    time.sleep(brokerSessionTimeoutSecs + gracePeriodSecs)
+                brokerSessionTimeoutSecs = 18
+                wait_until(lambda: not self.kafka.pids(node),
+                           timeout_sec=brokerSessionTimeoutSecs + gracePeriodSecs,
+                           err_msg="Failed to see timely disappearance of process for hard-killed broker %s" % str(node.account))
+                time.sleep(brokerSessionTimeoutSecs + gracePeriodSecs)
                 self.kafka.start_node(node)
 
             self.kafka.await_no_under_replicated_partitions()
-
-    def create_and_start_message_copier(self, input_topic, input_partition, output_topic, transactional_id, use_group_metadata):
-        message_copier = TransactionalMessageCopier(
-            context=self.test_context,
-            num_nodes=1,
-            kafka=self.kafka,
-            transactional_id=transactional_id,
-            consumer_group=self.consumer_group,
-            input_topic=input_topic,
-            input_partition=input_partition,
-            output_topic=output_topic,
-            max_messages=-1,
-            transaction_size=self.transaction_size,
-            transaction_timeout=self.transaction_timeout,
-            use_group_metadata=use_group_metadata
-        )
-        message_copier.start()
-        wait_until(lambda: message_copier.alive(message_copier.nodes[0]),
-                   timeout_sec=10,
-                   err_msg="Message copier failed to start after 10 s")
-        return message_copier
 
     def bounce_copiers(self, copiers, clean_shutdown):
         for _ in range(3):
@@ -141,18 +109,6 @@ class TransactionsTest(Test):
                 self.logger.info("%s - progress: %s" % (copier.transactional_id,
                                                         str(copier.progress_percent())))
                 copier.restart(clean_shutdown)
-
-    def create_and_start_copiers(self, input_topic, output_topic, num_copiers, use_group_metadata):
-        copiers = []
-        for i in range(0, num_copiers):
-            copiers.append(self.create_and_start_message_copier(
-                input_topic=input_topic,
-                output_topic=output_topic,
-                input_partition=i,
-                transactional_id="copier-" + str(i),
-                use_group_metadata=use_group_metadata
-            ))
-        return copiers
 
     def start_consumer(self, topic_to_read, group_id, group_protocol):
         consumer = ConsoleConsumer(context=self.test_context,
@@ -200,10 +156,15 @@ class TransactionsTest(Test):
 
         It returns the concurrently consumed messages.
         """
-        copiers = self.create_and_start_copiers(input_topic=input_topic,
-                                                output_topic=output_topic,
-                                                num_copiers=num_copiers,
-                                                use_group_metadata=use_group_metadata)
+        copiers = create_and_start_copiers(test_context=self.test_context,
+                                           kafka=self.kafka,
+                                           consumer_group=self.consumer_group,
+                                           input_topic=input_topic,
+                                           output_topic=output_topic,
+                                           transaction_size=self.transaction_size,
+                                           transaction_timeout=self.transaction_timeout,
+                                           num_copiers=num_copiers,
+                                           use_group_metadata=use_group_metadata)
         concurrent_consumer = self.start_consumer(output_topic,
                                                   group_id="concurrent_consumer",
                                                   group_protocol=group_protocol)
@@ -250,14 +211,6 @@ class TransactionsTest(Test):
         bounce_target=["brokers", "clients"],
         check_order=[True, False],
         use_group_metadata=[True, False],
-        metadata_quorum=[quorum.zk],
-        use_new_coordinator=[False]
-    )
-    @matrix(
-        failure_mode=["hard_bounce", "clean_bounce"],
-        bounce_target=["brokers", "clients"],
-        check_order=[True, False],
-        use_group_metadata=[True, False],
         metadata_quorum=quorum.all_kraft,
         use_new_coordinator=[False]
     )
@@ -270,7 +223,7 @@ class TransactionsTest(Test):
         use_new_coordinator=[True],
         group_protocol=consumer_group.all_group_protocols
     )
-    def test_transactions(self, failure_mode, bounce_target, check_order, use_group_metadata, metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=None):
+    def test_transactions(self, failure_mode, bounce_target, check_order, use_group_metadata, metadata_quorum, use_new_coordinator=False, group_protocol=None):
         security_protocol = 'PLAINTEXT'
         self.kafka.security_protocol = security_protocol
         self.kafka.interbroker_security_protocol = security_protocol

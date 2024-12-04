@@ -16,24 +16,12 @@
  */
 package org.apache.kafka.clients.admin.internals;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.clients.consumer.ConsumerPartitionAssignor.Assignment;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
-import org.apache.kafka.common.ConsumerGroupState;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.TopicPartition;
@@ -51,11 +39,24 @@ import org.apache.kafka.common.requests.ConsumerGroupDescribeResponse;
 import org.apache.kafka.common.requests.DescribeGroupsRequest;
 import org.apache.kafka.common.requests.DescribeGroupsResponse;
 import org.apache.kafka.common.requests.FindCoordinatorRequest;
-import org.apache.kafka.common.requests.MetadataResponse;
 import org.apache.kafka.common.requests.FindCoordinatorRequest.CoordinatorType;
 import org.apache.kafka.common.utils.LogContext;
-import org.apache.kafka.common.utils.Utils;
+
 import org.slf4j.Logger;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.apache.kafka.clients.admin.internals.AdminUtils.validAclOperations;
 
 public class DescribeConsumerGroupsHandler implements AdminApiHandler<CoordinatorKey, ConsumerGroupDescription> {
 
@@ -212,7 +213,7 @@ public class DescribeConsumerGroupsHandler implements AdminApiHandler<Coordinato
             final Set<AclOperation> authorizedOperations = validAclOperations(describedGroup.authorizedOperations());
             final List<MemberDescription> memberDescriptions = new ArrayList<>(describedGroup.members().size());
 
-            describedGroup.members().forEach(groupMember -> {
+            describedGroup.members().forEach(groupMember ->
                 memberDescriptions.add(new MemberDescription(
                     groupMember.memberId(),
                     Optional.ofNullable(groupMember.instanceId()),
@@ -220,8 +221,8 @@ public class DescribeConsumerGroupsHandler implements AdminApiHandler<Coordinato
                     groupMember.clientHost(),
                     new MemberAssignment(convertAssignment(groupMember.assignment())),
                     Optional.of(new MemberAssignment(convertAssignment(groupMember.targetAssignment())))
-                ));
-            });
+                ))
+            );
 
             final ConsumerGroupDescription consumerGroupDescription =
                 new ConsumerGroupDescription(
@@ -230,7 +231,7 @@ public class DescribeConsumerGroupsHandler implements AdminApiHandler<Coordinato
                     memberDescriptions,
                     describedGroup.assignorName(),
                     GroupType.CONSUMER,
-                    ConsumerGroupState.parse(describedGroup.groupState()),
+                    GroupState.parse(describedGroup.groupState()),
                     coordinator,
                     authorizedOperations
                 );
@@ -285,7 +286,7 @@ public class DescribeConsumerGroupsHandler implements AdminApiHandler<Coordinato
                         memberDescriptions,
                         describedGroup.protocolData(),
                         GroupType.CLASSIC,
-                        ConsumerGroupState.parse(describedGroup.groupState()),
+                        GroupState.parse(describedGroup.groupState()),
                         coordinator,
                         authorizedOperations);
                 completed.put(groupIdKey, consumerGroupDescription);
@@ -366,18 +367,4 @@ public class DescribeConsumerGroupsHandler implements AdminApiHandler<Coordinato
                 failed.put(groupId, error.exception(errorMsg));
         }
     }
-
-    private Set<AclOperation> validAclOperations(final int authorizedOperations) {
-        if (authorizedOperations == MetadataResponse.AUTHORIZED_OPERATIONS_OMITTED) {
-            return null;
-        }
-        return Utils.from32BitField(authorizedOperations)
-            .stream()
-            .map(AclOperation::fromCode)
-            .filter(operation -> operation != AclOperation.UNKNOWN
-                && operation != AclOperation.ALL
-                && operation != AclOperation.ANY)
-            .collect(Collectors.toSet());
-    }
-
 }

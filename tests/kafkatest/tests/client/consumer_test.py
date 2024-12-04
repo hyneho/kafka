@@ -76,7 +76,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
 
     @cluster(num_nodes=7)
     @matrix(
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -116,6 +116,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
 
         consumer.start()
         self.await_all_members(consumer)
+        self.await_all_members_stabilized(self.TOPIC, self.NUM_PARTITIONS, consumer, timeout_sec=60)
 
         num_rebalances = consumer.num_rebalances()
         # TODO: make this test work with hard shutdowns, which probably requires
@@ -137,7 +138,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
     @matrix(
         clean_shutdown=[True],
         bounce_mode=["all", "rolling"],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -194,7 +195,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         static_membership=[True, False],
         bounce_mode=["all", "rolling"],
         num_bounces=[5],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -204,13 +205,15 @@ class OffsetValidationTest(VerifiableConsumerTest):
         num_bounces=[5],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[True],
-        group_protocol=consumer_group.all_group_protocols
+        group_protocol=[consumer_group.classic_group_protocol]
     )
-    def test_static_consumer_bounce(self, clean_shutdown, static_membership, bounce_mode, num_bounces, metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=None):
+    def test_static_consumer_bounce_with_eager_assignment(self, clean_shutdown, static_membership, bounce_mode, num_bounces, metadata_quorum=quorum.zk, use_new_coordinator=False, group_protocol=None):
         """
-        Verify correct static consumer behavior when the consumers in the group are restarted. In order to make
+        Verify correct static consumer behavior when the consumers in the group are restarted. In order to make 
         sure the behavior of static members are different from dynamic ones, we take both static and dynamic
-        membership into this test suite.
+        membership into this test suite. This test is based on the eager assignment strategy, where all dynamic consumers 
+        revoke their partitions when a global rebalance takes place (even if they are not being bounced). The test relies
+        on that eager behaviour when making sure that there is no global rebalance when static members are bounced.
 
         Setup: single Kafka cluster with one producer and a set of consumers in one group.
 
@@ -227,7 +230,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
         self.await_produced_messages(producer)
 
         self.session_timeout_sec = 60
-        consumer = self.setup_consumer(self.TOPIC, static_membership=static_membership, group_protocol=group_protocol)
+        consumer = self.setup_consumer(self.TOPIC, static_membership=static_membership, group_protocol=group_protocol, 
+                                       assignment_strategy="org.apache.kafka.clients.consumer.RangeAssignor")
 
         consumer.start()
         self.await_all_members(consumer)
@@ -242,16 +246,15 @@ class OffsetValidationTest(VerifiableConsumerTest):
             self.rolling_bounce_consumers(consumer, keep_alive=num_keep_alive, num_bounces=num_bounces)
 
         num_revokes_after_bounce = consumer.num_revokes_for_alive() - num_revokes_before_bounce
-
-        check_condition = num_revokes_after_bounce != 0
+            
         # under static membership, the live consumer shall not revoke any current running partitions,
         # since there is no global rebalance being triggered.
         if static_membership:
-            check_condition = num_revokes_after_bounce == 0
-
-        assert check_condition, \
-            "Total revoked count %d does not match the expectation of having 0 revokes as %d" % \
-            (num_revokes_after_bounce, check_condition)
+            assert num_revokes_after_bounce == 0, \
+                "Unexpected revocation triggered when bouncing static member. Expecting 0 but had %d revocations" % num_revokes_after_bounce
+        else:
+            assert num_revokes_after_bounce != 0, \
+                "Revocations not triggered as expected when bouncing member with eager assignment"
 
         consumer.stop_all()
         if clean_shutdown:
@@ -269,7 +272,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
     @cluster(num_nodes=7)
     @matrix(
         bounce_mode=["all", "rolling"],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -311,7 +314,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
     @matrix(
         num_conflict_consumers=[1, 2],
         fencing_stage=["stable", "all"],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -347,6 +350,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         if fencing_stage == "stable":
             consumer.start()
             self.await_members(consumer, len(consumer.nodes))
+            self.await_all_members_stabilized(self.TOPIC, self.NUM_PARTITIONS, consumer, timeout_sec=120)
 
             num_rebalances = consumer.num_rebalances()
             conflict_consumer.start()
@@ -395,7 +399,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
     @matrix(
         clean_shutdown=[True],
         enable_autocommit=[True, False],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -413,9 +417,8 @@ class OffsetValidationTest(VerifiableConsumerTest):
 
         consumer.start()
         self.await_all_members(consumer)
-
+        self.await_all_members_stabilized(self.TOPIC, self.NUM_PARTITIONS, consumer, timeout_sec=60)
         partition_owner = consumer.owner(partition)
-        assert partition_owner is not None
 
         # startup the producer and ensure that some records have been written
         producer.start()
@@ -454,12 +457,6 @@ class OffsetValidationTest(VerifiableConsumerTest):
     @matrix(
         clean_shutdown=[True, False],
         enable_autocommit=[True, False],
-        metadata_quorum=[quorum.zk],
-        use_new_coordinator=[False]
-    )
-    @matrix(
-        clean_shutdown=[True, False],
-        enable_autocommit=[True, False],
         metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
@@ -479,6 +476,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         producer.start()
         consumer.start()
         self.await_all_members(consumer)
+        self.await_all_members_stabilized(self.TOPIC, self.NUM_PARTITIONS, consumer, timeout_sec=60)
 
         num_rebalances = consumer.num_rebalances()
 
@@ -489,7 +487,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
         # ensure that the consumers do some work after the broker failure
         self.await_consumed_messages(consumer, min_messages=1000)
 
-        # verify that there were no rebalances on failover
+        # verify that there were no rebalances on failover.
         assert num_rebalances == consumer.num_rebalances(), "Broker failure should not cause a rebalance"
 
         consumer.stop_all()
@@ -507,7 +505,7 @@ class OffsetValidationTest(VerifiableConsumerTest):
 
     @cluster(num_nodes=7)
     @matrix(
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -570,7 +568,7 @@ class AssignmentValidationTest(VerifiableConsumerTest):
                              "org.apache.kafka.clients.consumer.RoundRobinAssignor",
                              "org.apache.kafka.clients.consumer.StickyAssignor",
                              "org.apache.kafka.clients.consumer.CooperativeStickyAssignor"],
-        metadata_quorum=[quorum.zk, quorum.isolated_kraft],
+        metadata_quorum=[quorum.isolated_kraft],
         use_new_coordinator=[False]
     )
     @matrix(
@@ -606,7 +604,7 @@ class AssignmentValidationTest(VerifiableConsumerTest):
             consumer.start_node(node)
             self.await_members(consumer, num_started)
             wait_until(lambda: self.valid_assignment(self.TOPIC, self.NUM_PARTITIONS, consumer.current_assignment()),
-                timeout_sec=15,
+                timeout_sec=30,
                 err_msg="expected valid assignments of %d partitions when num_started %d: %s" % \
                         (self.NUM_PARTITIONS, num_started, \
                          [(str(node.account), a) for node, a in consumer.current_assignment().items()]))

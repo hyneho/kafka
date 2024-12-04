@@ -17,11 +17,12 @@
 
 package org.apache.kafka.streams.kstream.internals.graph;
 
-import java.util.Arrays;
-import java.util.Objects;
 import org.apache.kafka.streams.kstream.internals.KTableSource;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
 import org.apache.kafka.streams.processor.internals.StoreFactory;
+
+import java.util.Arrays;
+import java.util.Objects;
 
 public class TableProcessorNode<K, V> extends GraphNode {
 
@@ -53,7 +54,7 @@ public class TableProcessorNode<K, V> extends GraphNode {
     public String toString() {
         return "TableProcessorNode{" +
             ", processorParameters=" + processorParameters +
-            ", storeFactory=" + (storeFactory == null ? "null" : storeFactory.name()) +
+            ", storeFactory=" + (storeFactory == null ? "null" : storeFactory.storeName()) +
             ", storeNames=" + Arrays.toString(storeNames) +
             "} " + super.toString();
     }

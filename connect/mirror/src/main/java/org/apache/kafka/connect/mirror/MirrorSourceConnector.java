@@ -16,63 +16,63 @@
  */
 package org.apache.kafka.connect.mirror;
 
-import java.util.HashMap;
-import java.util.Map.Entry;
-
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AlterConfigOp;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.CreateTopicsOptions;
+import org.apache.kafka.clients.admin.NewPartitions;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.IsolationLevel;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.acl.AccessControlEntry;
+import org.apache.kafka.common.acl.AccessControlEntryFilter;
+import org.apache.kafka.common.acl.AclBinding;
+import org.apache.kafka.common.acl.AclBindingFilter;
+import org.apache.kafka.common.acl.AclOperation;
+import org.apache.kafka.common.acl.AclPermissionType;
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.config.ConfigValue;
+import org.apache.kafka.common.errors.InvalidPartitionsException;
 import org.apache.kafka.common.errors.SecurityDisabledException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
+import org.apache.kafka.common.resource.PatternType;
+import org.apache.kafka.common.resource.ResourcePattern;
+import org.apache.kafka.common.resource.ResourcePatternFilter;
+import org.apache.kafka.common.resource.ResourceType;
+import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.ExactlyOnceSupport;
 import org.apache.kafka.connect.source.SourceConnector;
-import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.ConfigResource;
-import org.apache.kafka.common.acl.AclBinding;
-import org.apache.kafka.common.acl.AclBindingFilter;
-import org.apache.kafka.common.acl.AccessControlEntry;
-import org.apache.kafka.common.acl.AccessControlEntryFilter;
-import org.apache.kafka.common.acl.AclPermissionType;
-import org.apache.kafka.common.acl.AclOperation;
-import org.apache.kafka.common.resource.ResourceType;
-import org.apache.kafka.common.resource.ResourcePattern;
-import org.apache.kafka.common.resource.ResourcePatternFilter;
-import org.apache.kafka.common.resource.PatternType;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.errors.InvalidPartitionsException;
-import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.apache.kafka.common.utils.AppInfoParser;
-import org.apache.kafka.common.utils.Utils;
-import org.apache.kafka.clients.admin.AlterConfigOp;
-import org.apache.kafka.clients.admin.TopicDescription;
-import org.apache.kafka.clients.admin.Config;
-import org.apache.kafka.clients.admin.ConfigEntry;
-import org.apache.kafka.clients.admin.NewPartitions;
-import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.admin.CreateTopicsOptions;
 
-import java.util.Map;
-import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.HashSet;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.concurrent.ExecutionException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import static org.apache.kafka.connect.mirror.MirrorConnectorConfig.OFFSET_SYNCS_CLIENT_ROLE_PREFIX;
+import static org.apache.kafka.connect.mirror.MirrorConnectorConfig.OFFSET_SYNCS_TOPIC_CONFIG_PREFIX;
 import static org.apache.kafka.connect.mirror.MirrorSourceConfig.SYNC_TOPIC_ACLS_ENABLED;
 import static org.apache.kafka.connect.mirror.MirrorUtils.SOURCE_CLUSTER_KEY;
 import static org.apache.kafka.connect.mirror.MirrorUtils.TOPIC_KEY;
@@ -105,8 +105,7 @@ public class MirrorSourceConnector extends SourceConnector {
     private int replicationFactor;
     private Admin sourceAdminClient;
     private Admin targetAdminClient;
-    private Admin offsetSyncsAdminClient;
-    private volatile boolean useIncrementalAlterConfigs;
+    private boolean heartbeatsReplicationEnabled;
 
     public MirrorSourceConnector() {
         // nop
@@ -121,24 +120,19 @@ public class MirrorSourceConnector extends SourceConnector {
     // visible for testing
     MirrorSourceConnector(SourceAndTarget sourceAndTarget, ReplicationPolicy replicationPolicy,
             TopicFilter topicFilter, ConfigPropertyFilter configPropertyFilter) {
+        this(sourceAndTarget, replicationPolicy, topicFilter, configPropertyFilter, true);
+    }
+
+    // visible for testing
+    MirrorSourceConnector(SourceAndTarget sourceAndTarget, ReplicationPolicy replicationPolicy,
+            TopicFilter topicFilter, ConfigPropertyFilter configPropertyFilter, boolean heartbeatsReplicationEnabled) {
         this.sourceAndTarget = sourceAndTarget;
         this.replicationPolicy = replicationPolicy;
         this.topicFilter = topicFilter;
         this.configPropertyFilter = configPropertyFilter;
+        this.heartbeatsReplicationEnabled = heartbeatsReplicationEnabled;
     }
 
-    // visible for testing the deprecated setting "use.incremental.alter.configs"
-    // this constructor should be removed when the deprecated setting is removed in Kafka 4.0
-    MirrorSourceConnector(SourceAndTarget sourceAndTarget, ReplicationPolicy replicationPolicy,
-                          MirrorSourceConfig config, ConfigPropertyFilter configPropertyFilter, Admin targetAdmin) {
-        this.sourceAndTarget = sourceAndTarget;
-        this.replicationPolicy = replicationPolicy;
-        this.configPropertyFilter = configPropertyFilter;
-        this.config = config;
-        this.useIncrementalAlterConfigs = !config.useIncrementalAlterConfigs().equals(MirrorSourceConfig.NEVER_USE_INCREMENTAL_ALTER_CONFIGS);
-        this.targetAdminClient = targetAdmin;                      
-    }
-        
     // visible for testing
     MirrorSourceConnector(Admin sourceAdminClient, Admin targetAdminClient, MirrorSourceConfig config) {
         this.sourceAdminClient = sourceAdminClient;
@@ -161,8 +155,8 @@ public class MirrorSourceConnector extends SourceConnector {
         replicationFactor = config.replicationFactor();
         sourceAdminClient = config.forwardingAdmin(config.sourceAdminConfig("replication-source-admin"));
         targetAdminClient = config.forwardingAdmin(config.targetAdminConfig("replication-target-admin"));
-        useIncrementalAlterConfigs =  !config.useIncrementalAlterConfigs().equals(MirrorSourceConfig.NEVER_USE_INCREMENTAL_ALTER_CONFIGS);
-        offsetSyncsAdminClient = config.forwardingAdmin(config.offsetSyncsTopicAdminConfig());
+        heartbeatsReplicationEnabled = config.heartbeatsReplicationEnabled();
+
         scheduler = new Scheduler(getClass(), config.entityLabel(), config.adminTimeout());
         scheduler.execute(this::createOffsetSyncsTopic, "creating upstream offset-syncs topic");
         scheduler.execute(this::loadTopicPartitions, "loading initial set of topic-partitions");
@@ -188,7 +182,6 @@ public class MirrorSourceConnector extends SourceConnector {
         Utils.closeQuietly(configPropertyFilter, "config property filter");
         Utils.closeQuietly(sourceAdminClient, "source admin client");
         Utils.closeQuietly(targetAdminClient, "target admin client");
-        Utils.closeQuietly(offsetSyncsAdminClient, "offset syncs admin client");
         log.info("Stopping {} took {} ms.", connectorName, System.currentTimeMillis() - start);
     }
 
@@ -235,6 +228,30 @@ public class MirrorSourceConnector extends SourceConnector {
     @Override
     public org.apache.kafka.common.config.Config validate(Map<String, String> props) {
         List<ConfigValue> configValues = super.validate(props).configValues();
+        validateExactlyOnceConfigs(props, configValues);
+        validateEmitOffsetSyncConfigs(props, configValues);
+
+        return new org.apache.kafka.common.config.Config(configValues);
+    }
+
+    private static void validateEmitOffsetSyncConfigs(Map<String, String> props, List<ConfigValue> configValues) {
+        boolean offsetSyncsConfigured = props.keySet().stream()
+                .anyMatch(conf -> conf.startsWith(OFFSET_SYNCS_CLIENT_ROLE_PREFIX) || conf.startsWith(OFFSET_SYNCS_TOPIC_CONFIG_PREFIX));
+
+        if ("false".equals(props.get(MirrorConnectorConfig.EMIT_OFFSET_SYNCS_ENABLED)) && offsetSyncsConfigured) {
+            ConfigValue emitOffsetSyncs = configValues.stream().filter(prop -> MirrorConnectorConfig.EMIT_OFFSET_SYNCS_ENABLED.equals(prop.name()))
+                    .findAny()
+                    .orElseGet(() -> {
+                        ConfigValue result = new ConfigValue(MirrorConnectorConfig.EMIT_OFFSET_SYNCS_ENABLED);
+                        configValues.add(result);
+                        return result;
+                    });
+            emitOffsetSyncs.addErrorMessage("MirrorSourceConnector can't setup offset-syncs feature while " +
+                    MirrorConnectorConfig.EMIT_OFFSET_SYNCS_ENABLED + " set to false");
+        }
+    }
+
+    private void validateExactlyOnceConfigs(Map<String, String> props, List<ConfigValue> configValues) {
         if ("required".equals(props.get(EXACTLY_ONCE_SUPPORT_CONFIG))) {
             if (!consumerUsesReadCommitted(props)) {
                 ConfigValue exactlyOnceSupport = configValues.stream()
@@ -257,7 +274,6 @@ public class MirrorSourceConnector extends SourceConnector {
                 );
             }
         }
-        return new org.apache.kafka.common.config.Config(configValues);
     }
 
     @Override
@@ -419,23 +435,22 @@ public class MirrorSourceConnector extends SourceConnector {
     // visible for testing
     void syncTopicConfigs()
             throws InterruptedException, ExecutionException {
-        boolean incremental = useIncrementalAlterConfigs;
         Map<String, Config> sourceConfigs = describeTopicConfigs(topicsBeingReplicated());
         Map<String, Config> targetConfigs = sourceConfigs.entrySet().stream()
-            .collect(Collectors.toMap(x -> formatRemoteTopic(x.getKey()), x -> targetConfig(x.getValue(), incremental)));
-        if (incremental) {
-            incrementalAlterConfigs(targetConfigs);
-        } else {
-            deprecatedAlterConfigs(targetConfigs);
-        }
+            .collect(Collectors.toMap(x -> formatRemoteTopic(x.getKey()), x -> targetConfig(x.getValue(), true)));
+        incrementalAlterConfigs(targetConfigs);
     }
 
     private void createOffsetSyncsTopic() {
-        MirrorUtils.createSinglePartitionCompactedTopic(
-                config.offsetSyncsTopic(),
-                config.offsetSyncsTopicReplicationFactor(),
-                offsetSyncsAdminClient
-        );
+        if (config.emitOffsetSyncsEnabled()) {
+            try (Admin offsetSyncsAdminClient = config.forwardingAdmin(config.offsetSyncsTopicAdminConfig())) {
+                MirrorUtils.createSinglePartitionCompactedTopic(
+                        config.offsetSyncsTopic(),
+                        config.offsetSyncsTopicReplicationFactor(),
+                        offsetSyncsAdminClient
+                );
+            }
+        }
     }
 
     void computeAndCreateTopicPartitions() throws ExecutionException, InterruptedException {
@@ -581,26 +596,6 @@ public class MirrorSourceConnector extends SourceConnector {
                 .collect(Collectors.toMap(ConfigEntry::name, ConfigEntry::value));
     }
 
-    // visible for testing
-    // use deprecated alterConfigs API for broker compatibility back to 0.11.0
-    @SuppressWarnings("deprecation")
-    void deprecatedAlterConfigs(Map<String, Config> topicConfigs) throws ExecutionException, InterruptedException {
-        Map<ConfigResource, Config> configs = topicConfigs.entrySet().stream()
-            .collect(Collectors.toMap(x ->
-                new ConfigResource(ConfigResource.Type.TOPIC, x.getKey()), Entry::getValue));
-        log.trace("Syncing configs for {} topics.", configs.size());
-        adminCall(
-                () -> {
-                    targetAdminClient.alterConfigs(configs).values().forEach((k, v) -> v.whenComplete((x, e) -> {
-                        if (e != null) {
-                            log.warn("Could not alter configuration of topic {}.", k.name(), e);
-                        }
-                    }));
-                    return null;
-                },
-                () -> String.format("alter topic configs %s on %s cluster", topicConfigs, config.targetClusterAlias())
-        );
-    }
 
     // visible for testing
     void incrementalAlterConfigs(Map<String, Config> topicConfigs) throws ExecutionException, InterruptedException {
@@ -618,34 +613,24 @@ public class MirrorSourceConnector extends SourceConnector {
             configOps.put(configResource, ops);
         }
         log.trace("Syncing configs for {} topics.", configOps.size());
-        AtomicReference<Boolean> encounteredError = new AtomicReference<>(false);
-        adminCall(
-                () -> {
-                    targetAdminClient.incrementalAlterConfigs(configOps).values().forEach((k, v) -> v.whenComplete((x, e) -> {
-                        if (e != null) {
-                            if (config.useIncrementalAlterConfigs().equals(MirrorSourceConfig.REQUEST_INCREMENTAL_ALTER_CONFIGS)
-                                    && e instanceof UnsupportedVersionException && !encounteredError.get()) {
-                                //Fallback logic
-                                log.warn("The target cluster {} is not compatible with IncrementalAlterConfigs API. "
-                                                + "Therefore using deprecated AlterConfigs API for syncing configs for topic {}",
-                                        sourceAndTarget.target(), k.name(), e);
-                                encounteredError.set(true);
-                                useIncrementalAlterConfigs = false;
-                            } else if (config.useIncrementalAlterConfigs().equals(MirrorSourceConfig.REQUIRE_INCREMENTAL_ALTER_CONFIGS)
-                                    && e instanceof UnsupportedVersionException && !encounteredError.get()) {
-                                log.error("Failed to sync configs for topic {} on cluster {} with IncrementalAlterConfigs API", k.name(), sourceAndTarget.target(), e);
-                                encounteredError.set(true);
-                                context.raiseError(new ConnectException("use.incremental.alter.configs was set to \"required\", but the target cluster '"
-                                        + sourceAndTarget.target() + "' is not compatible with IncrementalAlterConfigs API", e));
-                            } else {
-                                log.warn("Could not alter configuration of topic {}.", k.name(), e);
-                            }
-                        }
-                    }));
-                    return null;
-                },
-                () -> String.format("incremental alter topic configs %s on %s cluster", topicConfigs, config.targetClusterAlias())
-        );
+        adminCall(() -> {
+            targetAdminClient.incrementalAlterConfigs(configOps).values()
+                .forEach((k, v) -> v.whenComplete((x, e) -> {
+                    if (e instanceof UnsupportedVersionException) {
+                        log.error("Failed to sync configs for topic {} on cluster {} with " +
+                                "IncrementalAlterConfigs API", k.name(), sourceAndTarget.target(), e);
+                        context.raiseError(new ConnectException("the target cluster '"
+                                + sourceAndTarget.target() + "' is not compatible with " +
+                                "IncrementalAlterConfigs " +
+                                "API", e));
+                    } else {
+                        log.warn("Could not alter configuration of topic {}.", k.name(), e);
+                    }
+                }));
+            return null;
+        },
+            () -> String.format("incremental alter topic configs %s on %s cluster", topicConfigs,
+                    config.targetClusterAlias()));
     }
 
     private void updateTopicAcls(List<AclBinding> bindings) throws ExecutionException, InterruptedException {
@@ -711,7 +696,8 @@ public class MirrorSourceConnector extends SourceConnector {
     }
 
     boolean shouldReplicateTopic(String topic) {
-        return (topicFilter.shouldReplicateTopic(topic) || replicationPolicy.isHeartbeatsTopic(topic))
+        return (topicFilter.shouldReplicateTopic(topic)
+                || (heartbeatsReplicationEnabled && replicationPolicy.isHeartbeatsTopic(topic)))
             && !replicationPolicy.isInternalTopic(topic) && !isCycle(topic);
     }
 

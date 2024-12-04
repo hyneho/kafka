@@ -19,24 +19,25 @@ package org.apache.kafka.streams.processor.internals.metrics;
 import org.apache.kafka.common.metrics.Gauge;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.metrics.Sensor.RecordingLevel;
+import org.apache.kafka.streams.processor.internals.StreamThread;
 import org.apache.kafka.streams.processor.internals.StreamThreadTotalBlockedTime;
-import org.junit.Test;
 
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 
 import java.util.Collections;
 import java.util.Map;
-import org.mockito.ArgumentCaptor;
-import org.mockito.MockedStatic;
 
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.LATENCY_SUFFIX;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.RATE_SUFFIX;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ThreadMetricsTest {
 
@@ -412,6 +413,39 @@ public class ThreadMetricsTest {
             startTime
         );
     }
+
+    @Test
+    public void shouldAddThreadStateTelemetryMetric() {
+        final Gauge<Integer> threadStateProvider = (streamsMetrics, startTime) -> StreamThread.State.RUNNING.ordinal();
+        ThreadMetrics.addThreadStateTelemetryMetric(
+                THREAD_ID,
+                streamsMetrics,
+                threadStateProvider
+        );
+        verify(streamsMetrics).addThreadLevelMutableMetric(
+                "thread-state",
+                "The current state of the thread",
+                THREAD_ID,
+                threadStateProvider
+        );
+    }
+
+    @Test
+    public void shouldAddThreadStateJmxMetric() {
+        final Gauge<StreamThread.State> threadStateProvider = (streamsMetrics, startTime) -> StreamThread.State.RUNNING;
+        ThreadMetrics.addThreadStateMetric(
+                THREAD_ID,
+                streamsMetrics,
+                threadStateProvider
+        );
+        verify(streamsMetrics).addThreadLevelMutableMetric(
+                "state",
+                "The current state of the thread",
+                THREAD_ID,
+                threadStateProvider
+        );
+    }
+    
 
     @Test
     public void shouldAddTotalBlockedTimeMetric() {

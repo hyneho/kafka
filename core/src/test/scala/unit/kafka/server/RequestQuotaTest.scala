@@ -14,11 +14,11 @@
 
 package kafka.server
 
-import kafka.api.LeaderAndIsr
-import kafka.security.authorizer.AclAuthorizer
 import kafka.utils.TestUtils
 import org.apache.kafka.common._
 import org.apache.kafka.common.acl._
+import org.apache.kafka.common.compress.Compression
+import org.apache.kafka.common.config.internals.BrokerSecurityConfigs
 import org.apache.kafka.common.config.{ConfigResource, TopicConfig}
 import org.apache.kafka.common.internals.Topic
 import org.apache.kafka.common.message.CreatePartitionsRequestData.CreatePartitionsTopic
@@ -41,10 +41,12 @@ import org.apache.kafka.common.resource.{PatternType, ResourceType => AdminResou
 import org.apache.kafka.common.security.auth._
 import org.apache.kafka.common.utils.{Sanitizer, SecurityUtils}
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
+import org.apache.kafka.metadata.LeaderAndIsr
 import org.apache.kafka.metadata.authorizer.StandardAuthorizer
 import org.apache.kafka.network.Session
 import org.apache.kafka.server.authorizer.{Action, AuthorizableRequestContext, AuthorizationResult}
-import org.apache.kafka.server.config.{KafkaSecurityConfigs, QuotaConfigs}
+import org.apache.kafka.server.config.{QuotaConfig, ServerConfigs}
+import org.apache.kafka.server.quota.QuotaType
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, TestInfo}
 import org.junit.jupiter.params.ParameterizedTest
@@ -77,23 +79,19 @@ class RequestQuotaTest extends BaseRequestTest {
   private val tasks = new ListBuffer[Task]
 
   override def brokerPropertyOverrides(properties: Properties): Unit = {
-    properties.put(KafkaConfig.ControlledShutdownEnableProp, "false")
+    properties.put(ServerConfigs.CONTROLLED_SHUTDOWN_ENABLE_CONFIG, "false")
     properties.put(GroupCoordinatorConfig.OFFSETS_TOPIC_REPLICATION_FACTOR_CONFIG, "1")
     properties.put(GroupCoordinatorConfig.OFFSETS_TOPIC_PARTITIONS_CONFIG, "1")
     properties.put(GroupCoordinatorConfig.GROUP_MIN_SESSION_TIMEOUT_MS_CONFIG, "100")
     properties.put(GroupCoordinatorConfig.GROUP_INITIAL_REBALANCE_DELAY_MS_CONFIG, "0")
-    properties.put(KafkaSecurityConfigs.PRINCIPAL_BUILDER_CLASS_CONFIG, classOf[RequestQuotaTest.TestPrincipalBuilder].getName)
-    properties.put(KafkaConfig.UnstableApiVersionsEnableProp, "true")
-    if (isKRaftTest()) {
-      properties.put(KafkaConfig.AuthorizerClassNameProp, classOf[RequestQuotaTest.KraftTestAuthorizer].getName)
-    } else {
-      properties.put(KafkaConfig.AuthorizerClassNameProp, classOf[RequestQuotaTest.ZkTestAuthorizer].getName)
-    }
+    properties.put(BrokerSecurityConfigs.PRINCIPAL_BUILDER_CLASS_CONFIG, classOf[RequestQuotaTest.TestPrincipalBuilder].getName)
+    properties.put(ServerConfigs.UNSTABLE_API_VERSIONS_ENABLE_CONFIG, "true")
+    properties.put(ServerConfigs.AUTHORIZER_CLASS_NAME_CONFIG, classOf[RequestQuotaTest.KraftTestAuthorizer].getName)
   }
 
-  override def kraftControllerConfigs(): Seq[Properties] = {
+  override def kraftControllerConfigs(testInfo: TestInfo): Seq[Properties] = {
     val properties = new Properties()
-    properties.put(KafkaSecurityConfigs.PRINCIPAL_BUILDER_CLASS_CONFIG, classOf[RequestQuotaTest.TestPrincipalBuilder].getName)
+    properties.put(BrokerSecurityConfigs.PRINCIPAL_BUILDER_CLASS_CONFIG, classOf[RequestQuotaTest.TestPrincipalBuilder].getName)
     Seq(properties)
   }
 
@@ -107,21 +105,21 @@ class RequestQuotaTest extends BaseRequestTest {
 
     // Change default client-id request quota to a small value and a single unthrottledClient with a large quota
     val quotaProps = new Properties()
-    quotaProps.put(QuotaConfigs.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "0.01")
-    quotaProps.put(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
-    quotaProps.put(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
+    quotaProps.put(QuotaConfig.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "0.01")
+    quotaProps.put(QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
+    quotaProps.put(QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "2000")
     changeClientIdConfig("<default>", quotaProps)
-    quotaProps.put(QuotaConfigs.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "2000")
+    quotaProps.put(QuotaConfig.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "2000")
     changeClientIdConfig(Sanitizer.sanitize(unthrottledClientId), quotaProps)
 
     // Client ids with small producer and consumer (fetch) quotas. Quota values were picked so that both
     // producer/consumer and request quotas are violated on the first produce/consume operation, and the delay due to
     // producer/consumer quota violation will be longer than the delay due to request quota violation.
-    quotaProps.put(QuotaConfigs.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "1")
-    quotaProps.put(QuotaConfigs.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "0.01")
+    quotaProps.put(QuotaConfig.PRODUCER_BYTE_RATE_OVERRIDE_CONFIG, "1")
+    quotaProps.put(QuotaConfig.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "0.01")
     changeClientIdConfig(Sanitizer.sanitize(smallQuotaProducerClientId), quotaProps)
-    quotaProps.put(QuotaConfigs.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "1")
-    quotaProps.put(QuotaConfigs.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "0.01")
+    quotaProps.put(QuotaConfig.CONSUMER_BYTE_RATE_OVERRIDE_CONFIG, "1")
+    quotaProps.put(QuotaConfig.REQUEST_PERCENTAGE_OVERRIDE_CONFIG, "0.01")
     changeClientIdConfig(Sanitizer.sanitize(smallQuotaConsumerClientId), quotaProps)
 
     TestUtils.retry(20000) {
@@ -142,7 +140,7 @@ class RequestQuotaTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testResponseThrottleTime(quorum: String): Unit = {
     for (apiKey <- clientActions ++ clusterActionsWithThrottleForBroker)
       submitTest(apiKey, () => checkRequestThrottleTime(apiKey))
@@ -151,21 +149,21 @@ class RequestQuotaTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testResponseThrottleTimeWhenBothProduceAndRequestQuotasViolated(quorum: String): Unit = {
     submitTest(ApiKeys.PRODUCE, () => checkSmallQuotaProducerRequestThrottleTime())
     waitAndCheckResults()
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testResponseThrottleTimeWhenBothFetchAndRequestQuotasViolated(quorum: String): Unit = {
     submitTest(ApiKeys.FETCH, () => checkSmallQuotaConsumerRequestThrottleTime())
     waitAndCheckResults()
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testUnthrottledClient(quorum: String): Unit = {
     for (apiKey <- clientActions) {
       submitTest(apiKey, () => checkUnthrottledClient(apiKey))
@@ -175,10 +173,10 @@ class RequestQuotaTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testExemptRequestTime(quorum: String): Unit = {
     // Exclude `DESCRIBE_QUORUM`, maybe it shouldn't be a cluster action
-    val actions = clusterActions -- clusterActionsWithThrottleForBroker -- RequestQuotaTest.Envelope - ApiKeys.DESCRIBE_QUORUM
+    val actions = clusterActions -- clusterActionsWithThrottleForBroker -- RequestQuotaTest.Envelope -- RequestQuotaTest.ShareGroupState - ApiKeys.DESCRIBE_QUORUM
     for (apiKey <- actions) {
       submitTest(apiKey, () => checkExemptRequestMetric(apiKey))
     }
@@ -187,11 +185,11 @@ class RequestQuotaTest extends BaseRequestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = Array("zk", "kraft"))
+  @ValueSource(strings = Array("kraft"))
   def testUnauthorizedThrottle(quorum: String): Unit = {
     RequestQuotaTest.principal = RequestQuotaTest.UnauthorizedPrincipal
 
-    val apiKeys = if (isKRaftTest()) ApiKeys.kraftBrokerApis else ApiKeys.zkBrokerApis
+    val apiKeys = ApiKeys.kraftBrokerApis
     for (apiKey <- apiKeys.asScala.toSet -- RequestQuotaTest.Envelope) {
       submitTest(apiKey, () => checkUnauthorizedRequestThrottle(apiKey))
     }
@@ -200,34 +198,22 @@ class RequestQuotaTest extends BaseRequestTest {
   }
 
   private def clientActions: Set[ApiKeys] = {
-    if (isKRaftTest()) {
-      ApiKeys.kraftBrokerApis.asScala.toSet -- clusterActions -- RequestQuotaTest.SaslActions -- RequestQuotaTest.Envelope
-    } else {
-      ApiKeys.zkBrokerApis.asScala.toSet -- clusterActions -- RequestQuotaTest.SaslActions -- RequestQuotaTest.Envelope
-    }
+    ApiKeys.kraftBrokerApis.asScala.toSet -- clusterActions -- RequestQuotaTest.SaslActions -- RequestQuotaTest.Envelope
   }
 
   private def clusterActions: Set[ApiKeys] = {
-    if (isKRaftTest()) {
-      ApiKeys.kraftBrokerApis.asScala.filter(_.clusterAction).toSet
-    } else {
-      ApiKeys.zkBrokerApis.asScala.filter(_.clusterAction).toSet
-    }
+    ApiKeys.kraftBrokerApis.asScala.filter(_.clusterAction).toSet
   }
 
   private def clusterActionsWithThrottleForBroker: Set[ApiKeys] = {
-    if (isKRaftTest()) {
-      // Exclude `ALLOCATE_PRODUCER_IDS`, it is enabled for kraft controller instead of broker
-      Set(ApiKeys.UPDATE_FEATURES)
-    } else {
-      Set(ApiKeys.ALLOCATE_PRODUCER_IDS, ApiKeys.UPDATE_FEATURES)
-    }
+    // Exclude `ALLOCATE_PRODUCER_IDS`, it is enabled for kraft controller instead of broker
+    Set(ApiKeys.UPDATE_FEATURES)
   }
 
   def session(user: String): Session = new Session(new KafkaPrincipal(KafkaPrincipal.USER_TYPE, user), null)
 
   private def throttleTimeMetricValue(clientId: String): Double = {
-    throttleTimeMetricValueForQuotaType(clientId, QuotaType.Request)
+    throttleTimeMetricValueForQuotaType(clientId, QuotaType.REQUEST)
   }
 
   private def throttleTimeMetricValueForQuotaType(clientId: String, quotaType: QuotaType): Double = {
@@ -239,7 +225,7 @@ class RequestQuotaTest extends BaseRequestTest {
   }
 
   private def requestTimeMetricValue(clientId: String): Double = {
-    val metricName = leaderNode.metrics.metricName("request-time", QuotaType.Request.toString,
+    val metricName = leaderNode.metrics.metricName("request-time", QuotaType.REQUEST.toString,
       "", "user", "", "client-id", clientId)
     val sensor = leaderNode.quotaManagers.request.getOrCreateQuotaSensors(session("ANONYMOUS"),
       clientId).quotaSensor
@@ -247,7 +233,7 @@ class RequestQuotaTest extends BaseRequestTest {
   }
 
   private def exemptRequestMetricValue: Double = {
-    val metricName = leaderNode.metrics.metricName("exempt-request-time", QuotaType.Request.toString, "")
+    val metricName = leaderNode.metrics.metricName("exempt-request-time", QuotaType.REQUEST.toString, "")
     metricValue(leaderNode.metrics.metrics.get(metricName), leaderNode.quotaManagers.request.exemptSensor)
   }
 
@@ -266,7 +252,7 @@ class RequestQuotaTest extends BaseRequestTest {
                 .setName(tp.topic()).setPartitionData(Collections.singletonList(
                 new ProduceRequestData.PartitionProduceData()
                   .setIndex(tp.partition())
-                  .setRecords(MemoryRecords.withRecords(CompressionType.NONE, new SimpleRecord("test".getBytes))))))
+                  .setRecords(MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("test".getBytes))))))
                 .iterator))
             .setAcks(1.toShort)
             .setTimeoutMs(5000))
@@ -286,7 +272,7 @@ class RequestQuotaTest extends BaseRequestTest {
               .setPartitionIndex(tp.partition)
               .setTimestamp(0L)
               .setCurrentLeaderEpoch(15)).asJava)
-          ListOffsetsRequest.Builder.forConsumer(false, IsolationLevel.READ_UNCOMMITTED, false)
+          ListOffsetsRequest.Builder.forConsumer(false, IsolationLevel.READ_UNCOMMITTED)
             .setTargetTimes(List(topic).asJava)
 
         case ApiKeys.LEADER_AND_ISR =>
@@ -310,7 +296,7 @@ class RequestQuotaTest extends BaseRequestTest {
               .setTopicName(tp.topic())
               .setPartitionStates(Seq(new StopReplicaPartitionState()
                 .setPartitionIndex(tp.partition())
-                .setLeaderEpoch(LeaderAndIsr.InitialLeaderEpoch + 2)
+                .setLeaderEpoch(LeaderAndIsr.INITIAL_LEADER_EPOCH + 2)
                 .setDeletePartition(true)).asJava)
           ).asJava
           new StopReplicaRequest.Builder(ApiKeys.STOP_REPLICA.latestVersion, brokerId,
@@ -488,7 +474,8 @@ class RequestQuotaTest extends BaseRequestTest {
             .setTransactionalId("test-transactional-id")
             .setProducerId(1)
             .setProducerEpoch(0)
-            .setCommitted(false)
+            .setCommitted(false),
+          true
           )
 
         case ApiKeys.WRITE_TXN_MARKERS =>
@@ -636,10 +623,10 @@ class RequestQuotaTest extends BaseRequestTest {
           new AlterUserScramCredentialsRequest.Builder(new AlterUserScramCredentialsRequestData())
 
         case ApiKeys.VOTE =>
-          new VoteRequest.Builder(VoteRequest.singletonRequest(tp, 1, 2, 0, 10))
+          new VoteRequest.Builder(VoteRequest.singletonRequest(tp, null, 1, 2, 0, 10))
 
         case ApiKeys.BEGIN_QUORUM_EPOCH =>
-          new BeginQuorumEpochRequest.Builder(BeginQuorumEpochRequest.singletonRequest(tp, 2, 5))
+          new BeginQuorumEpochRequest.Builder(BeginQuorumEpochRequest.singletonRequest(tp, null, 2, 5))
 
         case ApiKeys.END_QUORUM_EPOCH =>
           new EndQuorumEpochRequest.Builder(EndQuorumEpochRequest.singletonRequest(
@@ -696,16 +683,16 @@ class RequestQuotaTest extends BaseRequestTest {
           new AllocateProducerIdsRequest.Builder(new AllocateProducerIdsRequestData())
 
         case ApiKeys.CONSUMER_GROUP_HEARTBEAT =>
-          new ConsumerGroupHeartbeatRequest.Builder(new ConsumerGroupHeartbeatRequestData(), true)
+          new ConsumerGroupHeartbeatRequest.Builder(new ConsumerGroupHeartbeatRequestData())
 
         case ApiKeys.CONSUMER_GROUP_DESCRIBE =>
-          new ConsumerGroupDescribeRequest.Builder(new ConsumerGroupDescribeRequestData(), true)
+          new ConsumerGroupDescribeRequest.Builder(new ConsumerGroupDescribeRequestData())
 
         case ApiKeys.GET_TELEMETRY_SUBSCRIPTIONS =>
-          new GetTelemetrySubscriptionsRequest.Builder(new GetTelemetrySubscriptionsRequestData(), true)
+          new GetTelemetrySubscriptionsRequest.Builder(new GetTelemetrySubscriptionsRequestData())
 
         case ApiKeys.PUSH_TELEMETRY =>
-          new PushTelemetryRequest.Builder(new PushTelemetryRequestData(), true)
+          new PushTelemetryRequest.Builder(new PushTelemetryRequestData())
 
         case ApiKeys.ASSIGN_REPLICAS_TO_DIRS =>
           new AssignReplicasToDirsRequest.Builder(new AssignReplicasToDirsRequestData())
@@ -715,6 +702,42 @@ class RequestQuotaTest extends BaseRequestTest {
 
         case ApiKeys.DESCRIBE_TOPIC_PARTITIONS =>
           new DescribeTopicPartitionsRequest.Builder(new DescribeTopicPartitionsRequestData())
+
+        case ApiKeys.SHARE_GROUP_HEARTBEAT =>
+          new ShareGroupHeartbeatRequest.Builder(new ShareGroupHeartbeatRequestData(), true)
+
+        case ApiKeys.SHARE_GROUP_DESCRIBE =>
+          new ShareGroupDescribeRequest.Builder(new ShareGroupDescribeRequestData(), true)
+
+        case ApiKeys.SHARE_FETCH =>
+          new ShareFetchRequest.Builder(new ShareFetchRequestData(), true)
+
+        case ApiKeys.SHARE_ACKNOWLEDGE =>
+          new ShareAcknowledgeRequest.Builder(new ShareAcknowledgeRequestData(), true)
+
+        case ApiKeys.ADD_RAFT_VOTER =>
+          new AddRaftVoterRequest.Builder(new AddRaftVoterRequestData())
+
+        case ApiKeys.REMOVE_RAFT_VOTER =>
+          new RemoveRaftVoterRequest.Builder(new RemoveRaftVoterRequestData())
+
+        case ApiKeys.UPDATE_RAFT_VOTER =>
+          new UpdateRaftVoterRequest.Builder(new UpdateRaftVoterRequestData())
+
+        case ApiKeys.INITIALIZE_SHARE_GROUP_STATE =>
+          new InitializeShareGroupStateRequest.Builder(new InitializeShareGroupStateRequestData(), true)
+
+        case ApiKeys.READ_SHARE_GROUP_STATE =>
+          new ReadShareGroupStateRequest.Builder(new ReadShareGroupStateRequestData(), true)
+
+        case ApiKeys.WRITE_SHARE_GROUP_STATE =>
+          new WriteShareGroupStateRequest.Builder(new WriteShareGroupStateRequestData(), true)
+
+        case ApiKeys.DELETE_SHARE_GROUP_STATE =>
+          new DeleteShareGroupStateRequest.Builder(new DeleteShareGroupStateRequestData(), true)
+
+        case ApiKeys.READ_SHARE_GROUP_STATE_SUMMARY =>
+          new ReadShareGroupStateSummaryRequest.Builder(new ReadShareGroupStateSummaryRequestData(), true)
 
         case _ =>
           throw new IllegalArgumentException("Unsupported API key " + apiKey)
@@ -743,8 +766,8 @@ class RequestQuotaTest extends BaseRequestTest {
     override def toString: String = {
       val requestTime = requestTimeMetricValue(clientId)
       val throttleTime = throttleTimeMetricValue(clientId)
-      val produceThrottleTime = throttleTimeMetricValueForQuotaType(clientId, QuotaType.Produce)
-      val consumeThrottleTime = throttleTimeMetricValueForQuotaType(clientId, QuotaType.Fetch)
+      val produceThrottleTime = throttleTimeMetricValueForQuotaType(clientId, QuotaType.PRODUCE)
+      val consumeThrottleTime = throttleTimeMetricValueForQuotaType(clientId, QuotaType.FETCH)
       s"Client $clientId apiKey $apiKey requests $correlationId requestTime $requestTime " +
       s"throttleTime $throttleTime produceThrottleTime $produceThrottleTime consumeThrottleTime $consumeThrottleTime"
     }
@@ -788,9 +811,9 @@ class RequestQuotaTest extends BaseRequestTest {
     val throttled = smallQuotaProducerClient.runUntil(_.throttleTimeMs > 0)
 
     assertTrue(throttled, s"Response not throttled: $smallQuotaProducerClient")
-    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaProducerClientId, QuotaType.Produce) > 0,
+    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaProducerClientId, QuotaType.PRODUCE) > 0,
       s"Throttle time metrics for produce quota not updated: $smallQuotaProducerClient")
-    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaProducerClientId, QuotaType.Request).isNaN,
+    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaProducerClientId, QuotaType.REQUEST).isNaN,
       s"Throttle time metrics for request quota updated: $smallQuotaProducerClient")
   }
 
@@ -801,9 +824,9 @@ class RequestQuotaTest extends BaseRequestTest {
     val throttled = smallQuotaConsumerClient.runUntil(_.throttleTimeMs > 0)
 
     assertTrue(throttled, s"Response not throttled: $smallQuotaConsumerClientId")
-    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaConsumerClientId, QuotaType.Fetch) > 0,
+    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaConsumerClientId, QuotaType.FETCH) > 0,
       s"Throttle time metrics for consumer quota not updated: $smallQuotaConsumerClient")
-    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaConsumerClientId, QuotaType.Request).isNaN,
+    assertTrue(throttleTimeMetricValueForQuotaType(smallQuotaConsumerClientId, QuotaType.REQUEST).isNaN,
       s"Throttle time metrics for request quota updated: $smallQuotaConsumerClient")
   }
 
@@ -837,18 +860,13 @@ class RequestQuotaTest extends BaseRequestTest {
 object RequestQuotaTest {
   val SaslActions = Set(ApiKeys.SASL_HANDSHAKE, ApiKeys.SASL_AUTHENTICATE)
   val Envelope = Set(ApiKeys.ENVELOPE)
+  val ShareGroupState = Set(ApiKeys.INITIALIZE_SHARE_GROUP_STATE, ApiKeys.READ_SHARE_GROUP_STATE, ApiKeys.WRITE_SHARE_GROUP_STATE,
+    ApiKeys.DELETE_SHARE_GROUP_STATE, ApiKeys.READ_SHARE_GROUP_STATE_SUMMARY)
 
   val UnauthorizedPrincipal = new KafkaPrincipal(KafkaPrincipal.USER_TYPE, "Unauthorized")
   // Principal used for all client connections. This is modified by tests which
   // check unauthorized code path
   var principal = KafkaPrincipal.ANONYMOUS
-  class ZkTestAuthorizer extends AclAuthorizer {
-    override def authorize(requestContext: AuthorizableRequestContext, actions: util.List[Action]): util.List[AuthorizationResult] = {
-      actions.asScala.map { _ =>
-        if (requestContext.principal != UnauthorizedPrincipal) AuthorizationResult.ALLOWED else AuthorizationResult.DENIED
-      }.asJava
-    }
-  }
 
   class KraftTestAuthorizer extends StandardAuthorizer {
     override def authorize(requestContext: AuthorizableRequestContext, actions: util.List[Action]): util.List[AuthorizationResult] = {

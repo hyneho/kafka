@@ -47,9 +47,9 @@ import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -399,7 +399,7 @@ public class TopicAdmin implements AutoCloseable {
             }
         }
         if (topicsByName.isEmpty()) return EMPTY_CREATION;
-        String topicNameList = Utils.join(topicsByName.keySet(), "', '");
+        String topicNameList = String.join("', '", topicsByName.keySet());
 
         // Attempt to create any missing topics
         CreateTopicsOptions args = new CreateTopicsOptions().validateOnly(false);

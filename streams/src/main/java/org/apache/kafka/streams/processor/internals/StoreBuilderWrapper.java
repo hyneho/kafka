@@ -16,15 +16,15 @@
  */
 package org.apache.kafka.streams.processor.internals;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.internals.SessionStoreBuilder;
 import org.apache.kafka.streams.state.internals.TimestampedWindowStoreBuilder;
 import org.apache.kafka.streams.state.internals.VersionedKeyValueStoreBuilder;
 import org.apache.kafka.streams.state.internals.WindowStoreBuilder;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * An implementation of {@link StoreFactory} which wraps an instantiated
@@ -37,13 +37,21 @@ public class StoreBuilderWrapper implements StoreFactory {
     private final StoreBuilder<?> builder;
     private final Set<String> connectedProcessorNames = new HashSet<>();
 
-    public StoreBuilderWrapper(final StoreBuilder<?> builder) {
+    public static StoreFactory wrapStoreBuilder(final StoreBuilder<?> builder) {
+        if (builder instanceof FactoryWrappingStoreBuilder) {
+            return ((FactoryWrappingStoreBuilder<?>) builder).storeFactory();
+        } else {
+            return new StoreBuilderWrapper(builder);
+        }
+    }
+
+    private StoreBuilderWrapper(final StoreBuilder<?> builder) {
         this.builder = builder;
     }
 
     @Override
-    public StateStore build() {
-        return builder.build();
+    public StoreBuilder<?> builder() {
+        return builder;
     }
 
     @Override
@@ -81,7 +89,7 @@ public class StoreBuilderWrapper implements StoreFactory {
     }
 
     @Override
-    public String name() {
+    public String storeName() {
         return builder.name();
     }
 

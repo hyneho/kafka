@@ -41,6 +41,7 @@ import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.compress.Compression;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.errors.ApiException;
 import org.apache.kafka.common.errors.AuthenticationException;
@@ -49,12 +50,14 @@ import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.InvalidTopicException;
 import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.common.errors.RecordTooLargeException;
+import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.internals.ClusterResourceListeners;
+import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.metrics.KafkaMetricsContext;
 import org.apache.kafka.common.metrics.MetricConfig;
 import org.apache.kafka.common.metrics.Metrics;
@@ -74,6 +77,7 @@ import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Timer;
 import org.apache.kafka.common.utils.Utils;
+
 import org.slf4j.Logger;
 
 import java.net.InetSocketAddress;
@@ -250,7 +254,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private final RecordAccumulator accumulator;
     private final Sender sender;
     private final Thread ioThread;
-    private final CompressionType compressionType;
+    private final Compression compression;
     private final Sensor errors;
     private final Time time;
     private final Serializer<K> keySerializer;
@@ -261,7 +265,8 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private final ProducerInterceptors<K, V> interceptors;
     private final ApiVersions apiVersions;
     private final TransactionManager transactionManager;
-    private final Optional<ClientTelemetryReporter> clientTelemetryReporter;
+    // Init value is needed to avoid NPE in case of exception raised in the constructor
+    private Optional<ClientTelemetryReporter> clientTelemetryReporter = Optional.empty();
 
     /**
      * A producer is instantiated by providing a set of key-value pairs as configuration. Valid configuration strings
@@ -413,7 +418,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                     Arrays.asList(this.keySerializer, this.valueSerializer));
             this.maxRequestSize = config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG);
             this.totalMemorySize = config.getLong(ProducerConfig.BUFFER_MEMORY_CONFIG);
-            this.compressionType = CompressionType.forName(config.getString(ProducerConfig.COMPRESSION_TYPE_CONFIG));
+            this.compression = configureCompression(config);
 
             this.maxBlockTimeMs = config.getLong(ProducerConfig.MAX_BLOCK_MS_CONFIG);
             int deliveryTimeoutMs = configureDeliveryTimeout(config, log);
@@ -432,7 +437,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             int batchSize = Math.max(1, config.getInt(ProducerConfig.BATCH_SIZE_CONFIG));
             this.accumulator = new RecordAccumulator(logContext,
                     batchSize,
-                    this.compressionType,
+                    compression,
                     lingerMs(config),
                     retryBackoffMs,
                     retryBackoffMaxMs,
@@ -501,7 +506,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
         this.interceptors = interceptors;
         this.maxRequestSize = config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG);
         this.totalMemorySize = config.getLong(ProducerConfig.BUFFER_MEMORY_CONFIG);
-        this.compressionType = CompressionType.forName(config.getString(ProducerConfig.COMPRESSION_TYPE_CONFIG));
+        this.compression = configureCompression(config);
         this.maxBlockTimeMs = config.getLong(ProducerConfig.MAX_BLOCK_MS_CONFIG);
         this.partitionerIgnoreKeys = config.getBoolean(ProducerConfig.PARTITIONER_IGNORE_KEYS_CONFIG);
         this.apiVersions = new ApiVersions();
@@ -546,6 +551,29 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                 producerConfig.getLong(ProducerConfig.RETRY_BACKOFF_MS_CONFIG),
                 this.transactionManager,
                 apiVersions);
+    }
+
+    private static Compression configureCompression(ProducerConfig config) {
+        CompressionType type = CompressionType.forName(config.getString(ProducerConfig.COMPRESSION_TYPE_CONFIG));
+        switch (type) {
+            case GZIP: {
+                return Compression.gzip()
+                        .level(config.getInt(ProducerConfig.COMPRESSION_GZIP_LEVEL_CONFIG))
+                        .build();
+            }
+            case LZ4: {
+                return Compression.lz4()
+                        .level(config.getInt(ProducerConfig.COMPRESSION_LZ4_LEVEL_CONFIG))
+                        .build();
+            }
+            case ZSTD: {
+                return Compression.zstd()
+                        .level(config.getInt(ProducerConfig.COMPRESSION_ZSTD_LEVEL_CONFIG))
+                        .build();
+            }
+            default:
+                return Compression.of(type).build();
+        }
     }
 
     private static int lingerMs(ProducerConfig config) {
@@ -659,46 +687,6 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
         long now = time.nanoseconds();
         transactionManager.beginTransaction();
         producerMetrics.recordBeginTxn(time.nanoseconds() - now);
-    }
-
-    /**
-     * Sends a list of specified offsets to the consumer group coordinator, and also marks
-     * those offsets as part of the current transaction. These offsets will be considered
-     * committed only if the transaction is committed successfully. The committed offset should
-     * be the next message your application will consume, i.e. lastProcessedMessageOffset + 1.
-     * <p>
-     * This method should be used when you need to batch consumed and produced messages
-     * together, typically in a consume-transform-produce pattern. Thus, the specified
-     * {@code consumerGroupId} should be the same as config parameter {@code group.id} of the used
-     * {@link KafkaConsumer consumer}. Note, that the consumer should have {@code enable.auto.commit=false}
-     * and should also not commit offsets manually (via {@link KafkaConsumer#commitSync(Map) sync} or
-     * {@link KafkaConsumer#commitAsync(Map, OffsetCommitCallback) async} commits).
-     *
-     * <p>
-     * This method is a blocking call that waits until the request has been received and acknowledged by the consumer group
-     * coordinator; but the offsets are not considered as committed until the transaction itself is successfully committed later (via
-     * the {@link #commitTransaction()} call).
-     *
-     * @throws IllegalStateException if no transactional.id has been configured, no transaction has been started
-     * @throws ProducerFencedException fatal error indicating another producer with the same transactional.id is active
-     * @throws org.apache.kafka.common.errors.UnsupportedVersionException fatal error indicating the broker
-     *         does not support transactions (i.e. if its version is lower than 0.11.0.0)
-     * @throws org.apache.kafka.common.errors.UnsupportedForMessageFormatException fatal error indicating the message
-     *         format used for the offsets topic on the broker does not support transactions
-     * @throws org.apache.kafka.common.errors.AuthorizationException fatal error indicating that the configured
-     *         transactional.id is not authorized, or the consumer group id is not authorized.
-     * @throws org.apache.kafka.common.errors.InvalidProducerEpochException if the producer has attempted to produce with an old epoch
-     *         to the partition leader. See the exception for more details
-     * @throws TimeoutException if the time taken for sending the offsets has surpassed <code>max.block.ms</code>.
-     * @throws KafkaException if the producer has encountered a previous fatal or abortable error, or for any
-     *         other unexpected error
-     *
-     * @deprecated Since 3.0.0, please use {@link #sendOffsetsToTransaction(Map, ConsumerGroupMetadata)} instead.
-     */
-    @Deprecated
-    public void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets,
-                                         String consumerGroupId) throws ProducerFencedException {
-        sendOffsetsToTransaction(offsets, new ConsumerGroupMetadata(consumerGroupId));
     }
 
     /**
@@ -852,9 +840,12 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     /**
      * Asynchronously send a record to a topic and invoke the provided callback when the send has been acknowledged.
      * <p>
-     * The send is asynchronous and this method will return immediately once the record has been stored in the buffer of
-     * records waiting to be sent. This allows sending many records in parallel without blocking to wait for the
-     * response after each one.
+     * The send is asynchronous and this method will return immediately (except for rare cases described below)
+     * once the record has been stored in the buffer of records waiting to be sent.
+     * This allows sending many records in parallel without blocking to wait for the response after each one.
+     * Can block for the following cases: 1) For the first record being sent to 
+     * the cluster by this client for the given topic. In this case it will block for up to {@code max.block.ms} milliseconds if 
+     * Kafka cluster is unreachable; 2) Allocating a buffer if buffer pool doesn't have any free buffers.
      * <p>
      * The result of the send is a {@link RecordMetadata} specifying the partition the record was sent to, the offset
      * it was assigned and the timestamp of the record. If the producer is configured with acks = 0, the {@link RecordMetadata}
@@ -1030,7 +1021,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             Header[] headers = record.headers().toArray();
 
             int serializedSize = AbstractRecords.estimateSizeInBytesUpperBound(apiVersions.maxUsableProduceMagic(),
-                    compressionType, serializedKey, serializedValue, headers);
+                    compression.type(), serializedKey, serializedValue, headers);
             ensureValidRecordSize(serializedSize);
             long timestamp = record.timestamp() == null ? nowMs : record.timestamp();
 
@@ -1045,6 +1036,8 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
             if (result.abortForNewBatch) {
                 int prevPartition = partition;
+                // IMPORTANT NOTE: the following onNewBatch and partition calls should not interrupted to allow
+                // the custom partitioner to correctly track its state
                 onNewBatch(record.topic(), cluster, prevPartition);
                 partition = partition(record, serializedKey, serializedValue, cluster);
                 if (log.isTraceEnabled()) {
@@ -1149,18 +1142,25 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                 metadata.awaitUpdate(version, remainingWaitMs);
             } catch (TimeoutException ex) {
                 // Rethrow with original maxWaitMs to prevent logging exception with remainingWaitMs
-                throw new TimeoutException(
-                        String.format("Topic %s not present in metadata after %d ms.",
-                                topic, maxWaitMs));
+                final String errorMessage = String.format("Topic %s not present in metadata after %d ms.",
+                        topic, maxWaitMs);
+                if (metadata.getError(topic) != null) {
+                    throw new TimeoutException(errorMessage, metadata.getError(topic).exception());
+                }
+                throw new TimeoutException(errorMessage);
             }
             cluster = metadata.fetch();
             elapsed = time.milliseconds() - nowMs;
             if (elapsed >= maxWaitMs) {
-                throw new TimeoutException(partitionsCount == null ?
+                final String errorMessage = partitionsCount == null ?
                         String.format("Topic %s not present in metadata after %d ms.",
                                 topic, maxWaitMs) :
                         String.format("Partition %d of topic %s with partition count %d is not present in metadata after %d ms.",
-                                partition, topic, partitionsCount, maxWaitMs));
+                                partition, topic, partitionsCount, maxWaitMs);
+                if (metadata.getError(topic) != null && metadata.getError(topic).exception() instanceof RetriableException) {
+                    throw new TimeoutException(errorMessage, metadata.getError(topic).exception());
+                }
+                throw new TimeoutException(errorMessage);
             }
             metadata.maybeThrowExceptionForTopic(topic);
             remainingWaitMs = maxWaitMs - elapsed;
@@ -1263,6 +1263,55 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
         return Collections.unmodifiableMap(this.metrics.metrics());
     }
 
+
+    /**
+     * Add the provided application metric for subscription.
+     * This metric will be added to this client's metrics
+     * that are available for subscription and sent as
+     * telemetry data to the broker.
+     * The provided metric must map to an OTLP metric data point
+     * type in the OpenTelemetry v1 metrics protobuf message types.
+     * Specifically, the metric should be one of the following:
+     * <ul>
+     *  <li>
+     *     `Sum`: Monotonic total count meter (Counter). Suitable for metrics like total number of X, e.g., total bytes sent.
+     *  </li>
+     *  <li>
+     *     `Gauge`: Non-monotonic current value meter (UpDownCounter). Suitable for metrics like current value of Y, e.g., current queue count.
+     *  </li>
+     * </ul>
+     * Metrics not matching these types are silently ignored.
+     * Executing this method for a previously registered metric is a benign operation and results in updating that metrics entry.
+     *
+     * @param metric The application metric to register
+     */
+    @Override
+    public void registerMetricForSubscription(KafkaMetric metric) {
+        if (!metrics().containsKey(metric.metricName())) {
+            clientTelemetryReporter.ifPresent(reporter -> reporter.metricChange(metric));
+        }  else {
+            log.debug("Skipping registration for metric {}. Existing producer metrics cannot be overwritten.", metric.metricName());
+        }
+    }
+
+    /**
+     * Remove the provided application metric for subscription.
+     * This metric is removed from this client's metrics
+     * and will not be available for subscription any longer.
+     * Executing this method with a metric that has not been registered is a
+     * benign operation and does not result in any action taken (no-op).
+     *
+     * @param metric The application metric to remove
+     */
+    @Override
+    public void unregisterMetricFromSubscription(KafkaMetric metric) {
+        if (!metrics().containsKey(metric.metricName())) {
+            clientTelemetryReporter.ifPresent(reporter -> reporter.metricRemoval(metric));
+        } else {
+            log.debug("Skipping unregistration for metric {}. Existing producer metrics cannot be removed.", metric.metricName());
+        }
+    }
+
     /**
      * Determines the client's unique client instance ID used for telemetry. This ID is unique to
      * this specific client instance and will not change after it is initially generated.
@@ -1290,7 +1339,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
      */
     @Override
     public Uuid clientInstanceId(Duration timeout) {
-        if (!clientTelemetryReporter.isPresent()) {
+        if (clientTelemetryReporter.isEmpty()) {
             throw new IllegalStateException("Telemetry is not enabled. Set config `" + ProducerConfig.ENABLE_METRICS_PUSH_CONFIG + "` to `true`.");
         }
 
@@ -1356,6 +1405,9 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             } else {
                 // Try to close gracefully.
                 final Timer closeTimer = time.timer(timeout);
+                clientTelemetryReporter.ifPresent(ClientTelemetryReporter::initiateClose);
+                closeTimer.update();
+
                 if (this.sender != null) {
                     this.sender.initiateClose();
                     closeTimer.update();
@@ -1370,7 +1422,6 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                         closeTimer.update();
                     }
                 }
-                clientTelemetryReporter.ifPresent(reporter -> reporter.initiateClose(closeTimer.remainingMs()));
             }
         }
 
@@ -1443,7 +1494,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             throw new IllegalArgumentException("Consumer group metadata could not be null");
         } else if (groupMetadata.generationId() > 0
             && JoinGroupRequest.UNKNOWN_MEMBER_ID.equals(groupMetadata.memberId())) {
-            throw new IllegalArgumentException("Passed in group metadata " + groupMetadata + " has generationId > 0 but member.id ");
+            throw new IllegalArgumentException("Passed in group metadata " + groupMetadata + " has generationId > 0 but the member.id is unknown");
         }
     }
 
