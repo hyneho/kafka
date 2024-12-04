@@ -427,6 +427,48 @@ class TransactionMetadataTest {
   }
 
   @Test
+  def testInvalidTransitionFromCompleteCommitToFence(): Unit = {
+    val producerEpoch = (Short.MaxValue - 1).toShort
+
+    val txnMetadata = new TransactionMetadata(
+      transactionalId = transactionalId,
+      producerId = producerId,
+      previousProducerId = RecordBatch.NO_PRODUCER_ID,
+      nextProducerId = RecordBatch.NO_PRODUCER_ID,
+      producerEpoch = producerEpoch,
+      lastProducerEpoch = RecordBatch.NO_PRODUCER_EPOCH,
+      txnTimeoutMs = 30000,
+      state = CompleteCommit,
+      topicPartitions = mutable.Set.empty,
+      txnLastUpdateTimestamp = time.milliseconds(),
+      clientTransactionVersion = TV_0)
+    assertTrue(txnMetadata.isProducerEpochExhausted)
+
+    assertThrows(classOf[IllegalStateException], () => txnMetadata.prepareFenceProducerEpoch())
+  }
+
+  @Test
+  def testInvalidTransitionFromCompleteAbortToFence(): Unit = {
+    val producerEpoch = (Short.MaxValue - 1).toShort
+
+    val txnMetadata = new TransactionMetadata(
+      transactionalId = transactionalId,
+      producerId = producerId,
+      previousProducerId = RecordBatch.NO_PRODUCER_ID,
+      nextProducerId = RecordBatch.NO_PRODUCER_ID,
+      producerEpoch = producerEpoch,
+      lastProducerEpoch = RecordBatch.NO_PRODUCER_EPOCH,
+      txnTimeoutMs = 30000,
+      state = CompleteAbort,
+      topicPartitions = mutable.Set.empty,
+      txnLastUpdateTimestamp = time.milliseconds(),
+      clientTransactionVersion = TV_0)
+    assertTrue(txnMetadata.isProducerEpochExhausted)
+
+    assertThrows(classOf[IllegalStateException], () => txnMetadata.prepareFenceProducerEpoch())
+  }
+
+  @Test
   def testFenceProducerNotAllowedIfItWouldOverflow(): Unit = {
     val producerEpoch = Short.MaxValue
 
