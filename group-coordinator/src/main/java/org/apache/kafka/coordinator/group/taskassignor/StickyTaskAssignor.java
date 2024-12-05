@@ -189,13 +189,11 @@ public class StickyTaskAssignor implements TaskAssignor {
         for (Iterator<TaskId> it = activeTasks.iterator(); it.hasNext();) {
             final TaskId task = it.next();
             final Set<Member> prevMembers = standbyTaskToPrevMember.get(task);
-            if (prevMembers != null && !prevMembers.isEmpty()) {
-                final Member prevMember = findMemberWithLeastLoad(prevMembers, task, true);
-                if (prevMember != null && hasUnfulfilledQuota(prevMember)) {
-                    processIdToState.get(prevMember.processId).addTask(prevMember.memberId, task, true);
-                    updateHelpers(prevMember, task, true);
-                    it.remove();
-                }
+            final Member prevMember = findMemberWithLeastLoad(prevMembers, task, true);
+            if (prevMember != null && hasUnfulfilledQuota(prevMember)) {
+                processIdToState.get(prevMember.processId).addTask(prevMember.memberId, task, true);
+                updateHelpers(prevMember, task, true);
+                it.remove();
             }
         }
 
@@ -292,11 +290,9 @@ public class StickyTaskAssignor implements TaskAssignor {
                     final Set<Member> prevMembers = standbyTaskToPrevMember.get(task);
                     if (prevMembers != null && !prevMembers.isEmpty()) {
                         prevMembers.removeIf(member  -> !availableProcesses.contains(member.processId));
-                        if (!prevMembers.isEmpty()) {
-                            prevMember = findMemberWithLeastLoad(prevMembers, task, true);
-                            if (prevMember != null && isLoadBalanced(prevMember.processId)) {
-                                standby = prevMember;
-                            }
+                        prevMember = findMemberWithLeastLoad(prevMembers, task, true);
+                        if (prevMember != null && isLoadBalanced(prevMember.processId)) {
+                            standby = prevMember;
                         }
                     }
                 }
