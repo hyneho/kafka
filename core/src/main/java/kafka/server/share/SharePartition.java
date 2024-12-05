@@ -17,6 +17,7 @@
 package kafka.server.share;
 
 import kafka.server.ReplicaManager;
+import kafka.server.share.SharePartitionManager.SharePartitionListener;
 
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicIdPartition;
@@ -268,6 +269,11 @@ public class SharePartition {
     private final Persister persister;
 
     /**
+     * The listener is used to notify the share partition manager when the share partition state changes.
+     */
+    private final SharePartitionListener listener;
+
+    /**
      * The share partition start offset specifies the partition start offset from which the records
      * are cached in the cachedState of the sharePartition.
      */
@@ -311,10 +317,11 @@ public class SharePartition {
         Time time,
         Persister persister,
         ReplicaManager replicaManager,
-        GroupConfigManager groupConfigManager
+        GroupConfigManager groupConfigManager,
+        SharePartitionListener listener
     ) {
         this(groupId, topicIdPartition, leaderEpoch, maxInFlightMessages, maxDeliveryCount, defaultRecordLockDurationMs,
-            timer, time, persister, replicaManager, groupConfigManager, SharePartitionState.EMPTY);
+            timer, time, persister, replicaManager, groupConfigManager, SharePartitionState.EMPTY, listener);
     }
 
     SharePartition(
@@ -329,7 +336,8 @@ public class SharePartition {
         Persister persister,
         ReplicaManager replicaManager,
         GroupConfigManager groupConfigManager,
-        SharePartitionState sharePartitionState
+        SharePartitionState sharePartitionState,
+        SharePartitionListener listener
     ) {
         this.groupId = groupId;
         this.topicIdPartition = topicIdPartition;
@@ -348,6 +356,7 @@ public class SharePartition {
         this.replicaManager = replicaManager;
         this.groupConfigManager = groupConfigManager;
         this.fetchOffsetMetadata = new OffsetMetadata();
+        this.listener = listener;
     }
 
     /**
@@ -380,15 +389,24 @@ public class SharePartition {
 
             // Update state to initializing to avoid any concurrent requests to be processed.
             partitionState = SharePartitionState.INITIALIZING;
-            // Initialize the share partition by reading the state from the persister.
-            persister.readState(new ReadShareGroupStateParameters.Builder()
-                .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
-                    .setGroupId(this.groupId)
-                    .setTopicsData(Collections.singletonList(new TopicData<>(topicIdPartition.topicId(),
-                        Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(topicIdPartition.partition(), leaderEpoch)))))
-                    .build())
-                .build()
-            ).whenComplete((result, exception) -> {
+        } catch (Exception e) {
+            log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, e);
+            completeInitializationWithException(future, e);
+            return future;
+        } finally {
+            lock.writeLock().unlock();
+        }
+        // Initialize the share partition by reading the state from the persister.
+        persister.readState(new ReadShareGroupStateParameters.Builder()
+            .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
+                .setGroupId(this.groupId)
+                .setTopicsData(Collections.singletonList(new TopicData<>(topicIdPartition.topicId(),
+                    Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(topicIdPartition.partition(), leaderEpoch)))))
+                .build())
+            .build()
+        ).whenComplete((result, exception) -> {
+            lock.writeLock().lock();
+            try {
                 if (exception != null) {
                     log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, exception);
                     completeInitializationWithException(future, exception);
@@ -462,13 +480,10 @@ public class SharePartition {
                 // Set the partition state to Active and complete the future.
                 partitionState = SharePartitionState.ACTIVE;
                 future.complete(null);
-            });
-        } catch (Exception e) {
-            log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, e);
-            completeInitializationWithException(future, e);
-        } finally {
-            lock.writeLock().unlock();
-        }
+            } finally {
+                lock.writeLock().unlock();
+            }
+        });
 
         return future;
     }
@@ -1114,6 +1129,15 @@ public class SharePartition {
         }
     }
 
+    /**
+     * Returns the share partition listener.
+     *
+     * @return The share partition listener.
+     */
+    SharePartitionListener listener() {
+        return this.listener;
+    }
+
     int leaderEpoch() {
         return leaderEpoch;
     }
@@ -1649,8 +1673,13 @@ public class SharePartition {
                 future.complete(null);
                 return;
             }
+        } finally {
+            lock.writeLock().unlock();
+        }
 
-            writeShareGroupState(stateBatches).whenComplete((result, exception) -> {
+        writeShareGroupState(stateBatches).whenComplete((result, exception) -> {
+            lock.writeLock().lock();
+            try {
                 if (exception != null) {
                     log.error("Failed to write state to persister for the share partition: {}-{}",
                         groupId, topicIdPartition, exception);
@@ -1669,10 +1698,10 @@ public class SharePartition {
                 // Update the cached state and start and end offsets after acknowledging/releasing the acquired records.
                 maybeUpdateCachedStateAndOffsets();
                 future.complete(null);
-            });
-        } finally {
-            lock.writeLock().unlock();
-        }
+            } finally {
+                lock.writeLock().unlock();
+            }
+        });
     }
 
     private void maybeUpdateCachedStateAndOffsets() {

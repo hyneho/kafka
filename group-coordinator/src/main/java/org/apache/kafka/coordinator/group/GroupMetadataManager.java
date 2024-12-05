@@ -163,6 +163,7 @@ import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.n
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupEpochRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupMemberSubscriptionTombstoneRecord;
+import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupSubscriptionMetadataRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newConsumerGroupTargetAssignmentTombstoneRecord;
 import static org.apache.kafka.coordinator.group.GroupCoordinatorRecordHelpers.newShareGroupCurrentAssignmentRecord;
@@ -196,6 +197,7 @@ import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMe
  *    handling as well as during the initial loading of the records from the partitions.
  */
 public class GroupMetadataManager {
+    private static final int METADATA_REFRESH_INTERVAL_MS = Integer.MAX_VALUE;
 
     public static class Builder {
         private LogContext logContext = null;
@@ -203,24 +205,10 @@ public class GroupMetadataManager {
         private Time time = null;
         private CoordinatorTimer<Void, CoordinatorRecord> timer = null;
         private CoordinatorExecutor<CoordinatorRecord> executor = null;
-        private List<ConsumerGroupPartitionAssignor> consumerGroupAssignors = null;
+        private GroupCoordinatorConfig config = null;
         private GroupConfigManager groupConfigManager = null;
-        private int consumerGroupMaxSize = Integer.MAX_VALUE;
-        private int consumerGroupHeartbeatIntervalMs = 5000;
-        private int consumerGroupMetadataRefreshIntervalMs = Integer.MAX_VALUE;
         private MetadataImage metadataImage = null;
-        private int consumerGroupSessionTimeoutMs = 45000;
-        private int classicGroupMaxSize = Integer.MAX_VALUE;
-        private int classicGroupInitialRebalanceDelayMs = 3000;
-        private int classicGroupNewMemberJoinTimeoutMs = 5 * 60 * 1000;
-        private int classicGroupMinSessionTimeoutMs;
-        private int classicGroupMaxSessionTimeoutMs;
-        private ConsumerGroupMigrationPolicy consumerGroupMigrationPolicy;
         private ShareGroupPartitionAssignor shareGroupAssignor = null;
-        private int shareGroupMaxSize = Integer.MAX_VALUE;
-        private int shareGroupHeartbeatIntervalMs = 5 * 1000;
-        private int shareGroupSessionTimeoutMs = 45 * 1000;
-        private int shareGroupMetadataRefreshIntervalMs = Integer.MAX_VALUE;
         private GroupCoordinatorMetricsShard metrics;
 
         Builder withLogContext(LogContext logContext) {
@@ -248,8 +236,8 @@ public class GroupMetadataManager {
             return this;
         }
 
-        Builder withConsumerGroupAssignors(List<ConsumerGroupPartitionAssignor> consumerGroupAssignors) {
-            this.consumerGroupAssignors = consumerGroupAssignors;
+        Builder withConfig(GroupCoordinatorConfig config) {
+            this.config = config;
             return this;
         }
 
@@ -258,58 +246,8 @@ public class GroupMetadataManager {
             return this;
         }
 
-        Builder withConsumerGroupMaxSize(int consumerGroupMaxSize) {
-            this.consumerGroupMaxSize = consumerGroupMaxSize;
-            return this;
-        }
-
-        Builder withConsumerGroupSessionTimeout(int consumerGroupSessionTimeoutMs) {
-            this.consumerGroupSessionTimeoutMs = consumerGroupSessionTimeoutMs;
-            return this;
-        }
-
-        Builder withConsumerGroupHeartbeatInterval(int consumerGroupHeartbeatIntervalMs) {
-            this.consumerGroupHeartbeatIntervalMs = consumerGroupHeartbeatIntervalMs;
-            return this;
-        }
-
-        Builder withConsumerGroupMetadataRefreshIntervalMs(int consumerGroupMetadataRefreshIntervalMs) {
-            this.consumerGroupMetadataRefreshIntervalMs = consumerGroupMetadataRefreshIntervalMs;
-            return this;
-        }
-
         Builder withMetadataImage(MetadataImage metadataImage) {
             this.metadataImage = metadataImage;
-            return this;
-        }
-
-        Builder withClassicGroupMaxSize(int classicGroupMaxSize) {
-            this.classicGroupMaxSize = classicGroupMaxSize;
-            return this;
-        }
-
-        Builder withClassicGroupInitialRebalanceDelayMs(int classicGroupInitialRebalanceDelayMs) {
-            this.classicGroupInitialRebalanceDelayMs = classicGroupInitialRebalanceDelayMs;
-            return this;
-        }
-
-        Builder withClassicGroupNewMemberJoinTimeoutMs(int classicGroupNewMemberJoinTimeoutMs) {
-            this.classicGroupNewMemberJoinTimeoutMs = classicGroupNewMemberJoinTimeoutMs;
-            return this;
-        }
-
-        Builder withClassicGroupMinSessionTimeoutMs(int classicGroupMinSessionTimeoutMs) {
-            this.classicGroupMinSessionTimeoutMs = classicGroupMinSessionTimeoutMs;
-            return this;
-        }
-
-        Builder withClassicGroupMaxSessionTimeoutMs(int classicGroupMaxSessionTimeoutMs) {
-            this.classicGroupMaxSessionTimeoutMs = classicGroupMaxSessionTimeoutMs;
-            return this;
-        }
-
-        Builder withConsumerGroupMigrationPolicy(ConsumerGroupMigrationPolicy consumerGroupMigrationPolicy) {
-            this.consumerGroupMigrationPolicy = consumerGroupMigrationPolicy;
             return this;
         }
 
@@ -323,26 +261,6 @@ public class GroupMetadataManager {
             return this;
         }
 
-        public Builder withShareGroupMaxSize(int shareGroupMaxSize) {
-            this.shareGroupMaxSize = shareGroupMaxSize;
-            return this;
-        }
-
-        Builder withShareGroupSessionTimeout(int shareGroupSessionTimeoutMs) {
-            this.shareGroupSessionTimeoutMs = shareGroupSessionTimeoutMs;
-            return this;
-        }
-
-        Builder withShareGroupHeartbeatInterval(int shareGroupHeartbeatIntervalMs) {
-            this.shareGroupHeartbeatIntervalMs = shareGroupHeartbeatIntervalMs;
-            return this;
-        }
-
-        Builder withShareGroupMetadataRefreshIntervalMs(int shareGroupMetadataRefreshIntervalMs) {
-            this.shareGroupMetadataRefreshIntervalMs = shareGroupMetadataRefreshIntervalMs;
-            return this;
-        }
-
         GroupMetadataManager build() {
             if (logContext == null) logContext = new LogContext();
             if (snapshotRegistry == null) snapshotRegistry = new SnapshotRegistry(logContext);
@@ -353,8 +271,8 @@ public class GroupMetadataManager {
                 throw new IllegalArgumentException("Timer must be set.");
             if (executor == null)
                 throw new IllegalArgumentException("Executor must be set.");
-            if (consumerGroupAssignors == null || consumerGroupAssignors.isEmpty())
-                throw new IllegalArgumentException("Assignors must be set before building.");
+            if (config == null)
+                throw new IllegalArgumentException("Config must be set.");
             if (shareGroupAssignor == null)
                 shareGroupAssignor = new SimpleAssignor();
             if (metrics == null)
@@ -369,24 +287,10 @@ public class GroupMetadataManager {
                 timer,
                 executor,
                 metrics,
-                consumerGroupAssignors,
                 metadataImage,
+                config,
                 groupConfigManager,
-                consumerGroupMaxSize,
-                consumerGroupSessionTimeoutMs,
-                consumerGroupHeartbeatIntervalMs,
-                consumerGroupMetadataRefreshIntervalMs,
-                classicGroupMaxSize,
-                classicGroupInitialRebalanceDelayMs,
-                classicGroupNewMemberJoinTimeoutMs,
-                classicGroupMinSessionTimeoutMs,
-                classicGroupMaxSessionTimeoutMs,
-                consumerGroupMigrationPolicy,
-                shareGroupAssignor,
-                shareGroupMaxSize,
-                shareGroupSessionTimeoutMs,
-                shareGroupHeartbeatIntervalMs,
-                shareGroupMetadataRefreshIntervalMs
+                shareGroupAssignor
             );
         }
     }
@@ -433,6 +337,11 @@ public class GroupMetadataManager {
     private final GroupCoordinatorMetricsShard metrics;
 
     /**
+     * The group coordinator config.
+     */
+    private final GroupCoordinatorConfig config;
+
+    /**
      * The supported consumer group partition assignors keyed by their name.
      */
     private final Map<String, ConsumerGroupPartitionAssignor> consumerGroupAssignors;
@@ -458,26 +367,6 @@ public class GroupMetadataManager {
     private final GroupConfigManager groupConfigManager;
 
     /**
-     * The maximum number of members allowed in a single consumer group.
-     */
-    private final int consumerGroupMaxSize;
-
-    /**
-     * The default heartbeat interval for consumer groups.
-     */
-    private final int consumerGroupHeartbeatIntervalMs;
-
-    /**
-     * The default session timeout for consumer groups.
-     */
-    private final int consumerGroupSessionTimeoutMs;
-
-    /**
-     * The metadata refresh interval.
-     */
-    private final int consumerGroupMetadataRefreshIntervalMs;
-
-    /**
      * The metadata image.
      */
     private MetadataImage metadataImage;
@@ -498,59 +387,9 @@ public class GroupMetadataManager {
         new CoordinatorResult<>(Collections.emptyList(), CompletableFuture.completedFuture(null), false);
 
     /**
-     * The maximum number of members allowed in a single classic group.
-     */
-    private final int classicGroupMaxSize;
-
-    /**
-     * Initial rebalance delay for members joining a classic group.
-     */
-    private final int classicGroupInitialRebalanceDelayMs;
-
-    /**
-     * The timeout used to wait for a new member in milliseconds.
-     */
-    private final int classicGroupNewMemberJoinTimeoutMs;
-
-    /**
-     * The group minimum session timeout.
-     */
-    private final int classicGroupMinSessionTimeoutMs;
-
-    /**
-     * The group maximum session timeout.
-     */
-    private final int classicGroupMaxSessionTimeoutMs;
-
-    /**
      * The share group partition assignor.
      */
     private final ShareGroupPartitionAssignor shareGroupAssignor;
-
-    /**
-     * The maximum number of members allowed in a single share group.
-     */
-    private final int shareGroupMaxSize;
-
-    /**
-     * The heartbeat interval for share groups.
-     */
-    private final int shareGroupHeartbeatIntervalMs;
-
-    /**
-     * The session timeout for share groups.
-     */
-    private final int shareGroupSessionTimeoutMs;
-
-    /**
-     * The share group metadata refresh interval.
-     */
-    private final int shareGroupMetadataRefreshIntervalMs;
-
-    /**
-     * The config indicating whether group protocol upgrade/downgrade is allowed.
-     */
-    private final ConsumerGroupMigrationPolicy consumerGroupMigrationPolicy;
 
     private GroupMetadataManager(
         SnapshotRegistry snapshotRegistry,
@@ -559,24 +398,10 @@ public class GroupMetadataManager {
         CoordinatorTimer<Void, CoordinatorRecord> timer,
         CoordinatorExecutor<CoordinatorRecord> executor,
         GroupCoordinatorMetricsShard metrics,
-        List<ConsumerGroupPartitionAssignor> consumerGroupAssignors,
         MetadataImage metadataImage,
+        GroupCoordinatorConfig config,
         GroupConfigManager groupConfigManager,
-        int consumerGroupMaxSize,
-        int consumerGroupSessionTimeoutMs,
-        int consumerGroupHeartbeatIntervalMs,
-        int consumerGroupMetadataRefreshIntervalMs,
-        int classicGroupMaxSize,
-        int classicGroupInitialRebalanceDelayMs,
-        int classicGroupNewMemberJoinTimeoutMs,
-        int classicGroupMinSessionTimeoutMs,
-        int classicGroupMaxSessionTimeoutMs,
-        ConsumerGroupMigrationPolicy consumerGroupMigrationPolicy,
-        ShareGroupPartitionAssignor shareGroupAssignor,
-        int shareGroupMaxSize,
-        int shareGroupSessionTimeoutMs,
-        int shareGroupHeartbeatIntervalMs,
-        int shareGroupMetadataRefreshIntervalMs
+        ShareGroupPartitionAssignor shareGroupAssignor
     ) {
         this.logContext = logContext;
         this.log = logContext.logger(GroupMetadataManager.class);
@@ -585,27 +410,17 @@ public class GroupMetadataManager {
         this.timer = timer;
         this.executor = executor;
         this.metrics = metrics;
+        this.config = config;
         this.metadataImage = metadataImage;
-        this.consumerGroupAssignors = consumerGroupAssignors.stream().collect(Collectors.toMap(ConsumerGroupPartitionAssignor::name, Function.identity()));
-        this.defaultConsumerGroupAssignor = consumerGroupAssignors.get(0);
+        this.consumerGroupAssignors = config
+            .consumerGroupAssignors()
+            .stream()
+            .collect(Collectors.toMap(ConsumerGroupPartitionAssignor::name, Function.identity()));
+        this.defaultConsumerGroupAssignor = config.consumerGroupAssignors().get(0);
         this.groups = new TimelineHashMap<>(snapshotRegistry, 0);
         this.groupsByTopics = new TimelineHashMap<>(snapshotRegistry, 0);
         this.groupConfigManager = groupConfigManager;
-        this.consumerGroupMaxSize = consumerGroupMaxSize;
-        this.consumerGroupSessionTimeoutMs = consumerGroupSessionTimeoutMs;
-        this.consumerGroupHeartbeatIntervalMs = consumerGroupHeartbeatIntervalMs;
-        this.consumerGroupMetadataRefreshIntervalMs = consumerGroupMetadataRefreshIntervalMs;
-        this.classicGroupMaxSize = classicGroupMaxSize;
-        this.classicGroupInitialRebalanceDelayMs = classicGroupInitialRebalanceDelayMs;
-        this.classicGroupNewMemberJoinTimeoutMs = classicGroupNewMemberJoinTimeoutMs;
-        this.classicGroupMinSessionTimeoutMs = classicGroupMinSessionTimeoutMs;
-        this.classicGroupMaxSessionTimeoutMs = classicGroupMaxSessionTimeoutMs;
-        this.consumerGroupMigrationPolicy = consumerGroupMigrationPolicy;
         this.shareGroupAssignor = shareGroupAssignor;
-        this.shareGroupMaxSize = shareGroupMaxSize;
-        this.shareGroupSessionTimeoutMs = shareGroupSessionTimeoutMs;
-        this.shareGroupHeartbeatIntervalMs = shareGroupHeartbeatIntervalMs;
-        this.shareGroupMetadataRefreshIntervalMs = shareGroupMetadataRefreshIntervalMs;
     }
 
     /**
@@ -1093,11 +908,11 @@ public class GroupMetadataManager {
             log.debug("Skip downgrading the consumer group {} to classic group because it's empty.",
                 consumerGroup.groupId());
             return false;
-        } else if (!consumerGroupMigrationPolicy.isDowngradeEnabled()) {
+        } else if (!config.consumerGroupMigrationPolicy().isDowngradeEnabled()) {
             log.info("Cannot downgrade consumer group {} to classic group because the online downgrade is disabled.",
                 consumerGroup.groupId());
             return false;
-        } else if (consumerGroup.numMembers() - 1 > classicGroupMaxSize) {
+        } else if (consumerGroup.numMembers() - 1 > config.classicGroupMaxSize()) {
             log.info("Cannot downgrade consumer group {} to classic group because its group size is greater than classic group max size.",
                 consumerGroup.groupId());
             return false;
@@ -1120,11 +935,11 @@ public class GroupMetadataManager {
     ) {
         if (!consumerGroup.allMembersUseClassicProtocolExcept(replacedMemberId)) {
             return false;
-        } else if (!consumerGroupMigrationPolicy.isDowngradeEnabled()) {
+        } else if (!config.consumerGroupMigrationPolicy().isDowngradeEnabled()) {
             log.info("Cannot downgrade consumer group {} to classic group because the online downgrade is disabled.",
                 consumerGroup.groupId());
             return false;
-        } else if (consumerGroup.numMembers() > classicGroupMaxSize) {
+        } else if (consumerGroup.numMembers() > config.classicGroupMaxSize()) {
             log.info("Cannot downgrade consumer group {} to classic group because its group size is greater than classic group max size.",
                 consumerGroup.groupId());
             return false;
@@ -1191,7 +1006,7 @@ public class GroupMetadataManager {
      * @return A boolean indicating whether it's valid to online upgrade the classic group.
      */
     private boolean validateOnlineUpgrade(ClassicGroup classicGroup) {
-        if (!consumerGroupMigrationPolicy.isUpgradeEnabled()) {
+        if (!config.consumerGroupMigrationPolicy().isUpgradeEnabled()) {
             log.info("Cannot upgrade classic group {} to consumer group because the online upgrade is disabled.",
                 classicGroup.groupId());
             return false;
@@ -1199,7 +1014,7 @@ public class GroupMetadataManager {
             log.info("Cannot upgrade classic group {} to consumer group because the group does not use the consumer embedded protocol.",
                 classicGroup.groupId());
             return false;
-        } else if (classicGroup.numMembers() > consumerGroupMaxSize) {
+        } else if (classicGroup.numMembers() > config.consumerGroupMaxSize()) {
             log.info("Cannot upgrade classic group {} to consumer group because the group size exceeds the consumer group maximum size.",
                 classicGroup.groupId());
             return false;
@@ -1358,10 +1173,11 @@ public class GroupMetadataManager {
             if (request.topicPartitions() == null || !request.topicPartitions().isEmpty()) {
                 throw new InvalidRequestException("TopicPartitions must be empty when (re-)joining.");
             }
-            boolean hasSubscribedTopicNames = request.subscribedTopicNames() != null && !request.subscribedTopicNames().isEmpty();
-            boolean hasSubscribedTopicRegex = request.subscribedTopicRegex() != null && !request.subscribedTopicRegex().isEmpty();
-            if (!hasSubscribedTopicNames && !hasSubscribedTopicRegex) {
-                throw new InvalidRequestException("SubscribedTopicNames or SubscribedTopicRegex must be set in first request.");
+            // We accept members joining with an empty list of names or an empty regex. It basically
+            // means that they are not subscribed to any topics, but they are part of the group.
+            if (request.subscribedTopicNames() == null && request.subscribedTopicRegex() == null) {
+                throw new InvalidRequestException("Either SubscribedTopicNames or SubscribedTopicRegex must" +
+                    " be non-null when (re-)joining.");
             }
         } else if (request.memberEpoch() == LEAVE_GROUP_STATIC_MEMBER_EPOCH) {
             throwIfNull(request.instanceId(), "InstanceId can't be null.");
@@ -1442,9 +1258,9 @@ public class GroupMetadataManager {
     ) throws GroupMaxSizeReachedException {
         // If the consumer group has reached its maximum capacity, the member is rejected if it is not
         // already a member of the consumer group.
-        if (group.numMembers() >= consumerGroupMaxSize && (memberId.isEmpty() || !group.hasMember(memberId))) {
+        if (group.numMembers() >= config.consumerGroupMaxSize() && (memberId.isEmpty() || !group.hasMember(memberId))) {
             throw new GroupMaxSizeReachedException("The consumer group has reached its maximum capacity of "
-                + consumerGroupMaxSize + " members.");
+                + config.consumerGroupMaxSize() + " members.");
         }
     }
 
@@ -1463,9 +1279,9 @@ public class GroupMetadataManager {
     ) throws GroupMaxSizeReachedException {
         // The member is rejected, if the share group has reached its maximum capacity, or it is not
         // a member of the share group.
-        if (group.numMembers() >= shareGroupMaxSize && (memberId.isEmpty() || !group.hasMember(memberId))) {
+        if (group.numMembers() >= config.shareGroupMaxSize() && (memberId.isEmpty() || !group.hasMember(memberId))) {
             throw new GroupMaxSizeReachedException("The share group has reached its maximum capacity of "
-                + shareGroupMaxSize + " members.");
+                + config.shareGroupMaxSize() + " members.");
         }
     }
 
@@ -1905,7 +1721,7 @@ public class GroupMetadataManager {
                 metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
             }
 
-            group.setMetadataRefreshDeadline(currentTimeMs + consumerGroupMetadataRefreshIntervalMs, groupEpoch);
+            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -2098,7 +1914,7 @@ public class GroupMetadataManager {
                 metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
             }
 
-            group.setMetadataRefreshDeadline(currentTimeMs + consumerGroupMetadataRefreshIntervalMs, groupEpoch);
+            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -2274,7 +2090,7 @@ public class GroupMetadataManager {
                 log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
             }
 
-            group.setMetadataRefreshDeadline(currentTimeMs + shareGroupMetadataRefreshIntervalMs, groupEpoch);
+            group.setMetadataRefreshDeadline(currentTimeMs + METADATA_REFRESH_INTERVAL_MS, groupEpoch);
         }
 
         // 2. Update the target assignment if the group epoch is larger than the target assignment epoch. The delta between
@@ -2405,7 +2221,8 @@ public class GroupMetadataManager {
                     .setPreviousMemberEpoch(0)
                     .build();
 
-                // Generate the records to replace the member.
+                // Generate the records to replace the member. We don't care about the regular expression
+                // here because it is taken care of later after the static membership replacement.
                 replaceMember(records, group, existingStaticMemberOrNull, newMember);
 
                 log.info("[GroupId {}] Static member with instance id {} re-joins the consumer group " +
@@ -2517,7 +2334,7 @@ public class GroupMetadataManager {
             if (isNotEmpty(oldSubscribedTopicRegex) && group.numSubscribedMembers(oldSubscribedTopicRegex) == 1) {
                 // If the member was the last one subscribed to the regex, we delete the
                 // resolved regular expression.
-                records.add(GroupCoordinatorRecordHelpers.newConsumerGroupRegularExpressionTombstone(
+                records.add(newConsumerGroupRegularExpressionTombstone(
                     groupId,
                     oldSubscribedTopicRegex
                 ));
@@ -2735,7 +2552,7 @@ public class GroupMetadataManager {
                 log.info("[GroupId {}] Bumped group epoch to {}.", groupId, groupEpoch);
                 metrics.record(CONSUMER_GROUP_REBALANCES_SENSOR_NAME);
                 group.setMetadataRefreshDeadline(
-                    time.milliseconds() + consumerGroupMetadataRefreshIntervalMs,
+                    time.milliseconds() + METADATA_REFRESH_INTERVAL_MS,
                     groupEpoch
                 );
             }
@@ -3122,6 +2939,7 @@ public class GroupMetadataManager {
             return new CoordinatorResult<>(records, response, null, false);
         } else {
             removeMember(records, group.groupId(), member.memberId());
+            maybeDeleteResolvedRegularExpression(records, group, member);
 
             // We update the subscription metadata without the leaving member.
             Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
@@ -3141,6 +2959,7 @@ public class GroupMetadataManager {
             // We bump the group epoch.
             int groupEpoch = group.groupEpoch() + 1;
             records.add(newConsumerGroupEpochRecord(group.groupId(), groupEpoch));
+            log.info("[GroupId {}] Bumped group epoch to {}.", group.groupId(), groupEpoch);
 
             cancelTimers(group.groupId(), member.memberId());
 
@@ -3222,6 +3041,59 @@ public class GroupMetadataManager {
             groupId,
             newMember
         ));
+    }
+
+    /**
+     * Maybe delete the resolved regular expression associated to the provided member if
+     * it was the last subscribed member to it.
+     *
+     * @param records   The record accumulator.
+     * @param group     The group.
+     * @param member    The member removed from the group.
+     */
+    private void maybeDeleteResolvedRegularExpression(
+        List<CoordinatorRecord> records,
+        ConsumerGroup group,
+        ConsumerGroupMember member
+    ) {
+        if (isNotEmpty(member.subscribedTopicRegex()) && group.numSubscribedMembers(member.subscribedTopicRegex()) == 1) {
+            records.add(newConsumerGroupRegularExpressionTombstone(
+                group.groupId(),
+                member.subscribedTopicRegex()
+            ));
+        }
+    }
+
+    /**
+     * Maybe delete the resolved regular expressions associated with the provided members
+     * if they were the last ones subscribed to them.
+     *
+     * @param records   The record accumulator.
+     * @param group     The group.
+     * @param members   The member removed from the group.
+     * @return The set of deleted regular expressions.
+     */
+    private Set<String> maybeDeleteResolvedRegularExpressions(
+        List<CoordinatorRecord> records,
+        ConsumerGroup group,
+        Set<ConsumerGroupMember> members
+    ) {
+        Map<String, Integer> counts = new HashMap<>();
+        members.forEach(member -> {
+            if (isNotEmpty(member.subscribedTopicRegex())) {
+                counts.compute(member.subscribedTopicRegex(), Utils::incValue);
+            }
+        });
+
+        Set<String> deletedRegexes = new HashSet<>();
+        counts.forEach((regex, count) -> {
+            if (group.numSubscribedMembers(regex) == count) {
+                records.add(newConsumerGroupRegularExpressionTombstone(group.groupId(), regex));
+                deletedRegexes.add(regex);
+            }
+        });
+
+        return deletedRegexes;
     }
 
     /**
@@ -4216,10 +4088,10 @@ public class GroupMetadataManager {
                         rescheduleClassicGroupMemberHeartbeat(classicGroup, member);
                     });
 
-                    if (classicGroup.numMembers() > classicGroupMaxSize) {
+                    if (classicGroup.numMembers() > config.classicGroupMaxSize()) {
                         // In case the max size config has changed.
                         prepareRebalance(classicGroup, "Freshly-loaded group " + groupId +
-                            " (size " + classicGroup.numMembers() + ") is over capacity " + classicGroupMaxSize +
+                            " (size " + classicGroup.numMembers() + ") is over capacity " + config.classicGroupMaxSize() +
                             ". Rebalancing in order to give a chance for consumers to commit offsets");
                     }
 
@@ -5131,7 +5003,7 @@ public class GroupMetadataManager {
         // timeout during a long rebalance), they may simply retry which will lead to a lot of defunct
         // members in the rebalance. To prevent this going on indefinitely, we time out JoinGroup requests
         // for new members. If the new member is still there, we expect it to retry.
-        rescheduleClassicGroupMemberHeartbeat(group, member, classicGroupNewMemberJoinTimeoutMs);
+        rescheduleClassicGroupMemberHeartbeat(group, member, config.classicGroupNewMemberJoinTimeoutMs());
 
         return maybePrepareRebalanceOrCompleteJoin(group, "Adding new member " + memberId + " with group instance id " +
             request.groupInstanceId() + "; client reason: " + JoinGroupRequest.joinReason(request));
@@ -5182,8 +5054,8 @@ public class GroupMetadataManager {
         boolean isInitialRebalance = group.isInState(EMPTY);
         if (isInitialRebalance) {
             // The group is new. Provide more time for the members to join.
-            int delayMs = classicGroupInitialRebalanceDelayMs;
-            int remainingMs = Math.max(group.rebalanceTimeoutMs() - classicGroupInitialRebalanceDelayMs, 0);
+            int delayMs = config.classicGroupInitialRebalanceDelayMs();
+            int remainingMs = Math.max(group.rebalanceTimeoutMs() - config.classicGroupInitialRebalanceDelayMs(), 0);
 
             timer.schedule(
                 classicGroupJoinKey(group.groupId()),
@@ -5252,7 +5124,7 @@ public class GroupMetadataManager {
         if (group.newMemberAdded() && remainingMs != 0) {
             // A new member was added. Extend the delay.
             group.setNewMemberAdded(false);
-            int newDelayMs = Math.min(classicGroupInitialRebalanceDelayMs, remainingMs);
+            int newDelayMs = Math.min(config.classicGroupInitialRebalanceDelayMs(), remainingMs);
             int newRemainingMs = Math.max(remainingMs - delayMs, 0);
 
             timer.schedule(
@@ -5454,13 +5326,13 @@ public class GroupMetadataManager {
                 // 2) using the number of awaiting members allows to kick out the last rejoining
                 //    members of the group.
                 return (group.hasMember(memberId) && group.member(memberId).isAwaitingJoin()) ||
-                    group.numAwaitingJoinResponse() < classicGroupMaxSize;
+                    group.numAwaitingJoinResponse() < config.classicGroupMaxSize();
             case COMPLETING_REBALANCE:
             case STABLE:
                 // An existing member is accepted. New members are accepted up to the max group size.
                 // Note that the group size is used here. When the group transitions to CompletingRebalance,
                 // members who haven't rejoined are removed.
-                return group.hasMember(memberId) || group.numMembers() < classicGroupMaxSize;
+                return group.hasMember(memberId) || group.numMembers() < config.classicGroupMaxSize();
             default:
                 throw new IllegalStateException("Unknown group state: " + group.stateAsString());
         }
@@ -6082,7 +5954,7 @@ public class GroupMetadataManager {
         if (group.type() == CLASSIC) {
             return classicGroupLeaveToClassicGroup((ClassicGroup) group, context, request);
         } else if (group.type() == CONSUMER) {
-            return classicGroupLeaveToConsumerGroup((ConsumerGroup) group, context, request);
+            return classicGroupLeaveToConsumerGroup((ConsumerGroup) group, request);
         } else {
             throw new UnknownMemberIdException(String.format("Group %s not found.", request.groupId()));
         }
@@ -6092,14 +5964,12 @@ public class GroupMetadataManager {
      * Handle a classic LeaveGroupRequest to a ConsumerGroup.
      *
      * @param group          The ConsumerGroup.
-     * @param context        The request context.
      * @param request        The actual LeaveGroup request.
      *
      * @return The LeaveGroup response and the records to append.
      */
     private CoordinatorResult<LeaveGroupResponseData, CoordinatorRecord> classicGroupLeaveToConsumerGroup(
         ConsumerGroup group,
-        RequestContext context,
         LeaveGroupRequestData request
     ) throws UnknownMemberIdException {
         String groupId = group.groupId();
@@ -6118,7 +5988,7 @@ public class GroupMetadataManager {
                     member = group.getOrMaybeCreateMember(memberId, false);
                     throwIfMemberDoesNotUseClassicProtocol(member);
 
-                    log.info("[Group {}] Dynamic member {} has left group " +
+                    log.info("[GroupId {}] Dynamic member {} has left group " +
                             "through explicit `LeaveGroup` request; client reason: {}",
                         groupId, memberId, reason);
                 } else {
@@ -6128,11 +5998,11 @@ public class GroupMetadataManager {
                     // in which case we expect the MemberId to be undefined.
                     if (!UNKNOWN_MEMBER_ID.equals(memberId)) {
                         throwIfInstanceIdIsFenced(member, groupId, memberId, instanceId);
+                        throwIfMemberDoesNotUseClassicProtocol(member);
                     }
-                    throwIfMemberDoesNotUseClassicProtocol(member);
 
                     memberId = member.memberId();
-                    log.info("[Group {}] Static member {} with instance id {} has left group " +
+                    log.info("[GroupId {}] Static member {} with instance id {} has left group " +
                             "through explicit `LeaveGroup` request; client reason: {}",
                         groupId, memberId, instanceId, reason);
                 }
@@ -6156,9 +6026,16 @@ public class GroupMetadataManager {
         }
 
         if (!records.isEmpty()) {
+            // Check whether resolved regular expressions could be deleted.
+            Set<String> deletedRegexes = maybeDeleteResolvedRegularExpressions(
+                records,
+                group,
+                validLeaveGroupMembers
+            );
+
             // Maybe update the subscription metadata.
             Map<String, TopicMetadata> subscriptionMetadata = group.computeSubscriptionMetadata(
-                group.computeSubscribedTopicNames(validLeaveGroupMembers),
+                group.computeSubscribedTopicNamesWithoutDeletedMembers(validLeaveGroupMembers, deletedRegexes),
                 metadataImage.topics(),
                 metadataImage.cluster()
             );
@@ -6171,6 +6048,7 @@ public class GroupMetadataManager {
 
             // Bump the group epoch.
             records.add(newConsumerGroupEpochRecord(groupId, group.groupEpoch() + 1));
+            log.info("[GroupId {}] Bumped group epoch to {}.", groupId, group.groupEpoch() + 1);
         }
 
         return new CoordinatorResult<>(records, new LeaveGroupResponseData().setMembers(memberResponses));
@@ -6453,7 +6331,7 @@ public class GroupMetadataManager {
     private int consumerGroupSessionTimeoutMs(String groupId) {
         Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
         return groupConfig.map(GroupConfig::consumerSessionTimeoutMs)
-            .orElse(consumerGroupSessionTimeoutMs);
+            .orElse(config.consumerGroupSessionTimeoutMs());
     }
 
     /**
@@ -6462,7 +6340,7 @@ public class GroupMetadataManager {
     private int consumerGroupHeartbeatIntervalMs(String groupId) {
         Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
         return groupConfig.map(GroupConfig::consumerHeartbeatIntervalMs)
-            .orElse(consumerGroupHeartbeatIntervalMs);
+            .orElse(config.consumerGroupHeartbeatIntervalMs());
     }
 
     /**
@@ -6471,7 +6349,7 @@ public class GroupMetadataManager {
     private int shareGroupSessionTimeoutMs(String groupId) {
         Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
         return groupConfig.map(GroupConfig::shareSessionTimeoutMs)
-            .orElse(shareGroupSessionTimeoutMs);
+            .orElse(config.shareGroupSessionTimeoutMs());
     }
 
     /**
@@ -6480,7 +6358,7 @@ public class GroupMetadataManager {
     private int shareGroupHeartbeatIntervalMs(String groupId) {
         Optional<GroupConfig> groupConfig = groupConfigManager.groupConfig(groupId);
         return groupConfig.map(GroupConfig::shareHeartbeatIntervalMs)
-            .orElse(shareGroupHeartbeatIntervalMs);
+            .orElse(config.shareGroupHeartbeatIntervalMs());
     }
 
     /**
