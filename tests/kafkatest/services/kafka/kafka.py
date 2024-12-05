@@ -159,7 +159,6 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
     METADATA_SNAPSHOT_SEARCH_STR = "%s/__cluster_metadata-0/*.checkpoint" % METADATA_LOG_DIR
     METADATA_FIRST_LOG = "%s/__cluster_metadata-0/00000000000000000000.log" % METADATA_LOG_DIR
     # Kafka Authorizer
-    ZK_ACL_AUTHORIZER = "kafka.security.authorizer.AclAuthorizer"
     KRAFT_ACL_AUTHORIZER = "org.apache.kafka.metadata.authorizer.StandardAuthorizer"
     HEAP_DUMP_FILE = os.path.join(PERSISTENT_ROOT, "kafka_heap_dump.bin")
     INTERBROKER_LISTENER_NAME = 'INTERNAL'
@@ -205,7 +204,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
                  allow_zk_with_kraft=False,
                  quorum_info_provider=None,
                  use_new_coordinator=None,
-                 dynamicRaftQuorum=False
+                 consumer_group_migration_policy=None,
+                 dynamicRaftQuorum=False,
                  ):
         """
         :param context: test context
@@ -267,7 +267,8 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         :param bool allow_zk_with_kraft: if True, then allow a KRaft broker or controller to also use ZooKeeper
         :param quorum_info_provider: A function that takes this KafkaService as an argument and returns a ServiceQuorumInfo. If this is None, then the ServiceQuorumInfo is generated from the test context
         :param use_new_coordinator: When true, use the new implementation of the group coordinator as per KIP-848. If this is None, the default existing group coordinator is used.
-        :param dynamicRaftQuorum: When true, the quorum uses kraft.version=1, controller_quorum_bootstrap_servers, and bootstraps the first controller using the standalone flag
+        :param consumer_group_migration_policy: The config that enables converting the non-empty classic group using the consumer embedded protocol to the non-empty consumer group using the consumer group protocol and vice versa.
+        :param dynamicRaftQuorum: When true, controller_quorum_bootstrap_servers, and bootstraps the first controller using the standalone flag
         """
 
         self.zk = zk
@@ -279,7 +280,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
             self.quorum_info = quorum_info_provider(self)
         self.controller_quorum = None # will define below if necessary
         self.isolated_controller_quorum = None # will define below if necessary
-        self.configured_for_zk_migration = False
+        self.dynamicRaftQuorum = False
 
         # Set use_new_coordinator based on context and arguments.
         # If not specified, the default config is used.
@@ -292,6 +293,15 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         
         # Assign the determined value.
         self.use_new_coordinator = use_new_coordinator
+
+        # Set consumer_group_migration_policy based on context and arguments.
+        if consumer_group_migration_policy is None:
+            arg_name = 'consumer_group_migration_policy'
+            if context.injected_args is not None:
+                consumer_group_migration_policy = context.injected_args.get(arg_name)
+            if consumer_group_migration_policy is None:
+                consumer_group_migration_policy = context.globals.get(arg_name)
+        self.consumer_group_migration_policy = consumer_group_migration_policy
 
         if num_nodes < 1:
             raise Exception("Must set a positive number of nodes: %i" % num_nodes)
@@ -458,38 +468,6 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         This method does not do any validation to check this node is actually part of an isolated controller quorum.
         """
         return self.idx(node) + config_property.FIRST_CONTROLLER_ID - 1
-
-    def reconfigure_zk_for_migration(self, kraft_quorum):
-        self.configured_for_zk_migration = True
-        self.controller_quorum = kraft_quorum
-
-        # Set the migration properties
-        self.server_prop_overrides.extend([
-            ["zookeeper.metadata.migration.enable", "true"],
-            ["controller.quorum.voters", kraft_quorum.controller_quorum_voters],
-            ["controller.listener.names", kraft_quorum.controller_listener_names]
-        ])
-
-        # Add a port mapping for the controller listener.
-        # This is not added to "advertised.listeners" because of configured_for_zk_migration=True
-        self.port_mappings[kraft_quorum.controller_listener_names] = kraft_quorum.port_mappings.get(kraft_quorum.controller_listener_names)
-
-    def reconfigure_zk_as_kraft(self, kraft_quorum):
-        self.configured_for_zk_migration = True
-
-        # Remove the configs we set in reconfigure_zk_for_migration
-        props = []
-        for prop in self.server_prop_overrides:
-            if not prop[0].startswith("controller"):
-                props.append(prop)
-        self.server_prop_overrides.clear()
-        self.server_prop_overrides.extend(props)
-        del self.port_mappings[kraft_quorum.controller_listener_names]
-
-        # Set the quorum info to isolated KRaft
-        self.quorum_info = quorum.ServiceQuorumInfo(quorum.isolated_kraft, self)
-        self.isolated_controller_quorum = kraft_quorum
-        self.controller_quorum = kraft_quorum
 
     def num_kraft_controllers(self, num_nodes_broker_role, controller_num_nodes_override):
         if controller_num_nodes_override < 0:
@@ -752,7 +730,9 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         for port in self.port_mappings.values():
             if port.open:
                 listeners.append(port.listener())
-                advertised_listeners.append(port.advertised_listener(node))
+                if (self.dynamicRaftQuorum and quorum.NodeQuorumInfo(self.quorum_info, node).has_controller_role) or \
+                        port.name not in controller_listener_names:
+                    advertised_listeners.append(port.advertised_listener(node))
                 protocol_map.append(port.listener_security_protocol())
         controller_sec_protocol = self.isolated_controller_quorum.controller_security_protocol if self.isolated_controller_quorum \
             else self.controller_security_protocol if self.quorum_info.has_brokers_and_controllers and not quorum.NodeQuorumInfo(self.quorum_info, node).has_controller_role \
@@ -791,6 +771,9 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
 
         if self.use_new_coordinator is not None:
             override_configs[config_property.NEW_GROUP_COORDINATOR_ENABLE] = str(self.use_new_coordinator)
+
+        if self.consumer_group_migration_policy is not None:
+            override_configs[config_property.CONSUMER_GROUP_MIGRATION_POLICY] = str(self.consumer_group_migration_policy)
 
         for prop in self.server_prop_overrides:
             override_configs[prop[0]] = prop[1]
@@ -837,9 +820,7 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
         return cmd
 
     def controller_listener_name_list(self, node):
-        if self.quorum_info.using_zk and self.configured_for_zk_migration:
-            return [self.controller_listener_name(self.controller_quorum.controller_security_protocol)]
-        elif self.quorum_info.using_zk:
+        if self.quorum_info.using_zk:
             return []
         broker_to_controller_listener_name = self.controller_listener_name(self.controller_quorum.controller_security_protocol)
         # Brokers always use the first controller listener, so include a second, inter-controller listener if and only if:
@@ -871,16 +852,18 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
             # define controller.quorum.bootstrap.servers or controller.quorum.voters text
             security_protocol_to_use = self.controller_quorum.controller_security_protocol
             first_node_id = 1 if self.quorum_info.has_brokers_and_controllers else config_property.FIRST_CONTROLLER_ID
-            controller_quorum_bootstrap_servers = ','.join(["{}:{}".format(node.account.hostname,
-                                                                           config_property.FIRST_CONTROLLER_PORT +
-                                                                           KafkaService.SECURITY_PROTOCOLS.index(security_protocol_to_use))
-                                                            for node in self.controller_quorum.nodes[:self.controller_quorum.num_nodes_controller_role]])
             if self.dynamicRaftQuorum:
-                self.controller_quorum_bootstrap_servers = controller_quorum_bootstrap_servers
+                self.controller_quorum_bootstrap_servers = ','.join(["{}:{}".format(node.account.hostname,
+                                                                                    config_property.FIRST_CONTROLLER_PORT +
+                                                                                    KafkaService.SECURITY_PROTOCOLS.index(security_protocol_to_use))
+                                                                     for node in self.controller_quorum.nodes[:self.controller_quorum.num_nodes_controller_role]])
             else:
-                self.controller_quorum_voters = ','.join(["%s@%s" % (self.controller_quorum.idx(node) + first_node_id - 1,
-                                                                     bootstrap_server)
-                                                          for bootstrap_server in controller_quorum_bootstrap_servers.split(',')])
+                self.controller_quorum_voters = ','.join(["{}@{}:{}".format(self.controller_quorum.idx(node) +
+                                                                            first_node_id - 1,
+                                                                            node.account.hostname,
+                                                                            config_property.FIRST_CONTROLLER_PORT +
+                                                                            KafkaService.SECURITY_PROTOCOLS.index(security_protocol_to_use))
+                                                          for node in self.controller_quorum.nodes[:self.controller_quorum.num_nodes_controller_role]])
             # define controller.listener.names
             self.controller_listener_names = ','.join(self.controller_listener_name_list(node))
             # define sasl.mechanism.controller.protocol to match the isolated quorum if one exists
@@ -898,10 +881,12 @@ class KafkaService(KafkaPathResolverMixin, JmxMixin, Service):
             kafka_storage_script = self.path.script("kafka-storage.sh", node)
             cmd = "%s format --ignore-formatted --config %s --cluster-id %s" % (kafka_storage_script, KafkaService.CONFIG_FILE, config_property.CLUSTER_ID)
             if self.dynamicRaftQuorum:
-                cmd += " --feature kraft.version=1"
-                if not self.standalone_controller_bootstrapped and self.node_quorum_info.has_controller_role:
-                    cmd += " --standalone"
-                    self.standalone_controller_bootstrapped = True
+                if self.node_quorum_info.has_controller_role:
+                    if self.standalone_controller_bootstrapped:
+                        cmd += " --no-initial-controllers"
+                    else:
+                        cmd += " --standalone"
+                        self.standalone_controller_bootstrapped = True
             self.logger.info("Running log directory format command...\n%s" % cmd)
             node.account.ssh(cmd)
 

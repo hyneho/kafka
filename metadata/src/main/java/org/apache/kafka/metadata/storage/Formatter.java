@@ -52,7 +52,6 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.apache.kafka.common.internals.Topic.CLUSTER_METADATA_TOPIC_PARTITION;
 import static org.apache.kafka.server.common.KRaftVersion.KRAFT_VERSION_0;
@@ -94,8 +93,10 @@ public class Formatter {
 
     /**
      * Maps feature names to the level they will start off with.
+     *
+     * Visible for testing.
      */
-    private Map<String, Short> featureLevels = new TreeMap<>();
+    protected Map<String, Short> featureLevels = new TreeMap<>();
 
     /**
      * The bootstrap metadata used to format the cluster.
@@ -125,12 +126,13 @@ public class Formatter {
     /**
      * The metadata log directory.
      */
-    private String metadataLogDirectory = null;
+    private Optional<String> metadataLogDirectory = Optional.empty();
 
     /**
      * The initial KIP-853 voters.
      */
     private Optional<DynamicVoters> initialControllers = Optional.empty();
+    private boolean noInitialControllersFlag = false;
 
     public Formatter setPrintStream(PrintStream printStream) {
         this.printStream = printStream;
@@ -167,6 +169,10 @@ public class Formatter {
         return this;
     }
 
+    public Collection<String> directories() {
+        return directories;
+    }
+
     public Formatter setReleaseVersion(MetadataVersion releaseVersion) {
         this.releaseVersion = releaseVersion;
         return this;
@@ -198,20 +204,31 @@ public class Formatter {
     }
 
     public Formatter setMetadataLogDirectory(String metadataLogDirectory) {
+        this.metadataLogDirectory = Optional.of(metadataLogDirectory);
+        return this;
+    }
+
+    public Formatter setMetadataLogDirectory(Optional<String> metadataLogDirectory) {
         this.metadataLogDirectory = metadataLogDirectory;
         return this;
     }
 
-    public Formatter setInitialVoters(DynamicVoters initialControllers) {
+    public Formatter setInitialControllers(DynamicVoters initialControllers) {
         this.initialControllers = Optional.of(initialControllers);
         return this;
     }
 
+    public Formatter setNoInitialControllersFlag(boolean noInitialControllersFlag) {
+        this.noInitialControllersFlag = noInitialControllersFlag;
+        return this;
+    }
+
+    public Optional<DynamicVoters> initialVoters() {
+        return initialControllers;
+    }
+
     boolean hasDynamicQuorum() {
-        if (initialControllers.isPresent()) {
-            return true;
-        }
-        return false;
+        return initialControllers.isPresent() || noInitialControllersFlag;
     }
 
     public BootstrapMetadata bootstrapMetadata() {
@@ -231,13 +248,12 @@ public class Formatter {
         if (controllerListenerName == null) {
             throw new FormatterException("You must specify the name of the initial controller listener.");
         }
-        if (metadataLogDirectory == null) {
-            throw new FormatterException("You must specify the metadata log directory.");
-        }
-        if (!directories.contains(metadataLogDirectory)) {
-            throw new FormatterException("The specified metadata log directory, " + metadataLogDirectory +
+        metadataLogDirectory.ifPresent(d -> {
+            if (!directories.contains(d)) {
+                throw new FormatterException("The specified metadata log directory, " + d +
                     " was not one of the given directories: " + directories);
-        }
+            }
+        });
         releaseVersion = calculateEffectiveReleaseVersion();
         featureLevels = calculateEffectiveFeatureLevels();
         this.bootstrapMetadata = calculateBootstrapMetadata();
@@ -292,8 +308,7 @@ public class Formatter {
             if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
                 if (!nameToSupportedFeature.containsKey(featureName)) {
                     throw new FormatterException("Unsupported feature: " + featureName +
-                            ". Supported features are: " + nameToSupportedFeature.keySet().stream().
-                            collect(Collectors.joining(", ")));
+                            ". Supported features are: " + String.join(", ", nameToSupportedFeature.keySet()));
                 }
             }
             newFeatureLevels.put(featureName, level);
@@ -401,7 +416,7 @@ public class Formatter {
             Map<String, DirectoryType> directoryTypes = new HashMap<>();
             for (String emptyLogDir : ensemble.emptyLogDirs()) {
                 DirectoryType directoryType = DirectoryType.calculate(emptyLogDir,
-                    metadataLogDirectory,
+                    metadataLogDirectory.orElse(""),
                     nodeId,
                     initialControllers);
                 directoryTypes.put(emptyLogDir, directoryType);
@@ -470,7 +485,7 @@ public class Formatter {
         ) {
             if (!logDir.equals(metadataLogDirectory)) {
                 return LOG_DIRECTORY;
-            } else if (!initialControllers.isPresent()) {
+            } else if (initialControllers.isEmpty()) {
                 return STATIC_METADATA_DIRECTORY;
             } else if (initialControllers.get().voters().containsKey(nodeId)) {
                 return DYNAMIC_METADATA_VOTER_DIRECTORY;
