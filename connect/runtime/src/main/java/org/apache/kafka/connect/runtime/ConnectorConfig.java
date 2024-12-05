@@ -639,7 +639,7 @@ public class ConnectorConfig extends AbstractConfig {
             return null;
         }
         try {
-            VersionRange range = VersionRange.createFromVersionSpec(connectorVersion);
+            VersionRange range = PluginVersionUtils.connectorVersionRequirement(connectorVersion);
             ClassLoader connectorLoader = plugins.connectorLoader(connectorClass, range);
             try(LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
                 // this will load using the connector classloader, and then delegate to delegating classloader if not found
