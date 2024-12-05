@@ -25,7 +25,6 @@ import org.apache.kafka.connect.connector.Connector;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.connector.policy.ConnectorClientConfigOverridePolicy;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.WorkerConfig;
 import org.apache.kafka.connect.sink.SinkConnector;
 import org.apache.kafka.connect.source.SourceConnector;
@@ -36,6 +35,7 @@ import org.apache.kafka.connect.storage.HeaderConverter;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
 
+import org.apache.kafka.connect.util.PluginVersionUtils;
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
 import org.apache.maven.artifact.versioning.VersionRange;
@@ -172,16 +172,7 @@ public class Plugins {
             String classOrAlias,
             Class<U> pluginClass
     ) throws ClassNotFoundException {
-        Class<?> klass = loader.loadClass(classOrAlias, false);
-        if (pluginClass.isAssignableFrom(klass)) {
-            return (Class<? extends U>) klass;
-        }
-
-        throw new ClassNotFoundException(
-                "Requested class: "
-                        + classOrAlias
-                        + " does not extend " + pluginClass.getSimpleName()
-        );
+        return pluginClass(loader, classOrAlias, pluginClass, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -381,9 +372,7 @@ public class Plugins {
     public Class<? extends Connector> connectorClass(String connectorClassOrAlias, VersionRange range) throws VersionedPluginLoadingException {
         Class<? extends Connector> klass;
         try {
-            klass = range == null ?
-                pluginClass(delegatingLoader, connectorClassOrAlias, Connector.class):
-                pluginClass(delegatingLoader, connectorClassOrAlias, Connector.class, range);
+            klass = pluginClass(delegatingLoader, connectorClassOrAlias, Connector.class, range);
         } catch (ClassNotFoundException e) {
             List<PluginDesc<? extends Connector>> matches = new ArrayList<>();
             Set<PluginDesc<Connector>> connectors = connectors();
@@ -437,11 +426,11 @@ public class Plugins {
      * @throws ConnectException if the {@link Converter} implementation class could not be found
      */
     public Converter newConverter(AbstractConfig config, String classPropertyName, ClassLoaderUsage classLoaderUsage) {
-        return getConverter(config, classPropertyName, null, classLoaderUsage);
+        return newConverter(config, classPropertyName, null, classLoaderUsage);
     }
 
     /**
-     * Used to get a versioned converter. It will always try and get the converter from the set of plugin classloaders.
+     * Used to get a versioned converter. If the version is specified, it will always use the plugins classloader.
      *
      * @param config              the configuration containing the {@link Converter}'s configuration; may not be null
      * @param classPropertyName   the name of the property that contains the name of the {@link Converter} class; may not be null
@@ -452,10 +441,10 @@ public class Plugins {
      */
     public Converter newConverter(AbstractConfig config, String classPropertyName, String versionPropertyName) {
         ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
-        return getConverter(config, classPropertyName, versionPropertyName, classLoader);
+        return newConverter(config, classPropertyName, versionPropertyName, classLoader);
     }
 
-    private Converter getConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
+    private Converter newConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
         if (!config.originals().containsKey(classPropertyName)) {
             // This configuration does not define the converter via the specified property name
             return null;
@@ -470,7 +459,7 @@ public class Plugins {
         log.debug("Configuring the {} converter with configuration keys:{}{}",
                 isKeyConverter ? "key" : "value", System.lineSeparator(), converterConfig.keySet());
 
-        Converter plugin = getVersionedPlugin(config, classPropertyName, versionPropertyName,
+        Converter plugin = newVersionedPlugin(config, classPropertyName, versionPropertyName,
                 Converter.class, classLoaderUsage, scanResult.converters());
         try (LoaderSwap loaderSwap = withClassLoader(plugin.getClass().getClassLoader())) {
             plugin.configure(converterConfig, isKeyConverter);
@@ -509,28 +498,37 @@ public class Plugins {
      * If the given configuration defines a {@link HeaderConverter} using the named configuration property, return a new configured
      * instance.
      *
-     * @param config             the configuration containing the {@link Converter}'s configuration; may not be null
-     * @param classPropertyName  the name of the property that contains the name of the {@link Converter} class; may not be null
-     * @param classLoaderUsage   which classloader should be used
+     * @param config             the configuration containing the {@link HeaderConverter}'s configuration; may not be null
+     * @param classPropertyName  the name of the property that contains the name of the {@link HeaderConverter} class; may not be null
+     * @param classLoaderUsage   the name of the property that contains the version of the {@link HeaderConverter} class; may not be null
      * @return the instantiated and configured {@link HeaderConverter}; null if the configuration did not define the specified property
      * @throws ConnectException if the {@link HeaderConverter} implementation class could not be found
      */
     public HeaderConverter newHeaderConverter(AbstractConfig config, String classPropertyName, ClassLoaderUsage classLoaderUsage) {
-        return getHeaderConverter(config, classPropertyName, null, classLoaderUsage);
+        return newHeaderConverter(config, classPropertyName, null, classLoaderUsage);
     }
 
+    /**
+     * If the given configuration defines a {@link HeaderConverter} using the named configuration property, return a new configured
+     * instance. If the version is specified, it will always use the plugins classloader.
+     *
+     * @param config                the configuration containing the {@link HeaderConverter}'s configuration; may not be null
+     * @param classPropertyName     the name of the property that contains the name of the {@link HeaderConverter} class; may not be null
+     * @param versionPropertyName   the config for the version for the header converter
+     * @return the instantiated and configured {@link HeaderConverter}; null if the configuration did not define the specified property
+     * @throws ConnectException if the {@link HeaderConverter} implementation class could not be found
+     */
     public HeaderConverter newHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName) {
         ClassLoaderUsage classLoader = config.getString(versionPropertyName) == null ? ClassLoaderUsage.CURRENT_CLASSLOADER: ClassLoaderUsage.PLUGINS;
-        return getHeaderConverter(config, classPropertyName, versionPropertyName, classLoader);
+        return newHeaderConverter(config, classPropertyName, versionPropertyName, classLoader);
     }
 
-    private HeaderConverter getHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
-        if (!config.originals().containsKey(classPropertyName)) {
+    private HeaderConverter newHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
+        if (!config.originals().containsKey(classPropertyName) && classLoaderUsage != ClassLoaderUsage.CURRENT_CLASSLOADER) {
             // This configuration does not define the Header Converter via the specified property name
             return null;
         }
-
-        HeaderConverter plugin = getVersionedPlugin(config, classPropertyName, versionPropertyName,
+        HeaderConverter plugin = newVersionedPlugin(config, classPropertyName, versionPropertyName,
                 HeaderConverter.class, classLoaderUsage, scanResult.headerConverters());
 
         String configPrefix = classPropertyName + ".";
@@ -545,7 +543,7 @@ public class Plugins {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private <U> U getVersionedPlugin(
+    private <U> U newVersionedPlugin(
             AbstractConfig config,
             String classPropertyName,
             String versionPropertyName,
@@ -558,11 +556,13 @@ public class Plugins {
         VersionRange range = null;
         if (version != null) {
             try {
-                range = VersionRange.createFromVersionSpec(version);
+                range = PluginVersionUtils.connectorVersionRequirement(version);
             } catch (InvalidVersionSpecificationException e) {
                 throw new ConnectException(String.format("Invalid version range for %s: %s %s", classPropertyName, version, e));
             }
         }
+
+        assert range == null || classLoaderUsage == ClassLoaderUsage.PLUGINS;
 
         Class<? extends U> klass = null;
         String basePluginClassName = basePluginClass.getSimpleName();
@@ -595,14 +595,6 @@ public class Plugins {
         U plugin;
         try (LoaderSwap loaderSwap = withClassLoader(klass.getClassLoader())) {
             plugin = newPlugin(klass);
-            DefaultArtifactVersion pluginVersion = new DefaultArtifactVersion(PluginScanner.versionFor(plugin));
-            if (range != null && range.hasRestrictions() && !range.containsVersion(pluginVersion)) {
-                // this can happen if the current class loader is used
-                // if there are version restrictions then this should be captured, and we should load using the plugin class loader
-                if (classLoaderUsage == ClassLoaderUsage.CURRENT_CLASSLOADER) {
-                    return getVersionedPlugin(config, classPropertyName, versionPropertyName, basePluginClass, ClassLoaderUsage.PLUGINS, availablePlugins);
-                }
-            }
         }
         return plugin;
     }
@@ -614,37 +606,13 @@ public class Plugins {
             // This configuration does not define the config provider via the specified property name
             return null;
         }
-        Class<? extends ConfigProvider> klass = null;
-        switch (classLoaderUsage) {
-            case CURRENT_CLASSLOADER:
-                // Attempt to load first with the current classloader, and plugins as a fallback.
-                klass = pluginClassFromConfig(config, classPropertyName, ConfigProvider.class, scanResult.configProviders());
-                break;
-            case PLUGINS:
-                // Attempt to load with the plugin class loader, which uses the current classloader as a fallback
-                String configProviderClassOrAlias = originalConfig.get(classPropertyName);
-                try {
-                    klass = pluginClass(delegatingLoader, configProviderClassOrAlias, ConfigProvider.class);
-                } catch (ClassNotFoundException e) {
-                    throw new ConnectException(
-                            "Failed to find any class that implements ConfigProvider and which name matches "
-                                    + configProviderClassOrAlias + ", available ConfigProviders are: "
-                                    + pluginNames(scanResult.configProviders())
-                    );
-                }
-                break;
-        }
-        if (klass == null) {
-            throw new ConnectException("Unable to initialize the ConfigProvider specified in '" + classPropertyName + "'");
-        }
+
+        ConfigProvider plugin = newVersionedPlugin(config, classPropertyName, null, ConfigProvider.class, classLoaderUsage, scanResult.configProviders());
 
         // Configure the ConfigProvider
         String configPrefix = providerPrefix + ".param.";
         Map<String, Object> configProviderConfig = config.originalsWithPrefix(configPrefix);
-
-        ConfigProvider plugin;
-        try (LoaderSwap loaderSwap = withClassLoader(klass.getClassLoader())) {
-            plugin = newPlugin(klass);
+        try (LoaderSwap loaderSwap = withClassLoader(plugin.getClass().getClassLoader())) {
             plugin.configure(configProviderConfig);
         }
         return plugin;
