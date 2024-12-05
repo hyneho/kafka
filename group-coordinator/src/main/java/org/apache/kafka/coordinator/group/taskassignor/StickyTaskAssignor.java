@@ -226,6 +226,9 @@ public class StickyTaskAssignor implements TaskAssignor {
     }
 
     private Member findMemberWithLeastLoad(final Set<Member> members, TaskId taskId, final boolean returnSameMember) {
+        if (members == null || members.isEmpty()) {
+            return null;
+        }
         Set<Member> rightPairs = members.stream()
                 .filter(member  -> taskPairs.hasNewPair(taskId, processIdToState.get(member.processId).assignedTasks()))
                 .collect(Collectors.toSet());
