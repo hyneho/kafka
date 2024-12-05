@@ -264,7 +264,6 @@ public class Plugins {
         }
     }
 
-
     public String latestVersion(String classOrAlias) {
         return delegatingLoader.latestVersion(classOrAlias);
     }
@@ -273,13 +272,19 @@ public class Plugins {
         return delegatingLoader;
     }
 
+    // kept for compatibility
     public ClassLoader connectorLoader(String connectorClassOrAlias) {
-        return delegatingLoader.connectorLoader(connectorClassOrAlias);
+        return delegatingLoader.loader(connectorClassOrAlias);
     }
 
-    public ClassLoader connectorLoader(String connectorClassOrAlias, VersionRange range) throws ClassNotFoundException, VersionedPluginLoadingException {
-        return delegatingLoader.connectorLoader(connectorClassOrAlias, range);
+    public ClassLoader pluginLoader(String classOrAlias, VersionRange range) throws ClassNotFoundException, VersionedPluginLoadingException {
+        return delegatingLoader.loader(classOrAlias, range);
     }
+
+    public ClassLoader pluginLoader(String classOrAlias) {
+        return delegatingLoader.loader(classOrAlias);
+    }
+
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public Set<PluginDesc<Connector>> connectors() {
