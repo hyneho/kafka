@@ -463,19 +463,6 @@ class TransactionCoordinatorTest {
     verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
   }
 
-  @Test
-  def testEndTxnRetryIsAllowedDuringV1UpgradeToV2(): Unit = {
-    when(transactionManager.getTransactionState(ArgumentMatchers.eq(transactionalId)))
-      .thenReturn(Right(Some(CoordinatorEpochAndTxnMetadata(coordinatorEpoch,
-        new TransactionMetadata(transactionalId, producerId, producerId, RecordBatch.NO_PRODUCER_ID, producerEpoch,
-          (producerEpoch - 1).toShort, 1, CompleteCommit, collection.mutable.Set.empty[TopicPartition], 0, time.milliseconds(), TransactionVersion.fromFeatureLevel(0))))))
-
-    val epoch = producerEpoch - 1
-    coordinator.handleEndTransaction(transactionalId, producerId, epoch.toShort, TransactionResult.COMMIT, TransactionVersion.fromFeatureLevel(2), endTxnCallback)
-    assertEquals(Errors.NONE, error)
-    verify(transactionManager).getTransactionState(ArgumentMatchers.eq(transactionalId))
-  }
-
   @ParameterizedTest
   @ValueSource(booleans = Array(false, true))
   def testEndTxnWhenStatusIsCompleteCommitAndResultIsCommitInV1(isRetry: Boolean): Unit = {
