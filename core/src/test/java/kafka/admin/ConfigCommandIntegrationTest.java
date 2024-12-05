@@ -416,31 +416,39 @@ public class ConfigCommandIntegrationTest {
 
     @ClusterTest(types = {Type.CO_KRAFT, Type.KRAFT})
     public void testUpdatingBothClusterAndBrokerLevelDynamicConfigUsingKRaft() throws Exception {
-        alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
+        List<String> alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
 
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
 
-            alterAndVerifyBothLevelConfig(client, Optional.of(defaultBrokerId), singletonMap("message.max.bytes", "110000"));
-            alterAndVerifyBothLevelConfig(client, Optional.of(defaultBrokerId), singletonMap("message.max.bytes", "130000"));
+            alterAndVerifyBothLevelConfig(client, Optional.of(defaultBrokerId), singletonMap("message.max.bytes", "110000"), alterOpts);
+            alterAndVerifyBothLevelConfig(client, Optional.of(defaultBrokerId), singletonMap("message.max.bytes", "130000"), alterOpts);
 
             assertThrows(ExecutionException.class,
-                    () -> alterAndVerifyBothLevelConfig(client, Optional.of(defaultBrokerId),
-                            singletonMap("listener.name.internal.ssl.keystore.location", "/tmp/test.jks")));
+                () -> alterAndVerifyBothLevelConfig(
+                    client, 
+                    Optional.of(defaultBrokerId),
+                    singletonMap("listener.name.internal.ssl.keystore.location", "/tmp/test.jks"), 
+                    alterOpts)
+            );
             assertThrows(ExecutionException.class,
-                    () -> alterAndVerifyBothLevelConfig(client, Optional.of(defaultBrokerId),
-                            singletonMap("listener.name.external.ssl.keystore.password", "secret")));
+                () -> alterAndVerifyBothLevelConfig(
+                    client, 
+                    Optional.of(defaultBrokerId),
+                    singletonMap("listener.name.external.ssl.keystore.password", "secret"), 
+                    alterOpts)
+            );
         }
     }
 
     @ClusterTest(types = {Type.CO_KRAFT, Type.KRAFT})
     public void testUpdatingDynamicConfigInKRaftThenShouldFail() {
-        alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
+        List<String> alterOpts = generateDefaultAlterOpts(cluster.bootstrapServers());
 
-        try (Admin client = cluster.createAdminClient()) {
+        try (Admin client = cluster.admin()) {
             assertThrows(InvalidConfigurationException.class,
-                    () -> deleteAndVerifyConfigValue(client, defaultBrokerId, singleton("log.roll.jitter.ms"), false));
+                    () -> deleteAndVerifyConfigValue(client, defaultBrokerId, singleton("log.roll.jitter.ms"), false, alterOpts));
             assertThrows(InvalidConfigurationException.class,
-                    () -> deleteAndVerifyConfigValue(client, defaultBrokerId, singleton("no.exist.config"), false));
+                    () -> deleteAndVerifyConfigValue(client, defaultBrokerId, singleton("no.exist.config"), false, alterOpts));
         }
     }
 
@@ -516,6 +524,27 @@ public class ConfigCommandIntegrationTest {
                         alterOpts,
                         asList("--add-config", configStr)));
         addOpts.checkArgs();
+        ConfigCommand.alterConfig(client, addOpts);
+    }
+
+
+    private void alterAndVerifyBothLevelConfig(Admin client, 
+                                               Optional<String> brokerId, 
+                                               Map<String, String> config,
+                                               List<String> alterOpts) throws Exception {
+        alterBothLevelConfigWithKraft(client, brokerId, config, alterOpts);
+        verifyConfig(client, brokerId, config);
+        verifyConfig(client, Optional.empty(), config);
+    }
+
+    private void alterBothLevelConfigWithKraft(Admin client, 
+                                               Optional<String> brokerId, 
+                                               Map<String, String> config, 
+                                               List<String> alterOpts) {
+        String configStr = transferConfigMapToString(config);
+        ConfigCommand.ConfigCommandOptions addOpts =
+                new ConfigCommand.ConfigCommandOptions(toArray(alterOpts, entityOp(brokerId),
+                        entityOp(Optional.empty()), asList("--add-config", configStr)));
         ConfigCommand.alterConfig(client, addOpts);
     }
 
