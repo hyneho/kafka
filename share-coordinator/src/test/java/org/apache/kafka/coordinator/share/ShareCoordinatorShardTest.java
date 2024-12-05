@@ -540,7 +540,7 @@ class ShareCoordinatorShardTest {
                     .setPartition(PARTITION)
                     .setLeaderEpoch(1)))));
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.maybeUpdateLeaderEpochAndRead(request);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         assertEquals(ReadShareGroupStateResponse.toResponseData(
             TOPIC_ID,
@@ -576,7 +576,7 @@ class ShareCoordinatorShardTest {
                     .setPartition(partition)
                     .setLeaderEpoch(5)))));
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.maybeUpdateLeaderEpochAndRead(request);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         ReadShareGroupStateResponseData expectedData = ReadShareGroupStateResponse.toErrorResponseData(
             TOPIC_ID, partition, Errors.INVALID_REQUEST, ShareCoordinatorShard.NEGATIVE_PARTITION_ID.getMessage());
@@ -605,7 +605,7 @@ class ShareCoordinatorShardTest {
                     .setPartition(0)
                     .setLeaderEpoch(5)))));
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.maybeUpdateLeaderEpochAndRead(request);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         ReadShareGroupStateResponseData expectedData = ReadShareGroupStateResponse.toErrorResponseData(
             TOPIC_ID, 0, Errors.UNKNOWN_TOPIC_OR_PARTITION, Errors.UNKNOWN_TOPIC_OR_PARTITION.message());
@@ -634,7 +634,7 @@ class ShareCoordinatorShardTest {
                     .setPartition(PARTITION)
                     .setLeaderEpoch(3))))); // lower leaderEpoch than the one stored in leaderMap
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.maybeUpdateLeaderEpochAndRead(request);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         ReadShareGroupStateResponseData expectedData = ReadShareGroupStateResponse.toErrorResponseData(
             TOPIC_ID,
@@ -811,7 +811,7 @@ class ShareCoordinatorShardTest {
                     .setLeaderEpoch(2)
                 ))));
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.maybeUpdateLeaderEpochAndRead(request);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         shard.replay(0L, 0L, (short) 0, result.records().get(0));
 
@@ -851,7 +851,7 @@ class ShareCoordinatorShardTest {
                     .setLeaderEpoch(2)
                 ))));
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.maybeUpdateLeaderEpochAndRead(request1);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request1);
         assertFalse(result.records().isEmpty());    // record generated
 
         // apply record to update soft state
@@ -866,7 +866,7 @@ class ShareCoordinatorShardTest {
                     .setLeaderEpoch(-1)
                 ))));
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result2 = shard.maybeUpdateLeaderEpochAndRead(request2);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result2 = shard.readStateAndMaybeUpdateLeaderEpoch(request2);
 
         assertTrue(result2.records().isEmpty());    // leader epoch -1 - no update
 
@@ -879,7 +879,7 @@ class ShareCoordinatorShardTest {
                     .setLeaderEpoch(-1)
                 ))));
 
-        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result3 = shard.maybeUpdateLeaderEpochAndRead(request3);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result3 = shard.readStateAndMaybeUpdateLeaderEpoch(request3);
 
         assertTrue(result3.records().isEmpty());    // same leader epoch - no update
         verify(shard.getMetricsShard()).record(ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_SENSOR_NAME);

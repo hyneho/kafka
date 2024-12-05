@@ -304,7 +304,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
      * @param request - represents ReadShareGroupStateRequestData
      * @return CoordinatorResult object
      */
-    public CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> maybeUpdateLeaderEpochAndRead(
+    public CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> readStateAndMaybeUpdateLeaderEpoch(
         ReadShareGroupStateRequestData request
     ) {
         // only one key will be there in the request by design
@@ -332,7 +332,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 Collections.emptyList()
             );
         } else if (shareStateMap.get(key) == null) {
-            // no state information was not found but key present
+            // key present but no state information found
             responseData = ReadShareGroupStateResponse.toErrorResponseData(
                 topicId,
                 partitionId,

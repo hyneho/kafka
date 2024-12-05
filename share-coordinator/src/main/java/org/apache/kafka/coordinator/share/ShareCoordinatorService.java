@@ -445,7 +445,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
                     "read-update-leader-epoch-state",
                     topicPartitionFor(coordinatorKey),
                     Duration.ofMillis(config.shareCoordinatorWriteTimeoutMs()),
-                    coordinator -> coordinator.maybeUpdateLeaderEpochAndRead(requestForCurrentPartition)
+                    coordinator -> coordinator.readStateAndMaybeUpdateLeaderEpoch(requestForCurrentPartition)
                 ).exceptionally(readException ->
                     handleOperationException(
                         "read-update-leader-epoch-state",
