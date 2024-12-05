@@ -41,8 +41,9 @@ For a detailed description of spotbugs bug categories, see https://spotbugs.read
     </Match>
 
     <Match>
-        <!-- Disable warnings about doProvileged, This has been deprecated
-            as of JDK 17 for removal, see https://openjdk.org/jeps/411 -->
+        <!-- Disable warnings about creating Classloaders inside doPrivilege.
+            DP_CREATE_CLASSLOADER_INSIDE_DO_PRIVILEGED: Classloaders should only be created inside doPrivileged block
+            The security manager has been deprecated for removal as of JDK 17, see https://openjdk.org/jeps/411 -->
         <Bug pattern="DP_CREATE_CLASSLOADER_INSIDE_DO_PRIVILEGED"/>
     </Match>
 
@@ -566,12 +567,6 @@ For a detailed description of spotbugs bug categories, see https://spotbugs.read
             <Class name="org.apache.kafka.clients.Metadata$LeaderAndEpoch"/>
         </Or>
         <Bug pattern="SING_SINGLETON_HAS_NONPRIVATE_CONSTRUCTOR"/>
-    </Match>
-
-    <Match>
-        <!-- DateFormat is not used in more than one thread -->
-        <Class name="org.apache.kafka.tools.ReplicaVerificationTool$ReplicaBuffer"/>
-        <Bug pattern="STCAL_INVOKE_ON_STATIC_DATE_FORMAT_INSTANCE"/>
     </Match>
 
 </FindBugsFilter>

@@ -1071,7 +1071,7 @@ public final class Worker {
             }
 
             if (!task.awaitStop(timeout)) {
-                log.error(" Graceful stop of task {} failed.", task.id());
+                log.error("Graceful stop of task {} failed.", task.id());
                 task.cancel();
             } else {
                 log.debug("Graceful stop of task {} succeeded.", task.id());
