@@ -164,7 +164,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         CoordinatorMetricsShard metricsShard,
         SnapshotRegistry snapshotRegistry
     ) {
-        this(logContext, config, coordinatorMetrics, metricsShard, snapshotRegistry, new ShareCoordinatorOffsetsManager());
+        this(logContext, config, coordinatorMetrics, metricsShard, snapshotRegistry, new ShareCoordinatorOffsetsManager(snapshotRegistry));
     }
 
     ShareCoordinatorShard(

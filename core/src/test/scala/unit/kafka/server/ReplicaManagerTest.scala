@@ -34,7 +34,8 @@ import org.apache.kafka.common.{DirectoryId, IsolationLevel, Node, TopicIdPartit
 import org.apache.kafka.common.compress.Compression
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.errors.{InvalidPidMappingException, KafkaStorageException}
-import org.apache.kafka.common.message.LeaderAndIsrRequestData
+import org.apache.kafka.common.internals.Topic
+import org.apache.kafka.common.message.{DeleteRecordsResponseData, LeaderAndIsrRequestData}
 import org.apache.kafka.common.message.LeaderAndIsrRequestData.LeaderAndIsrPartitionState
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData.EpochEndOffset
 import org.apache.kafka.common.message.StopReplicaRequestData.StopReplicaPartitionState
@@ -290,13 +291,13 @@ class ReplicaManagerTest {
       alterPartitionManager = alterPartitionManager)
 
     try {
-      val partition = rm.createPartition(new TopicPartition(topic, 0))
+      val partition = rm.createPartition(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0))
       partition.createLogIfNotExists(isNew = false, isFutureReplica = false,
         new LazyOffsetCheckpoints(rm.highWatermarkCheckpoints.asJava), None)
 
       rm.becomeLeaderOrFollower(0, new LeaderAndIsrRequest.Builder(ApiKeys.LEADER_AND_ISR.latestVersion, 0, 0, brokerEpoch,
         Seq(new LeaderAndIsrPartitionState()
-          .setTopicName(topic)
+          .setTopicName(Topic.GROUP_METADATA_TOPIC_NAME)
           .setPartitionIndex(0)
           .setControllerEpoch(0)
           .setLeader(0)
@@ -305,9 +306,9 @@ class ReplicaManagerTest {
           .setPartitionEpoch(0)
           .setReplicas(Seq[Integer](0).asJava)
           .setIsNew(false)).asJava,
-        Collections.singletonMap(topic, Uuid.randomUuid()),
+        Collections.singletonMap(Topic.GROUP_METADATA_TOPIC_NAME, Uuid.randomUuid()),
         Set(new Node(0, "host1", 0)).asJava).build(), (_, _) => ())
-      appendRecords(rm, new TopicPartition(topic, 0),
+      appendRecords(rm, new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0),
         MemoryRecords.withRecords(Compression.NONE, new SimpleRecord("first message".getBytes()), new SimpleRecord("second message".getBytes())))
       logManager.maybeUpdatePreferredLogDir(new TopicPartition(topic, 0), dir2.getAbsolutePath)
 
@@ -6615,6 +6616,86 @@ class ReplicaManagerTest {
     val maxMetric = allMetrics.get(metrics.metricName("remote-fetch-throttle-time-max", "RemoteLogManager"))
     assertEquals(Double.NaN, avgMetric.metricValue)
     assertEquals(Double.NaN, maxMetric.metricValue)
+  }
+
+  @Test
+  def testDeleteRecordsInternalTopicDeleteDisallowed(): Unit = {
+    val mockLogMgr = TestUtils.createLogManager(config.logDirs.map(new File(_)))
+    val rm = new ReplicaManager(
+      metrics = metrics,
+      config = config,
+      time = time,
+      scheduler = new MockScheduler(time),
+      logManager = mockLogMgr,
+      quotaManagers = quotaManager,
+      metadataCache = MetadataCache.kRaftMetadataCache(config.brokerId, () => KRaftVersion.KRAFT_VERSION_0),
+      logDirFailureChannel = new LogDirFailureChannel(config.logDirs.size),
+      alterPartitionManager = alterPartitionManager,
+      threadNamePrefix = Option(this.getClass.getName))
+
+    val tp = new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0)
+    rm.createPartition(tp)
+
+    def callback(responseStatus: Map[TopicPartition, DeleteRecordsResponseData.DeleteRecordsPartitionResult]): Unit = {
+      assert(responseStatus.values.head.errorCode() == Errors.INVALID_TOPIC_EXCEPTION.code())
+    }
+
+    // default internal topics delete disabled
+    rm.deleteRecords(
+      timeout = 0L,
+      Map[TopicPartition, Long](tp -> 10L),
+      responseCallback = callback
+    )
+  }
+
+  @Test
+  def testDeleteRecordsInternalTopicDeleteAllowed(): Unit = {
+    val props = TestUtils.createBrokerConfig(0, TestUtils.MockKraftConnect)
+    val config = KafkaConfig.fromProps(props)
+    val logManager = TestUtils.createLogManager(config.logDirs.map(new File(_)), new LogConfig(new Properties()))
+    val metadataCache: MetadataCache = mock(classOf[MetadataCache])
+    mockGetAliveBrokerFunctions(metadataCache, Seq(new Node(0, "host0", 0)))
+    when(metadataCache.metadataVersion()).thenReturn(config.interBrokerProtocolVersion)
+    val rm = new ReplicaManager(
+      metrics = metrics,
+      config = config,
+      time = time,
+      scheduler = new MockScheduler(time),
+      logManager = logManager,
+      quotaManagers = quotaManager,
+      metadataCache = metadataCache,
+      logDirFailureChannel = new LogDirFailureChannel(config.logDirs.size),
+      alterPartitionManager = alterPartitionManager)
+
+    val partition = rm.createPartition(new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0))
+    partition.createLogIfNotExists(isNew = false, isFutureReplica = false,
+      new LazyOffsetCheckpoints(rm.highWatermarkCheckpoints.asJava), None)
+
+    rm.becomeLeaderOrFollower(0, new LeaderAndIsrRequest.Builder(ApiKeys.LEADER_AND_ISR.latestVersion, 0, 0, brokerEpoch,
+      Seq(new LeaderAndIsrPartitionState()
+        .setTopicName(Topic.GROUP_METADATA_TOPIC_NAME)
+        .setPartitionIndex(0)
+        .setControllerEpoch(0)
+        .setLeader(0)
+        .setLeaderEpoch(0)
+        .setIsr(Seq[Integer](0).asJava)
+        .setPartitionEpoch(0)
+        .setReplicas(Seq[Integer](0).asJava)
+        .setIsNew(false)).asJava,
+      Collections.singletonMap(Topic.GROUP_METADATA_TOPIC_NAME, Uuid.randomUuid()),
+      Set(new Node(0, "host1", 0)).asJava).build(), (_, _) => ())
+
+    def callback(responseStatus: Map[TopicPartition, DeleteRecordsResponseData.DeleteRecordsPartitionResult]): Unit = {
+      assert(responseStatus.values.head.errorCode() == Errors.NONE.code())
+    }
+
+    // internal topics delete allowed
+    rm.deleteRecords(
+      timeout = 0L,
+      Map[TopicPartition, Long](new TopicPartition(Topic.GROUP_METADATA_TOPIC_NAME, 0) -> 0L),
+      responseCallback = callback,
+      allowInternalTopicDeletion = true
+    )
   }
 
   private def readFromLogWithOffsetOutOfRange(tp: TopicPartition): Seq[(TopicIdPartition, LogReadResult)] = {

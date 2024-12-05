@@ -296,7 +296,7 @@ public class ShareCoordinatorService implements ShareCoordinator {
                     try {
                         writer.deleteRecords(tp, off);
                     } catch (Exception e) {
-                        log.error("Failed to delete records in {} till offset {}.", tp, off, e);
+                        log.debug("Failed to delete records in {} till offset {}.", tp, off, e);
                     }
                 }
             );

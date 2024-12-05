@@ -18,146 +18,102 @@
 package org.apache.kafka.coordinator.share;
 
 import org.apache.kafka.server.share.SharePartitionKey;
+import org.apache.kafka.timeline.SnapshotRegistry;
+import org.apache.kafka.timeline.TimelineHashMap;
 
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Util class to track the last redundant offset within a share group state
- * partition.
- * <p>
- * The class utilises a priority queue (min-heap) and a hashmap to store and
- * track the redundant offsets. It also maintains a long variable minOffset
- * to track the global minimum.
- * <p>
- * The map is mainly used to invalidate queue entries since JAVA priority queue
- * does not support heap.modifyKey operation. When the last redundant offset is
- * queried, the ACTIVE element at the top of the queue which is less than the
- * global minimum offset seen so far is returned, otherwise empty optional.
- * <p>
- * Callers supply the offset information via updateState and can fetch the current
- * redundant offset using a getter.
+ * Util class to track the offsets written into the internal topic
+ * per share partition key.
+ * It calculates the minimum offset globally up to which the records
+ * in the internal partition are redundant i.e. they have been overridden
+ * by newer records.
  */
 public class ShareCoordinatorOffsetsManager {
-    private enum State {
-        ACTIVE,
-        INACTIVE
-    }
 
-    static class Entry {
-        private final SharePartitionKey key;
-        private final long offset;
-        private State state;
+    // Map to store share partition key => current partition offset
+    // being written.
+    private final TimelineHashMap<SharePartitionKey, Long> offsets;
 
-        private Entry(SharePartitionKey key, long offset) {
-            this.key = key;
-            this.offset = offset;
-            this.state = State.ACTIVE;
-        }
-
-        public SharePartitionKey key() {
-            return key;
-        }
-
-        public long offset() {
-            return offset;
-        }
-
-        public State state() {
-            return state;
-        }
-
-        public void setState(State state) {
-            this.state = state;
-        }
-
-        public static Entry instance(SharePartitionKey key, long offset) {
-            return new Entry(key, offset);
-        }
-    }
-
-    private final Map<SharePartitionKey, Entry> entries = new HashMap<>();
-    private final Queue<Entry> curState;
+    // Minimum offset representing the smallest necessary offset (non-redundant)
+    // across the internal partition.
     private long minOffset = Long.MAX_VALUE;
-    private final AtomicLong lastRedundantOffset = new AtomicLong(0);
+    private final AtomicLong redundantOffset = new AtomicLong(0);
 
-    public ShareCoordinatorOffsetsManager() {
-        curState = new PriorityQueue<>(new Comparator<Entry>() {
-            @Override
-            public int compare(Entry o1, Entry o2) {
-                return Long.compare(o1.offset, o2.offset);
-            }
-        });
+    public ShareCoordinatorOffsetsManager(SnapshotRegistry snapshotRegistry) {
+        Objects.requireNonNull(snapshotRegistry);
+        offsets = new TimelineHashMap<>(snapshotRegistry, 0);
     }
 
     /**
-     * Used to add new offset information to the
-     * existing state. The offsets are key upon the
-     * {@link SharePartitionKey} object.
-     * @param key       {@link SharePartitionKey} object whose snapshot offset is being updated
-     * @param offset    Long value representing the partition record offset
-     * @return Optional of the last redundant offset value, if present
+     * Method updates internal state with the supplied offset for the provided
+     * share partition key. It then calculates the minimum offset, if possible,
+     * below which all offsets are redundant. This value is then returned as
+     * an optional.
+     * <p>
+     * The value returned is exclusive, in that all offsets below it but not including
+     * it are redundant.
+     *
+     * @param key    - represents {@link SharePartitionKey} whose offset needs updating
+     * @param offset - represents the latest partition offset for provided key
+     * @return Optional of last redundant offset, exclusive.
      */
     public Optional<Long> updateState(SharePartitionKey key, long offset) {
         minOffset = Math.min(minOffset, offset);
-        if (entries.containsKey(key)) {
-            entries.get(key).setState(State.INACTIVE);
-        }
-        Entry newEntry = Entry.instance(key, offset);
-        curState.add(newEntry);
-        entries.put(key, newEntry);
+        offsets.put(key, offset);
 
-        purge();
-
-        Optional<Long> deleteTillOpt = findLastRedundantOffset();
-        deleteTillOpt.ifPresent(off -> minOffset = off);
-        return deleteTillOpt;
+        Optional<Long> deleteTillOffset = findRedundantOffset();
+        deleteTillOffset.ifPresent(off -> {
+            minOffset = off;
+            redundantOffset.set(off);
+        });
+        return deleteTillOffset;
     }
 
-    private Optional<Long> findLastRedundantOffset() {
-        if (curState.isEmpty()) {
+    private Optional<Long> findRedundantOffset() {
+        long soFar = Long.MAX_VALUE;
+        if (offsets.isEmpty()) {
             return Optional.empty();
         }
 
-        Entry candidate = curState.peek();
-        if (candidate == null) {
-            return Optional.empty();
+        for (long offset : offsets.values()) {
+            // Get min offset among latest offsets
+            // for all share keys in the internal partition.
+            soFar = Math.min(soFar, offset);
+
+            // minOffset represents the smallest necessary offset
+            // and if soFar equals it, we cannot proceed. This can happen
+            // if a share partition key hasn't had records written for a while
+            // For example,
+            // <p>
+            // key1:1
+            // key2:2 4 6
+            // key3:3 5 7
+            // <p>
+            // We can see in above that offsets 2, 4, 3, 5 are redundant,
+            // but we do not have a contiguous prefix starting at minOffset
+            // and we cannot proceed.
+            if (soFar == minOffset) {
+                return Optional.empty();
+            }
         }
 
-        if (candidate.offset() <= 0 || candidate.offset() == minOffset) {
-            return Optional.empty();
-        }
-        lastRedundantOffset.set(candidate.offset());
-        return Optional.of(candidate.offset());
+        return Optional.of(soFar);
     }
 
-    /**
-     * Fetch the current last redundant offset.
-     * @return  Optional of the long value representing the offset
-     */
     public Optional<Long> lastRedundantOffset() {
-        return Optional.of(lastRedundantOffset.get());
-    }
-
-    // test visibility
-    void purge() {
-        while (!curState.isEmpty() && curState.peek().state() == State.INACTIVE) {
-            curState.poll();
+        long value = redundantOffset.get();
+        if (value <= 0 || value == Long.MAX_VALUE) {
+            return Optional.empty();
         }
+        return Optional.of(value);
     }
 
-    //test visibility
-    Queue<Entry> curState() {
-        return curState;
-    }
-
-    //test visibility
-    Map<SharePartitionKey, Entry> entries() {
-        return entries;
+    // visible for testing
+    TimelineHashMap<SharePartitionKey, Long> curState() {
+        return offsets;
     }
 }

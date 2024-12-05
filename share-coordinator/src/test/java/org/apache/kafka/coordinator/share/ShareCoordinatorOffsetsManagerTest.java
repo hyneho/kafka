@@ -18,7 +18,9 @@
 package org.apache.kafka.coordinator.share;
 
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.server.share.SharePartitionKey;
+import org.apache.kafka.timeline.SnapshotRegistry;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,9 +32,6 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 public class ShareCoordinatorOffsetsManagerTest {
 
@@ -44,7 +43,7 @@ public class ShareCoordinatorOffsetsManagerTest {
 
     @BeforeEach
     public void setUp() {
-        manager = new ShareCoordinatorOffsetsManager();
+        manager = new ShareCoordinatorOffsetsManager(new SnapshotRegistry(new LogContext()));
     }
 
     @Test
@@ -53,8 +52,8 @@ public class ShareCoordinatorOffsetsManagerTest {
         assertEquals(Optional.of(10L), manager.updateState(KEY1, 10L)); //[0-9] offsets are redundant
         assertEquals(Optional.empty(), manager.updateState(KEY2, 15L));
 
-        assertEquals(10L, manager.entries().get(KEY1).offset());
-        assertEquals(15L, manager.entries().get(KEY2).offset());
+        assertEquals(10L, manager.curState().get(KEY1));
+        assertEquals(15L, manager.curState().get(KEY2));
     }
 
     private static class ShareOffsetTestHolder {
@@ -174,7 +173,10 @@ public class ShareCoordinatorOffsetsManagerTest {
     @MethodSource("generateNoRedundantStateCases")
     public void testUpdateStateNoRedundantState(ShareOffsetTestHolder holder) {
         if (holder.shouldRun) {
-            holder.tuples.forEach(tuple -> assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName));
+            holder.tuples.forEach(tuple -> {
+                assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName);
+                assertEquals(tuple.expectedOffset, manager.lastRedundantOffset(), holder.testName);
+            });
         }
     }
 
@@ -182,7 +184,10 @@ public class ShareCoordinatorOffsetsManagerTest {
     @MethodSource("generateRedundantStateCases")
     public void testUpdateStateRedundantState(ShareOffsetTestHolder holder) {
         if (holder.shouldRun) {
-            holder.tuples.forEach(tuple -> assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName));
+            holder.tuples.forEach(tuple -> {
+                assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName);
+                assertEquals(tuple.expectedOffset, manager.lastRedundantOffset(), holder.testName);
+            });
         }
     }
 
@@ -190,17 +195,10 @@ public class ShareCoordinatorOffsetsManagerTest {
     @MethodSource("generateComplexCases")
     public void testUpdateStateComplexCases(ShareOffsetTestHolder holder) {
         if (holder.shouldRun) {
-            holder.tuples.forEach(tuple -> assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName));
+            holder.tuples.forEach(tuple -> {
+                assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName);
+                assertEquals(tuple.expectedOffset, manager.lastRedundantOffset(), holder.testName);
+            });
         }
-    }
-
-    @Test
-    public void testPurge() {
-        ShareCoordinatorOffsetsManager manager = spy(new ShareCoordinatorOffsetsManager());
-        for (long i : List.of(10L, 20L, 30L, 40L, 50L)) {
-            manager.updateState(KEY1, i);
-        }
-        assertEquals(1, manager.curState().size());
-        verify(manager, times(5)).purge();
     }
 }

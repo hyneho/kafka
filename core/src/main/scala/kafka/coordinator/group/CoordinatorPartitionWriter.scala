@@ -170,7 +170,7 @@ class CoordinatorPartitionWriter(
   override def deleteRecords(tp: TopicPartition, deleteBeforeOffset: Long): Unit = {
     var deleteResults: Map[TopicPartition, DeleteRecordsPartitionResult] = Map.empty
     replicaManager.deleteRecords(
-      timeout = 0L,
+      timeout = 30000L, // 30 seconds.
       offsetPerPartition = Map(tp -> deleteBeforeOffset),
       responseCallback = results => deleteResults = results,
       allowInternalTopicDeletion = true
