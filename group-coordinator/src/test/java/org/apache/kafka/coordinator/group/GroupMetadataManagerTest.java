@@ -10173,19 +10173,22 @@ public class GroupMetadataManagerTest {
         group = context.groupMetadataManager.getOrMaybeCreateClassicGroup(groupId, false);
 
         // A new member 2 with new protocol joins the classic group, triggering the upgrade.
-        try {
-            context.consumerGroupHeartbeat(
-                new ConsumerGroupHeartbeatRequestData()
-                    .setGroupId(groupId)
-                    .setMemberId(memberId2)
-                    .setRebalanceTimeoutMs(5000)
-                    .setServerAssignor("range")
-                    .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
-                    .setTopicPartitions(Collections.emptyList()));
-            assertTrue(expectUpgrade);
-        } catch (GroupIdNotFoundException ex) {
-            assertFalse(expectUpgrade);
-            assertEquals("Cannot upgrade the classic group group-id to consumer group because a custom assignor is in use.", ex.getMessage());
+        ConsumerGroupHeartbeatRequestData consumerGroupHeartbeatRequestData =
+            new ConsumerGroupHeartbeatRequestData()
+                .setGroupId(groupId)
+                .setMemberId(memberId2)
+                .setRebalanceTimeoutMs(5000)
+                .setServerAssignor("range")
+                .setSubscribedTopicNames(List.of(fooTopicName, barTopicName))
+                .setTopicPartitions(Collections.emptyList());
+
+        if (expectUpgrade) {
+            context.consumerGroupHeartbeat(consumerGroupHeartbeatRequestData);
+        } else {
+            Exception ex = assertThrows(GroupIdNotFoundException.class, () -> context.consumerGroupHeartbeat(consumerGroupHeartbeatRequestData));
+            assertEquals(
+                "Cannot upgrade the classic group group-id to consumer group because a custom assignor with userData is in use. " +
+                "Switch to a default assignor before re-attempting the upgrade.", ex.getMessage());
         }
     }
 
