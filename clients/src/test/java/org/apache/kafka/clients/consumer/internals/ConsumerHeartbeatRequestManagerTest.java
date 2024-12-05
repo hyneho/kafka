@@ -31,6 +31,7 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatResponseData;
 import org.apache.kafka.common.metrics.Metrics;
@@ -604,23 +605,24 @@ public class ConsumerHeartbeatRequestManagerTest {
 
     @Test
     public void testUnsupportedVersion() {
-        mockErrorResponse(Errors.UNSUPPORTED_VERSION, null);
+        // UnsupportedApiVersion thrown while building request when the client detects the HB API is not supported.
+        String hbNotSupportedMsg = "The cluster does not support the new CONSUMER group protocol. Set group" +
+            ".protocol=classic on the consumer configs to revert to the CLASSIC protocol until the cluster is " +
+            "upgraded.";
+        mockResponseWithException(new UnsupportedVersionException(hbNotSupportedMsg));
         ArgumentCaptor<ErrorEvent> errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
         verify(backgroundEventHandler).add(errorEventArgumentCaptor.capture());
         ErrorEvent errorEvent = errorEventArgumentCaptor.getValue();
-
-        // UnsupportedApiVersion in HB response without any custom message. It's considered as new protocol not supported.
-        String hbNotSupportedMsg = "The cluster does not support the new consumer group protocol. Set group" +
-            ".protocol=classic on the consumer configs to revert to the classic protocol until the cluster is upgraded.";
         assertInstanceOf(Errors.UNSUPPORTED_VERSION.exception().getClass(), errorEvent.error());
         assertEquals(hbNotSupportedMsg, errorEvent.error().getMessage());
         clearInvocations(backgroundEventHandler);
 
-        // UnsupportedApiVersion in HB response with custom message. Specific to required version not present, should
-        // keep the custom message.
-        String hbVersionNotSupportedMsg = "The cluster does not support resolution of SubscriptionPattern on version 0. " +
-            "It must be upgraded to version >= 1 to allow to subscribe to a SubscriptionPattern.";
-        mockErrorResponse(Errors.UNSUPPORTED_VERSION, hbVersionNotSupportedMsg);
+        // UnsupportedApiVersion thrown while building request when the client detects that a required HB API version
+        // is not available.
+        String hbVersionNotSupportedMsg = "The cluster does not support regular expressions resolution " +
+            "on ConsumerGroupHeartbeat API version 0. It must be upgraded to use " +
+            "ConsumerGroupHeartbeat API version >= 1 to allow to subscribe to a SubscriptionPattern.";
+        mockResponseWithException(new UnsupportedVersionException(hbVersionNotSupportedMsg));
         errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
         verify(backgroundEventHandler).add(errorEventArgumentCaptor.capture());
         errorEvent = errorEventArgumentCaptor.getValue();
@@ -637,7 +639,17 @@ public class ConsumerHeartbeatRequestManagerTest {
         ClientResponse response = createHeartbeatResponse(
             result.unsentRequests.get(0), error, exceptionCustomMsg);
         result.unsentRequests.get(0).handler().onComplete(response);
-        ConsumerGroupHeartbeatResponse mockResponse = (ConsumerGroupHeartbeatResponse) response.responseBody();
+    }
+
+    private void mockResponseWithException(UnsupportedVersionException exception) {
+        time.sleep(DEFAULT_HEARTBEAT_INTERVAL_MS);
+        NetworkClientDelegate.PollResult result = heartbeatRequestManager.poll(time.milliseconds());
+        assertEquals(1, result.unsentRequests.size());
+
+        when(subscriptions.hasAutoAssignedPartitions()).thenReturn(true);
+        ClientResponse response = createHeartbeatResponseWithException(
+            result.unsentRequests.get(0), exception);
+        result.unsentRequests.get(0).handler().onComplete(response);
     }
 
     private void assertNextHeartbeatTiming(long expectedTimeToNextHeartbeatMs) {
@@ -1034,6 +1046,23 @@ public class ConsumerHeartbeatRequestManagerTest {
             time.milliseconds(),
             false,
             null,
+            null,
+            response);
+    }
+
+    private ClientResponse createHeartbeatResponseWithException(
+        final NetworkClientDelegate.UnsentRequest request,
+        final UnsupportedVersionException exception
+    ) {
+        ConsumerGroupHeartbeatResponse response = new ConsumerGroupHeartbeatResponse(null);
+        return new ClientResponse(
+            new RequestHeader(ApiKeys.CONSUMER_GROUP_HEARTBEAT, ApiKeys.CONSUMER_GROUP_HEARTBEAT.latestVersion(), "client-id", 1),
+            request.handler(),
+            "0",
+            time.milliseconds(),
+            time.milliseconds(),
+            false,
+            exception,
             null,
             response);
     }
