@@ -119,8 +119,8 @@ object KafkaRaftServer {
   val MetadataTopicId = Uuid.METADATA_TOPIC_ID
 
   /**
-   * Initialize the configured log directories, including both [[KRaftConfigs.MetadataLogDirProp]]
-   * and [[KafkaConfig.LOG_DIR_PROP]]. This method performs basic validation to ensure that all
+   * Initialize the configured log directories, including both [[org.apache.kafka.server.config.KRaftConfigs.METADATA_LOG_DIR_CONFIG]]
+   * and [[org.apache.kafka.server.config.ServerLogConfigs.LOG_DIR_CONFIG]]. This method performs basic validation to ensure that all
    * directories are accessible and have been initialized with consistent `meta.properties`.
    *
    * @param config The process configuration
