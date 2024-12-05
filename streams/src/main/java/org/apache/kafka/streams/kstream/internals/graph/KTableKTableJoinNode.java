@@ -197,10 +197,6 @@ public class KTableKTableJoinNode<K, V1, V2, VR> extends BaseJoinProcessorNode<K
             return this;
         }
 
-        public KTableKTableJoinNodeBuilder<K, V1, V2, VR> withQueryableStoreName(final String queryableStoreName) {
-            return this;
-        }
-
         public KTableKTableJoinNodeBuilder<K, V1, V2, VR> withMergeProcessorParameters(final ProcessorParameters<K, Change<VR>, ?, ?> joinMergeProcessorParameters) {
             this.joinMergeProcessorParameters = joinMergeProcessorParameters;
             return this;

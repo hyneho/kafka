@@ -809,7 +809,6 @@ public class KTableImpl<K, S, V> extends AbstractStream<K, V> implements KTable<
                 .withJoinOtherStoreNames(((KTableImpl<?, ?, ?>) other).valueGetterSupplier().storeNames())
                 .withKeySerde(keySerde)
                 .withValueSerde(valueSerde)
-                .withQueryableStoreName(queryableStoreName)
                 .build();
 
         final boolean isOutputVersioned = materializedInternal != null
