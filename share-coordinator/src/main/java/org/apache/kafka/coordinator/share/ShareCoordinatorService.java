@@ -421,37 +421,49 @@ public class ShareCoordinatorService implements ShareCoordinator {
         // be looping over the keys below and constructing new ReadShareGroupStateRequestData objects to pass
         // onto the shard method.
 
-        request.topics().forEach(topicData -> {
+        // It is possible that a read state request contains a leaderEpoch which is the higher than seen so
+        // far, for a specific share partition. Hence, for each read request - we must check for this
+        // and update the state appropriately.
+
+        for (ReadShareGroupStateRequestData.ReadStateData topicData : request.topics()) {
             Uuid topicId = topicData.topicId();
-            topicData.partitions().forEach(partitionData -> {
-                // Request object containing information of a single topic partition
+            for (ReadShareGroupStateRequestData.PartitionData partitionData : topicData.partitions()) {
+                SharePartitionKey coordinatorKey = SharePartitionKey.getInstance(request.groupId(), topicId, partitionData.partition());
+
                 ReadShareGroupStateRequestData requestForCurrentPartition = new ReadShareGroupStateRequestData()
                     .setGroupId(groupId)
                     .setTopics(Collections.singletonList(new ReadShareGroupStateRequestData.ReadStateData()
                         .setTopicId(topicId)
                         .setPartitions(Collections.singletonList(partitionData))));
-                SharePartitionKey coordinatorKey = SharePartitionKey.getInstance(request.groupId(), topicId, partitionData.partition());
-                // Scheduling a runtime read operation to read share partition state from the coordinator in memory state
-                CompletableFuture<ReadShareGroupStateResponseData> future = runtime.scheduleReadOperation(
-                    "read-share-group-state",
+
+                // We are issuing a scheduleWriteOperation even though the request is of read type since
+                // we might want to update the leader epoch, if it is the highest seen so far for the specific
+                // share partition. In that case, we require the strong consistency offered by scheduleWriteOperation.
+                // At the time of writing, read after write consistency for the readState and writeState requests
+                // is not guaranteed.
+                CompletableFuture<ReadShareGroupStateResponseData> readFuture = runtime.scheduleWriteOperation(
+                    "read-update-leader-epoch-state",
                     topicPartitionFor(coordinatorKey),
-                    (coordinator, offset) -> coordinator.readState(requestForCurrentPartition, offset)
-                ).exceptionally(exception -> handleOperationException(
-                    "read-share-group-state",
-                    request,
-                    exception,
-                    (error, message) -> ReadShareGroupStateResponse.toErrorResponseData(
-                        topicData.topicId(),
-                        partitionData.partition(),
-                        error,
-                        "Unable to read share group state: " + exception.getMessage()
-                    ),
-                    log
-                ));
+                    Duration.ofMillis(config.shareCoordinatorWriteTimeoutMs()),
+                    coordinator -> coordinator.readStateAndMaybeUpdateLeaderEpoch(requestForCurrentPartition)
+                ).exceptionally(readException ->
+                    handleOperationException(
+                        "read-update-leader-epoch-state",
+                        request,
+                        readException,
+                        (error, message) -> ReadShareGroupStateResponse.toErrorResponseData(
+                            topicData.topicId(),
+                            partitionData.partition(),
+                            error,
+                            "Unable to read share group state: " + readException.getMessage()
+                        ),
+                        log
+                    ));
+
                 futureMap.computeIfAbsent(topicId, k -> new HashMap<>())
-                    .put(partitionData.partition(), future);
-            });
-        });
+                    .put(partitionData.partition(), readFuture);
+            }
+        }
 
         // Combine all futures into a single CompletableFuture<Void>
         CompletableFuture<Void> combinedFuture = CompletableFuture.allOf(futureMap.values().stream()

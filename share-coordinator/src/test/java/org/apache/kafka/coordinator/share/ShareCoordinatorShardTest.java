@@ -41,6 +41,7 @@ import org.apache.kafka.metadata.PartitionRegistration;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.config.ShareCoordinatorConfig;
 import org.apache.kafka.server.share.SharePartitionKey;
+import org.apache.kafka.server.share.persister.PartitionFactory;
 import org.apache.kafka.server.share.persister.PersisterStateBatch;
 import org.apache.kafka.timeline.SnapshotRegistry;
 
@@ -53,7 +54,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
@@ -71,8 +74,8 @@ class ShareCoordinatorShardTest {
     public static class ShareCoordinatorShardBuilder {
         private final LogContext logContext = new LogContext();
         private ShareCoordinatorConfig config = null;
-        private CoordinatorMetrics coordinatorMetrics = mock(CoordinatorMetrics.class);
-        private CoordinatorMetricsShard metricsShard = mock(CoordinatorMetricsShard.class);
+        private final CoordinatorMetrics coordinatorMetrics = mock(CoordinatorMetrics.class);
+        private final CoordinatorMetricsShard metricsShard = mock(CoordinatorMetricsShard.class);
         private final SnapshotRegistry snapshotRegistry = new SnapshotRegistry(logContext);
         private MetadataImage metadataImage = null;
         private Map<String, String> configOverrides = new HashMap<>();
@@ -537,7 +540,7 @@ class ShareCoordinatorShardTest {
                     .setPartition(PARTITION)
                     .setLeaderEpoch(1)))));
 
-        ReadShareGroupStateResponseData result = shard.readState(request, 0L);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         assertEquals(ReadShareGroupStateResponse.toResponseData(
             TOPIC_ID,
@@ -550,9 +553,9 @@ class ShareCoordinatorShardTest {
                 .setDeliveryCount((short) 1)
                 .setDeliveryState((byte) 0)
             )
-        ), result);
+        ), result.response());
 
-        assertEquals(1, shard.getLeaderMapValue(coordinatorKey));
+        assertEquals(0, shard.getLeaderMapValue(coordinatorKey));
     }
 
     @Test
@@ -573,12 +576,12 @@ class ShareCoordinatorShardTest {
                     .setPartition(partition)
                     .setLeaderEpoch(5)))));
 
-        ReadShareGroupStateResponseData result = shard.readState(request, 0L);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         ReadShareGroupStateResponseData expectedData = ReadShareGroupStateResponse.toErrorResponseData(
             TOPIC_ID, partition, Errors.INVALID_REQUEST, ShareCoordinatorShard.NEGATIVE_PARTITION_ID.getMessage());
 
-        assertEquals(expectedData, result);
+        assertEquals(expectedData, result.response());
 
         // Leader epoch should not be changed because the request failed
         assertEquals(0, shard.getLeaderMapValue(shareCoordinatorKey));
@@ -602,12 +605,12 @@ class ShareCoordinatorShardTest {
                     .setPartition(0)
                     .setLeaderEpoch(5)))));
 
-        ReadShareGroupStateResponseData result = shard.readState(request, 0L);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         ReadShareGroupStateResponseData expectedData = ReadShareGroupStateResponse.toErrorResponseData(
             TOPIC_ID, 0, Errors.UNKNOWN_TOPIC_OR_PARTITION, Errors.UNKNOWN_TOPIC_OR_PARTITION.message());
 
-        assertEquals(expectedData, result);
+        assertEquals(expectedData, result.response());
 
         // Leader epoch should not be changed because the request failed
         assertEquals(0, shard.getLeaderMapValue(shareCoordinatorKey));
@@ -631,7 +634,7 @@ class ShareCoordinatorShardTest {
                     .setPartition(PARTITION)
                     .setLeaderEpoch(3))))); // lower leaderEpoch than the one stored in leaderMap
 
-        ReadShareGroupStateResponseData result = shard.readState(request, 0L);
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
 
         ReadShareGroupStateResponseData expectedData = ReadShareGroupStateResponse.toErrorResponseData(
             TOPIC_ID,
@@ -639,7 +642,7 @@ class ShareCoordinatorShardTest {
             Errors.FENCED_LEADER_EPOCH,
             Errors.FENCED_LEADER_EPOCH.message());
 
-        assertEquals(expectedData, result);
+        assertEquals(expectedData, result.response());
 
         assertEquals(leaderEpoch, shard.getLeaderMapValue(shareCoordinatorKey));
     }
@@ -791,6 +794,95 @@ class ShareCoordinatorShardTest {
         ).value().message()), shard.getShareStateMapValue(shareCoordinatorKey));
         assertEquals(0, shard.getLeaderMapValue(shareCoordinatorKey));
         verify(shard.getMetricsShard(), times(3)).record(ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_SENSOR_NAME);
+    }
+
+    @Test
+    public void testReadStateLeaderEpochUpdateSuccess() {
+        ShareCoordinatorShard shard = new ShareCoordinatorShardBuilder().build();
+
+        SharePartitionKey shareCoordinatorKey = SharePartitionKey.getInstance(GROUP_ID, TOPIC_ID, PARTITION);
+
+        ReadShareGroupStateRequestData request = new ReadShareGroupStateRequestData()
+            .setGroupId(GROUP_ID)
+            .setTopics(Collections.singletonList(new ReadShareGroupStateRequestData.ReadStateData()
+                .setTopicId(TOPIC_ID)
+                .setPartitions(Collections.singletonList(new ReadShareGroupStateRequestData.PartitionData()
+                    .setPartition(PARTITION)
+                    .setLeaderEpoch(2)
+                ))));
+
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request);
+
+        shard.replay(0L, 0L, (short) 0, result.records().get(0));
+
+        ReadShareGroupStateResponseData expectedData = ReadShareGroupStateResponse.toResponseData(
+            TOPIC_ID, PARTITION,
+            PartitionFactory.UNINITIALIZED_START_OFFSET,
+            PartitionFactory.DEFAULT_STATE_EPOCH,
+            Collections.emptyList());
+        List<CoordinatorRecord> expectedRecords = Collections.singletonList(ShareCoordinatorRecordHelpers.newShareSnapshotRecord(
+            GROUP_ID, TOPIC_ID, PARTITION, new ShareGroupOffset.Builder()
+                .setStartOffset(PartitionFactory.UNINITIALIZED_START_OFFSET)
+                .setLeaderEpoch(2)
+                .setStateBatches(Collections.emptyList())
+                .setSnapshotEpoch(0)
+                .setStateEpoch(PartitionFactory.DEFAULT_STATE_EPOCH)
+                .build()
+        ));
+
+        assertEquals(expectedData, result.response());
+        assertEquals(expectedRecords, result.records());
+
+        assertEquals(groupOffset(expectedRecords.get(0).value().message()), shard.getShareStateMapValue(shareCoordinatorKey));
+        assertEquals(2, shard.getLeaderMapValue(shareCoordinatorKey));
+        verify(shard.getMetricsShard()).record(ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_SENSOR_NAME);
+    }
+
+    @Test
+    public void testReadStateLeaderEpochUpdateNoUpdate() {
+        ShareCoordinatorShard shard = new ShareCoordinatorShardBuilder().build();
+
+        ReadShareGroupStateRequestData request1 = new ReadShareGroupStateRequestData()
+            .setGroupId(GROUP_ID)
+            .setTopics(Collections.singletonList(new ReadShareGroupStateRequestData.ReadStateData()
+                .setTopicId(TOPIC_ID)
+                .setPartitions(Collections.singletonList(new ReadShareGroupStateRequestData.PartitionData()
+                    .setPartition(PARTITION)
+                    .setLeaderEpoch(2)
+                ))));
+
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result = shard.readStateAndMaybeUpdateLeaderEpoch(request1);
+        assertFalse(result.records().isEmpty());    // record generated
+
+        // apply record to update soft state
+        shard.replay(0L, 0L, (short) 0, result.records().get(0));
+
+        ReadShareGroupStateRequestData request2 = new ReadShareGroupStateRequestData()
+            .setGroupId(GROUP_ID)
+            .setTopics(Collections.singletonList(new ReadShareGroupStateRequestData.ReadStateData()
+                .setTopicId(TOPIC_ID)
+                .setPartitions(Collections.singletonList(new ReadShareGroupStateRequestData.PartitionData()
+                    .setPartition(PARTITION)
+                    .setLeaderEpoch(-1)
+                ))));
+
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result2 = shard.readStateAndMaybeUpdateLeaderEpoch(request2);
+
+        assertTrue(result2.records().isEmpty());    // leader epoch -1 - no update
+
+        ReadShareGroupStateRequestData request3 = new ReadShareGroupStateRequestData()
+            .setGroupId(GROUP_ID)
+            .setTopics(Collections.singletonList(new ReadShareGroupStateRequestData.ReadStateData()
+                .setTopicId(TOPIC_ID)
+                .setPartitions(Collections.singletonList(new ReadShareGroupStateRequestData.PartitionData()
+                    .setPartition(PARTITION)
+                    .setLeaderEpoch(-1)
+                ))));
+
+        CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> result3 = shard.readStateAndMaybeUpdateLeaderEpoch(request3);
+
+        assertTrue(result3.records().isEmpty());    // same leader epoch - no update
+        verify(shard.getMetricsShard()).record(ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_SENSOR_NAME);
     }
 
     private static ShareGroupOffset groupOffset(ApiMessage record) {
