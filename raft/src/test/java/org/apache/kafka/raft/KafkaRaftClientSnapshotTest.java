@@ -1934,7 +1934,7 @@ public final class KafkaRaftClientSnapshotTest {
         context.client.poll();
         assertEquals(context.log.endOffset().offset(), context.client.highWatermark().getAsLong() + newRecords.size());
 
-        OffsetAndEpoch invalidSnapshotId2 = new OffsetAndEpoch(context.client.highWatermark().getAsLong() + 3, currentEpoch);
+        OffsetAndEpoch invalidSnapshotId2 = new OffsetAndEpoch(context.client.highWatermark().getAsLong() + newRecords.size(), currentEpoch);
         exception = assertThrows(
             IllegalArgumentException.class,
             () -> context.client.createSnapshot(invalidSnapshotId2, 0)
@@ -1971,12 +1971,13 @@ public final class KafkaRaftClientSnapshotTest {
         // 4 snapshotId offset must be at a batch boundary
         context.advanceLocalLeaderHighWatermarkToLogEndOffset();
         OffsetAndEpoch invalidSnapshotId5 = new OffsetAndEpoch(context.client.highWatermark().getAsLong() - 1, currentEpoch);
+        // this points to the "f" offset, which is not batch aligned
         exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> context.client.createSnapshot(invalidSnapshotId5, 0)
         );
         assertEquals(
-                "Cannot create snapshot at an offset that is not batch aligned",
+                "Cannot create snapshot at offset (6) because it is not batch aligned. The batch containing the requested offset has a base offset of (4)",
                 exception.getMessage()
         );
     }
@@ -1991,7 +1992,7 @@ public final class KafkaRaftClientSnapshotTest {
         Set<Integer> voters = Set.of(localId, leaderId, otherFollowerId);
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
-            .appendToLog(0, List.of("a"))
+            .appendToLog(1, List.of("a"))
             .withElectedLeader(epoch, leaderId)
             .withKip853Rpc(withKip853Rpc)
             .build();
@@ -2000,13 +2001,13 @@ public final class KafkaRaftClientSnapshotTest {
         // When follower creating snapshot:
         // 1) The high watermark cannot be empty
         assertEquals(OptionalLong.empty(), context.client.highWatermark());
-        OffsetAndEpoch invalidSnapshotId1 = new OffsetAndEpoch(1, 0);
+        OffsetAndEpoch invalidSnapshotId1 = new OffsetAndEpoch(1, 1);
         IllegalArgumentException exception = assertThrows(
             IllegalArgumentException.class,
             () -> context.client.createSnapshot(invalidSnapshotId1, 0)
         );
         assertEquals(
-            "Cannot create a snapshot with an id (OffsetAndEpoch(offset=1, epoch=0)) greater than the high-watermark (0)",
+            "Cannot create a snapshot with an id (OffsetAndEpoch(offset=1, epoch=1)) greater than the high-watermark (0)",
             exception.getMessage()
         );
 
@@ -2014,7 +2015,7 @@ public final class KafkaRaftClientSnapshotTest {
         context.pollUntilRequest();
         RaftRequest.Outbound fetchRequest = context.assertSentFetchRequest();
         assertTrue(voters.contains(fetchRequest.destination().id()));
-        context.assertFetchRequestData(fetchRequest, epoch, 1L, 0);
+        context.assertFetchRequestData(fetchRequest, epoch, 1L, 1);
 
         // The response does not advance the high watermark
         List<String> records1 = Arrays.asList("b", "c");
@@ -2045,7 +2046,8 @@ public final class KafkaRaftClientSnapshotTest {
         context.assertFetchRequestData(fetchRequest, epoch, 3L, 3);
 
         List<String> records2 = Arrays.asList("d", "e", "f");
-        MemoryRecords batch2 = context.buildBatch(3L, 4, records2);
+        int batch2Epoch = 4;
+        MemoryRecords batch2 = context.buildBatch(3L, batch2Epoch, records2);
         context.deliverResponse(
             fetchRequest.correlationId(),
             fetchRequest.destination(),
@@ -2079,16 +2081,17 @@ public final class KafkaRaftClientSnapshotTest {
         );
 
         // 5) The snapshotId should be batch-aligned
-        endOffsetForEpoch = context.log.endOffsetForEpoch(currentEpoch);
+        endOffsetForEpoch = context.log.endOffsetForEpoch(batch2Epoch);
         assertEquals(4, endOffsetForEpoch.epoch());
         assertEquals(6, endOffsetForEpoch.offset());
-        OffsetAndEpoch invalidSnapshotId5 = new OffsetAndEpoch(endOffsetForEpoch.offset() - 1, currentEpoch);
+        OffsetAndEpoch invalidSnapshotId5 = new OffsetAndEpoch(endOffsetForEpoch.offset() - 1, batch2Epoch);
+        // this points to the "f" offset, which is not batch aligned
         exception = assertThrows(
             IllegalArgumentException.class,
             () -> context.client.createSnapshot(invalidSnapshotId5, 0)
         );
         assertEquals(
-            "Cannot create snapshot at an offset that is not batch aligned",
+            "Cannot create snapshot at offset (5) because it is not batch aligned. The batch containing the requested offset has a base offset of (3)",
             exception.getMessage()
         );
     }

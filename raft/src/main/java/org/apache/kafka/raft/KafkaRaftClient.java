@@ -3426,12 +3426,6 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
             throw new IllegalStateException("Cannot create snapshot before the replica has been initialized");
         }
 
-        long baseOffset = log.read(snapshotId.offset(), Isolation.COMMITTED).startOffsetMetadata.offset();
-        if (snapshotId.offset() != baseOffset) {
-            logger.info("Cannot create snapshot at offset {} because it is not batch aligned", snapshotId.offset());
-            throw new IllegalArgumentException("Cannot create snapshot at an offset that is not batch aligned");
-        }
-
         return log.createNewSnapshot(snapshotId).map(writer -> {
             long lastContainedLogOffset = snapshotId.offset() - 1;
 
