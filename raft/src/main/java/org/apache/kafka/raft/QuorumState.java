@@ -561,7 +561,7 @@ public class QuorumState {
             time,
             localIdOrThrow(),
             epoch(),
-            Optional.empty(),
+            state.election().optionalVotedKey(),
             partitionState.lastVoterSet(),
             state.highWatermark(),
             randomElectionTimeoutMs(),
