@@ -34,6 +34,7 @@ import org.apache.kafka.common.errors.UnknownMemberIdException;
 import org.apache.kafka.common.errors.UnknownServerException;
 import org.apache.kafka.common.errors.UnreleasedInstanceIdException;
 import org.apache.kafka.common.errors.UnsupportedAssignorException;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
 import org.apache.kafka.common.message.ConsumerGroupDescribeResponseData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatRequestData;
 import org.apache.kafka.common.message.ConsumerGroupHeartbeatResponseData;
@@ -184,6 +185,7 @@ import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.PREPA
 import static org.apache.kafka.coordinator.group.classic.ClassicGroupState.STABLE;
 import static org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetrics.CLASSIC_GROUP_COMPLETED_REBALANCES_SENSOR_NAME;
 import static org.apache.kafka.coordinator.group.metrics.GroupCoordinatorMetrics.CONSUMER_GROUP_REBALANCES_SENSOR_NAME;
+import static org.apache.kafka.coordinator.group.modern.ModernGroupMember.hasAssignedPartitionsChanged;
 import static org.apache.kafka.coordinator.group.modern.consumer.ConsumerGroupMember.hasAssignedPartitionsChanged;
 
 /**
@@ -1053,6 +1055,12 @@ public class GroupMetadataManager {
 
             throw new GroupIdNotFoundException("Cannot upgrade the classic group " + classicGroup.groupId() +
                 " to consumer group because the embedded consumer protocol is malformed.");
+        } catch (UnsupportedVersionException e) {
+            log.warn("Cannot upgrade the classic group " + classicGroup.groupId() +
+                " to consumer group: " + e.getMessage() + ".", e);
+
+            throw new GroupIdNotFoundException("Cannot upgrade the classic group " + classicGroup.groupId() +
+                " to consumer group because a custom assignor is in use.");
         }
         consumerGroup.createConsumerGroupRecords(records);
 
