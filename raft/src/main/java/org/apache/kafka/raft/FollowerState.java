@@ -205,23 +205,30 @@ public class FollowerState implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+        log.debug(
+            "Rejecting vote request from candidate ({}) since we already have a leader {} in epoch {}",
+            replicaKey,
+            leaderId,
+            epoch
+        );
+        return false;
+    }
+
+    @Override
+    public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         if (hasFetchedFromLeader) {
             log.debug(
-                "Rejecting Vote request with PreVote={} from replica ({}) since we already have a leader {} in epoch {}",
-                isPreVote,
+                "Rejecting PreVote request from replica ({}) since we already have a leader {} in epoch {}",
                 replicaKey,
                 leaderId,
                 epoch
             );
             return false;
-        } else if (isPreVote && isLogUpToDate) {
+        } else if (!isLogUpToDate) {
             log.debug(
-                "Granting PreVote request from replica ({}) since their log is up to date and we have not successfully " +
-                "fetched from leader {} yet in epoch {}",
-                replicaKey,
-                leaderId,
-                epoch);
+                "Rejecting PreVote request from replica ({}) since replica epoch/offset is not up to date with us",
+                replicaKey);
             return true;
         }
         return false;

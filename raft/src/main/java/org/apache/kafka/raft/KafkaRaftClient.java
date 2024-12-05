@@ -680,7 +680,7 @@ public final class KafkaRaftClient<T> implements RaftClient<T> {
         onBecomeCandidate(currentTimeMs);
     }
 
-    private void transitionToUnattached(int epoch) {
+    private void transitionToUnattached(int epoch) {// needs to pass leaderId from follower transition
         quorum.transitionToUnattached(epoch);
         maybeFireLeaderChange();
         resetConnections();

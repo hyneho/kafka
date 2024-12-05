@@ -140,10 +140,20 @@ public class ResignedState implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         log.debug(
-            "Rejecting Vote request with PreVote={} from replica ({}) since we have resigned as leader in epoch {}",
-            isPreVote,
+            "Rejecting Vote request from candidate ({}) since we have resigned as leader in epoch {}",
+            replicaKey,
+            epoch
+        );
+
+        return false;
+    }
+
+    @Override
+    public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+        log.debug(
+            "Rejecting PreVote request from replica ({}) since we have resigned as leader in epoch {}",
             replicaKey,
             epoch
         );

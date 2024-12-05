@@ -642,7 +642,10 @@ public class QuorumState {
     }
 
     public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate, boolean isPreVote) {
-        return state.canGrantVote(replicaKey, isLogUpToDate, isPreVote);
+        if (isPreVote) {
+            return state.canGrantPreVote(replicaKey, isLogUpToDate);
+        }
+        return state.canGrantVote(replicaKey, isLogUpToDate);
     }
 
     public FollowerState followerStateOrThrow() {

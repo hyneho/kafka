@@ -21,7 +21,7 @@ import org.apache.kafka.common.utils.MockTime;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -85,13 +85,17 @@ class ResignedStateTest {
     }
 
     @ParameterizedTest
-    @CsvSource({ "true,true", "true,false", "false,true", "false,false"})
-    public void testGrantVote(boolean isLogUpToDate, boolean isPreVote) {
+    @ValueSource(booleans = {true, false})
+    public void testGrantVote(boolean isLogUpToDate) {
         ResignedState state = newResignedState(Set.of(1, 2, 3));
 
-        assertFalse(state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote));
-        assertFalse(state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote));
-        assertFalse(state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate, isPreVote));
+        assertFalse(state.canGrantPreVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantPreVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantPreVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+
+        assertFalse(state.canGrantVote(ReplicaKey.of(1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(2, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertFalse(state.canGrantVote(ReplicaKey.of(3, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
     }
 
     @Test
