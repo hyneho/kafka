@@ -49,10 +49,10 @@ class KStreamKTableJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1, K, 
         this.gracePeriod = gracePeriod;
         this.storeName = bufferStoreBuilder.map(StoreBuilder::name);
 
-        if (bufferStoreBuilder.isPresent()) {
-            this.stores = singleton(bufferStoreBuilder.get());
-        } else {
+        if (bufferStoreBuilder.isEmpty()) {
             this.stores = null;
+        } else {
+            this.stores = singleton(bufferStoreBuilder.get());
         }
     }
 
