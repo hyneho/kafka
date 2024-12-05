@@ -605,25 +605,21 @@ public class ConsumerHeartbeatRequestManagerTest {
         }
     }
 
-    @Test
-    public void testHBUnsupportedVersion() {
-        // UnsupportedApiVersion thrown while building request when the client detects the HB API is not supported.
-        mockResponseWithException(new UnsupportedVersionException(CONSUMER_PROTOCOL_NOT_SUPPORTED_MSG));
+    /**
+     * This validates the UnsupportedApiVersion the client generates while building a HB if:
+     * 1. HB API is not supported.
+     * 2. Required HB API version is not available.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {CONSUMER_PROTOCOL_NOT_SUPPORTED_MSG, REGEX_RESOLUTION_NOT_SUPPORTED_MSG})
+    public void testUnsupportedVersion(String errorMsg) {
+        mockResponseWithException(new UnsupportedVersionException(errorMsg));
         ArgumentCaptor<ErrorEvent> errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
         verify(backgroundEventHandler).add(errorEventArgumentCaptor.capture());
         ErrorEvent errorEvent = errorEventArgumentCaptor.getValue();
         assertInstanceOf(Errors.UNSUPPORTED_VERSION.exception().getClass(), errorEvent.error());
-        assertEquals(CONSUMER_PROTOCOL_NOT_SUPPORTED_MSG, errorEvent.error().getMessage());
+        assertEquals(errorMsg, errorEvent.error().getMessage());
         clearInvocations(backgroundEventHandler);
-
-        // UnsupportedApiVersion thrown while building request when the client detects that a required HB API version
-        // is not available.
-        mockResponseWithException(new UnsupportedVersionException(REGEX_RESOLUTION_NOT_SUPPORTED_MSG));
-        errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
-        verify(backgroundEventHandler).add(errorEventArgumentCaptor.capture());
-        errorEvent = errorEventArgumentCaptor.getValue();
-        assertInstanceOf(Errors.UNSUPPORTED_VERSION.exception().getClass(), errorEvent.error());
-        assertEquals(REGEX_RESOLUTION_NOT_SUPPORTED_MSG, errorEvent.error().getMessage());
     }
 
     private void mockErrorResponse(Errors error, String exceptionCustomMsg) {
