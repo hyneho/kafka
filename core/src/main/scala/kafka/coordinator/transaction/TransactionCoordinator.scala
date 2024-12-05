@@ -756,11 +756,11 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
             // PrepareEpochFence has slightly different epoch bumping logic so don't include it here.
             // Note that, it can only happen when the current state is Ongoing.
             isEpochFence = txnMetadata.pendingState.contains(PrepareEpochFence)
-            // True if the client used TV_2 and retried a request that had overflowed the epoch, and a new producer ID is stored in the txnMetadata
+            // True if the client retried a request that had overflowed the epoch, and a new producer ID is stored in the txnMetadata
             val retryOnOverflow = !isEpochFence && txnMetadata.previousProducerId == producerId &&
               producerEpoch == Short.MaxValue - 1 && txnMetadata.producerEpoch == 0
-            // True if the client used TV_2 and retried an endTxn request, and the bumped producer epoch is stored in the txnMetadata.
-            val retryOnEpochBump = !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.producerEpoch == producerEpoch + 1
+            // True if the client retried an endTxn request, and the bumped producer epoch is stored in the txnMetadata.
+            val retryOnEpochBump = !isEpochFence && txnMetadata.producerEpoch == producerEpoch + 1
 
             val isValidEpoch = {
               if (!isEpochFence) {
@@ -797,7 +797,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                   Right(RecordBatch.NO_PRODUCER_ID)
                 }
 
-              if (nextState == PrepareAbort && txnMetadata.pendingState.contains(PrepareEpochFence)) {
+              if (nextState == PrepareAbort && isEpochFence) {
                 // We should clear the pending state to make way for the transition to PrepareAbort and also bump
                 // the epoch in the transaction metadata we are about to append.
                 txnMetadata.pendingState = None
