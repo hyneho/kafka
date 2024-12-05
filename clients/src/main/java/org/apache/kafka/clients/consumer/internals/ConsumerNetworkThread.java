@@ -20,6 +20,7 @@ import org.apache.kafka.clients.KafkaClient;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.ApplicationEventProcessor;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEvent;
+import org.apache.kafka.clients.consumer.internals.events.CompletableApplicationEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableEvent;
 import org.apache.kafka.clients.consumer.internals.events.CompletableEventReaper;
 import org.apache.kafka.common.internals.IdempotentCloser;
@@ -40,6 +41,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.apache.kafka.clients.consumer.internals.ConsumerUtils.DEFAULT_CLOSE_TIMEOUT_MS;
 import static org.apache.kafka.common.utils.Utils.closeQuietly;
@@ -336,10 +338,16 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
      * If there is a metadata error, completed all uncompleted events with the metadata error.
      */
     private void maybeFailOnMetadataError(List<CompletableEvent<?>> events) {
-        if (events.isEmpty())
+        List<? extends CompletableApplicationEvent<?>> subscriptionMetadataEvent = events.stream()
+                .filter(e -> e instanceof CompletableApplicationEvent<?>)
+                .map(e -> (CompletableApplicationEvent<?>) e)
+                .filter(CompletableApplicationEvent::requireSubscriptionMetadata)
+                .collect(Collectors.toUnmodifiableList());
+        
+        if (subscriptionMetadataEvent.isEmpty())
             return;
         networkClientDelegate.getAndClearMetadataError().ifPresent(metadataError ->
-                events.forEach(event -> event.future().completeExceptionally(metadataError))
+                subscriptionMetadataEvent.forEach(event -> event.future().completeExceptionally(metadataError))
         );
     }
 }
