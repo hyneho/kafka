@@ -120,6 +120,7 @@ import org.apache.kafka.server.common.KRaftVersion;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.server.fault.FaultHandler;
 import org.apache.kafka.server.fault.FaultHandlerException;
+import org.apache.kafka.server.mutable.BoundedList;
 import org.apache.kafka.server.policy.AlterConfigPolicy;
 import org.apache.kafka.server.policy.CreateTopicPolicy;
 import org.apache.kafka.snapshot.SnapshotReader;
@@ -1118,6 +1119,18 @@ public final class QuorumController implements Controller {
                 EnumSet.of(DOES_NOT_UPDATE_QUEUE_TIME)
             );
             queue.prepend(activationEvent);
+
+            // Also, checking whether the configuration for min ISR should be reset.
+            if (featureControl.isElrFeatureEnabled()) {
+                appendWriteEvent("maybeResetMinIsrConfig", OptionalLong.empty(),
+                    () -> {
+                        List<ApiMessageAndVersion> outputRecords =
+                                BoundedList.newArrayBacked(MAX_RECORDS_PER_USER_OP);
+                        configurationControl.maybeResetMinIsrConfig(outputRecords);
+                        return ControllerResult.atomicOf(outputRecords, ApiError.NONE);
+                    }
+                );
+            }
         } catch (Throwable e) {
             fatalFaultHandler.handleFault("exception while claiming leadership", e);
         }

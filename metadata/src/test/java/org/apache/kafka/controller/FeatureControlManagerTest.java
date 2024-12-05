@@ -18,6 +18,9 @@
 package org.apache.kafka.controller;
 
 import org.apache.kafka.clients.admin.FeatureUpdate;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.config.TopicConfig;
+import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ApiError;
@@ -37,6 +40,7 @@ import org.apache.kafka.timeline.SnapshotRegistry;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.mockito.Mockito;
 
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
@@ -52,6 +56,7 @@ import java.util.Optional;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 
 
 @Timeout(value = 40)
@@ -443,5 +448,41 @@ public class FeatureControlManagerTest {
         assertEquals(ApiError.NONE, result.response());
         RecordTestUtils.replayAll(manager, result.records());
         assertEquals(MetadataVersion.IBP_3_5_IV1, manager.metadataVersion());
+    }
+
+    @Test
+    public void testUpgradeElrFeatureLevel() {
+        Map<String, VersionRange> localSupportedFeatures = new HashMap<>();
+        localSupportedFeatures.put(MetadataVersion.FEATURE_NAME, VersionRange.of(
+            MetadataVersion.IBP_3_0_IV1.featureLevel(), MetadataVersion.latestTesting().featureLevel()));
+        localSupportedFeatures.put(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), VersionRange.of(0, 1));
+        ConfigurationControlManager configurationControl = Mockito.mock(ConfigurationControlManager.class);
+        FeatureControlManager manager = new FeatureControlManager.Builder().
+            setQuorumFeatures(new QuorumFeatures(0, localSupportedFeatures, emptyList())).
+            setConfigurationControl(configurationControl).
+            setClusterFeatureSupportDescriber(createFakeClusterFeatureSupportDescriber(
+                    Collections.singletonList(new SimpleImmutableEntry<>(1, Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), VersionRange.of(0, 1)))),
+                    emptyList())).
+            build();
+        Mockito.doAnswer(invocation -> {
+            List<ApiMessageAndVersion> output = invocation.getArgument(0);
+            ConfigResource configResource = new ConfigResource(ConfigResource.Type.BROKER, "");
+            output.add(new ApiMessageAndVersion(new ConfigRecord().
+                    setResourceType(configResource.type().id()).
+                    setResourceName(configResource.name()).
+                    setName(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG).
+                    setValue("2"), (short) 0));
+            return null;
+        }).when(configurationControl).maybeResetMinIsrConfig(any());
+        ControllerResult<ApiError> result  = manager.updateFeatures(
+                Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), (short) 1),
+                Collections.singletonMap(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName(), FeatureUpdate.UpgradeType.UPGRADE),
+                false);
+        assertEquals(ControllerResult.atomicOf(Arrays.asList(new ApiMessageAndVersion(
+                new FeatureLevelRecord().setName(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName()).setFeatureLevel((short) 1), (short) 0),
+                new ApiMessageAndVersion(new ConfigRecord().setResourceType(ConfigResource.Type.BROKER.id()).setResourceName("").setName("min.insync.replicas").setValue("2"), (short) 0)),
+            ApiError.NONE), result);
+        RecordTestUtils.replayAll(manager, result.records());
+        assertEquals(Optional.of((short) 1), manager.finalizedFeatures(Long.MAX_VALUE).get(Feature.ELIGIBLE_LEADER_REPLICAS_VERSION.featureName()));
     }
 }

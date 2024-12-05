@@ -27,6 +27,7 @@ import org.apache.kafka.metadata.FinalizedControllerFeatures;
 import org.apache.kafka.metadata.VersionRange;
 import org.apache.kafka.metadata.migration.ZkMigrationState;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
+import org.apache.kafka.server.common.EligibleLeaderReplicasVersion;
 import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.kafka.server.mutable.BoundedList;
@@ -57,6 +58,7 @@ public class FeatureControlManager {
         private QuorumFeatures quorumFeatures = null;
         private MetadataVersion metadataVersion = MetadataVersion.latestProduction();
         private MetadataVersion minimumBootstrapVersion = MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
+        private ConfigurationControlManager configurationControl = null;
         private ClusterFeatureSupportDescriber clusterSupportDescriber = new ClusterFeatureSupportDescriber() {
             @Override
             public Iterator<Entry<Integer, Map<String, VersionRange>>> brokerSupported() {
@@ -99,6 +101,11 @@ public class FeatureControlManager {
             return this;
         }
 
+        Builder setConfigurationControl(ConfigurationControlManager configurationControl) {
+            this.configurationControl = configurationControl;
+            return this;
+        }
+
         public FeatureControlManager build() {
             if (logContext == null) logContext = new LogContext();
             if (snapshotRegistry == null) snapshotRegistry = new SnapshotRegistry(logContext);
@@ -115,7 +122,8 @@ public class FeatureControlManager {
                 snapshotRegistry,
                 metadataVersion,
                 minimumBootstrapVersion,
-                clusterSupportDescriber
+                clusterSupportDescriber,
+                configurationControl
             );
         }
     }
@@ -152,13 +160,19 @@ public class FeatureControlManager {
      */
     private final ClusterFeatureSupportDescriber clusterSupportDescriber;
 
+    /**
+     * The Configuration Control Manager.
+     */
+    private final ConfigurationControlManager configurationControl;
+
     private FeatureControlManager(
         LogContext logContext,
         QuorumFeatures quorumFeatures,
         SnapshotRegistry snapshotRegistry,
         MetadataVersion metadataVersion,
         MetadataVersion minimumBootstrapVersion,
-        ClusterFeatureSupportDescriber clusterSupportDescriber
+        ClusterFeatureSupportDescriber clusterSupportDescriber,
+        ConfigurationControlManager configurationControl
     ) {
         this.log = logContext.logger(FeatureControlManager.class);
         this.quorumFeatures = quorumFeatures;
@@ -167,6 +181,7 @@ public class FeatureControlManager {
         this.minimumBootstrapVersion = minimumBootstrapVersion;
         this.migrationControlState = new TimelineObject<>(snapshotRegistry, ZkMigrationState.NONE);
         this.clusterSupportDescriber = clusterSupportDescriber;
+        this.configurationControl = configurationControl;
     }
 
     ControllerResult<ApiError> updateFeatures(
@@ -186,6 +201,10 @@ public class FeatureControlManager {
                 upgradeTypes.getOrDefault(entry.getKey(), FeatureUpdate.UpgradeType.UPGRADE), records, proposedUpdatedVersions);
             if (!error.error().equals(Errors.NONE)) {
                 return ControllerResult.of(Collections.emptyList(), error);
+            }
+            if (entry.getKey() == EligibleLeaderReplicasVersion.FEATURE_NAME &&
+                entry.getValue() >= EligibleLeaderReplicasVersion.ELRV_1.featureLevel()) {
+                configurationControl.maybeResetMinIsrConfig(records);
             }
         }
 
@@ -442,5 +461,11 @@ public class FeatureControlManager {
 
     boolean isControllerId(int nodeId) {
         return quorumFeatures.isControllerId(nodeId);
+    }
+
+    boolean isElrFeatureEnabled() {
+        return metadataVersion().isElrSupported() &&
+            latestFinalizedFeatures().versionOrDefault(EligibleLeaderReplicasVersion.FEATURE_NAME, (short) 0) >=
+            EligibleLeaderReplicasVersion.ELRV_1.featureLevel();
     }
 }

@@ -37,6 +37,7 @@ import org.apache.kafka.timeline.TimelineHashMap;
 
 import org.slf4j.Logger;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,9 +48,13 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.APPEND;
+import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.DELETE;
+import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.SET;
+import static org.apache.kafka.common.config.TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG;
 import static org.apache.kafka.common.config.TopicConfig.UNCLEAN_LEADER_ELECTION_ENABLE_CONFIG;
 import static org.apache.kafka.common.protocol.Errors.INVALID_CONFIG;
 import static org.apache.kafka.controller.QuorumController.MAX_RECORDS_PER_USER_OP;
@@ -67,6 +72,7 @@ public class ConfigurationControlManager {
     private final TimelineHashMap<ConfigResource, TimelineHashMap<String, String>> configData;
     private final Map<String, Object> staticConfig;
     private final ConfigResource currentController;
+    private final ClusterControlManager clusterControl;
 
     static class Builder {
         private LogContext logContext = null;
@@ -77,6 +83,7 @@ public class ConfigurationControlManager {
         private ConfigurationValidator validator = ConfigurationValidator.NO_OP;
         private Map<String, Object> staticConfig = Collections.emptyMap();
         private int nodeId = 0;
+        private ClusterControlManager clusterControl = null;
 
         Builder setLogContext(LogContext logContext) {
             this.logContext = logContext;
@@ -118,6 +125,11 @@ public class ConfigurationControlManager {
             return this;
         }
 
+        Builder setClusterControl(ClusterControlManager clusterControl) {
+            this.clusterControl = clusterControl;
+            return this;
+        }
+
         ConfigurationControlManager build() {
             if (logContext == null) logContext = new LogContext();
             if (snapshotRegistry == null) snapshotRegistry = new SnapshotRegistry(logContext);
@@ -132,7 +144,8 @@ public class ConfigurationControlManager {
                 alterConfigPolicy,
                 validator,
                 staticConfig,
-                nodeId);
+                nodeId,
+                clusterControl);
         }
     }
 
@@ -143,7 +156,8 @@ public class ConfigurationControlManager {
             Optional<AlterConfigPolicy> alterConfigPolicy,
             ConfigurationValidator validator,
             Map<String, Object> staticConfig,
-            int nodeId) {
+            int nodeId,
+            ClusterControlManager clusterControl) {
         this.log = logContext.logger(ConfigurationControlManager.class);
         this.snapshotRegistry = snapshotRegistry;
         this.configSchema = configSchema;
@@ -153,6 +167,7 @@ public class ConfigurationControlManager {
         this.configData = new TimelineHashMap<>(snapshotRegistry, 0);
         this.staticConfig = Collections.unmodifiableMap(new HashMap<>(staticConfig));
         this.currentController = new ConfigResource(Type.BROKER, Integer.toString(nodeId));
+        this.clusterControl = clusterControl;
     }
 
     SnapshotRegistry snapshotRegistry() {
@@ -495,6 +510,44 @@ public class ConfigurationControlManager {
             results.put(resource, new ResultOrError<>(foundConfigs));
         }
         return results;
+    }
+
+    // The function is used when enabling ELR. It will create a new cluster level min ISR config if there is not any.
+    // Also, it will remove all the broker level min ISR config records.
+    void maybeResetMinIsrConfig(List<ApiMessageAndVersion> outputRecords) {
+        if (!clusterConfig().containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+            String minIsrDefaultConfigValue = configSchema.getStaticOrDefaultConfig(
+                MIN_IN_SYNC_REPLICAS_CONFIG,
+                staticConfig
+            );
+            ApiError error = incrementalAlterConfigResource(
+                DEFAULT_NODE,
+                Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(SET, minIsrDefaultConfigValue)),
+                true,
+                outputRecords
+            );
+            if (error.isFailure()) {
+                log.error("Fail to update cluster level min ISR config during the min ISR config reset: " + error);
+            }
+        }
+
+        Set<Integer> nodes = clusterControl.brokerRegistrations().keySet();
+        nodes.forEach(node -> {
+            ConfigResource resource = new ConfigResource(Type.BROKER, node.toString());
+            Map<String, String> result = configData.get(resource);
+            if (result != null && result.containsKey(MIN_IN_SYNC_REPLICAS_CONFIG)) {
+                ApiError error = incrementalAlterConfigResource(
+                    resource,
+                    Map.of(MIN_IN_SYNC_REPLICAS_CONFIG, new AbstractMap.SimpleEntry<>(DELETE, null)),
+                    true,
+                    outputRecords
+                );
+                if (error.isFailure()) {
+                    log.error("Fail to remove broker level min ISR config during the min ISR config reset for " +
+                        "node " + node + ": " + error);
+                }
+            }
+        });
     }
 
     void deleteTopicConfigs(String name) {
