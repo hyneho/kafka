@@ -64,7 +64,7 @@ import org.apache.kafka.server.storage.log.{FetchIsolation, FetchParams}
 import org.apache.kafka.server.util.{KafkaScheduler, MockTime}
 import org.apache.kafka.storage.internals.checkpoint.OffsetCheckpoints
 import org.apache.kafka.storage.internals.epoch.LeaderEpochFileCache
-import org.apache.kafka.storage.internals.log.{AppendOrigin, CleanerConfig, EpochEntry, LocalLog, LogAppendInfo, LogDirFailureChannel, LogLoader, LogOffsetMetadata, LogReadInfo, LogSegments, LogStartOffsetIncrementReason, ProducerStateManager, ProducerStateManagerConfig, VerificationGuard}
+import org.apache.kafka.storage.internals.log.{AppendOrigin, CleanerConfig, EpochEntry, LocalLog, LogAppendInfo, LogDirFailureChannel, LogLoader, LogOffsetMetadata, LogReadInfo, LogSegments, LogStartOffsetIncrementReason, ProducerStateManager, ProducerStateManagerConfig, UnifiedLog => JUnifiedLog, VerificationGuard}
 import org.apache.kafka.storage.log.metrics.BrokerTopicStats
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -448,8 +448,8 @@ class PartitionTest extends AbstractPartitionTest {
         val log = super.createLog(isNew, isFutureReplica, offsetCheckpoints, None, None)
         val logDirFailureChannel = new LogDirFailureChannel(1)
         val segments = new LogSegments(log.topicPartition)
-        val leaderEpochCache = UnifiedLog.maybeCreateLeaderEpochCache(
-          log.dir, log.topicPartition, logDirFailureChannel, log.config.recordVersion, "", None, time.scheduler)
+        val leaderEpochCache = JUnifiedLog.maybeCreateLeaderEpochCache(
+          log.dir, log.topicPartition, logDirFailureChannel, log.config.recordVersion, "", Optional.empty(), time.scheduler)
         val maxTransactionTimeoutMs = 5 * 60 * 1000
         val producerStateManagerConfig = new ProducerStateManagerConfig(TransactionLogConfig.PRODUCER_ID_EXPIRATION_MS_DEFAULT, true)
         val producerStateManager = new ProducerStateManager(
@@ -470,7 +470,7 @@ class PartitionTest extends AbstractPartitionTest {
           segments,
           0L,
           0L,
-          leaderEpochCache.asJava,
+          leaderEpochCache,
           producerStateManager,
           new ConcurrentHashMap[String, Integer],
           false
@@ -1336,8 +1336,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = initializeTimeMs,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     time.sleep(500)
@@ -1436,8 +1436,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = 0L,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     fetchFollower(partition, replicaId = remoteBrokerId, fetchOffset = 10L)
@@ -1487,8 +1487,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = 0L,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     fetchFollower(partition, replicaId = remoteBrokerId, fetchOffset = 3L)
@@ -1550,8 +1550,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = 0L,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     fetchFollower(partition, replicaId = remoteBrokerId, fetchOffset = 10L)
@@ -2162,8 +2162,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId2,
       lastCaughtUpTimeMs = initializeTimeMs,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     // On initialization, the replica is considered caught up and should not be removed
@@ -2283,8 +2283,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = initializeTimeMs,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     // Shrink the ISR
@@ -2341,8 +2341,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = initializeTimeMs,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     // There is a short delay before the first fetch. The follower is not yet caught up to the log end.
@@ -2400,8 +2400,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = initializeTimeMs,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     // The follower catches up to the log end immediately.
@@ -2447,8 +2447,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = initializeTimeMs,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     time.sleep(30001)
@@ -2533,8 +2533,8 @@ class PartitionTest extends AbstractPartitionTest {
 
     assertReplicaState(partition, remoteBrokerId,
       lastCaughtUpTimeMs = 0L,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     // This will attempt to expand the ISR
@@ -3139,8 +3139,8 @@ class PartitionTest extends AbstractPartitionTest {
     // in the ISR.
     assertReplicaState(partition, followerId,
       lastCaughtUpTimeMs = 0L,
-      logStartOffset = UnifiedLog.UnknownOffset,
-      logEndOffset = UnifiedLog.UnknownOffset
+      logStartOffset = JUnifiedLog.UNKNOWN_OFFSET,
+      logEndOffset = JUnifiedLog.UNKNOWN_OFFSET
     )
 
     // Follower fetches and updates its replica state.
@@ -3201,7 +3201,7 @@ class PartitionTest extends AbstractPartitionTest {
     assertEquals(Some(0L), partition.leaderEpochStartOffsetOpt)
 
     val leaderLog = partition.localLogOrException
-    assertEquals(Optional.of(new EpochEntry(leaderEpoch, 0L)), leaderLog.leaderEpochCache.asJava.flatMap(_.latestEntry))
+    assertEquals(Optional.of(new EpochEntry(leaderEpoch, 0L)), leaderLog.leaderEpochCache.flatMap(_.latestEntry))
 
     // Write to the log to increment the log end offset.
     leaderLog.appendAsLeader(MemoryRecords.withRecords(0L, Compression.NONE, 0,
@@ -3225,7 +3225,7 @@ class PartitionTest extends AbstractPartitionTest {
     assertEquals(leaderEpoch, partition.getLeaderEpoch)
     assertEquals(Set(leaderId), partition.partitionState.isr)
     assertEquals(Some(0L), partition.leaderEpochStartOffsetOpt)
-    assertEquals(Optional.of(new EpochEntry(leaderEpoch, 0L)), leaderLog.leaderEpochCache.asJava.flatMap(_.latestEntry))
+    assertEquals(Optional.of(new EpochEntry(leaderEpoch, 0L)), leaderLog.leaderEpochCache.flatMap(_.latestEntry))
   }
 
   @Test
@@ -3705,7 +3705,7 @@ class PartitionTest extends AbstractPartitionTest {
     log: UnifiedLog,
     logStartOffset: Long,
     localLog: LocalLog,
-    leaderEpochCache: Option[LeaderEpochFileCache],
+    leaderEpochCache: Optional[LeaderEpochFileCache],
     producerStateManager: ProducerStateManager,
     appendSemaphore: Semaphore
   ) extends UnifiedLog(
