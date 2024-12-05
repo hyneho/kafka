@@ -23,7 +23,6 @@ import org.apache.kafka.timeline.TimelineHashMap;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Util class to track the offsets written into the internal topic
@@ -36,16 +35,20 @@ public class ShareCoordinatorOffsetsManager {
 
     // Map to store share partition key => current partition offset
     // being written.
+    private static final String MIN_OFFSET = "min-offset";
+    private static final String REDUNDANT_OFFSET = "redundant-offset";
     private final TimelineHashMap<SharePartitionKey, Long> offsets;
 
     // Minimum offset representing the smallest necessary offset (non-redundant)
     // across the internal partition.
-    private long minOffset = Long.MAX_VALUE;
-    private final AtomicLong redundantOffset = new AtomicLong(0);
+    private final TimelineHashMap<String, Long> minOffset;
+    private final TimelineHashMap<String, Long> redundantOffset;
 
     public ShareCoordinatorOffsetsManager(SnapshotRegistry snapshotRegistry) {
         Objects.requireNonNull(snapshotRegistry);
         offsets = new TimelineHashMap<>(snapshotRegistry, 0);
+        minOffset = new TimelineHashMap<>(snapshotRegistry, 0);
+        redundantOffset = new TimelineHashMap<>(snapshotRegistry, 0);
     }
 
     /**
@@ -61,23 +64,23 @@ public class ShareCoordinatorOffsetsManager {
      * @param offset - represents the latest partition offset for provided key
      * @return Optional of last redundant offset, exclusive.
      */
-    public Optional<Long> updateState(SharePartitionKey key, long offset) {
-        minOffset = Math.min(minOffset, offset);
+    public void updateState(SharePartitionKey key, long offset) {
+        minOffset.compute(MIN_OFFSET, (k, v) -> v == null ? offset : Math.min(v, offset));
         offsets.put(key, offset);
 
         Optional<Long> deleteTillOffset = findRedundantOffset();
         deleteTillOffset.ifPresent(off -> {
-            minOffset = off;
-            redundantOffset.set(off);
+            minOffset.put(MIN_OFFSET, off);
+            redundantOffset.put(REDUNDANT_OFFSET, off);
         });
-        return deleteTillOffset;
     }
 
     private Optional<Long> findRedundantOffset() {
-        long soFar = Long.MAX_VALUE;
         if (offsets.isEmpty()) {
             return Optional.empty();
         }
+
+        long soFar = Long.MAX_VALUE;
 
         for (long offset : offsets.values()) {
             // Get min offset among latest offsets
@@ -96,7 +99,7 @@ public class ShareCoordinatorOffsetsManager {
             // We can see in above that offsets 2, 4, 3, 5 are redundant,
             // but we do not have a contiguous prefix starting at minOffset
             // and we cannot proceed.
-            if (soFar == minOffset) {
+            if (soFar == minOffset.get(MIN_OFFSET)) {
                 return Optional.empty();
             }
         }
@@ -105,8 +108,8 @@ public class ShareCoordinatorOffsetsManager {
     }
 
     public Optional<Long> lastRedundantOffset() {
-        long value = redundantOffset.get();
-        if (value <= 0 || value == Long.MAX_VALUE) {
+        Long value = redundantOffset.get(REDUNDANT_OFFSET);
+        if (value == null || value <= 0 || value == Long.MAX_VALUE) {
             return Optional.empty();
         }
         return Optional.of(value);

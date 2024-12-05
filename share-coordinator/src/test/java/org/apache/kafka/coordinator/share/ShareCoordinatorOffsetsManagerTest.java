@@ -48,9 +48,14 @@ public class ShareCoordinatorOffsetsManagerTest {
 
     @Test
     public void testUpdateStateAddsToInternalState() {
-        assertEquals(Optional.empty(), manager.updateState(KEY1, 0L));
-        assertEquals(Optional.of(10L), manager.updateState(KEY1, 10L)); //[0-9] offsets are redundant
-        assertEquals(Optional.empty(), manager.updateState(KEY2, 15L));
+        manager.updateState(KEY1, 0L);
+        assertEquals(Optional.empty(), manager.lastRedundantOffset());
+
+        manager.updateState(KEY1, 10L);
+        assertEquals(Optional.of(10L), manager.lastRedundantOffset()); // [0-9] offsets are redundant
+
+        manager.updateState(KEY2, 15L);
+        assertEquals(Optional.of(10L), manager.lastRedundantOffset());  // will keep returning last seen value of lastRedundantOffset
 
         assertEquals(10L, manager.curState().get(KEY1));
         assertEquals(15L, manager.curState().get(KEY2));
@@ -174,7 +179,7 @@ public class ShareCoordinatorOffsetsManagerTest {
     public void testUpdateStateNoRedundantState(ShareOffsetTestHolder holder) {
         if (holder.shouldRun) {
             holder.tuples.forEach(tuple -> {
-                assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName);
+                manager.updateState(tuple.key, tuple.offset);
                 assertEquals(tuple.expectedOffset, manager.lastRedundantOffset(), holder.testName);
             });
         }
@@ -185,7 +190,7 @@ public class ShareCoordinatorOffsetsManagerTest {
     public void testUpdateStateRedundantState(ShareOffsetTestHolder holder) {
         if (holder.shouldRun) {
             holder.tuples.forEach(tuple -> {
-                assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName);
+                manager.updateState(tuple.key, tuple.offset);
                 assertEquals(tuple.expectedOffset, manager.lastRedundantOffset(), holder.testName);
             });
         }
@@ -196,7 +201,7 @@ public class ShareCoordinatorOffsetsManagerTest {
     public void testUpdateStateComplexCases(ShareOffsetTestHolder holder) {
         if (holder.shouldRun) {
             holder.tuples.forEach(tuple -> {
-                assertEquals(tuple.expectedOffset, manager.updateState(tuple.key, tuple.offset), holder.testName);
+                manager.updateState(tuple.key, tuple.offset);
                 assertEquals(tuple.expectedOffset, manager.lastRedundantOffset(), holder.testName);
             });
         }
