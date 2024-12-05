@@ -26,10 +26,10 @@
       "about": "The top level response error code." },
     { "name": "Directories", "type":  "[]DirectoryData", "versions": "0+",
       "about": "The list of directories and their assigned partitions.", "fields":  [
-      { "name":  "Id", "type": "uuid", "versions": "0+", "about": "The ID of the directory." },
+      { "name": "Id", "type": "uuid", "versions": "0+", "about": "The ID of the directory." },
       { "name": "Topics", "type": "[]TopicData", "versions": "0+",
         "about": "The list of topics and their assigned partitions.", "fields": [
-        { "name":  "TopicId", "type": "uuid", "versions": "0+",
+        { "name": "TopicId", "type": "uuid", "versions": "0+",
           "about": "The ID of the assigned topic." },
         { "name": "Partitions", "type": "[]PartitionData", "versions": "0+",
           "about": "The list of assigned partitions.", "fields": [

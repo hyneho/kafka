@@ -43,7 +43,7 @@
         { "name": "LeaderEpoch", "type": "int32", "versions": "0+",
           "about": "The latest known leader epoch."},
         { "name": "HighWatermark", "type": "int64", "versions": "0+",
-          "about": "The high watermark of the partition."},
+          "about": "The high water mark."},
         { "name": "CurrentVoters", "type": "[]ReplicaState", "versions": "0+",
           "about": "The current voters of the partition."},
         { "name": "Observers", "type": "[]ReplicaState", "versions": "0+",

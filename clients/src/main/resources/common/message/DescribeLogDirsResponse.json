@@ -35,11 +35,11 @@
       { "name": "LogDir", "type": "string", "versions": "0+",
         "about": "The absolute log directory path." },
       { "name": "Topics", "type": "[]DescribeLogDirsTopic", "versions": "0+",
-        "about": "Each topic.", "fields": [
+        "about": "The topics.", "fields": [
         { "name": "Name", "type": "string", "versions": "0+", "entityType": "topicName",
           "about": "The topic name." },
         { "name": "Partitions", "type": "[]DescribeLogDirsPartition", "versions": "0+",
-          "about": "The describe log dirs partitions.", "fields": [
+          "about": "The partitions.", "fields": [
           { "name": "PartitionIndex", "type": "int32", "versions": "0+",
             "about": "The partition index." },
           { "name": "PartitionSize", "type": "int64", "versions": "0+",

@@ -27,11 +27,11 @@
       "nullableVersions": "0+", "default": "null",
       "about": "The cluster id."},
     { "name": "Topics", "type": "[]TopicData", "versions": "0+",
-      "about": "The topics to end epoch on.", "fields": [
+      "about": "The topics.", "fields": [
         { "name": "TopicName", "type": "string", "versions": "0+", "entityType": "topicName",
           "about": "The topic name." },
         { "name": "Partitions", "type": "[]PartitionData", "versions": "0+",
-          "about": "The partitions to end epoch on.", "fields": [
+          "about": "The partitions.", "fields": [
             { "name": "PartitionIndex", "type": "int32", "versions": "0+",
               "about": "The partition index." },
             { "name": "LeaderId", "type": "int32", "versions": "0+", "entityType": "brokerId",
