@@ -17,6 +17,7 @@
 package kafka.server.share;
 
 import kafka.server.ReplicaManager;
+import kafka.server.share.SharePartitionManager.SharePartitionListener;
 
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicIdPartition;
@@ -268,6 +269,11 @@ public class SharePartition {
     private final Persister persister;
 
     /**
+     * The listener is used to notify the share partition manager when the share partition state changes.
+     */
+    private final SharePartitionListener listener;
+
+    /**
      * The share partition start offset specifies the partition start offset from which the records
      * are cached in the cachedState of the sharePartition.
      */
@@ -280,9 +286,9 @@ public class SharePartition {
     private long endOffset;
 
     /**
-     * We maintain the latest fetch offset metadata to estimate the minBytes requirement more efficiently.
+     * We maintain the latest fetch offset and its metadata to estimate the minBytes requirement more efficiently.
      */
-    private Optional<LogOffsetMetadata> fetchOffsetMetadata;
+    private final OffsetMetadata fetchOffsetMetadata;
 
     /**
      * The state epoch is used to track the version of the state of the share partition.
@@ -311,10 +317,11 @@ public class SharePartition {
         Time time,
         Persister persister,
         ReplicaManager replicaManager,
-        GroupConfigManager groupConfigManager
+        GroupConfigManager groupConfigManager,
+        SharePartitionListener listener
     ) {
         this(groupId, topicIdPartition, leaderEpoch, maxInFlightMessages, maxDeliveryCount, defaultRecordLockDurationMs,
-            timer, time, persister, replicaManager, groupConfigManager, SharePartitionState.EMPTY);
+            timer, time, persister, replicaManager, groupConfigManager, SharePartitionState.EMPTY, listener);
     }
 
     SharePartition(
@@ -329,7 +336,8 @@ public class SharePartition {
         Persister persister,
         ReplicaManager replicaManager,
         GroupConfigManager groupConfigManager,
-        SharePartitionState sharePartitionState
+        SharePartitionState sharePartitionState,
+        SharePartitionListener listener
     ) {
         this.groupId = groupId;
         this.topicIdPartition = topicIdPartition;
@@ -347,6 +355,8 @@ public class SharePartition {
         this.partitionState = sharePartitionState;
         this.replicaManager = replicaManager;
         this.groupConfigManager = groupConfigManager;
+        this.fetchOffsetMetadata = new OffsetMetadata();
+        this.listener = listener;
     }
 
     /**
@@ -379,15 +389,24 @@ public class SharePartition {
 
             // Update state to initializing to avoid any concurrent requests to be processed.
             partitionState = SharePartitionState.INITIALIZING;
-            // Initialize the share partition by reading the state from the persister.
-            persister.readState(new ReadShareGroupStateParameters.Builder()
-                .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
-                    .setGroupId(this.groupId)
-                    .setTopicsData(Collections.singletonList(new TopicData<>(topicIdPartition.topicId(),
-                        Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(topicIdPartition.partition(), leaderEpoch)))))
-                    .build())
-                .build()
-            ).whenComplete((result, exception) -> {
+        } catch (Exception e) {
+            log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, e);
+            completeInitializationWithException(future, e);
+            return future;
+        } finally {
+            lock.writeLock().unlock();
+        }
+        // Initialize the share partition by reading the state from the persister.
+        persister.readState(new ReadShareGroupStateParameters.Builder()
+            .setGroupTopicPartitionData(new GroupTopicPartitionData.Builder<PartitionIdLeaderEpochData>()
+                .setGroupId(this.groupId)
+                .setTopicsData(Collections.singletonList(new TopicData<>(topicIdPartition.topicId(),
+                    Collections.singletonList(PartitionFactory.newPartitionIdLeaderEpochData(topicIdPartition.partition(), leaderEpoch)))))
+                .build())
+            .build()
+        ).whenComplete((result, exception) -> {
+            lock.writeLock().lock();
+            try {
                 if (exception != null) {
                     log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, exception);
                     completeInitializationWithException(future, exception);
@@ -451,23 +470,20 @@ public class SharePartition {
                     // If the cachedState is not empty, findNextFetchOffset flag is set to true so that any AVAILABLE records
                     // in the cached state are not missed
                     findNextFetchOffset.set(true);
-                    updateEndOffsetAndResetFetchOffsetMetadata(cachedState.lastEntry().getValue().lastOffset());
+                    endOffset = cachedState.lastEntry().getValue().lastOffset();
                     // In case the persister read state RPC result contains no AVAILABLE records, we can update cached state
                     // and start/end offsets.
                     maybeUpdateCachedStateAndOffsets();
                 } else {
-                    updateEndOffsetAndResetFetchOffsetMetadata(startOffset);
+                    endOffset = startOffset;
                 }
                 // Set the partition state to Active and complete the future.
                 partitionState = SharePartitionState.ACTIVE;
                 future.complete(null);
-            });
-        } catch (Exception e) {
-            log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, e);
-            completeInitializationWithException(future, e);
-        } finally {
-            lock.writeLock().unlock();
-        }
+            } finally {
+                lock.writeLock().unlock();
+            }
+        });
 
         return future;
     }
@@ -943,7 +959,7 @@ public class SharePartition {
                 // If the cached state is empty, then the start and end offset will be the new log start offset.
                 // This can occur during the initialization of share partition if LSO has moved.
                 startOffset = logStartOffset;
-                updateEndOffsetAndResetFetchOffsetMetadata(logStartOffset);
+                endOffset = logStartOffset;
                 return;
             }
 
@@ -961,7 +977,7 @@ public class SharePartition {
                 // This case means that the cached state is completely fresh now.
                 // Example scenario - batch of 0-10 in acquired state in cached state, then LSO moves to 15,
                 // then endOffset should be 15 as well.
-                updateEndOffsetAndResetFetchOffsetMetadata(startOffset);
+                endOffset = startOffset;
             }
 
             // Note -
@@ -1082,8 +1098,8 @@ public class SharePartition {
 
     /**
      * Prior to fetching records from the leader, the fetch lock is acquired to ensure that the same
-     * share partition does not enter a fetch queue while another one is being fetched within the queue.
-     * The fetch lock is released once the records are fetched from the leader.
+     * share partition is not fetched concurrently by multiple clients. The fetch lock is released once
+     * the records are fetched and acquired.
      *
      * @return A boolean which indicates whether the fetch lock is acquired.
      */
@@ -1111,6 +1127,15 @@ public class SharePartition {
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    /**
+     * Returns the share partition listener.
+     *
+     * @return The share partition listener.
+     */
+    SharePartitionListener listener() {
+        return this.listener;
     }
 
     private boolean stateNotActive() {
@@ -1192,7 +1217,7 @@ public class SharePartition {
             if (cachedState.firstKey() == firstAcquiredOffset)  {
                 startOffset = firstAcquiredOffset;
             }
-            updateEndOffsetAndResetFetchOffsetMetadata(lastAcquiredOffset);
+            endOffset = lastAcquiredOffset;
             return new AcquiredRecords()
                 .setFirstOffset(firstAcquiredOffset)
                 .setLastOffset(lastAcquiredOffset)
@@ -1592,27 +1617,21 @@ public class SharePartition {
         return Optional.empty();
     }
 
-    // The caller of this function is expected to hold lock.writeLock() when calling this method.
-    protected void updateEndOffsetAndResetFetchOffsetMetadata(long updatedEndOffset) {
-        endOffset = updatedEndOffset;
-        fetchOffsetMetadata = Optional.empty();
-    }
-
-    protected void updateFetchOffsetMetadata(Optional<LogOffsetMetadata> fetchOffsetMetadata) {
+    protected void updateFetchOffsetMetadata(long nextFetchOffset, LogOffsetMetadata logOffsetMetadata) {
         lock.writeLock().lock();
         try {
-            this.fetchOffsetMetadata = fetchOffsetMetadata;
+            fetchOffsetMetadata.updateOffsetMetadata(nextFetchOffset, logOffsetMetadata);
         } finally {
             lock.writeLock().unlock();
         }
     }
 
-    protected Optional<LogOffsetMetadata> fetchOffsetMetadata() {
+    protected Optional<LogOffsetMetadata> fetchOffsetMetadata(long nextFetchOffset) {
         lock.readLock().lock();
         try {
-            if (findNextFetchOffset.get())
+            if (fetchOffsetMetadata.offsetMetadata() == null || fetchOffsetMetadata.offset() != nextFetchOffset)
                 return Optional.empty();
-            return fetchOffsetMetadata;
+            return Optional.of(fetchOffsetMetadata.offsetMetadata());
         } finally {
             lock.readLock().unlock();
         }
@@ -1650,8 +1669,13 @@ public class SharePartition {
                 future.complete(null);
                 return;
             }
+        } finally {
+            lock.writeLock().unlock();
+        }
 
-            writeShareGroupState(stateBatches).whenComplete((result, exception) -> {
+        writeShareGroupState(stateBatches).whenComplete((result, exception) -> {
+            lock.writeLock().lock();
+            try {
                 if (exception != null) {
                     log.error("Failed to write state to persister for the share partition: {}-{}",
                         groupId, topicIdPartition, exception);
@@ -1670,10 +1694,10 @@ public class SharePartition {
                 // Update the cached state and start and end offsets after acknowledging/releasing the acquired records.
                 maybeUpdateCachedStateAndOffsets();
                 future.complete(null);
-            });
-        } finally {
-            lock.writeLock().unlock();
-        }
+            } finally {
+                lock.writeLock().unlock();
+            }
+        });
     }
 
     private void maybeUpdateCachedStateAndOffsets() {
@@ -1696,7 +1720,7 @@ public class SharePartition {
             long lastCachedOffset = cachedState.lastEntry().getValue().lastOffset();
             if (lastOffsetAcknowledged == lastCachedOffset) {
                 startOffset = lastCachedOffset + 1; // The next offset that will be fetched and acquired in the share partition
-                updateEndOffsetAndResetFetchOffsetMetadata(lastCachedOffset + 1);
+                endOffset = lastCachedOffset + 1;
                 cachedState.clear();
                 // Nothing further to do.
                 return;
@@ -2424,6 +2448,32 @@ public class SharePartition {
                 ", deliveryCount=" + deliveryCount +
                 ", memberId=" + memberId +
                 ")";
+        }
+    }
+
+    /**
+     * FetchOffsetMetadata class is used to cache offset and its log metadata.
+     */
+    static final class OffsetMetadata {
+        // This offset could be different from offsetMetadata.messageOffset if it's in the middle of a batch.
+        private long offset;
+        private LogOffsetMetadata offsetMetadata;
+
+        OffsetMetadata() {
+            offset = -1;
+        }
+
+        long offset() {
+            return offset;
+        }
+
+        LogOffsetMetadata offsetMetadata() {
+            return offsetMetadata;
+        }
+
+        void updateOffsetMetadata(long offset, LogOffsetMetadata offsetMetadata) {
+            this.offset = offset;
+            this.offsetMetadata = offsetMetadata;
         }
     }
 }
