@@ -29,6 +29,7 @@ import org.apache.kafka.connect.runtime.rest.ConnectRestServer;
 import org.apache.kafka.connect.runtime.rest.RestClient;
 import org.apache.kafka.connect.runtime.rest.RestServer;
 
+import org.apache.kafka.connect.util.PluginVersionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -139,6 +140,7 @@ public abstract class AbstractConnectCli<H extends Herder, T extends WorkerConfi
 
         final Connect<H> connect = new Connect<>(herder, restServer);
         log.info("Kafka Connect worker initialization took {}ms", time.hiResClockMs() - initStart);
+        PluginVersionUtils.setPlugins(plugins);
         try {
             connect.start();
         } catch (Exception e) {

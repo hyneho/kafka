@@ -34,7 +34,9 @@ import org.apache.kafka.connect.connector.policy.ConnectorClientConfigRequest;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.NotFoundException;
 import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
+import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
+import org.apache.kafka.connect.runtime.isolation.VersionedPluginLoadingException;
 import org.apache.kafka.connect.runtime.rest.entities.ActiveTopicsInfo;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigInfo;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigInfos;
@@ -58,33 +60,22 @@ import org.apache.kafka.connect.storage.HeaderConverter;
 import org.apache.kafka.connect.storage.StatusBackingStore;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
-import org.apache.kafka.connect.util.Callback;
-import org.apache.kafka.connect.util.ConnectorTaskId;
-import org.apache.kafka.connect.util.Stage;
-import org.apache.kafka.connect.util.TemporaryStage;
+import org.apache.kafka.connect.util.*;
 
 import org.apache.log4j.Level;
+import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.DefaultValue;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -94,9 +85,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.apache.kafka.connect.runtime.ConnectorConfig.HEADER_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.*;
 
 /**
  * Abstract Herder implementation which handles connector/task lifecycle tracking. Extensions
@@ -138,7 +127,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
     private final Time time;
     protected final Loggers loggers;
 
-    private final ConcurrentMap<String, Connector> tempConnectors = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, SortedMap<ArtifactVersion, Connector>> tempConnectors = new ConcurrentHashMap<>();
 
     public AbstractHerder(Worker worker,
                           String workerId,
@@ -398,6 +387,8 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
      *                          may be null, in which case no validation will be performed under the assumption that the
      *                          connector will use inherit the converter settings from the worker. Some errors encountered
      *                          during validation may be {@link ConfigValue#addErrorMessage(String) added} to this object
+     * @param pluginVersionValue the {@link ConfigValue} for the converter version property in the connector config;
+     *
      * @param pluginInterface the interface for the plugin type
      *                        (e.g., {@code org.apache.kafka.connect.storage.Converter.class});
      *                        may not be null
@@ -418,13 +409,16 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
 
      * @param <T> the plugin class to perform validation for
      */
+    @SuppressWarnings("unchecked")
     private <T> ConfigInfos validateConverterConfig(
             Map<String, String> connectorConfig,
             ConfigValue pluginConfigValue,
+            ConfigValue pluginVersionValue,
             Class<T> pluginInterface,
             Function<T, ConfigDef> configDefAccessor,
             String pluginName,
             String pluginProperty,
+            String pluginVersionProperty,
             Map<String, String> defaultProperties,
             Function<String, TemporaryStage> reportStage
     ) {
@@ -433,12 +427,15 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         Objects.requireNonNull(configDefAccessor);
         Objects.requireNonNull(pluginName);
         Objects.requireNonNull(pluginProperty);
+        Objects.requireNonNull(pluginVersionProperty);
 
         String pluginClass = connectorConfig.get(pluginProperty);
+        String pluginVersion = connectorConfig.get(pluginVersionProperty);
 
         if (pluginClass == null
                 || pluginConfigValue == null
                 || !pluginConfigValue.errorMessages().isEmpty()
+                || !pluginVersionValue.errorMessages().isEmpty()
         ) {
             // Either no custom converter was specified, or one was specified but there's a problem with it.
             // No need to proceed any further.
@@ -448,10 +445,20 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         T pluginInstance;
         String stageDescription = "instantiating the connector's " + pluginName + " for validation";
         try (TemporaryStage stage = reportStage.apply(stageDescription)) {
-            pluginInstance = Utils.newInstance(pluginClass, pluginInterface);
+            VersionRange range = PluginVersionUtils.connectorVersionRequirement(pluginVersion);
+            pluginInstance = (T) plugins().newPlugin(pluginClass, pluginInterface, range);
+        } catch (VersionedPluginLoadingException e) {
+            log.error("Failed to load {} class {} with version {}: {}", pluginName, pluginClass, pluginVersion, e);
+            pluginVersionValue.addErrorMessage(e.getMessage());
+            return null;
         } catch (ClassNotFoundException | RuntimeException e) {
             log.error("Failed to instantiate {} class {}; this should have been caught by prior validation logic", pluginName, pluginClass, e);
             pluginConfigValue.addErrorMessage("Failed to load class " + pluginClass + (e.getMessage() != null ? ": " + e.getMessage() : ""));
+            return null;
+        } catch (InvalidVersionSpecificationException e) {
+            // this should have been caught by prior validation logic
+            log.error("Invalid version range for {} class {}: {}", pluginName, pluginClass, pluginVersion, e);
+            pluginVersionValue.addErrorMessage(e.getMessage());
             return null;
         }
 
@@ -497,15 +504,18 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
     private ConfigInfos validateHeaderConverterConfig(
             Map<String, String> connectorConfig,
             ConfigValue headerConverterConfigValue,
+            ConfigValue headerConverterVersionValue,
             Function<String, TemporaryStage> reportStage
     ) {
         return validateConverterConfig(
                 connectorConfig,
                 headerConverterConfigValue,
+                headerConverterVersionValue,
                 HeaderConverter.class,
                 HeaderConverter::config,
                 "header converter",
                 HEADER_CONVERTER_CLASS_CONFIG,
+                HEADER_CONVERTER_VERSION_CONFIG,
                 Collections.singletonMap(ConverterConfig.TYPE_CONFIG, ConverterType.HEADER.getName()),
                 reportStage
         );
@@ -514,15 +524,18 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
     private ConfigInfos validateKeyConverterConfig(
             Map<String, String> connectorConfig,
             ConfigValue keyConverterConfigValue,
+            ConfigValue keyConverterVersionValue,
             Function<String, TemporaryStage> reportStage
     ) {
         return validateConverterConfig(
                 connectorConfig,
                 keyConverterConfigValue,
+                keyConverterVersionValue,
                 Converter.class,
                 Converter::config,
                 "key converter",
                 KEY_CONVERTER_CLASS_CONFIG,
+                KEY_CONVERTER_VERSION_CONFIG,
                 Collections.singletonMap(ConverterConfig.TYPE_CONFIG, ConverterType.KEY.getName()),
                 reportStage
         );
@@ -531,15 +544,18 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
     private ConfigInfos validateValueConverterConfig(
             Map<String, String> connectorConfig,
             ConfigValue valueConverterConfigValue,
+            ConfigValue valueConverterVersionValue,
             Function<String, TemporaryStage> reportStage
     ) {
         return validateConverterConfig(
                 connectorConfig,
                 valueConverterConfigValue,
+                valueConverterVersionValue,
                 Converter.class,
                 Converter::config,
                 "value converter",
                 VALUE_CONVERTER_CLASS_CONFIG,
+                VALUE_CONVERTER_VERSION_CONFIG,
                 Collections.singletonMap(ConverterConfig.TYPE_CONFIG, ConverterType.VALUE.getName()),
                 reportStage
         );
@@ -647,18 +663,27 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             }
         }
         String connType = connectorProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
+        VersionRange connVersion = null;
+        try {
+            connVersion = PluginVersionUtils.connectorVersionRequirement(connectorProps.get(CONNECTOR_VERSION));
+        } catch (Exception e) {
+            throw new BadRequestException(e.getMessage());
+        }
+
         if (connType == null)
             throw new BadRequestException("Connector config " + connectorProps + " contains no connector type");
 
-        Connector connector = getConnector(connType);
-        ClassLoader connectorLoader = plugins().connectorLoader(connType);
+        Connector connector = getConnector(connType, connVersion);
+        ClassLoader connectorLoader = connector.getClass().getClassLoader();
         try (LoaderSwap loaderSwap = plugins().withClassLoader(connectorLoader)) {
+            log.info("Validating connector {}, version {}", connType, connector.version());
             org.apache.kafka.connect.health.ConnectorType connectorType;
             ConfigDef enrichedConfigDef;
             Map<String, ConfigValue> validatedConnectorConfig;
             if (connector instanceof SourceConnector) {
                 connectorType = org.apache.kafka.connect.health.ConnectorType.SOURCE;
                 enrichedConfigDef = ConnectorConfig.enrich(plugins(), SourceConnectorConfig.configDef(), connectorProps, false);
+                ConnectorConfig.updateDefaults(enrichedConfigDef, plugins(), connectorProps, worker.config().originalsStrings());
                 stageDescription = "validating source connector-specific properties for the connector";
                 try (TemporaryStage stage = reportStage.apply(stageDescription)) {
                     validatedConnectorConfig = validateSourceConnectorConfig((SourceConnector) connector, enrichedConfigDef, connectorProps);
@@ -666,6 +691,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             } else {
                 connectorType = org.apache.kafka.connect.health.ConnectorType.SINK;
                 enrichedConfigDef = ConnectorConfig.enrich(plugins(), SinkConnectorConfig.configDef(), connectorProps, false);
+                ConnectorConfig.updateDefaults(enrichedConfigDef, plugins(), connectorProps, worker.config().originalsStrings());
                 stageDescription = "validating sink connector-specific properties for the connector";
                 try (TemporaryStage stage = reportStage.apply(stageDescription)) {
                     validatedConnectorConfig = validateSinkConnectorConfig((SinkConnector) connector, enrichedConfigDef, connectorProps);
@@ -720,16 +746,19 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             ConfigInfos headerConverterConfigInfos = validateHeaderConverterConfig(
                     connectorProps,
                     validatedConnectorConfig.get(HEADER_CONVERTER_CLASS_CONFIG),
+                    validatedConnectorConfig.get(HEADER_CONVERTER_VERSION_CONFIG),
                     reportStage
             );
             ConfigInfos keyConverterConfigInfos = validateKeyConverterConfig(
                     connectorProps,
                     validatedConnectorConfig.get(KEY_CONVERTER_CLASS_CONFIG),
+                    validatedConnectorConfig.get(KEY_CONVERTER_VERSION_CONFIG),
                     reportStage
             );
             ConfigInfos valueConverterConfigInfos = validateValueConverterConfig(
                     connectorProps,
                     validatedConnectorConfig.get(VALUE_CONVERTER_CLASS_CONFIG),
+                    validatedConnectorConfig.get(VALUE_CONVERTER_VERSION_CONFIG),
                     reportStage
             );
 
@@ -936,8 +965,45 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         return new ConfigValueInfo(configValue.name(), value, recommendedValues, configValue.errorMessages(), configValue.visible());
     }
 
+    protected Connector getConnector(String connClass, VersionRange range) {
+
+        SortedMap<ArtifactVersion, Connector> connectors = tempConnectors.computeIfAbsent(connClass, k -> {
+            SortedMap<ArtifactVersion, Connector> inner = Collections.synchronizedSortedMap(new TreeMap<>());
+            for (PluginDesc<SourceConnector> desc: plugins().sourceConnectors(connClass)) {
+                inner.put(desc.encodedVersion(), null);
+            }
+            for (PluginDesc<SinkConnector> desc: plugins().sinkConnectors(connClass)) {
+                inner.put(desc.encodedVersion(), null);
+            }
+            return inner;
+        });
+
+        ArtifactVersion required = connectors.lastKey();
+        if (range != null) {
+            required = range.matchVersion(new ArrayList<>(connectors.keySet()));
+        }
+
+        if (required != null) {
+            try {
+                final VersionRange requiredVersionRange = PluginVersionUtils.connectorVersionRequirement(required.toString());
+                connectors.computeIfAbsent(required, k -> plugins().newConnector(connClass, requiredVersionRange));
+            } catch (InvalidVersionSpecificationException e) {
+                // this should not happen as the versions here are specified in the connectors and should already be
+                // validated during plugin loading
+            }
+        } else {
+            // since the connectors map already contains all the possible version, if no version match is found
+            // we should throw an exception. To keep things consistent the error we get should be the same as
+            // what the plugins interface returns if we try to load a connector version that is not available
+            // hence we call the following method which will throw the appropriate exception
+            plugins().newConnector(connClass, range);
+        }
+
+        return connectors.get(required);
+    }
+
     protected Connector getConnector(String connType) {
-        return tempConnectors.computeIfAbsent(connType, k -> plugins().newConnector(k));
+        return getConnector(connType, null);
     }
 
     /**
@@ -955,8 +1021,9 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             return ConnectorType.UNKNOWN;
         }
         try {
-            return ConnectorType.from(getConnector(connClass).getClass());
-        } catch (ConnectException e) {
+            VersionRange range = PluginVersionUtils.connectorVersionRequirement(connConfig.get(CONNECTOR_VERSION));
+            return ConnectorType.from(getConnector(connClass, range).getClass());
+        } catch (ConnectException | InvalidVersionSpecificationException e) {
             log.warn("Unable to retrieve connector type", e);
             return ConnectorType.UNKNOWN;
         }
@@ -1078,16 +1145,22 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
 
     @Override
     public List<ConfigKeyInfo> connectorPluginConfig(String pluginName) {
+        return connectorPluginConfig(pluginName, null);
+    }
+
+    @Override
+    public List<ConfigKeyInfo> connectorPluginConfig(String pluginName, VersionRange range) {
+
         Plugins p = plugins();
         Class<?> pluginClass;
         try {
-            pluginClass = p.pluginClass(pluginName);
+            pluginClass = p.pluginClass(pluginName, range);
         } catch (ClassNotFoundException cnfe) {
             throw new NotFoundException("Unknown plugin " + pluginName + ".");
         }
 
         try (LoaderSwap loaderSwap = p.withClassLoader(pluginClass.getClassLoader())) {
-            Object plugin = p.newPlugin(pluginName);
+            Object plugin = p.newPlugin(pluginName, range);
             // Contains definitions coming from Connect framework
             ConfigDef baseConfigDefs = null;
             // Contains definitions specifically declared on the plugin
@@ -1114,8 +1187,10 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             // give precedence to the one defined by the plugin class
             // Preserve the ordering of properties as they're returned from each ConfigDef
             Map<String, ConfigKey> configsMap = new LinkedHashMap<>(pluginConfigDefs.configKeys());
-            if (baseConfigDefs != null)
+            if (baseConfigDefs != null) {
+                ConnectorConfig.updateConnectorVersionDefaults(baseConfigDefs, p, pluginName);
                 baseConfigDefs.configKeys().forEach(configsMap::putIfAbsent);
+            }
 
             List<ConfigKeyInfo> results = new ArrayList<>();
             for (ConfigKey configKey : configsMap.values()) {

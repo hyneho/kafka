@@ -19,6 +19,8 @@ package org.apache.kafka.connect.runtime;
 
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.connector.ConnectRecord;
+import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
+import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
 
@@ -53,8 +55,16 @@ public class TransformationStage<R extends ConnectRecord<R>> implements AutoClos
     }
 
     public R apply(R record) {
-        if (predicate == null || negate ^ predicate.test(record)) {
-            return transformation.apply(record);
+        boolean shouldTransforms = predicate == null;
+        if (predicate != null) {
+            try (LoaderSwap swap = Plugins.swapLoader(predicate.getClass().getClassLoader())) {
+                shouldTransforms = negate ^ predicate.test(record);
+            }
+        }
+        if (shouldTransforms) {
+            try (LoaderSwap swap = Plugins.swapLoader(transformation.getClass().getClassLoader())) {
+                record = transformation.apply(record);
+            }
         }
         return record;
     }
