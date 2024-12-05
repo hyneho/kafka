@@ -157,11 +157,12 @@ public class DelegatingClassLoader extends URLClassLoader {
             }
 
             ArtifactVersion version = null;
-
+            ClassLoader loader = null;
             for (Map.Entry<PluginDesc<?>, ClassLoader> entry : loaders.entrySet()) {
                 // the entries should be in sorted order of versions so this should end up picking the latest version which matches the range
                 if (range.containsVersion(entry.getKey().encodedVersion())) {
                     version = entry.getKey().encodedVersion();
+                    loader = entry.getValue();
                 }
             }
 
@@ -174,6 +175,7 @@ public class DelegatingClassLoader extends URLClassLoader {
                         availableVersions
                 ), availableVersions);
             }
+            return loader;
         }
 
         return loaders.get(loaders.lastKey());
