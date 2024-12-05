@@ -545,13 +545,14 @@ public final class RaftClientTestContext {
         return builder.build();
     }
 
-    static RaftClientTestContext initializeAsLeader(int localId, Set<Integer> voters, int epoch) throws Exception {
+    static RaftClientTestContext initializeAsLeader(int localId, Set<Integer> voters, int epoch, short version) throws Exception {
         if (epoch <= 0) {
             throw new IllegalArgumentException("Cannot become leader in epoch " + epoch);
         }
 
         RaftClientTestContext context = new RaftClientTestContext.Builder(localId, voters)
             .withUnknownLeader(epoch - 1)
+            .withKip853Rpc(version >= 17)
             .build();
 
         context.assertUnknownLeader(epoch - 1);
