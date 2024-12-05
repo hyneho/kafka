@@ -16,17 +16,17 @@
  */
 package org.apache.kafka.streams.kstream.internals;
 
-import static java.util.Collections.singleton;
-
-import java.util.Set;
 import org.apache.kafka.streams.kstream.KeyValueMapper;
 import org.apache.kafka.streams.kstream.ValueJoinerWithKey;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
+import org.apache.kafka.streams.state.StoreBuilder;
 
 import java.time.Duration;
 import java.util.Optional;
-import org.apache.kafka.streams.state.StoreBuilder;
+import java.util.Set;
+
+import static java.util.Collections.singleton;
 
 class KStreamKTableJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1, K, VOut> {
 

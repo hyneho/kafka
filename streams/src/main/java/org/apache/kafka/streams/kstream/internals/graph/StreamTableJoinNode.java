@@ -17,12 +17,10 @@
 
 package org.apache.kafka.streams.kstream.internals.graph;
 
-import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.processor.internals.InternalTopologyBuilder;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * Represents a join between a KStream and a KTable or GlobalKTable
