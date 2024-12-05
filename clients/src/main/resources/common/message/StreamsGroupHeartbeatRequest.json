@@ -18,7 +18,7 @@
   "type": "request",
   "listeners": ["broker", "zkBroker"],
   "name": "StreamsGroupHeartbeatRequest",
-  "validVersions": "0-1",
+  "validVersions": "0",
   "flexibleVersions": "0+",
   "fields": [
     { "name": "GroupId", "type": "string", "versions": "0+", "entityType": "groupId",
