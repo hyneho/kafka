@@ -2207,23 +2207,12 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
           // Test that the fake group throws GroupIdNotFoundException
           assertTrue(describeWithFakeGroupResult.describedGroups().containsKey(fakeGroupId))
-          try {
-            describeWithFakeGroupResult.describedGroups().get(fakeGroupId).get()
-            fail("Fake group should throw GroupIdNotFoundException")
-          } catch {
-            case e: ExecutionException =>
-              assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
-          }
+          assertFutureThrows(describeWithFakeGroupResult.describedGroups().get(fakeGroupId),
+            classOf[GroupIdNotFoundException], s"Group $fakeGroupId not found.")
 
           // Test that all() also throws GroupIdNotFoundException
-          try {
-            describeWithFakeGroupResult.all().get()
-            fail("Fake group should throw GroupIdNotFoundException")
-          } catch {
-            case e: ExecutionException =>
-              assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
-              assertEquals(s"Group $fakeGroupId not found.", e.getCause.getMessage)
-          }
+          assertFutureThrows(describeWithFakeGroupResult.all(),
+            classOf[GroupIdNotFoundException], s"Group $fakeGroupId not found.")
 
           val testTopicPart0 = new TopicPartition(testTopicName, 0)
 
@@ -2647,23 +2636,12 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
 
         // Test that the fake group throws GroupIdNotFoundException
         assertTrue(describeWithFakeGroupResult.describedGroups().containsKey(fakeGroupId))
-        try {
-          describeWithFakeGroupResult.describedGroups().get(fakeGroupId).get()
-          fail("Fake group should throw GroupIdNotFoundException")
-        } catch {
-          case e: ExecutionException =>
-            assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
-        }
+        assertFutureThrows(describeWithFakeGroupResult.describedGroups().get(fakeGroupId),
+          classOf[GroupIdNotFoundException], s"Group $fakeGroupId not found.")
 
         // Test that all() also throws GroupIdNotFoundException
-        try {
-          describeWithFakeGroupResult.all().get()
-          fail("Fake group should throw GroupIdNotFoundException")
-        } catch {
-          case e: ExecutionException =>
-            assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
-            assertEquals(s"Group $fakeGroupId not found.", e.getCause.getMessage)
-        }
+        assertFutureThrows(describeWithFakeGroupResult.all(),
+          classOf[GroupIdNotFoundException], s"Group $fakeGroupId not found.")
 
         val describeTestGroupResult = client.describeShareGroups(Collections.singleton(testGroupId),
           new DescribeShareGroupsOptions().includeAuthorizedOperations(true))
@@ -2679,14 +2657,8 @@ class PlaintextAdminIntegrationTest extends BaseAdminIntegrationTest {
         // but the error message is different
         val describeConsumerGroupResult = client.describeConsumerGroups(Collections.singleton(testGroupId),
           new DescribeConsumerGroupsOptions().includeAuthorizedOperations(true))
-        try {
-          describeConsumerGroupResult.all().get()
-          fail("Share group should throw GroupIdNotFoundException")
-        } catch {
-          case e: ExecutionException =>
-            assertTrue(e.getCause.isInstanceOf[GroupIdNotFoundException])
-            assertEquals(s"Group $testGroupId is not a consumer group.", e.getCause.getMessage)
-        }
+        assertFutureThrows(describeConsumerGroupResult.all(),
+          classOf[GroupIdNotFoundException], s"Group $testGroupId is not a consumer group.")
       } finally {
         consumerThreads.foreach {
           case consumerThread =>
