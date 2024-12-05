@@ -390,7 +390,7 @@ public class SharePartition {
         boolean shouldFutureBeCompleted = false;
         try {
             // Re-check the state to verify if previous requests has already initialized the share partition.
-            maybeCompleteInitialization();
+            initializationResult = maybeCompleteInitialization();
             if (initializationResult.isComplete()) {
                 if (initializationResult.throwable() != null) {
                     futureException.set(Optional.of(initializationResult.throwable()));
