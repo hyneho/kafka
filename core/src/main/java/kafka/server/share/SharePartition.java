@@ -71,6 +71,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -380,6 +381,7 @@ public class SharePartition {
         // All the pending requests should wait to get completed before the share partition is initialized.
         // Attain lock to avoid any concurrent requests to be processed.
         lock.writeLock().lock();
+        AtomicReference<Optional<Throwable>> futureException = new AtomicReference<>(Optional.empty());
         try {
             // Re-check the state to verify if previous requests has already initialized the share partition.
             maybeCompleteInitialization(future);
@@ -391,10 +393,12 @@ public class SharePartition {
             partitionState = SharePartitionState.INITIALIZING;
         } catch (Exception e) {
             log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, e);
-            completeInitializationWithException(future, e);
+            completeInitializationWithException();
+            futureException.set(Optional.of(e));
             return future;
         } finally {
             lock.writeLock().unlock();
+            futureException.get().ifPresent(future::completeExceptionally);
         }
         // Initialize the share partition by reading the state from the persister.
         persister.readState(new ReadShareGroupStateParameters.Builder()
@@ -409,14 +413,16 @@ public class SharePartition {
             try {
                 if (exception != null) {
                     log.error("Failed to initialize the share partition: {}-{}", groupId, topicIdPartition, exception);
-                    completeInitializationWithException(future, exception);
+                    completeInitializationWithException();
+                    futureException.set(Optional.of(exception));
                     return;
                 }
 
                 if (result == null || result.topicsData() == null || result.topicsData().size() != 1) {
                     log.error("Failed to initialize the share partition: {}-{}. Invalid state found: {}.",
                         groupId, topicIdPartition, result);
-                    completeInitializationWithException(future, new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition)));
+                    completeInitializationWithException();
+                    futureException.set(Optional.of(new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition))));
                     return;
                 }
 
@@ -424,7 +430,8 @@ public class SharePartition {
                 if (state.topicId() != topicIdPartition.topicId() || state.partitions().size() != 1) {
                     log.error("Failed to initialize the share partition: {}-{}. Invalid topic partition response: {}.",
                         groupId, topicIdPartition, result);
-                    completeInitializationWithException(future, new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition)));
+                    completeInitializationWithException();
+                    futureException.set(Optional.of(new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition))));
                     return;
                 }
 
@@ -432,7 +439,8 @@ public class SharePartition {
                 if (partitionData.partition() != topicIdPartition.partition()) {
                     log.error("Failed to initialize the share partition: {}-{}. Invalid partition response: {}.",
                         groupId, topicIdPartition, partitionData);
-                    completeInitializationWithException(future, new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition)));
+                    completeInitializationWithException();
+                    futureException.set(Optional.of(new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition))));
                     return;
                 }
 
@@ -440,14 +448,16 @@ public class SharePartition {
                     KafkaException ex = fetchPersisterError(partitionData.errorCode(), partitionData.errorMessage());
                     log.error("Failed to initialize the share partition: {}-{}. Exception occurred: {}.",
                         groupId, topicIdPartition, partitionData);
-                    completeInitializationWithException(future, ex);
+                    completeInitializationWithException();
+                    futureException.set(Optional.of(ex));
                     return;
                 }
 
                 try {
                     startOffset = startOffsetDuringInitialization(partitionData.startOffset());
                 } catch (Exception e) {
-                    completeInitializationWithException(future, e);
+                    completeInitializationWithException();
+                    futureException.set(Optional.of(e));
                     return;
                 }
                 stateEpoch = partitionData.stateEpoch();
@@ -458,7 +468,8 @@ public class SharePartition {
                         log.error("Invalid state batch found for the share partition: {}-{}. The base offset: {}"
                                 + " is less than the start offset: {}.", groupId, topicIdPartition,
                             stateBatch.firstOffset(), startOffset);
-                        completeInitializationWithException(future, new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition)));
+                        completeInitializationWithException();
+                        futureException.set(Optional.of(new IllegalStateException(String.format("Failed to initialize the share partition %s-%s", groupId, topicIdPartition))));
                         return;
                     }
                     InFlightBatch inFlightBatch = new InFlightBatch(EMPTY_MEMBER_ID, stateBatch.firstOffset(),
@@ -479,9 +490,13 @@ public class SharePartition {
                 }
                 // Set the partition state to Active and complete the future.
                 partitionState = SharePartitionState.ACTIVE;
-                future.complete(null);
             } finally {
                 lock.writeLock().unlock();
+                if (futureException.get().isPresent()) {
+                    future.completeExceptionally(futureException.get().get());
+                } else {
+                    future.complete(null);
+                }
             }
         });
 
@@ -1142,14 +1157,13 @@ public class SharePartition {
         return  partitionState() != SharePartitionState.ACTIVE;
     }
 
-    private void completeInitializationWithException(CompletableFuture<Void> future, Throwable exception) {
+    private void completeInitializationWithException() {
         lock.writeLock().lock();
         try {
             partitionState = SharePartitionState.FAILED;
         } finally {
             lock.writeLock().unlock();
         }
-        future.completeExceptionally(exception);
     }
 
     private void maybeCompleteInitialization(CompletableFuture<Void> future) {
