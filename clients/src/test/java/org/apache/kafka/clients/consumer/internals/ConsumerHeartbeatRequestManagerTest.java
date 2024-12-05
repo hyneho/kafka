@@ -606,7 +606,7 @@ public class ConsumerHeartbeatRequestManagerTest {
     }
 
     @Test
-    public void testUnsupportedVersion() {
+    public void testHBUnsupportedVersion() {
         // UnsupportedApiVersion thrown while building request when the client detects the HB API is not supported.
         mockResponseWithException(new UnsupportedVersionException(CONSUMER_PROTOCOL_NOT_SUPPORTED_MSG));
         ArgumentCaptor<ErrorEvent> errorEventArgumentCaptor = ArgumentCaptor.forClass(ErrorEvent.class);
