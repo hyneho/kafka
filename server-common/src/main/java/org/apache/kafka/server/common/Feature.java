@@ -51,7 +51,7 @@ public enum Feature {
     /**
      * Features defined only for unit tests and are not used in production.
      */
-    TEST_VERSION(TestFeatureVersion.FEATURE_NAME, TestFeatureVersion.valuesWithoutUnitTestVersions(), TestFeatureVersion.LATEST_PRODUCTION),
+    TEST_VERSION(TestFeatureVersion.FEATURE_NAME, TestFeatureVersion.values(), TestFeatureVersion.LATEST_PRODUCTION),
     UNIT_TEST_VERSION_0(UnitTestFeatureVersion.FV0.FEATURE_NAME, new FeatureVersion[]{UT_FV0_0}, UnitTestFeatureVersion.FV0.LATEST_PRODUCTION),
     UNIT_TEST_VERSION_1(UnitTestFeatureVersion.FV1.FEATURE_NAME, UnitTestFeatureVersion.FV1.values(), UnitTestFeatureVersion.FV1.LATEST_PRODUCTION),
     UNIT_TEST_VERSION_2(UnitTestFeatureVersion.FV2.FEATURE_NAME, UnitTestFeatureVersion.FV2.values(), UnitTestFeatureVersion.FV2.LATEST_PRODUCTION),

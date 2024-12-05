@@ -16,7 +16,6 @@
  */
 package org.apache.kafka.server.common;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -56,9 +55,5 @@ public enum TestFeatureVersion implements FeatureVersion {
 
     public Map<String, Short> dependencies() {
         return dependencies;
-    }
-
-    public static TestFeatureVersion[] valuesWithoutUnitTestVersions() {
-        return Arrays.stream(values()).filter(v -> !v.name().startsWith("UT_FV")).toArray(TestFeatureVersion[]::new);
     }
 }
