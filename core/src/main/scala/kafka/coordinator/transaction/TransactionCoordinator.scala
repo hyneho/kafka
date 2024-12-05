@@ -760,7 +760,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
             val retryOnOverflow = !isEpochFence && txnMetadata.previousProducerId == producerId &&
               producerEpoch == Short.MaxValue - 1 && txnMetadata.producerEpoch == 0
             // True if the client used TV_2 and retried an endTxn request, and the bumped producer epoch is stored in the txnMetadata.
-            val retryOnEpochBump = endTxnEpochBumped(txnMetadata, producerEpoch)
+            val retryOnEpochBump = !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.producerEpoch == producerEpoch + 1
 
             val isValidEpoch = {
               if (!isEpochFence) {
@@ -899,7 +899,7 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
                     txnMetadata.inLock {
                       if (txnMetadata.producerId != producerId)
                         Left(Errors.INVALID_PRODUCER_ID_MAPPING)
-                      else if (txnMetadata.producerEpoch != producerEpoch && !endTxnEpochBumped(txnMetadata, producerEpoch))
+                      else if (txnMetadata.producerEpoch != producerEpoch && txnMetadata.producerEpoch != producerEpoch + 1)
                         Left(Errors.PRODUCER_FENCED)
                       else if (txnMetadata.pendingTransitionInProgress)
                         Left(Errors.CONCURRENT_TRANSACTIONS)
@@ -971,13 +971,6 @@ class TransactionCoordinator(txnConfig: TransactionConfig,
             sendTxnMarkersCallback, requestLocal = requestLocal)
       }
     }
-  }
-
-  // When a client and server support V2, every endTransaction call bumps the producer epoch. When checking epoch, we want to
-  // check epoch + 1. Epoch bumps from PrepareEpochFence state are handled separately, so this method should not be used to check that case.
-  // Returns true if the transaction state epoch is the specified producer epoch + 1 and epoch bump on every transaction is expected.
-  private def endTxnEpochBumped(txnMetadata: TransactionMetadata, producerEpoch: Short): Boolean = {
-    !txnMetadata.pendingState.contains(PrepareEpochFence) && txnMetadata.producerEpoch == producerEpoch + 1
   }
 
   def transactionTopicConfigs: Properties = txnManager.transactionTopicConfigs
