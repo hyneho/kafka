@@ -374,7 +374,7 @@ public class SharePartition {
         CompletableFuture<Void> future = new CompletableFuture<>();
         AtomicReference<Optional<Throwable>> futureException = new AtomicReference<>(Optional.empty());
         // Check if the share partition is already initialized.
-        InitializationResult initializationResult = maybeCompleteInitialization();
+        InitializationResult initializationResult = checkInitializationCompletion();
         if (initializationResult.isComplete()) {
             if (initializationResult.throwable() != null) {
                 future.completeExceptionally(initializationResult.throwable());
@@ -390,12 +390,10 @@ public class SharePartition {
         boolean shouldFutureBeCompleted = false;
         try {
             // Re-check the state to verify if previous requests has already initialized the share partition.
-            initializationResult = maybeCompleteInitialization();
+            initializationResult = checkInitializationCompletion();
             if (initializationResult.isComplete()) {
                 if (initializationResult.throwable() != null) {
                     futureException.set(Optional.of(initializationResult.throwable()));
-                } else {
-                    futureException.set(Optional.empty());
                 }
                 shouldFutureBeCompleted = true;
                 return future;
@@ -1185,7 +1183,7 @@ public class SharePartition {
         }
     }
 
-    private InitializationResult maybeCompleteInitialization() {
+    private InitializationResult checkInitializationCompletion() {
         SharePartitionState currentState = partitionState();
         switch (currentState) {
             case ACTIVE:
