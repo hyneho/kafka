@@ -16,10 +16,50 @@ import java.util.stream.Collectors;
 
 public class PluginVersionUtils {
 
-    private static Plugins plugins = null;
+    private final Plugins plugins;
+    private final ConverterPluginRecommender converterPluginRecommender;
+    private final ConnectorPluginVersionRecommender connectorPluginVersionRecommender;
+    private final HeaderConverterPluginRecommender headerConverterPluginRecommender;
+    private final KeyConverterPluginVersionRecommender keyConverterPluginVersionRecommender;
+    private final ValueConverterPluginVersionRecommender valueConverterPluginVersionRecommender;
+    private final HeaderConverterPluginVersionRecommender headerConverterPluginVersionRecommender;
 
-    public static void setPlugins(Plugins plugins) {
-        PluginVersionUtils.plugins = plugins;
+    public PluginVersionUtils() {
+        this(null);
+    }
+
+    public PluginVersionUtils(Plugins plugins) {
+        this.plugins = plugins;
+        this.converterPluginRecommender = new ConverterPluginRecommender();
+        this.connectorPluginVersionRecommender = new ConnectorPluginVersionRecommender();
+        this.headerConverterPluginRecommender = new HeaderConverterPluginRecommender();
+        this.keyConverterPluginVersionRecommender = new KeyConverterPluginVersionRecommender();
+        this.valueConverterPluginVersionRecommender = new ValueConverterPluginVersionRecommender();
+        this.headerConverterPluginVersionRecommender = new HeaderConverterPluginVersionRecommender();
+    }
+
+    public ConverterPluginRecommender converterPluginRecommender() {
+        return converterPluginRecommender;
+    }
+
+    public ConnectorPluginVersionRecommender connectorPluginVersionRecommender() {
+        return connectorPluginVersionRecommender;
+    }
+
+    public HeaderConverterPluginRecommender headerConverterPluginRecommender() {
+        return headerConverterPluginRecommender;
+    }
+
+    public KeyConverterPluginVersionRecommender keyConverterPluginVersionRecommender() {
+        return keyConverterPluginVersionRecommender;
+    }
+
+    public ValueConverterPluginVersionRecommender valueConverterPluginVersionRecommender() {
+        return valueConverterPluginVersionRecommender;
+    }
+
+    public HeaderConverterPluginVersionRecommender headerConverterPluginVersionRecommender() {
+        return headerConverterPluginVersionRecommender;
     }
 
     public static VersionRange connectorVersionRequirement(String version) throws InvalidVersionSpecificationException {
@@ -53,7 +93,7 @@ public class PluginVersionUtils {
 
     }
 
-    public static class ConnectorPluginVersionRecommender implements ConfigDef.Recommender {
+    public class ConnectorPluginVersionRecommender implements ConfigDef.Recommender {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         @Override
@@ -82,7 +122,7 @@ public class PluginVersionUtils {
 
     }
 
-    public static class ConverterPluginRecommender implements ConfigDef.Recommender {
+    public class ConverterPluginRecommender implements ConfigDef.Recommender {
 
         @Override
         public List<Object> validValues(String name, Map<String, Object> parsedConfig) {
@@ -99,7 +139,7 @@ public class PluginVersionUtils {
         }
     }
 
-    public static class HeaderConverterPluginRecommender implements ConfigDef.Recommender {
+    public class HeaderConverterPluginRecommender implements ConfigDef.Recommender {
 
         @Override
         public List<Object> validValues(String name, Map<String, Object> parsedConfig) {
@@ -116,7 +156,7 @@ public class PluginVersionUtils {
         }
     }
 
-    public static abstract class ConverterPluginVersionRecommender implements ConfigDef.Recommender {
+    public abstract class ConverterPluginVersionRecommender implements ConfigDef.Recommender {
 
         abstract protected String converterConfig();
 
@@ -145,7 +185,7 @@ public class PluginVersionUtils {
         }
     }
 
-    public static class KeyConverterPluginVersionRecommender
+    public class KeyConverterPluginVersionRecommender
             extends PluginVersionUtils.ConverterPluginVersionRecommender {
 
         @Override
@@ -155,7 +195,7 @@ public class PluginVersionUtils {
 
     }
 
-    public static class ValueConverterPluginVersionRecommender
+    public class ValueConverterPluginVersionRecommender
             extends PluginVersionUtils.ConverterPluginVersionRecommender {
 
         @Override
@@ -164,7 +204,7 @@ public class PluginVersionUtils {
         }
     }
 
-    public static class HeaderConverterPluginVersionRecommender
+    public class HeaderConverterPluginVersionRecommender
             extends PluginVersionUtils.ConverterPluginVersionRecommender {
 
         @Override

@@ -69,6 +69,8 @@ public class WorkerConfig extends AbstractConfig {
     public static final String CLIENT_DNS_LOOKUP_CONFIG = CommonClientConfigs.CLIENT_DNS_LOOKUP_CONFIG;
     public static final String CLIENT_DNS_LOOKUP_DOC = CommonClientConfigs.CLIENT_DNS_LOOKUP_DOC;
 
+    public static final String VERSION_CONFIG_SUFFIX = ".version";
+
     public static final String KEY_CONVERTER_CLASS_CONFIG = "key.converter";
     public static final String KEY_CONVERTER_CLASS_DOC =
             "Converter class used to convert between Kafka Connect format and the serialized form that is written to Kafka." +
@@ -76,7 +78,7 @@ public class WorkerConfig extends AbstractConfig {
                     " independent of connectors it allows any connector to work with any serialization format." +
                     " Examples of common formats include JSON and Avro.";
 
-    public static final String KEY_CONVERTER_VERSION = "key.converter.version";
+    public static final String KEY_CONVERTER_VERSION = "key.converter" + VERSION_CONFIG_SUFFIX;
     public static final String KEY_CONVERTER_VERSION_DEFAULT = null;
     public static final String KEY_CONVERTER_VERSION_DOC = "Version of the key converter.";
 
@@ -87,7 +89,7 @@ public class WorkerConfig extends AbstractConfig {
                     " independent of connectors it allows any connector to work with any serialization format." +
                     " Examples of common formats include JSON and Avro.";
 
-    public static final String VALUE_CONVERTER_VERSION = "value.converter.version";
+    public static final String VALUE_CONVERTER_VERSION = "value.converter" + VERSION_CONFIG_SUFFIX;
     public static final String VALUE_CONVERTER_VERSION_DEFAULT = null;
     public static final String VALUE_CONVERTER_VERSION_DOC = "Version of the value converter.";
 
@@ -100,7 +102,7 @@ public class WorkerConfig extends AbstractConfig {
                     " header values to strings and deserialize them by inferring the schemas.";
     public static final String HEADER_CONVERTER_CLASS_DEFAULT = SimpleHeaderConverter.class.getName();
 
-    public static final String HEADER_CONVERTER_VERSION = "header.converter.version";
+    public static final String HEADER_CONVERTER_VERSION = "header.converter" + VERSION_CONFIG_SUFFIX;
     public static final String HEADER_CONVERTER_VERSION_DEFAULT = null;
     public static final String HEADER_CONVERTER_VERSION_DOC = "Version of the header converter.";
 
