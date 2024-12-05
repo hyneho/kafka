@@ -24,7 +24,12 @@ import org.slf4j.LoggerFactory;
 
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -145,28 +150,29 @@ public class DelegatingClassLoader extends URLClassLoader {
 
         if (range != null) {
 
-            ArtifactVersion version = range.getRecommendedVersion();
+            if (null != range.getRecommendedVersion()) {
+                throw new VersionedPluginLoadingException(String.format("A soft version range is not supported for plugin loading, "
+                        + "this is an internal error as connect should automatically convert soft ranges to hard ranges. "
+                        + "Provided soft version: %s ", range));
+            }
 
-            if (range.hasRestrictions()) {
-                List<ArtifactVersion> versions = loaders.keySet().stream().map(PluginDesc::encodedVersion).collect(Collectors.toList());
-                version = range.matchVersion(versions);
-                if (version == null) {
-                    List<String> availableVersions = loaders.keySet().stream().map(PluginDesc::version).collect(Collectors.toList());
-                    throw new VersionedPluginLoadingException(String.format(
+            ArtifactVersion version = null;
+
+            for (Map.Entry<PluginDesc<?>, ClassLoader> entry : loaders.entrySet()) {
+                // the entries should be in sorted order of versions so this should end up picking the latest version which matches the range
+                if (range.containsVersion(entry.getKey().encodedVersion())) {
+                    version = entry.getKey().encodedVersion();
+                }
+            }
+
+            if (version == null) {
+                List<String> availableVersions = loaders.keySet().stream().map(PluginDesc::version).collect(Collectors.toList());
+                throw new VersionedPluginLoadingException(String.format(
                         "Plugin loader for %s not found that matches the version range %s, available versions: %s",
                         pluginName,
                         range,
                         availableVersions
-                    ), availableVersions);
-                }
-            }
-
-            if (version != null) {
-                for (Map.Entry<PluginDesc<?>, ClassLoader> entry : loaders.entrySet()) {
-                    if (entry.getKey().encodedVersion().equals(version)) {
-                        return entry.getValue();
-                    }
-                }
+                ), availableVersions);
             }
         }
 
@@ -186,14 +192,7 @@ public class DelegatingClassLoader extends URLClassLoader {
 
     @Override
     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        String fullName = aliases.getOrDefault(name, name);
-        PluginClassLoader pluginLoader = pluginClassLoader(fullName);
-        if (pluginLoader != null) {
-            log.trace("Retrieving loaded class '{}' from '{}'", fullName, pluginLoader);
-            return pluginLoader.loadClass(fullName, resolve);
-        }
-
-        return super.loadClass(fullName, resolve);
+        return loadVersionedPluginClass(name, null, resolve);
     }
 
     protected Class<?> loadVersionedPluginClass(
@@ -210,6 +209,9 @@ public class DelegatingClassLoader extends URLClassLoader {
             plugin = pluginLoader.loadClass(fullName, resolve);
         } else {
             plugin = super.loadClass(fullName, resolve);
+            if (range == null) {
+                return plugin;
+            }
             // if we are loading a plugin class from the parent classloader, we need to check if the version
             // matches the range
             String pluginVersion;
@@ -223,7 +225,7 @@ public class DelegatingClassLoader extends URLClassLoader {
                 ), e);
             }
 
-            if (range != null && range.hasRestrictions() && !range.containsVersion(new DefaultArtifactVersion(pluginVersion))) {
+            if (!range.containsVersion(new DefaultArtifactVersion(pluginVersion))) {
                 throw new VersionedPluginLoadingException(String.format(
                         "Plugin %s has version %s which does not match the required version range %s",
                         name,
