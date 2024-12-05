@@ -202,6 +202,8 @@ public class Plugins {
         return pluginClass(delegatingLoader, classOrAlias, Object.class, range);
     }
 
+//    public
+
     public static ClassLoader compareAndSwapLoaders(ClassLoader loader) {
         ClassLoader current = Thread.currentThread().getContextClassLoader();
         if (!current.equals(loader)) {
@@ -350,13 +352,24 @@ public class Plugins {
     }
 
     public Object newPlugin(String classOrAlias) throws ClassNotFoundException {
-        Class<?> klass = pluginClass(delegatingLoader, classOrAlias, Object.class);
-        return newPlugin(klass);
+        return newPlugin(classOrAlias, null);
     }
 
     public Object newPlugin(String classOrAlias, VersionRange range) throws VersionedPluginLoadingException, ClassNotFoundException {
         Class<?> klass = pluginClass(delegatingLoader, classOrAlias, Object.class, range);
         return newPlugin(klass);
+    }
+
+    // this class tries to load the plugin class with the class loader of the current thread, otherwise delegates to the delegating class loader
+    public <T> Object newPlugin(String classOrAlias, Class<T> type, VersionRange range) throws ClassNotFoundException {
+        if (range == null) {
+            try {
+                return Utils.newInstance(classOrAlias, type);
+            } catch (ClassNotFoundException e) {
+                // current classloader could not find the class, use delegating classloader
+            }
+        }
+        return newPlugin(classOrAlias, range);
     }
 
     public Connector newConnector(String connectorClassOrAlias) {
