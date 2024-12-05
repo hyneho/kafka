@@ -1599,6 +1599,25 @@ public class GroupMetadataManager {
         }
     }
 
+
+
+    /**
+     * Throws an InvalidRequestException if the value is null or empty.
+     *
+     * @param value The value.
+     * @param error The error message.
+     * @throws InvalidRequestException
+     */
+    private void throwIfNullOrEmpty(
+            String value,
+            String error
+    ) throws InvalidRequestException {
+        if (value == null || value.trim().isEmpty()) {
+            throw new InvalidRequestException(error);
+        }
+    }
+
+
     /**
      * Validates the request.
      *
@@ -1683,7 +1702,7 @@ public class GroupMetadataManager {
         throwIfEmptyString(request.groupId(), "GroupId can't be empty.");
         throwIfEmptyString(request.instanceId(), "InstanceId can't be empty.");
         throwIfEmptyString(request.rackId(), "RackId can't be empty.");
-        throwIfEmptyString(request.memberId(), "MemberId can't be empty.");
+        throwIfNullOrEmpty(request.memberId(), "MemberId can't be null or empty.");
 
 
         if (request.memberEpoch() == 0) {
@@ -1701,7 +1720,6 @@ public class GroupMetadataManager {
             }
             // TODO: check that active, standby and warmup do not intersect
         } else if (request.memberEpoch() == LEAVE_GROUP_STATIC_MEMBER_EPOCH) {
-            throwIfEmptyString(request.memberId(), "MemberId can't be empty.");
             throwIfNull(request.instanceId(), "InstanceId can't be null.");
         } else if ((request.memberEpoch() <  0) && (request.memberEpoch() != LEAVE_GROUP_MEMBER_EPOCH)) {
             throw new InvalidRequestException("MemberEpoch is invalid.");
