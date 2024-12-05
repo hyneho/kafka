@@ -16,8 +16,14 @@
  */
 package org.apache.kafka.streams.errors;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.streams.processor.api.Record;
+
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * An interface that allows user code to inspect a record that has failed processing
@@ -53,9 +59,38 @@ public interface ProcessingExceptionHandler extends Configurable {
          */
         public final int id;
 
+        /**
+         * a list of Kafka records to publish, e.g. in a Dead Letter Queue topic
+         */
+        private final Queue<ProducerRecord<byte[], byte[]>> deadLetterQueueRecordsQueue;
+
         ProcessingHandlerResponse(final int id, final String name) {
             this.id = id;
             this.name = name;
+            deadLetterQueueRecordsQueue = new ConcurrentLinkedQueue<>();
+        }
+
+
+        public ProcessingExceptionHandler.ProcessingHandlerResponse andAddToDeadLetterQueue(final Iterable<org.apache.kafka.clients.producer.ProducerRecord<byte[], byte[]>> deadLetterQueueRecords) {
+            if (deadLetterQueueRecords == null) {
+                return this;
+            }
+            for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : deadLetterQueueRecords) {
+                this.deadLetterQueueRecordsQueue.add(deadLetterQueueRecord);
+            }
+            return this;
+        }
+
+        public List<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords() {
+            final LinkedList<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords = new LinkedList<>();
+            while (true) {
+                final ProducerRecord<byte[], byte[]> record = this.deadLetterQueueRecordsQueue.poll();
+                if (record == null) {
+                    break;
+                }
+                deadLetterQueueRecords.add(record);
+            }
+            return deadLetterQueueRecords;
         }
     }
 }

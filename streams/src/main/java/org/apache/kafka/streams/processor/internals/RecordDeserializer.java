@@ -17,6 +17,7 @@
 package org.apache.kafka.streams.processor.internals;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.metrics.Sensor;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.common.utils.LogContext;
@@ -28,6 +29,7 @@ import org.apache.kafka.streams.processor.api.ProcessorContext;
 
 import org.slf4j.Logger;
 
+import java.util.List;
 import java.util.Objects;
 
 import static org.apache.kafka.streams.StreamsConfig.DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG;
@@ -113,6 +115,20 @@ public class RecordDeserializer {
                 deserializationException
             );
             throw new StreamsException("Fatal user code error in deserialization error callback", fatalUserException);
+        }
+
+        final List<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords = response.deadLetterQueueRecords();
+        if (!deadLetterQueueRecords.isEmpty()) {
+            final RecordCollector collector = ((RecordCollector.Supplier) processorContext).recordCollector();
+            for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : deadLetterQueueRecords) {
+                collector.send(
+                        deadLetterQueueRecord.key(),
+                        deadLetterQueueRecord.value(),
+                        sourceNodeName,
+                        (InternalProcessorContext) processorContext,
+                        deadLetterQueueRecord
+                );
+            }
         }
 
         if (response == DeserializationHandlerResponse.FAIL) {

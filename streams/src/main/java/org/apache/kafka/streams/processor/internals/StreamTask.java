@@ -20,6 +20,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TimeoutException;
@@ -954,6 +955,19 @@ public class StreamTask extends AbstractTask implements ProcessorNodePunctuator,
                     processingException
                 );
                 throw new FailedProcessingException("Fatal user code error in processing error callback", node.name(), fatalUserException);
+            }
+
+            final List<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords = response.deadLetterQueueRecords();
+            if (!deadLetterQueueRecords.isEmpty()) {
+                final RecordCollector collector = ((RecordCollector.Supplier) processorContext).recordCollector();
+                for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : deadLetterQueueRecords) {
+                    collector.send(
+                            deadLetterQueueRecord.key(),
+                            deadLetterQueueRecord.value(),
+                            node.name(),
+                            processorContext,
+                            deadLetterQueueRecord);
+                }
             }
 
             if (response == ProcessingExceptionHandler.ProcessingHandlerResponse.FAIL) {

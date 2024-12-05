@@ -17,9 +17,15 @@
 package org.apache.kafka.streams.errors;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.streams.errors.internals.DefaultErrorHandlerContext;
 import org.apache.kafka.streams.processor.ProcessorContext;
+
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Interface that specifies how an exception from source node deserialization
@@ -89,10 +95,35 @@ public interface DeserializationExceptionHandler extends Configurable {
          */
         public final int id;
 
+        /** a list of Kafka records to publish, e.g. in a Dead Letter Queue topic */
+        private final Queue<ProducerRecord<byte[], byte[]>> deadLetterQueueRecordsQueue;
+
         DeserializationHandlerResponse(final int id, final String name) {
             this.id = id;
             this.name = name;
+            this.deadLetterQueueRecordsQueue = new ConcurrentLinkedQueue<>();
+        }
+
+        public DeserializationHandlerResponse andAddToDeadLetterQueue(final Iterable<org.apache.kafka.clients.producer.ProducerRecord<byte[], byte[]>> deadLetterQueueRecords) {
+            if (deadLetterQueueRecords == null) {
+                return this;
+            }
+            for (final ProducerRecord<byte[], byte[]> deadLetterQueueRecord : deadLetterQueueRecords) {
+                this.deadLetterQueueRecordsQueue.add(deadLetterQueueRecord);
+            }
+            return this;
+        }
+
+        public List<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords() {
+            final LinkedList<ProducerRecord<byte[], byte[]>> deadLetterQueueRecords = new LinkedList<>();
+            while (true) {
+                final ProducerRecord<byte[], byte[]> record = this.deadLetterQueueRecordsQueue.poll();
+                if (record == null) {
+                    break;
+                }
+                deadLetterQueueRecords.add(record);
+            }
+            return deadLetterQueueRecords;
         }
     }
-
 }
