@@ -20,7 +20,6 @@ import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
 
-import java.io.PrintStream;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -53,29 +52,29 @@ public class PredicateDoc {
         .sorted(Comparator.comparing(docInfo -> docInfo.predicateName))
         .collect(Collectors.toList());
 
-    private static void printPredicateHtml(PrintStream out, DocInfo docInfo) {
-        out.println("<div id=\"" + docInfo.predicateName + "\">");
+    private static void printPredicateHtml(DocInfo docInfo) {
+        System.out.println("<div id=\"" + docInfo.predicateName + "\">");
 
-        out.print("<h5>");
-        out.print("<a href=\"#" + docInfo.predicateName + "\">" + docInfo.predicateName + "</a>");
-        out.println("</h5>");
+        System.out.print("<h5>");
+        System.out.print("<a href=\"#" + docInfo.predicateName + "\">" + docInfo.predicateName + "</a>");
+        System.out.println("</h5>");
 
-        out.println(docInfo.overview);
+        System.out.println(docInfo.overview);
 
-        out.println("<p/>");
+        System.out.println("<p/>");
 
-        out.println(docInfo.configDef.toHtml(6, key -> docInfo.predicateName + "_" + key));
+        System.out.println(docInfo.configDef.toHtml(6, key -> docInfo.predicateName + "_" + key));
 
-        out.println("</div>");
+        System.out.println("</div>");
     }
 
-    private static void printHtml(PrintStream out) {
+    private static void printHtml() {
         for (final DocInfo docInfo : PREDICATES) {
-            printPredicateHtml(out, docInfo);
+            printPredicateHtml(docInfo);
         }
     }
 
     public static void main(String... args) {
-        printHtml(System.out);
+        printHtml();
     }
 }
