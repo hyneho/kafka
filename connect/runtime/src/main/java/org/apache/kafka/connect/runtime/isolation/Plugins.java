@@ -524,7 +524,7 @@ public class Plugins {
     }
 
     private HeaderConverter newHeaderConverter(AbstractConfig config, String classPropertyName, String versionPropertyName, ClassLoaderUsage classLoaderUsage) {
-        if (!config.originals().containsKey(classPropertyName) && classLoaderUsage != ClassLoaderUsage.CURRENT_CLASSLOADER) {
+        if (!config.originals().containsKey(classPropertyName) && classLoaderUsage == ClassLoaderUsage.CURRENT_CLASSLOADER) {
             // This configuration does not define the Header Converter via the specified property name
             return null;
         }
