@@ -299,6 +299,10 @@ public class SharePartitionManager implements AutoCloseable {
             }
         });
 
+        return mapAcknowledgementFutures(futures);
+    }
+
+    private CompletableFuture<Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData>> mapAcknowledgementFutures(Map<TopicIdPartition, CompletableFuture<Errors>> futures) {
         CompletableFuture<Void> allFutures = CompletableFuture.allOf(
             futures.values().toArray(new CompletableFuture[0]));
         return allFutures.thenApply(v -> {
@@ -368,15 +372,7 @@ public class SharePartitionManager implements AutoCloseable {
             }
         });
 
-        CompletableFuture<Void> allFutures = CompletableFuture.allOf(
-            futuresMap.values().toArray(new CompletableFuture[0]));
-        return allFutures.thenApply(v -> {
-            Map<TopicIdPartition, ShareAcknowledgeResponseData.PartitionData> result = new HashMap<>();
-            futuresMap.forEach((topicIdPartition, future) -> result.put(topicIdPartition, new ShareAcknowledgeResponseData.PartitionData()
-                    .setPartitionIndex(topicIdPartition.partition())
-                    .setErrorCode(future.join().code())));
-            return result;
-        });
+        return mapAcknowledgementFutures(futuresMap);
     }
 
     /**
