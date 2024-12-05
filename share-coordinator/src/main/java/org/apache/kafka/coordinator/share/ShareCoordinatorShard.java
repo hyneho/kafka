@@ -290,8 +290,8 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     }
 
     /**
-     * This is a special case method when only the leaderEpoch needs to be updated.
-     * It can happen if a read state call for a share partition has a higher leaderEpoch
+     * Method reads data from the soft state and if needed updates the leader epoch.
+     * It can happen that a read state call for a share partition has a higher leaderEpoch
      * value than seen so far.
      * In case an update is not required, empty record list will be generated along with a success response.
      * @param request - represents ReadShareGroupStateRequestData
