@@ -63,6 +63,11 @@ import static org.apache.kafka.coordinator.group.streams.StreamsGroup.StreamsGro
  */
 public class StreamsGroup implements Group {
 
+    /**
+     * The protocol type for streams groups. There is only one protocol type, "streams".
+     */
+    private static final String PROTOCOL_TYPE = "streams";
+
     public enum StreamsGroupState {
         EMPTY("Empty"),
         NOT_READY("Not Ready"),
@@ -249,7 +254,7 @@ public class StreamsGroup implements Group {
     public ListGroupsResponseData.ListedGroup asListedGroup(long committedOffset) {
         return new ListGroupsResponseData.ListedGroup()
             .setGroupId(groupId)
-            .setProtocolType("streams")
+            .setProtocolType(PROTOCOL_TYPE)
             .setGroupState(state.get(committedOffset).toString())
             .setGroupType(type().toString());
     }
