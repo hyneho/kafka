@@ -36,28 +36,29 @@ class KStreamKTableJoin<K, V1, V2, VOut> implements ProcessorSupplier<K, V1, K, 
     private final boolean leftJoin;
     private final Optional<Duration> gracePeriod;
     private final Optional<String> storeName;
-    private final Optional<StoreBuilder<?>> storeBuilder;
+    private final Set<StoreBuilder<?>> stores;
 
     KStreamKTableJoin(final KTableValueGetterSupplier<K, V2> valueGetterSupplier,
                       final ValueJoinerWithKey<? super K, ? super V1, ? super V2, VOut> joiner,
                       final boolean leftJoin,
                       final Optional<Duration> gracePeriod,
-                      final Optional<StoreBuilder<?>> storeBuilder) {
+                      final Optional<StoreBuilder<?>> bufferStoreBuilder) {
         this.valueGetterSupplier = valueGetterSupplier;
         this.joiner = joiner;
         this.leftJoin = leftJoin;
         this.gracePeriod = gracePeriod;
-        this.storeName = storeBuilder.map(StoreBuilder::name);
-        this.storeBuilder = storeBuilder;
+        this.storeName = bufferStoreBuilder.map(StoreBuilder::name);
+
+        if (bufferStoreBuilder.isPresent()) {
+            this.stores = singleton(bufferStoreBuilder.get());
+        } else {
+            this.stores = null;
+        }
     }
 
     @Override
     public Set<StoreBuilder<?>> stores() {
-        if (storeBuilder.isPresent()) {
-            return singleton(storeBuilder.get());
-        } else {
-            return null;
-        }
+        return stores;
     }
 
     @Override

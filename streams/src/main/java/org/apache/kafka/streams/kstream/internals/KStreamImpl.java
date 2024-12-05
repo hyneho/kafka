@@ -1174,7 +1174,8 @@ public class KStreamImpl<K, V> extends AbstractStream<K, V> implements KStream<K
             joiner,
             leftJoin,
             Optional.ofNullable(joinedInternal.gracePeriod()),
-            bufferStoreBuilder);
+            bufferStoreBuilder
+        );
 
         final ProcessorParameters<K, V, ?, ?> processorParameters = new ProcessorParameters<>(processorSupplier, name);
         final StreamTableJoinNode<K, V> streamTableJoinNode = new StreamTableJoinNode<>(
