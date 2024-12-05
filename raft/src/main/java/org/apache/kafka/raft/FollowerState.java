@@ -46,6 +46,7 @@ public class FollowerState implements EpochState {
     private final Timer updateVoterPeriodTimer;
 
     private final Logger log;
+    private boolean hasFetchedFromLeader;
 
     public FollowerState(
         Time time,
@@ -66,6 +67,7 @@ public class FollowerState implements EpochState {
         this.updateVoterPeriodTimer = time.timer(updateVoterPeriodMs());
         this.highWatermark = highWatermark;
         this.log = logContext.logger(FollowerState.class);
+        this.hasFetchedFromLeader = false;
     }
 
     @Override
@@ -118,9 +120,10 @@ public class FollowerState implements EpochState {
         return fetchTimer.isExpired();
     }
 
-    public void resetFetchTimeout(long currentTimeMs) {
+    public void resetFetchTimeoutForSuccessfulFetch(long currentTimeMs) {
         fetchTimer.update(currentTimeMs);
         fetchTimer.reset(fetchTimeoutMs);
+        hasFetchedFromLeader = true;
     }
 
     public void overrideFetchTimeout(long currentTimeMs, long timeoutMs) {
@@ -202,13 +205,32 @@ public class FollowerState implements EpochState {
     }
 
     @Override
-    public boolean canGrantVote(ReplicaKey candidateKey, boolean isLogUpToDate) {
+    public boolean canGrantVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
         log.debug(
             "Rejecting vote request from candidate ({}) since we already have a leader {} in epoch {}",
-            candidateKey,
+            replicaKey,
             leaderId,
             epoch
         );
+        return false;
+    }
+
+    @Override
+    public boolean canGrantPreVote(ReplicaKey replicaKey, boolean isLogUpToDate) {
+        if (hasFetchedFromLeader) {
+            log.debug(
+                "Rejecting PreVote request from replica ({}) since we already have a leader {} in epoch {}",
+                replicaKey,
+                leaderId,
+                epoch
+            );
+            return false;
+        } else if (!isLogUpToDate) {
+            log.debug(
+                "Rejecting PreVote request from replica ({}) since replica epoch/offset is not up to date with us",
+                replicaKey);
+            return true;
+        }
         return false;
     }
 
