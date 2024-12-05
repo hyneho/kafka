@@ -981,7 +981,7 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
      * @return  The created ConsumerGroup.
      *
      * @throws SchemaException if any member's subscription or assignment cannot be deserialized.
-     * @throws UnsupportedVersionException if the classic group uses a custom assignor.
+     * @throws UnsupportedVersionException if userData from a custom assignor would be lost.
      */
     public static ConsumerGroup fromClassicGroup(
         SnapshotRegistry snapshotRegistry,
@@ -1004,9 +1004,8 @@ public class ConsumerGroup extends ModernGroup<ConsumerGroupMember> {
                 ConsumerProtocolAssignment assignment = ConsumerProtocol.deserializeConsumerProtocolAssignment(
                     ByteBuffer.wrap(classicGroupMember.assignment())
                 );
-                if (assignment.userData() != null &&
-                    assignment.userData().hasRemaining()) {
-                    throw new UnsupportedVersionException("A custom assignor is in use");
+                if (assignment.userData() != null && assignment.userData().hasRemaining()) {
+                    throw new UnsupportedVersionException("userData from a custom assignor would be lost");
                 }
                 assignedPartitions = toTopicPartitionMap(assignment, topicsImage);
             }

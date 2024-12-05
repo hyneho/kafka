@@ -1060,7 +1060,8 @@ public class GroupMetadataManager {
                 " to consumer group: " + e.getMessage() + ".", e);
 
             throw new GroupIdNotFoundException("Cannot upgrade the classic group " + classicGroup.groupId() +
-                " to consumer group because a custom assignor is in use.");
+                " to consumer group because a custom assignor with userData is in use. " +
+                "Switch to a default assignor before re-attempting the upgrade.");
         }
         consumerGroup.createConsumerGroupRecords(records);
 
