@@ -594,14 +594,6 @@ public class Plugins {
         U plugin;
         try (LoaderSwap loaderSwap = withClassLoader(klass.getClassLoader())) {
             plugin = newPlugin(klass);
-            DefaultArtifactVersion pluginVersion = new DefaultArtifactVersion(PluginScanner.versionFor(plugin));
-            if (range != null && range.hasRestrictions() && !range.containsVersion(pluginVersion)) {
-                // this can happen if the current class loader is used
-                // if there are version restrictions then this should be captured, and we should load using the plugin class loader
-                if (classLoaderUsage == ClassLoaderUsage.CURRENT_CLASSLOADER) {
-                    return newVersionedPlugin(config, classPropertyName, versionPropertyName, basePluginClass, ClassLoaderUsage.PLUGINS, availablePlugins);
-                }
-            }
         }
         return plugin;
     }
