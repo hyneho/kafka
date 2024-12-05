@@ -1628,6 +1628,10 @@ public class GroupMetadataManagerTestContext {
         snapshotRegistry.idempotentCreateSnapshot(lastWrittenOffset);
     }
 
+    void onLoaded() {
+        groupMetadataManager.onLoaded();
+    }
+
     void onUnloaded() {
         groupMetadataManager.onUnloaded();
     }
