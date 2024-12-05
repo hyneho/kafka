@@ -578,7 +578,7 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
                 .type(Integer.class)
                 .metavar("TIMEOUT_MS")
                 .dest("sessionTimeout")
-                .help("Set the consumer's session timeout");
+                .help("Set the consumer's session timeout, note that session timeout cannot be set when group protocol is consumer");
 
         parser.addArgument("--verbose")
                 .action(storeTrue())
@@ -664,7 +664,11 @@ public class VerifiableConsumer implements Closeable, OffsetCommitCallback, Cons
 
         consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, useAutoCommit);
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, res.getString("resetPolicy"));
-        consumerProps.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, Integer.toString(res.getInt("sessionTimeout")));
+
+        // session.timeout.ms cannot be set when group.protocol=CONSUMER
+        if (!groupProtocol.equalsIgnoreCase(GroupProtocol.CONSUMER.name)) {
+            consumerProps.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, Integer.toString(res.getInt("sessionTimeout")));
+        }
 
         StringDeserializer deserializer = new StringDeserializer();
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerProps, deserializer, deserializer);
