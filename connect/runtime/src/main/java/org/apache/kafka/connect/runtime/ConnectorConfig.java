@@ -567,7 +567,7 @@ public class ConnectorConfig extends AbstractConfig {
 
     private static <T> String fetchPluginVersion(Plugins plugins, String connectorClass, String connectorVersion, String pluginName, Class<T> pluginClass) {
         try {
-            VersionRange range = VersionRange.createFromVersionSpec(connectorVersion);
+            VersionRange range = PluginVersionUtils.connectorVersionRequirement(connectorVersion);
             ClassLoader connectorLoader = plugins.connectorLoader(connectorClass, range);
             try(LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
                 // this will load using the connector classloader, and then delegate to delegating classloader if not found

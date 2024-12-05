@@ -1003,8 +1003,13 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         }
 
         if (required != null) {
-            final VersionRange requiredVersionRange = VersionRange.createFromVersion(required.toString());
-            connectors.computeIfAbsent(required, k -> plugins().newConnector(connClass, requiredVersionRange));
+            try {
+                final VersionRange requiredVersionRange = PluginVersionUtils.connectorVersionRequirement(required.toString());
+                connectors.computeIfAbsent(required, k -> plugins().newConnector(connClass, requiredVersionRange));
+            } catch (InvalidVersionSpecificationException e) {
+                // this should not happen as the versions here are specified in the connectors and should already be
+                // validated during plugin loading
+            }
         } else {
             // since the connectors map already contains all the possible version, if no version match is found
             // we should throw an exception. To keep things consistent the error we get should be the same as
