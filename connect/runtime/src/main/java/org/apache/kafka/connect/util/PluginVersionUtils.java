@@ -29,12 +29,13 @@ public class PluginVersionUtils {
         version = version.trim();
 
         // check first if the given version is valid
-        VersionRange.createFromVersionSpec(version);
+        VersionRange range = VersionRange.createFromVersionSpec(version);
 
-        // now if the version is not enclosed we consider it as a hard requirement and enclose it in []
-        if (!version.startsWith("[") && !version.startsWith("(")) {
-            version = "[" + version + "]";
+        if (range.hasRestrictions()) {
+            return range;
         }
+        // now if the version is not enclosed we consider it as a hard requirement and enclose it in []
+        version = "[" + version + "]";
         return VersionRange.createFromVersionSpec(version);
     }
 
