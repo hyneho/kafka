@@ -636,7 +636,7 @@ class ShareCoordinatorServiceTest {
         assertEquals(Topic.SHARE_GROUP_STATE_TOPIC_NAME, tp.topic());
         int expectedPartition = tp.partition();
 
-        // The presence of a topic name should not affect the choice of partition
+        // The presence of a topic name should not affect the choice of partition.
         tp = service.topicPartitionFor(new SharePartitionKey(groupId, new TopicIdPartition(topicId, partition, "whatever")));
         assertEquals(Topic.SHARE_GROUP_STATE_TOPIC_NAME, tp.topic());
         assertEquals(expectedPartition, tp.partition());
@@ -657,7 +657,7 @@ class ShareCoordinatorServiceTest {
         Uuid topicId = Uuid.randomUuid();
         int partition = 0;
 
-        // inactive shard should throw exception
+        // Inactive shard should throw exception.
         assertThrows(CoordinatorNotAvailableException.class, () -> service.partitionFor(SharePartitionKey.getInstance(groupId, topicId, partition)));
 
         final int numPartitions = 1;
@@ -666,11 +666,11 @@ class ShareCoordinatorServiceTest {
         final SharePartitionKey key1 = SharePartitionKey.getInstance(groupId, new TopicIdPartition(topicId, partition, null));
         assertEquals(Utils.abs(key1.asCoordinatorKey().hashCode()) % numPartitions, service.partitionFor(key1));
 
-        // The presence of a topic name should not affect the choice of partition
+        // The presence of a topic name should not affect the choice of partition.
         final SharePartitionKey key2 = new SharePartitionKey(groupId, new TopicIdPartition(topicId, partition, "whatever"));
         assertEquals(Utils.abs(key2.asCoordinatorKey().hashCode()) % numPartitions, service.partitionFor(key2));
 
-        // asCoordinatorKey does not discriminate on topic name
+        // asCoordinatorKey does not discriminate on topic name.
         assertEquals(key1.asCoordinatorKey(), key2.asCoordinatorKey());
     }
 }

@@ -201,7 +201,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 handleShareUpdate((ShareUpdateKey) key.message(), (ShareUpdateValue) messageOrNull(value));
                 break;
             default:
-                // noop
+                // Noop
         }
     }
 
@@ -225,11 +225,11 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         SharePartitionKey mapKey = SharePartitionKey.getInstance(key.groupId(), key.topicId(), key.partition());
         maybeUpdateLeaderEpochMap(mapKey, value.leaderEpoch());
 
-        // share update does not hold state epoch information.
+        // Share update does not hold state epoch information.
 
         ShareGroupOffset offsetRecord = ShareGroupOffset.fromRecord(value);
-        // this is an incremental snapshot
-        // so, we need to apply it to our current soft state
+        // This is an incremental snapshot,
+        // so we need to apply it to our current soft state.
         shareStateMap.compute(mapKey, (k, v) -> v == null ? offsetRecord : merge(v, value));
         snapshotUpdateCount.compute(mapKey, (k, v) -> v == null ? 0 : v + 1);
     }
@@ -268,8 +268,8 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     public CoordinatorResult<WriteShareGroupStateResponseData, CoordinatorRecord> writeState(
         WriteShareGroupStateRequestData request
     ) {
-        // records to write (with both key and value of snapshot type), response to caller
-        // only one key will be there in the request by design
+        // Records to write (with both key and value of snapshot type), response to caller
+        // only one key will be there in the request by design.
         metricsShard.record(ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_SENSOR_NAME);
         Optional<CoordinatorResult<WriteShareGroupStateResponseData, CoordinatorRecord>> error = maybeGetWriteStateError(request);
         if (error.isPresent()) {
@@ -307,7 +307,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     public CoordinatorResult<ReadShareGroupStateResponseData, CoordinatorRecord> readStateAndMaybeUpdateLeaderEpoch(
         ReadShareGroupStateRequestData request
     ) {
-        // only one key will be there in the request by design
+        // Only one key will be there in the request by design.
         Optional<ReadShareGroupStateResponseData> error = maybeGetReadStateError(request);
         if (error.isPresent()) {
             return new CoordinatorResult<>(Collections.emptyList(), error.get());
@@ -332,7 +332,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
                 Collections.emptyList()
             );
         } else if (shareStateMap.get(key) == null) {
-            // key present but no state information found
+            // Key present but no state information found.
             responseData = ReadShareGroupStateResponse.toErrorResponseData(
                 topicId,
                 partitionId,
@@ -360,7 +360,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             );
         }
 
-        // optimization in case leaderEpoch update is not required
+        // Optimization in case leaderEpoch update is not required.
         if (leaderEpoch == -1 ||
             (leaderEpochMap.get(key) != null && leaderEpochMap.get(key) == leaderEpoch)) {
             return new CoordinatorResult<>(Collections.emptyList(), responseData);
@@ -369,10 +369,10 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         // It is OK to info log this since this reaching this codepoint should be quite infrequent.
         log.info("Read with leader epoch update call for key {} having new leader epoch {}.", key, leaderEpoch);
 
-        // recording the sensor here as above if condition will not produce any record.
+        // Recording the sensor here as above if condition will not produce any record.
         metricsShard.record(ShareCoordinatorMetrics.SHARE_COORDINATOR_WRITE_SENSOR_NAME);
 
-        // generate record with leaderEpoch info
+        // Generate record with leaderEpoch info.
         WriteShareGroupStateRequestData.PartitionData writePartitionData = new WriteShareGroupStateRequestData.PartitionData()
             .setPartition(partitionId)
             .setLeaderEpoch(leaderEpoch)
@@ -423,14 +423,14 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             return ShareCoordinatorRecordHelpers.newShareSnapshotRecord(
                 key.groupId(), key.topicId(), partitionData.partition(),
                 new ShareGroupOffset.Builder()
-                    .setSnapshotEpoch(currentState.snapshotEpoch() + 1)   // we must increment snapshot epoch as this is new snapshot
+                    .setSnapshotEpoch(currentState.snapshotEpoch() + 1)   // We must increment snapshot epoch as this is new snapshot.
                     .setStartOffset(newStartOffset)
                     .setLeaderEpoch(newLeaderEpoch)
                     .setStateEpoch(newStateEpoch)
                     .setStateBatches(mergeBatches(currentState.stateBatches(), partitionData, newStartOffset))
                     .build());
         } else {
-            ShareGroupOffset currentState = shareStateMap.get(key); // shareStateMap will have the entry as containsKey is true
+            ShareGroupOffset currentState = shareStateMap.get(key); // shareStateMap will have the entry as containsKey is true.
 
             // Share snapshot is present and number of share snapshot update records < snapshotUpdateRecordsPerSnapshot
             // so create a share update record.
@@ -438,7 +438,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             return ShareCoordinatorRecordHelpers.newShareSnapshotUpdateRecord(
                 key.groupId(), key.topicId(), partitionData.partition(),
                 new ShareGroupOffset.Builder()
-                    .setSnapshotEpoch(currentState.snapshotEpoch()) // use same snapshotEpoch as last share snapshot
+                    .setSnapshotEpoch(currentState.snapshotEpoch()) // Use same snapshotEpoch as last share snapshot.
                     .setStartOffset(partitionData.startOffset())
                     .setLeaderEpoch(partitionData.leaderEpoch())
                     .setStateBatches(mergeBatches(Collections.emptyList(), partitionData))
@@ -578,7 +578,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
     }
 
     private static ShareGroupOffset merge(ShareGroupOffset soFar, ShareUpdateValue newData) {
-        // snapshot epoch should be same as last share snapshot
+        // Snapshot epoch should be same as last share snapshot.
         // state epoch is not present
         List<PersisterStateBatch> currentBatches = soFar.stateBatches();
         long newStartOffset = newData.startOffset() == -1 ? soFar.startOffset() : newData.startOffset();
