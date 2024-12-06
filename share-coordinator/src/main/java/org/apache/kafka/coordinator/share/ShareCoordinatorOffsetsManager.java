@@ -41,6 +41,10 @@ public class ShareCoordinatorOffsetsManager {
 
     // Minimum offset representing the smallest necessary offset (non-redundant)
     // across the internal partition.
+    // We are using timeline maps here because the offsets which are passed into
+    // updateState might not be committed yet. In case of retry, these offsets would
+    // be invalidated via the snapshot registry. Hence, using timeline hashmaps
+    // the values would automatically revert in accordance with the last committed offset.
     private final TimelineHashMap<String, Long> minOffset;
     private final TimelineHashMap<String, Long> redundantOffset;
 
@@ -62,7 +66,6 @@ public class ShareCoordinatorOffsetsManager {
      *
      * @param key    - represents {@link SharePartitionKey} whose offset needs updating
      * @param offset - represents the latest partition offset for provided key
-     * @return Optional of last redundant offset, exclusive.
      */
     public void updateState(SharePartitionKey key, long offset) {
         minOffset.compute(MIN_OFFSET, (k, v) -> v == null ? offset : Math.min(v, offset));
@@ -107,6 +110,11 @@ public class ShareCoordinatorOffsetsManager {
         return Optional.of(soFar);
     }
 
+    /**
+     * Most recent last redundant offset. This method is to be used
+     * when the caller wants to query the value of such offset.
+     * @return Optional of type Long representing the offset or empty for invalid offset values
+     */
     public Optional<Long> lastRedundantOffset() {
         Long value = redundantOffset.get(REDUNDANT_OFFSET);
         if (value == null || value <= 0 || value == Long.MAX_VALUE) {
