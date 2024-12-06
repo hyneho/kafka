@@ -37,6 +37,7 @@ import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.coordinator.group.GroupConfig;
 import org.apache.kafka.coordinator.group.GroupConfigManager;
+import org.apache.kafka.coordinator.group.ShareGroupAutoOffsetResetStrategy;
 import org.apache.kafka.server.share.acknowledge.ShareAcknowledgementBatch;
 import org.apache.kafka.server.share.fetch.DelayedShareFetchGroupKey;
 import org.apache.kafka.server.share.fetch.DelayedShareFetchKey;
@@ -2122,14 +2123,14 @@ public class SharePartition {
         if (partitionDataStartOffset != PartitionFactory.UNINITIALIZED_START_OFFSET) {
             return partitionDataStartOffset;
         }
-        GroupConfig.ShareGroupAutoOffsetReset offsetResetStrategy;
+        ShareGroupAutoOffsetResetStrategy offsetResetStrategy;
         if (groupConfigManager.groupConfig(groupId).isPresent()) {
             offsetResetStrategy = groupConfigManager.groupConfig(groupId).get().shareAutoOffsetReset();
         } else {
             offsetResetStrategy = GroupConfig.defaultShareAutoOffsetReset();
         }
 
-        if (offsetResetStrategy == GroupConfig.ShareGroupAutoOffsetReset.EARLIEST)
+        if (offsetResetStrategy == ShareGroupAutoOffsetResetStrategy.EARLIEST)
             return offsetForEarliestTimestamp(topicIdPartition, replicaManager);
         return offsetForLatestTimestamp(topicIdPartition, replicaManager);
     }
