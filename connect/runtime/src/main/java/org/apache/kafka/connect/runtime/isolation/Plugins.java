@@ -36,7 +36,6 @@ import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.predicates.Predicate;
 
 import org.apache.kafka.connect.util.PluginVersionUtils;
-import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
 import org.apache.maven.artifact.versioning.VersionRange;
 import org.slf4j.Logger;
@@ -64,6 +63,7 @@ public class Plugins {
     private static final Logger log = LoggerFactory.getLogger(Plugins.class);
     private final DelegatingClassLoader delegatingLoader;
     private final PluginScanResult scanResult;
+    private PluginsRecommenders recommenders = null;
 
     public Plugins(Map<String, String> props) {
         this(props, Plugins.class.getClassLoader(), new ClassLoaderFactory());
@@ -313,7 +313,7 @@ public class Plugins {
         return scanResult.converters();
     }
 
-    public Set<PluginDesc<Converter>> converters(String converterClassOrAlias) {
+    Set<PluginDesc<Converter>> converters(String converterClassOrAlias) {
         return pluginsOfClass(converterClassOrAlias, scanResult.converters());
     }
 
@@ -321,7 +321,7 @@ public class Plugins {
         return scanResult.headerConverters();
     }
 
-    public Set<PluginDesc<HeaderConverter>> headerConverters(String headerConverterClassOrAlias) {
+    Set<PluginDesc<HeaderConverter>> headerConverters(String headerConverterClassOrAlias) {
         return pluginsOfClass(headerConverterClassOrAlias, scanResult.headerConverters());
     }
 
@@ -329,7 +329,7 @@ public class Plugins {
         return scanResult.transformations();
     }
 
-    public Set<PluginDesc<Transformation<?>>> transformations(String transformationClassOrAlias) {
+    Set<PluginDesc<Transformation<?>>> transformations(String transformationClassOrAlias) {
         return pluginsOfClass(transformationClassOrAlias, scanResult.transformations());
     }
 
@@ -337,7 +337,7 @@ public class Plugins {
         return scanResult.predicates();
     }
 
-    public Set<PluginDesc<Predicate<?>>> predicates(String predicateClassOrAlias) {
+    Set<PluginDesc<Predicate<?>>> predicates(String predicateClassOrAlias) {
         return pluginsOfClass(predicateClassOrAlias, scanResult.predicates());
     }
 
@@ -681,4 +681,10 @@ public class Plugins {
         return plugin;
     }
 
+    public PluginsRecommenders pluginsRecommenders() {
+        if (this.recommenders == null) {
+            this.recommenders = new PluginsRecommenders(this);
+        }
+        return this.recommenders;
+    }
 }
