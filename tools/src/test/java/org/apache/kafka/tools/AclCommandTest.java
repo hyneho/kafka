@@ -14,9 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package kafka.admin;
-
-import kafka.admin.AclCommand.AclCommandOptions;
+package org.apache.kafka.tools;
 
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBindingFilter;
@@ -44,10 +42,8 @@ import org.apache.log4j.Level;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,9 +58,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import javax.management.InstanceAlreadyExistsException;
-
-import scala.Console;
-import scala.jdk.javaapi.CollectionConverters;
 
 import static org.apache.kafka.common.acl.AccessControlEntryFilter.ANY;
 import static org.apache.kafka.common.acl.AclOperation.ALTER;
@@ -151,7 +144,7 @@ public class AclCommandTest {
             new ResourcePattern(USER, "User:test-user2", LITERAL)
     ));
 
-    private static final Map<Set<ResourcePattern>, List<String>> RESOURCE_TO_COMMAND = new HashMap<Set<ResourcePattern>, List<String>>() {{
+    private static final Map<Set<ResourcePattern>, List<String>> RESOURCE_TO_COMMAND = new HashMap<>() {{
             put(TOPIC_RESOURCES, Arrays.asList(TOPIC, "test-1", TOPIC, "test-2"));
             put(Collections.singleton(CLUSTER_RESOURCE), Collections.singletonList("--cluster"));
             put(GROUP_RESOURCES, Arrays.asList(GROUP, "testGroup-1", GROUP, "testGroup-2"));
@@ -161,7 +154,7 @@ public class AclCommandTest {
         }};
 
     private static final Map<Set<ResourcePattern>, Map.Entry<Set<AclOperation>, List<String>>> RESOURCE_TO_OPERATIONS =
-            new HashMap<Set<ResourcePattern>, Map.Entry<Set<AclOperation>, List<String>>>() {{
+            new HashMap<>() {{
                 put(TOPIC_RESOURCES, new SimpleImmutableEntry<>(
                         new HashSet<>(Arrays.asList(READ, WRITE, CREATE, DESCRIBE, DELETE, DESCRIBE_CONFIGS, ALTER_CONFIGS, ALTER)),
                         Arrays.asList(OPERATION, "Read", OPERATION, "Write", OPERATION, "Create",
@@ -189,15 +182,13 @@ public class AclCommandTest {
             }};
 
     private static final Map<Set<ResourcePattern>, Set<AccessControlEntry>> CONSUMER_RESOURCE_TO_ACLS =
-            new HashMap<Set<ResourcePattern>, Set<AccessControlEntry>>() {{
-                put(TOPIC_RESOURCES, asJavaSet(AclCommand.getAcls(asScalaSet(USERS), ALLOW,
-                        asScalaSet(new HashSet<>(Arrays.asList(READ, DESCRIBE))), asScalaSet(HOSTS))));
-                put(GROUP_RESOURCES, asJavaSet(AclCommand.getAcls(asScalaSet(USERS), ALLOW,
-                        asScalaSet(Collections.singleton(READ)), asScalaSet(HOSTS))));
+            new HashMap<>() {{
+                put(TOPIC_RESOURCES, AclCommand.getAcls(USERS, ALLOW, new HashSet<>(Arrays.asList(READ, DESCRIBE)), HOSTS));
+                put(GROUP_RESOURCES, AclCommand.getAcls(USERS, ALLOW, Collections.singleton(READ), HOSTS));
             }};
 
     private static final Map<List<String>, Map<Set<ResourcePattern>, Set<AccessControlEntry>>> CMD_TO_RESOURCES_TO_ACL =
-            new HashMap<List<String>, Map<Set<ResourcePattern>, Set<AccessControlEntry>>>() {{
+            new HashMap<>() {{
                 put(Collections.singletonList(PRODUCER), producerResourceToAcls(false));
                 put(Arrays.asList(PRODUCER, IDEMPOTENT), producerResourceToAcls(true));
                 put(Collections.singletonList(CONSUMER), CONSUMER_RESOURCE_TO_ACLS);
@@ -303,7 +294,7 @@ public class AclCommandTest {
     @Test
     public void testUseWithoutBootstrapServerOptAndBootstrapControllerOpt() {
         assertInitializeInvalidOptionsExitCodeAndMsg(
-                Collections.emptyList(),
+                Collections.singletonList(ADD),
                 "One of --bootstrap-server or --bootstrap-controller must be specified"
         );
     }
@@ -355,7 +346,7 @@ public class AclCommandTest {
                 "Option \"[list]\" can't be used with option \"[producer]\""
         );
         assertInitializeInvalidOptionsExitCodeAndMsg(
-                Arrays.asList(BOOTSTRAP_SERVER, LOCALHOST, ADD, PRODUCER, OPERATION),
+                Arrays.asList(BOOTSTRAP_SERVER, LOCALHOST, ADD, PRODUCER, OPERATION, "all"),
                 "Option \"[producer]\" can't be used with option \"[operation]\""
         );
         assertInitializeInvalidOptionsExitCodeAndMsg(
@@ -422,14 +413,12 @@ public class AclCommandTest {
 
     private static Map<Set<ResourcePattern>, Set<AccessControlEntry>> producerResourceToAcls(boolean enableIdempotence) {
         Map<Set<ResourcePattern>, Set<AccessControlEntry>> result = new HashMap<>();
-        result.put(TOPIC_RESOURCES, asJavaSet(AclCommand.getAcls(asScalaSet(USERS), ALLOW, asScalaSet(
-                new HashSet<>(Arrays.asList(WRITE, DESCRIBE, CREATE))), asScalaSet(HOSTS))));
-        result.put(TRANSACTIONAL_ID_RESOURCES, asJavaSet(AclCommand.getAcls(asScalaSet(USERS), ALLOW, asScalaSet(
-                new HashSet<>(Arrays.asList(WRITE, DESCRIBE))), asScalaSet(HOSTS))));
-        result.put(Collections.singleton(CLUSTER_RESOURCE), asJavaSet(AclCommand.getAcls(asScalaSet(USERS), ALLOW,
+        result.put(TOPIC_RESOURCES, AclCommand.getAcls(USERS, ALLOW, new HashSet<>(Arrays.asList(WRITE, DESCRIBE, CREATE)), HOSTS));
+        result.put(TRANSACTIONAL_ID_RESOURCES, AclCommand.getAcls(USERS, ALLOW, new HashSet<>(Arrays.asList(WRITE, DESCRIBE)), HOSTS));
+        result.put(Collections.singleton(CLUSTER_RESOURCE), AclCommand.getAcls(USERS, ALLOW,
                 enableIdempotence
-                        ? asScalaSet(Collections.singleton(IDEMPOTENT_WRITE))
-                        : asScalaSet(Collections.emptySet()), asScalaSet(HOSTS))));
+                        ? Collections.singleton(IDEMPOTENT_WRITE)
+                        : Collections.emptySet(), HOSTS));
         return result;
     }
 
@@ -446,7 +435,7 @@ public class AclCommandTest {
     }
 
     private Map.Entry<String, String> callMain(List<String> args) {
-        return grabConsoleOutputAndError(() -> AclCommand.main(args.toArray(new String[0])));
+        return ToolsTestUtils.grabConsoleOutputAndError(() -> AclCommand.main(args.toArray(new String[0])));
     }
 
     private void testAclCli(ClusterInstance cluster, List<String> cmdArgs) throws InterruptedException {
@@ -509,7 +498,7 @@ public class AclCommandTest {
 
     private void testPatternTypes(List<String> cmdArgs) {
         Exit.setExitProcedure((status, message) -> {
-            if ((int) status == 1)
+            if (status == 1)
                 throw new RuntimeException("Exiting command");
             else
                 throw new AssertionError("Unexpected exit with status " + status);
@@ -535,10 +524,11 @@ public class AclCommandTest {
     }
 
     private void verifyPatternType(List<String> cmd, boolean isValid) {
-        if (isValid)
+        if (isValid) {
             callMain(cmd);
-        else
+        } else {
             assertThrows(RuntimeException.class, () -> callMain(cmd));
+        }
     }
 
     private void testRemove(
@@ -563,7 +553,7 @@ public class AclCommandTest {
             Set<AclOperation> operations
     ) {
         return new SimpleImmutableEntry<>(
-                asJavaSet(AclCommand.getAcls(asScalaSet(USERS), permissionType, asScalaSet(operations), asScalaSet(HOSTS))),
+                AclCommand.getAcls(USERS, permissionType, operations, HOSTS),
                 getCmd(permissionType)
         );
     }
@@ -581,38 +571,6 @@ public class AclCommandTest {
         return fullCmd;
     }
 
-    /**
-     * Capture both the console output and console error during the execution of the provided function.
-     */
-    private static Map.Entry<String, String> grabConsoleOutputAndError(Runnable runnable) {
-        ByteArrayOutputStream outBuf = new ByteArrayOutputStream();
-        ByteArrayOutputStream errBuf = new ByteArrayOutputStream();
-        PrintStream out = new PrintStream(outBuf);
-        PrintStream err = new PrintStream(errBuf);
-        try {
-            Console.withOut(out, () -> {
-                Console.withErr(err, () -> {
-                    runnable.run();
-                    return null;
-                });
-                return null;
-            });
-        } finally {
-            out.flush();
-            err.flush();
-        }
-
-        return new SimpleImmutableEntry<>(outBuf.toString(), errBuf.toString());
-    }
-
-    private static <T> scala.collection.immutable.Set<T> asScalaSet(Set<T> javaSet) {
-        return CollectionConverters.asScala(javaSet).toSet();
-    }
-
-    private static <T> Set<T> asJavaSet(scala.collection.immutable.Set<T> scalaSet) {
-        return CollectionConverters.asJava(scalaSet);
-    }
-
     private void assertInitializeInvalidOptionsExitCodeAndMsg(List<String> args, String expectedMsg) {
         Exit.setExitProcedure((exitCode, message) -> {
             assertEquals(1, exitCode);
@@ -620,7 +578,7 @@ public class AclCommandTest {
             throw new RuntimeException();
         });
         try {
-            assertThrows(RuntimeException.class, () -> new AclCommandOptions(args.toArray(new String[0])).checkArgs());
+            assertThrows(RuntimeException.class, () -> new AclCommand.AclCommandOptions(args.toArray(new String[0])).checkArgs());
         } finally {
             Exit.resetExitProcedure();
         }
@@ -633,7 +591,7 @@ public class AclCommandTest {
             throw new RuntimeException();
         });
         try {
-            assertDoesNotThrow(() -> new AclCommandOptions(args.toArray(new String[0])).checkArgs());
+            assertDoesNotThrow(() -> new AclCommand.AclCommandOptions(args.toArray(new String[0])).checkArgs());
             assertNull(exitStatus.get());
         } finally {
             org.apache.kafka.common.utils.Exit.resetExitProcedure();
