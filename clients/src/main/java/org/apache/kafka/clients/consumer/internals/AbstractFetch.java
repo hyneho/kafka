@@ -72,7 +72,7 @@ public abstract class AbstractFetch implements Closeable {
     protected final BufferSupplier decompressionBufferSupplier;
     protected final Set<Integer> nodesWithPendingFetchRequests;
 
-    private final Map<Integer, FetchSessionHandler> sessionHandlers;
+    protected final Map<Integer, FetchSessionHandler> sessionHandlers;
 
     private final ApiVersions apiVersions;
 
@@ -322,7 +322,7 @@ public abstract class AbstractFetch implements Closeable {
      *
      * @return {@link Set} of {@link TopicPartition topic partitions} for which we should fetch data
      */
-    private Set<TopicPartition> fetchablePartitions() {
+    protected Set<TopicPartition> fetchablePartitions() {
         // This is the set of partitions we have in our buffer
         Set<TopicPartition> buffered = fetchBuffer.bufferedPartitions();
 
