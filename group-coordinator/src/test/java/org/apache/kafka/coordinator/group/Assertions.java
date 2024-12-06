@@ -37,7 +37,6 @@ import org.opentest4j.AssertionFailedError;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -64,13 +63,6 @@ public class Assertions {
         ConsumerGroupTargetAssignmentMemberValue.class, Assertions::assertConsumerGroupTargetAssignmentMemberValue,
         ShareGroupPartitionMetadataValue.class, Assertions::assertShareGroupPartitionMetadataValue
     );
-
-    public static <T> void assertUnorderedListEquals(
-        List<T> expected,
-        List<T> actual
-    ) {
-        assertEquals(new HashSet<>(expected), new HashSet<>(actual));
-    }
 
     public static void assertResponseEquals(
         ApiMessage expected,
