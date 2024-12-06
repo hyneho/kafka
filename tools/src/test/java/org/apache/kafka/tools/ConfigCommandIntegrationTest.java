@@ -330,7 +330,7 @@ public class ConfigCommandIntegrationTest {
                             Stream.of("--bootstrap-server", cluster.bootstrapServers()),
                             Stream.of(entityOp(brokerIdOrDefault).toArray(new String[0]))),
                     Stream.of("--entity-type", "brokers", "--describe"));
-            String describeResult = captureStandardStream(false, run(describeCommand));
+            String describeResult = captureStandardOut(run(describeCommand));
 
             // We will treat unknown config as sensitive
             assertTrue(describeResult.contains("sensitive=true"), describeResult);
