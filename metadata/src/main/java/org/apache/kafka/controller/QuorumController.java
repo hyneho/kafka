@@ -207,6 +207,7 @@ public final class QuorumController implements Controller {
         private OptionalLong leaderImbalanceCheckIntervalNs = OptionalLong.empty();
         private OptionalLong maxIdleIntervalNs = OptionalLong.empty();
         private long sessionTimeoutNs = ClusterControlManager.DEFAULT_SESSION_TIMEOUT_NS;
+        private OptionalLong fenceStaleBrokerIntervalNs = OptionalLong.empty();
         private QuorumControllerMetrics controllerMetrics = null;
         private Optional<CreateTopicPolicy> createTopicPolicy = Optional.empty();
         private Optional<AlterConfigPolicy> alterConfigPolicy = Optional.empty();
@@ -214,7 +215,6 @@ public final class QuorumController implements Controller {
         private Map<String, Object> staticConfig = Collections.emptyMap();
         private BootstrapMetadata bootstrapMetadata = null;
         private int maxRecordsPerBatch = MAX_RECORDS_PER_BATCH;
-        private boolean eligibleLeaderReplicasEnabled = false;
         private DelegationTokenCache tokenCache;
         private String tokenSecretKeyString;
         private long delegationTokenMaxLifeMs;
@@ -302,6 +302,11 @@ public final class QuorumController implements Controller {
             return this;
         }
 
+        public Builder setFenceStaleBrokerIntervalNs(long fenceStaleBrokerIntervalNs) {
+            this.fenceStaleBrokerIntervalNs = OptionalLong.of(fenceStaleBrokerIntervalNs);
+            return this;
+        }
+
         public Builder setMetrics(QuorumControllerMetrics controllerMetrics) {
             this.controllerMetrics = controllerMetrics;
             return this;
@@ -334,11 +339,6 @@ public final class QuorumController implements Controller {
 
         public Builder setStaticConfig(Map<String, Object> staticConfig) {
             this.staticConfig = staticConfig;
-            return this;
-        }
-
-        public Builder setEligibleLeaderReplicasEnabled(boolean eligibleLeaderReplicasEnabled) {
-            this.eligibleLeaderReplicasEnabled = eligibleLeaderReplicasEnabled;
             return this;
         }
 
@@ -420,6 +420,7 @@ public final class QuorumController implements Controller {
                     leaderImbalanceCheckIntervalNs,
                     maxIdleIntervalNs,
                     sessionTimeoutNs,
+                    fenceStaleBrokerIntervalNs,
                     controllerMetrics,
                     createTopicPolicy,
                     alterConfigPolicy,
@@ -432,7 +433,6 @@ public final class QuorumController implements Controller {
                     delegationTokenMaxLifeMs,
                     delegationTokenExpiryTimeMs,
                     delegationTokenExpiryCheckIntervalMs,
-                    eligibleLeaderReplicasEnabled,
                     uncleanLeaderElectionCheckIntervalMs,
                     interBrokerListenerName
                 );
@@ -1432,35 +1432,9 @@ public final class QuorumController implements Controller {
     private volatile int curClaimEpoch;
 
     /**
-     * How long to delay partition leader balancing operations.
-     */
-    private final OptionalLong leaderImbalanceCheckIntervalNs;
-
-    private enum ImbalanceSchedule {
-        // The leader balancing operation has been scheduled
-        SCHEDULED,
-        // If the leader balancing operation should be scheduled, schedule it with a delay
-        DEFERRED,
-        // If the leader balancing operation should be scheduled, schedule it immediately
-        IMMEDIATELY
-    }
-
-    /**
-     * Tracks the scheduling state for partition leader balancing operations.
-     */
-    private final ImbalanceSchedule imbalancedScheduled = ImbalanceSchedule.DEFERRED;
-
-    /**
-     * Tracks the scheduling state for unclean leader election operations.
-     */
-    private final ImbalanceSchedule uncleanScheduled = ImbalanceSchedule.DEFERRED;
-
-    /**
      * The bootstrap metadata to use for initialization if needed.
      */
     private final BootstrapMetadata bootstrapMetadata;
-
-    private final boolean eligibleLeaderReplicasEnabled;
 
     /**
      * The maximum number of records per batch to allow.
@@ -1489,6 +1463,7 @@ public final class QuorumController implements Controller {
         OptionalLong leaderImbalanceCheckIntervalNs,
         OptionalLong maxIdleIntervalNs,
         long sessionTimeoutNs,
+        OptionalLong fenceStaleBrokerIntervalNs,
         QuorumControllerMetrics controllerMetrics,
         Optional<CreateTopicPolicy> createTopicPolicy,
         Optional<AlterConfigPolicy> alterConfigPolicy,
@@ -1501,7 +1476,6 @@ public final class QuorumController implements Controller {
         long delegationTokenMaxLifeMs,
         long delegationTokenExpiryTimeMs,
         long delegationTokenExpiryCheckIntervalMs,
-        boolean eligibleLeaderReplicasEnabled,
         long uncleanLeaderElectionCheckIntervalMs,
         String interBrokerListenerName
     ) {
@@ -1515,12 +1489,6 @@ public final class QuorumController implements Controller {
         this.controllerMetrics = controllerMetrics;
         this.snapshotRegistry = new SnapshotRegistry(logContext);
         this.deferredEventQueue = new DeferredEventQueue(logContext);
-        this.offsetControl = new OffsetControlManager.Builder().
-            setLogContext(logContext).
-            setSnapshotRegistry(snapshotRegistry).
-            setMetrics(controllerMetrics).
-            setTime(time).
-            build();
         this.resourceExists = new ConfigResourceExistenceChecker();
         this.configurationControl = new ConfigurationControlManager.Builder().
             setLogContext(logContext).
@@ -1571,13 +1539,11 @@ public final class QuorumController implements Controller {
             setSnapshotRegistry(snapshotRegistry).
             setClusterControlManager(clusterControl).
             build();
-        this.leaderImbalanceCheckIntervalNs = leaderImbalanceCheckIntervalNs;
         this.replicationControl = new ReplicationControlManager.Builder().
             setSnapshotRegistry(snapshotRegistry).
             setLogContext(logContext).
             setDefaultReplicationFactor(defaultReplicationFactor).
             setDefaultNumPartitions(defaultNumPartitions).
-            setEligibleLeaderReplicasEnabled(eligibleLeaderReplicasEnabled).
             setMaxElectionsPerImbalance(ReplicationControlManager.MAX_ELECTIONS_PER_IMBALANCE).
             setConfigurationControl(configurationControl).
             setClusterControl(clusterControl).
@@ -1608,20 +1574,29 @@ public final class QuorumController implements Controller {
         this.metaLogListener = new QuorumMetaLogListener();
         this.curClaimEpoch = -1;
         this.recordRedactor = new RecordRedactor(configSchema);
-        this.eligibleLeaderReplicasEnabled = eligibleLeaderReplicasEnabled;
         if (maxIdleIntervalNs.isPresent()) {
             registerWriteNoOpRecord(maxIdleIntervalNs.getAsLong());
         }
-        registerMaybeFenceStaleBroker(sessionTimeoutNs);
+        if (fenceStaleBrokerIntervalNs.isPresent()) {
+            registerMaybeFenceStaleBroker(fenceStaleBrokerIntervalNs.getAsLong());
+        } else {
+            registerMaybeFenceStaleBroker(maybeFenceStaleBrokerPeriodNs(sessionTimeoutNs));
+        }
         if (leaderImbalanceCheckIntervalNs.isPresent()) {
             registerElectPreferred(leaderImbalanceCheckIntervalNs.getAsLong());
         }
         registerElectUnclean(TimeUnit.MILLISECONDS.toNanos(uncleanLeaderElectionCheckIntervalMs));
         registerExpireDelegationTokens(MILLISECONDS.toNanos(delegationTokenExpiryCheckIntervalMs));
 
-        log.info("Creating new QuorumController with clusterId {}.{}",
-            clusterId,
-            eligibleLeaderReplicasEnabled ? " Eligible leader replicas enabled." : "");
+        // OffsetControlManager must be initialized last, because its constructor will take the
+        // initial in-memory snapshot of all extant timeline data structures.
+        this.offsetControl = new OffsetControlManager.Builder().
+            setLogContext(logContext).
+            setSnapshotRegistry(snapshotRegistry).
+            setMetrics(controllerMetrics).
+            setTime(time).
+            build();
+        log.info("Creating new QuorumController with clusterId {}", clusterId);
 
         this.raftClient.register(metaLogListener);
     }
@@ -1667,12 +1642,12 @@ public final class QuorumController implements Controller {
      * This task periodically checks to see if there is a stale broker that needs to
      * be fenced. It will only ever remove one stale broker at a time.
      *
-     * @param sessionTimeoutNs      The broker session timeout in nanoseconds.
+     * @param fenceStaleBrokerIntervalNs The interval to check for stale brokers in nanoseconds
      */
-    private void registerMaybeFenceStaleBroker(long sessionTimeoutNs) {
+    private void registerMaybeFenceStaleBroker(long fenceStaleBrokerIntervalNs) {
         periodicControl.registerTask(new PeriodicTask("maybeFenceStaleBroker",
             replicationControl::maybeFenceOneStaleBroker,
-            maybeFenceStaleBrokerPeriodNs(sessionTimeoutNs),
+            fenceStaleBrokerIntervalNs,
             EnumSet.noneOf(PeriodicTaskFlag.class)));
     }
 

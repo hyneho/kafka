@@ -65,7 +65,7 @@ public class UserScramCredentialsCommandTest {
         }
     }
 
-    private ConfigCommandResult runConfigCommandViaBroker(String...args) {
+    private ConfigCommandResult runConfigCommandViaBroker(String... args) {
         AtomicReference<OptionalInt> exitStatus = new AtomicReference<>(OptionalInt.empty());
         Exit.setExitProcedure((status, __) -> {
             exitStatus.set(OptionalInt.of(status));

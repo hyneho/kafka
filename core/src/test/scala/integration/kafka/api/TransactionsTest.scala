@@ -23,6 +23,7 @@ import org.apache.kafka.clients.consumer.{Consumer, ConsumerConfig, ConsumerGrou
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.{InvalidProducerEpochException, ProducerFencedException, TimeoutException}
+import org.apache.kafka.common.test.api.Flaky
 import org.apache.kafka.coordinator.group.GroupCoordinatorConfig
 import org.apache.kafka.coordinator.transaction.{TransactionLogConfig, TransactionStateManagerConfig}
 import org.apache.kafka.server.config.{ReplicationConfigs, ServerConfigs, ServerLogConfigs}
@@ -38,7 +39,6 @@ import java.time.Duration
 import java.util
 import java.util.concurrent.TimeUnit
 import java.util.{Optional, Properties}
-import scala.annotation.nowarn
 import scala.collection.{Seq, mutable}
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent.ExecutionException
@@ -173,6 +173,7 @@ class TransactionsTest extends IntegrationTestHarness {
     }
   }
 
+  @Flaky("KAFKA-18036")
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testReadCommittedConsumerShouldNotSeeUndecidedData(quorum: String, groupProtocol: String): Unit = {
@@ -297,14 +298,6 @@ class TransactionsTest extends IntegrationTestHarness {
     assertEquals("x", new String(second.key))
     assertEquals("2", new String(second.value))
     assertEquals(3L, second.offset)
-  }
-
-  @nowarn("cat=deprecation")
-  @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
-  @MethodSource(Array("getTestQuorumAndGroupProtocolParametersClassicGroupProtocolOnly_KAFKA_17961"))
-  def testSendOffsetsWithGroupId(quorum: String, groupProtocol: String): Unit = {
-    sendOffset((producer, groupId, consumer) =>
-      producer.sendOffsetsToTransaction(TestUtils.consumerPositions(consumer).asJava, groupId))
   }
 
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
@@ -697,6 +690,7 @@ class TransactionsTest extends IntegrationTestHarness {
     assertThrows(classOf[IllegalStateException], () => producer.initTransactions())
   }
 
+  @Flaky("KAFKA-18035,KAFKA-18036")
   @ParameterizedTest
   @CsvSource(Array(
     "kraft,classic,false",
@@ -762,6 +756,7 @@ class TransactionsTest extends IntegrationTestHarness {
     }
   }
 
+  @Flaky("KAFKA-18092")
   @ParameterizedTest
   @CsvSource(Array(
     "kraft, classic, true",
