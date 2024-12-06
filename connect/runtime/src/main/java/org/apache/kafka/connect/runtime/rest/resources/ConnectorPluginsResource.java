@@ -25,9 +25,7 @@ import org.apache.kafka.connect.runtime.rest.entities.ConfigInfos;
 import org.apache.kafka.connect.runtime.rest.entities.ConfigKeyInfo;
 import org.apache.kafka.connect.runtime.rest.entities.PluginInfo;
 import org.apache.kafka.connect.runtime.rest.errors.ConnectRestException;
-import org.apache.kafka.connect.util.FutureCallback;
-import org.apache.kafka.connect.util.Stage;
-import org.apache.kafka.connect.util.StagedTimeoutException;
+import org.apache.kafka.connect.util.*;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -56,6 +54,8 @@ import javax.ws.rs.core.Response;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
 
 @Path("/connector-plugins")
 @Produces(MediaType.APPLICATION_JSON)
@@ -154,9 +154,18 @@ public class ConnectorPluginsResource {
     @GET
     @Path("/{pluginName}/config")
     @Operation(summary = "Get the configuration definition for the specified pluginName")
-    public List<ConfigKeyInfo> getConnectorConfigDef(final @PathParam("pluginName") String pluginName) {
+    public List<ConfigKeyInfo> getConnectorConfigDef(final @PathParam("pluginName") String pluginName,
+                                                     final @QueryParam("version") @DefaultValue("latest") String version) {
+
+        VersionRange range = null;
+        try {
+            range = PluginVersionUtils.connectorVersionRequirement(version);
+        } catch (InvalidVersionSpecificationException e) {
+            throw new BadRequestException("Invalid version specification: " + version);
+        }
+
         synchronized (this) {
-            return herder.connectorPluginConfig(pluginName);
+            return herder.connectorPluginConfig(pluginName, range);
         }
     }
 

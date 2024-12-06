@@ -42,6 +42,8 @@ import org.apache.kafka.connect.runtime.errors.ProcessingContext;
 import org.apache.kafka.connect.runtime.errors.RetryWithToleranceOperator;
 import org.apache.kafka.connect.runtime.errors.Stage;
 import org.apache.kafka.connect.runtime.errors.ToleranceType;
+import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
+import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.apache.kafka.connect.source.SourceTaskContext;
@@ -382,6 +384,11 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
         finalOffsetCommit(false);
     }
 
+    @Override
+    public String taskVersion() {
+        return task.version();
+    }
+
     /**
      * Try to send a batch of records. If a send fails and is retriable, this saves the remainder of the batch so it can
      * be retried after backing off. If a send fails and is not retriable, this will throw a ConnectException.
@@ -485,11 +492,15 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
 
         RecordHeaders headers = retryWithToleranceOperator.execute(context, () -> convertHeaderFor(record), Stage.HEADER_CONVERTER, headerConverter.getClass());
 
-        byte[] key = retryWithToleranceOperator.execute(context, () -> keyConverter.fromConnectData(record.topic(), headers, record.keySchema(), record.key()),
-                Stage.KEY_CONVERTER, keyConverter.getClass());
+        byte[] key = retryWithToleranceOperator.execute(context, () -> {
+            try (LoaderSwap swap = Plugins.swapLoader(keyConverter.getClass().getClassLoader())) {
+                return keyConverter.fromConnectData(record.topic(), headers, record.keySchema(), record.key());
+            }}, Stage.KEY_CONVERTER, keyConverter.getClass());
 
-        byte[] value = retryWithToleranceOperator.execute(context, () -> valueConverter.fromConnectData(record.topic(), headers, record.valueSchema(), record.value()),
-                Stage.VALUE_CONVERTER, valueConverter.getClass());
+        byte[] value = retryWithToleranceOperator.execute(context, () -> {
+            try (LoaderSwap swap = Plugins.swapLoader(valueConverter.getClass().getClassLoader())) {
+                return valueConverter.fromConnectData(record.topic(), headers, record.valueSchema(), record.value());
+            }}, Stage.VALUE_CONVERTER, valueConverter.getClass());
 
         if (context.failed()) {
             return null;
@@ -545,8 +556,11 @@ public abstract class AbstractWorkerSourceTask extends WorkerTask<SourceRecord, 
             String topic = record.topic();
             for (Header header : headers) {
                 String key = header.key();
-                byte[] rawHeader = headerConverter.fromConnectHeader(topic, key, header.schema(), header.value());
-                result.add(key, rawHeader);
+                try (LoaderSwap swap = Plugins.swapLoader(headerConverter.getClass().getClassLoader())) {
+                    byte[] rawHeader = headerConverter.fromConnectHeader(topic, key, header.schema(), header.value());
+                    result.add(key, rawHeader);
+                }
+
             }
         }
         return result;

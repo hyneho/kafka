@@ -139,6 +139,7 @@ public class PluginUtils {
     // regular expression pattern
     private static final Pattern INCLUDE = Pattern.compile("^org\\.apache\\.kafka\\.(?:connect\\.(?:"
             + "transforms\\.(?!Transformation|predicates\\.Predicate$).*"
+            + "|testing\\..*"
             + "|json\\..*"
             + "|file\\..*"
             + "|mirror\\..*"

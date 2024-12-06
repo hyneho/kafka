@@ -31,6 +31,8 @@ import org.apache.kafka.connect.runtime.rest.entities.TaskInfo;
 import org.apache.kafka.connect.storage.StatusBackingStore;
 import org.apache.kafka.connect.util.Callback;
 import org.apache.kafka.connect.util.ConnectorTaskId;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
 
 import java.util.Collection;
 import java.util.List;
@@ -321,6 +323,8 @@ public interface Herder {
      * @return the list of ConfigKeyInfo of the plugin
      */
     List<ConfigKeyInfo> connectorPluginConfig(String pluginName);
+
+    List<ConfigKeyInfo> connectorPluginConfig(String pluginName, VersionRange version);
 
     /**
      * Get the current offsets for a connector.

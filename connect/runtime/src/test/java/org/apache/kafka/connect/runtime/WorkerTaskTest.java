@@ -317,6 +317,11 @@ public class WorkerTaskTest {
         @Override
         protected void close() {
         }
+
+        @Override
+        protected String taskVersion() {
+            return null;
+        }
     }
 
     protected void assertFailedMetric(TaskMetricsGroup metricsGroup) {

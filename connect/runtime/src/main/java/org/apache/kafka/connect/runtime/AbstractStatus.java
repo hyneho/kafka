@@ -34,18 +34,29 @@ public abstract class AbstractStatus<T> {
     private final State state;
     private final String trace;
     private final String workerId;
+    private final String version;
     private final int generation;
 
     public AbstractStatus(T id,
                           State state,
                           String workerId,
                           int generation,
-                          String trace) {
+                          String trace,
+                          String version) {
         this.id = id;
         this.state = state;
         this.workerId = workerId;
         this.generation = generation;
         this.trace = trace;
+        this.version = version;
+    }
+
+    public AbstractStatus(T id,
+                          State state,
+                          String workerId,
+                          int generation,
+                          String trace) {
+        this(id, state, workerId, generation, trace, null);
     }
 
     public T id() {
@@ -68,12 +79,17 @@ public abstract class AbstractStatus<T> {
         return generation;
     }
 
+    public String version() {
+        return version;
+    }
+
     @Override
     public String toString() {
         return "Status{" +
                 "id=" + id +
                 ", state=" + state +
                 ", workerId='" + workerId + '\'' +
+                ", version='" + version + '\'' +
                 ", generation=" + generation +
                 '}';
     }

@@ -417,6 +417,10 @@ public class WorkerConnector implements Runnable {
         return ConnectUtils.isSourceConnector(connector);
     }
 
+    public String connectorVersion() {
+        return connector.version();
+    }
+
     protected final String connectorType() {
         if (isSinkConnector())
             return "sink";
