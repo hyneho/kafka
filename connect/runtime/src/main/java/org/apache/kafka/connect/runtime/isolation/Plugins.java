@@ -311,7 +311,7 @@ public class Plugins {
         return scanResult.converters();
     }
 
-    public Set<PluginDesc<Converter>> converters(String converterClassOrAlias) {
+    Set<PluginDesc<Converter>> converters(String converterClassOrAlias) {
         return pluginsOfClass(converterClassOrAlias, scanResult.converters());
     }
 
@@ -319,7 +319,7 @@ public class Plugins {
         return scanResult.headerConverters();
     }
 
-    public Set<PluginDesc<HeaderConverter>> headerConverters(String headerConverterClassOrAlias) {
+    Set<PluginDesc<HeaderConverter>> headerConverters(String headerConverterClassOrAlias) {
         return pluginsOfClass(headerConverterClassOrAlias, scanResult.headerConverters());
     }
 
@@ -327,7 +327,7 @@ public class Plugins {
         return scanResult.transformations();
     }
 
-    public Set<PluginDesc<Transformation<?>>> transformations(String transformationClassOrAlias) {
+    Set<PluginDesc<Transformation<?>>> transformations(String transformationClassOrAlias) {
         return pluginsOfClass(transformationClassOrAlias, scanResult.transformations());
     }
 
@@ -335,7 +335,7 @@ public class Plugins {
         return scanResult.predicates();
     }
 
-    public Set<PluginDesc<Predicate<?>>> predicates(String predicateClassOrAlias) {
+    Set<PluginDesc<Predicate<?>>> predicates(String predicateClassOrAlias) {
         return pluginsOfClass(predicateClassOrAlias, scanResult.predicates());
     }
 
