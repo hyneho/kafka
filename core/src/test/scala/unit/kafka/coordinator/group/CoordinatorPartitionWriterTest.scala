@@ -283,7 +283,7 @@ class CoordinatorPartitionWriterTest {
 
     // response contains error
     when(replicaManager.deleteRecords(
-      ArgumentMatchers.eq(0L),
+      ArgumentMatchers.anyLong(),
       ArgumentMatchers.any(),
       callbackCapture.capture(),
       ArgumentMatchers.eq(true)
@@ -296,6 +296,27 @@ class CoordinatorPartitionWriterTest {
 
     assertThrows(
       Errors.NOT_LEADER_OR_FOLLOWER.exception().getClass,
+      () => partitionRecordWriter.deleteRecords(
+        new TopicPartition("random-topic", 0),
+        10L
+      )
+    )
+
+    // response does not contain topic queried
+    when(replicaManager.deleteRecords(
+      ArgumentMatchers.anyLong(),
+      ArgumentMatchers.any(),
+      callbackCapture.capture(),
+      ArgumentMatchers.eq(true)
+    )).thenAnswer(_ => {
+      callbackCapture.getValue.apply(Map(
+        new TopicPartition("other-random-topic", 0) -> new DeleteRecordsPartitionResult()
+          .setErrorCode(Errors.NOT_LEADER_OR_FOLLOWER.code())
+      ))
+    })
+
+    assertThrows(
+      classOf[IllegalStateException],
       () => partitionRecordWriter.deleteRecords(
         new TopicPartition("random-topic", 0),
         10L
@@ -315,7 +336,7 @@ class CoordinatorPartitionWriterTest {
 
     // response contains error
     when(replicaManager.deleteRecords(
-      ArgumentMatchers.eq(0L),
+      ArgumentMatchers.anyLong(),
       ArgumentMatchers.any(),
       callbackCapture.capture(),
       ArgumentMatchers.eq(true)
