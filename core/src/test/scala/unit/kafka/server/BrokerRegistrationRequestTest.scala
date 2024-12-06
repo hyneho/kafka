@@ -28,8 +28,7 @@ import org.apache.kafka.common.requests._
 import org.apache.kafka.common.security.auth.SecurityProtocol
 import org.apache.kafka.common.utils.Time
 import org.apache.kafka.common.{Node, Uuid}
-import org.apache.kafka.server.{ControllerRequestCompletionHandler, NodeToControllerChannelManager}
-import org.apache.kafka.server.common.{Features, MetadataVersion}
+import org.apache.kafka.server.common.{ControllerRequestCompletionHandler, Feature, MetadataVersion, NodeToControllerChannelManager}
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.extension.ExtendWith
 
@@ -58,7 +57,7 @@ class BrokerRegistrationRequestTest {
 
         val saslMechanism: String = ""
 
-        def isZkController: Boolean = !clusterInstance.isKRaftTest
+        def isZkController: Boolean = false
 
         override def getControllerInfo(): ControllerInformation =
           ControllerInformation(node, listenerName, securityProtocol, saslMechanism, isZkController)
@@ -103,7 +102,7 @@ class BrokerRegistrationRequestTest {
           .setMaxSupportedVersion(max.featureLevel())
         )
     }
-    Features.PRODUCTION_FEATURES.stream().filter(_.featureName != MetadataVersion.FEATURE_NAME).forEach {
+    Feature.PRODUCTION_FEATURES.stream().filter(_.featureName != MetadataVersion.FEATURE_NAME).forEach {
       feature =>
         features.add(new BrokerRegistrationRequestData.Feature()
           .setName(feature.featureName)

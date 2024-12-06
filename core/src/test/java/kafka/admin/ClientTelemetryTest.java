@@ -75,11 +75,12 @@ public class ClientTelemetryTest {
             types = Type.KRAFT, 
             brokers = 3,
             serverProperties = {
-                    @ClusterConfigProperty(key = METRIC_REPORTER_CLASSES_CONFIG, value = "kafka.admin.ClientTelemetryTest$GetIdClientTelemetry"),
+                @ClusterConfigProperty(key = METRIC_REPORTER_CLASSES_CONFIG, value = "kafka.admin.ClientTelemetryTest$GetIdClientTelemetry"),
             })
     public void testClientInstanceId(ClusterInstance clusterInstance) throws InterruptedException, ExecutionException {
         Map<String, Object> configs = new HashMap<>();
         configs.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, clusterInstance.bootstrapServers());
+        configs.put(AdminClientConfig.ENABLE_METRICS_PUSH_CONFIG, true);
         try (Admin admin = Admin.create(configs)) {
             String testTopicName = "test_topic";
             admin.createTopics(Collections.singletonList(new NewTopic(testTopicName, 1, (short) 1)));
@@ -131,7 +132,7 @@ public class ClientTelemetryTest {
     public void testIntervalMsParser(ClusterInstance clusterInstance) {
         List<String> alterOpts = asList("--bootstrap-server", clusterInstance.bootstrapServers(),
                 "--alter", "--entity-type", "client-metrics", "--entity-name", "test", "--add-config", "interval.ms=bbb");
-        try (Admin client = clusterInstance.createAdminClient()) {
+        try (Admin client = clusterInstance.admin()) {
             ConfigCommand.ConfigCommandOptions addOpts = new ConfigCommand.ConfigCommandOptions(toArray(alterOpts));
 
             Throwable e = assertThrows(ExecutionException.class, () -> ConfigCommand.alterConfig(client, addOpts));

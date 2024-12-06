@@ -4,12 +4,8 @@ See our [web site](https://kafka.apache.org) for details on the project.
 
 You need to have [Java](http://www.oracle.com/technetwork/java/javase/downloads/index.html) installed.
 
-We build and test Apache Kafka with Java 8, 11, 17 and 21. We set the `release` parameter in javac and scalac
-to `8` to ensure the generated binaries are compatible with Java 8 or higher (independently of the Java version
-used for compilation). Java 8 support project-wide has been deprecated since Apache Kafka 3.0, Java 11 support for
-the broker and tools has been deprecated since Apache Kafka 3.7 and removal of both is planned for Apache Kafka 4.0 (
-see [KIP-750](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=181308223) and
-[KIP-1013](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=284789510) for more details).
+We build and test Apache Kafka with 17 and 23. The `release` parameter in javac and scalac is set to `11` for the clients 
+and streams modules, and `17` for the broker and tools, ensuring compatibility with their respective minimum Java versions. 
 
 Scala 2.13 is the only supported version in Apache Kafka.
 
@@ -46,8 +42,8 @@ Follow instructions in https://kafka.apache.org/quickstart
 ### Running a particular unit/integration test ###
     ./gradlew clients:test --tests RequestResponseTest
 
-### Repeatedly running a particular unit/integration test ###
-    I=0; while ./gradlew clients:test --tests RequestResponseTest --rerun --fail-fast; do (( I=$I+1 )); echo "Completed run: $I"; sleep 1; done
+### Repeatedly running a particular unit/integration test with specific times by setting N ###
+    N=500; I=0; while [ $I -lt $N ] && ./gradlew clients:test --tests RequestResponseTest --rerun --fail-fast; do (( I=$I+1 )); echo "Completed run: $I"; sleep 1; done
 
 ### Running a particular test method within a unit/integration test ###
     ./gradlew core:test --tests kafka.api.ProducerFailureHandlingTest.testCannotSendToInternalTopic
@@ -64,15 +60,15 @@ to `log4j.logger.org.apache.kafka=INFO` and then run:
 And you should see `INFO` level logs in the file under the `clients/build/test-results/test` directory.
 
 ### Specifying test retries ###
-By default, each failed test is retried once up to a maximum of three total retries per test run. 
-Tests are retried at the end of the test task. Adjust these parameters in the following way:
+Retries are disabled by default, but you can set maxTestRetryFailures and maxTestRetries to enable retries.
+
+The following example declares -PmaxTestRetries=1 and -PmaxTestRetryFailures=3 to enable a failed test to be retried once, with a total retry limit of 3.
 
     ./gradlew test -PmaxTestRetries=1 -PmaxTestRetryFailures=3
 
-Additionally, quarantined tests are automatically retried three times up to a total of
-20 retries per run. This is controlled by similar parameters.
+The quarantinedTest task also has no retries by default, but you can set maxQuarantineTestRetries and maxQuarantineTestRetryFailures to enable retries, similar to the test task.
 
-    ./gradlew test -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=20
+    ./gradlew quarantinedTest -PmaxQuarantineTestRetries=3 -PmaxQuarantineTestRetryFailures=20
 
 See [Test Retry Gradle Plugin](https://github.com/gradle/test-retry-gradle-plugin) for and [build.yml](.github/workflows/build.yml) more details.
 
@@ -101,21 +97,12 @@ fail due to code changes. You can just run:
 Using compiled files:
 
     KAFKA_CLUSTER_ID="$(./bin/kafka-storage.sh random-uuid)"
-    ./bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/server.properties
-    ./bin/kafka-server-start.sh config/kraft/server.properties
+    ./bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c config/kraft/reconfig-server.properties
+    ./bin/kafka-server-start.sh config/kraft/reconfig-server.properties
 
 Using docker image:
 
     docker run -p 9092:9092 apache/kafka:3.7.0
-
-### Running a Kafka broker in ZooKeeper mode
-
-Using compiled files:
-
-    ./bin/zookeeper-server-start.sh config/zookeeper.properties
-    ./bin/kafka-server-start.sh config/server.properties
-
->Since ZooKeeper mode is already deprecated and planned to be removed in Apache Kafka 4.0, the docker image only supports running in KRaft mode
 
 ### Cleaning the build ###
     ./gradlew clean
@@ -190,15 +177,12 @@ You can run checkstyle using:
 
 The checkstyle warnings will be found in `reports/checkstyle/reports/main.html` and `reports/checkstyle/reports/test.html` files in the
 subproject build directories. They are also printed to the console. The build will fail if Checkstyle fails.
-
-**Please note that `./gradlew spotlessCheck` currently has an issue with Java 21 (see https://github.com/diffplug/spotless/pull/1920), so make sure to run this with JDK 11 or 17**
+For experiments (or regression testing purposes) add `-PcheckstyleVersion=X.y.z` switch (to override project-defined checkstyle version).
 
 #### Spotless ####
-The import order is a part of static check. please call `spotlessApply` (require JDK 11+) to optimize the imports of Java codes before filing pull request.
+The import order is a part of static check. please call `spotlessApply` to optimize the imports of Java codes before filing pull request.
 
     ./gradlew spotlessApply
-
-**Please note that `./gradlew spotlessApply` currently has an issue with Java 21 (see https://github.com/diffplug/spotless/pull/1920), so make sure to run this with JDK 11 or 17**
 
 #### Spotbugs ####
 Spotbugs uses static analysis to look for bugs in the code.

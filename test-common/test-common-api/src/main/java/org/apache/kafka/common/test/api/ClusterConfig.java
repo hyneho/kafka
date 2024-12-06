@@ -17,8 +17,9 @@
 
 package org.apache.kafka.common.test.api;
 
+import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
-import org.apache.kafka.server.common.Features;
+import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.MetadataVersion;
 
 import java.io.File;
@@ -35,6 +36,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.apache.kafka.common.test.TestKitNodes.DEFAULT_BROKER_LISTENER_NAME;
+import static org.apache.kafka.common.test.TestKitNodes.DEFAULT_BROKER_SECURITY_PROTOCOL;
+import static org.apache.kafka.common.test.TestKitNodes.DEFAULT_CONTROLLER_LISTENER_NAME;
+import static org.apache.kafka.common.test.TestKitNodes.DEFAULT_CONTROLLER_SECURITY_PROTOCOL;
+
 /**
  * Represents an immutable requested configuration of a Kafka cluster for integration testing.
  */
@@ -45,8 +51,10 @@ public class ClusterConfig {
     private final int controllers;
     private final int disksPerBroker;
     private final boolean autoStart;
-    private final SecurityProtocol securityProtocol;
-    private final String listenerName;
+    private final SecurityProtocol brokerSecurityProtocol;
+    private final ListenerName brokerListenerName;
+    private final SecurityProtocol controllerSecurityProtocol;
+    private final ListenerName controllerListenerName;
     private final File trustStoreFile;
     private final MetadataVersion metadataVersion;
 
@@ -58,15 +66,16 @@ public class ClusterConfig {
     private final Map<String, String> saslClientProperties;
     private final List<String> tags;
     private final Map<Integer, Map<String, String>> perServerProperties;
-    private final Map<Features, Short> features;
+    private final Map<Feature, Short> features;
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     private ClusterConfig(Set<Type> types, int brokers, int controllers, int disksPerBroker, boolean autoStart,
-                  SecurityProtocol securityProtocol, String listenerName, File trustStoreFile,
+                  SecurityProtocol brokerSecurityProtocol, ListenerName brokerListenerName,
+                  SecurityProtocol controllerSecurityProtocol, ListenerName controllerListenerName, File trustStoreFile,
                   MetadataVersion metadataVersion, Map<String, String> serverProperties, Map<String, String> producerProperties,
                   Map<String, String> consumerProperties, Map<String, String> adminClientProperties, Map<String, String> saslServerProperties,
                   Map<String, String> saslClientProperties, Map<Integer, Map<String, String>> perServerProperties, List<String> tags,
-                  Map<Features, Short> features) {
+                  Map<Feature, Short> features) {
         // do fail fast. the following values are invalid for kraft modes.
         if (brokers < 0) throw new IllegalArgumentException("Number of brokers must be greater or equal to zero.");
         if (controllers < 0) throw new IllegalArgumentException("Number of controller must be greater or equal to zero.");
@@ -77,8 +86,10 @@ public class ClusterConfig {
         this.controllers = controllers;
         this.disksPerBroker = disksPerBroker;
         this.autoStart = autoStart;
-        this.securityProtocol = Objects.requireNonNull(securityProtocol);
-        this.listenerName = listenerName;
+        this.brokerSecurityProtocol = Objects.requireNonNull(brokerSecurityProtocol);
+        this.brokerListenerName = Objects.requireNonNull(brokerListenerName);
+        this.controllerSecurityProtocol = Objects.requireNonNull(controllerSecurityProtocol);
+        this.controllerListenerName = Objects.requireNonNull(controllerListenerName);
         this.trustStoreFile = trustStoreFile;
         this.metadataVersion = Objects.requireNonNull(metadataVersion);
         this.serverProperties = Objects.requireNonNull(serverProperties);
@@ -136,12 +147,20 @@ public class ClusterConfig {
         return saslClientProperties;
     }
 
-    public SecurityProtocol securityProtocol() {
-        return securityProtocol;
+    public SecurityProtocol brokerSecurityProtocol() {
+        return brokerSecurityProtocol;
     }
 
-    public Optional<String> listenerName() {
-        return Optional.ofNullable(listenerName);
+    public ListenerName controllerListenerName() {
+        return controllerListenerName;
+    }
+
+    public SecurityProtocol controllerSecurityProtocol() {
+        return controllerSecurityProtocol;
+    }
+
+    public ListenerName brokerListenerName() {
+        return brokerListenerName;
     }
 
     public Optional<File> trustStoreFile() {
@@ -160,15 +179,17 @@ public class ClusterConfig {
         return tags;
     }
 
-    public Map<Features, Short> features() {
+    public Map<Feature, Short> features() {
         return features;
     }
 
     public Set<String> displayTags() {
         Set<String> displayTags = new LinkedHashSet<>(tags);
         displayTags.add("MetadataVersion=" + metadataVersion);
-        displayTags.add("Security=" + securityProtocol.name());
-        listenerName().ifPresent(listener -> displayTags.add("Listener=" + listener));
+        displayTags.add("BrokerSecurityProtocol=" + brokerSecurityProtocol.name());
+        displayTags.add("BrokerListenerName=" + brokerListenerName);
+        displayTags.add("ControllerSecurityProtocol=" + controllerSecurityProtocol.name());
+        displayTags.add("ControllerListenerName=" + controllerListenerName);
         return displayTags;
     }
 
@@ -179,7 +200,10 @@ public class ClusterConfig {
                 .setControllers(1)
                 .setDisksPerBroker(1)
                 .setAutoStart(true)
-                .setSecurityProtocol(SecurityProtocol.PLAINTEXT)
+                .setBrokerSecurityProtocol(DEFAULT_BROKER_SECURITY_PROTOCOL)
+                .setBrokerListenerName(ListenerName.normalised(DEFAULT_BROKER_LISTENER_NAME))
+                .setControllerSecurityProtocol(DEFAULT_CONTROLLER_SECURITY_PROTOCOL)
+                .setControllerListenerName(ListenerName.normalised(DEFAULT_CONTROLLER_LISTENER_NAME))
                 .setMetadataVersion(MetadataVersion.latestTesting());
     }
 
@@ -194,8 +218,10 @@ public class ClusterConfig {
                 .setControllers(clusterConfig.controllers)
                 .setDisksPerBroker(clusterConfig.disksPerBroker)
                 .setAutoStart(clusterConfig.autoStart)
-                .setSecurityProtocol(clusterConfig.securityProtocol)
-                .setListenerName(clusterConfig.listenerName)
+                .setBrokerSecurityProtocol(clusterConfig.brokerSecurityProtocol)
+                .setBrokerListenerName(clusterConfig.brokerListenerName)
+                .setControllerSecurityProtocol(clusterConfig.controllerSecurityProtocol)
+                .setControllerListenerName(clusterConfig.controllerListenerName)
                 .setTrustStoreFile(clusterConfig.trustStoreFile)
                 .setMetadataVersion(clusterConfig.metadataVersion)
                 .setServerProperties(clusterConfig.serverProperties)
@@ -215,8 +241,10 @@ public class ClusterConfig {
         private int controllers;
         private int disksPerBroker;
         private boolean autoStart;
-        private SecurityProtocol securityProtocol;
-        private String listenerName;
+        private SecurityProtocol brokerSecurityProtocol;
+        private ListenerName brokerListenerName;
+        private SecurityProtocol controllerSecurityProtocol;
+        private ListenerName controllerListenerName;
         private File trustStoreFile;
         private MetadataVersion metadataVersion;
         private Map<String, String> serverProperties = Collections.emptyMap();
@@ -227,7 +255,7 @@ public class ClusterConfig {
         private Map<String, String> saslClientProperties = Collections.emptyMap();
         private Map<Integer, Map<String, String>> perServerProperties = Collections.emptyMap();
         private List<String> tags = Collections.emptyList();
-        private Map<Features, Short> features = Collections.emptyMap();
+        private Map<Feature, Short> features = Collections.emptyMap();
 
         private Builder() {}
 
@@ -256,13 +284,23 @@ public class ClusterConfig {
             return this;
         }
 
-        public Builder setSecurityProtocol(SecurityProtocol securityProtocol) {
-            this.securityProtocol = securityProtocol;
+        public Builder setBrokerSecurityProtocol(SecurityProtocol securityProtocol) {
+            this.brokerSecurityProtocol = securityProtocol;
             return this;
         }
 
-        public Builder setListenerName(String listenerName) {
-            this.listenerName = listenerName;
+        public Builder setBrokerListenerName(ListenerName listenerName) {
+            this.brokerListenerName = listenerName;
+            return this;
+        }
+
+        public Builder setControllerSecurityProtocol(SecurityProtocol securityProtocol) {
+            this.controllerSecurityProtocol = securityProtocol;
+            return this;
+        }
+
+        public Builder setControllerListenerName(ListenerName listenerName) {
+            this.controllerListenerName = listenerName;
             return this;
         }
 
@@ -318,13 +356,14 @@ public class ClusterConfig {
             return this;
         }
 
-        public Builder setFeatures(Map<Features, Short> features) {
+        public Builder setFeatures(Map<Feature, Short> features) {
             this.features = Collections.unmodifiableMap(features);
             return this;
         }
 
         public ClusterConfig build() {
-            return new ClusterConfig(types, brokers, controllers, disksPerBroker, autoStart, securityProtocol, listenerName,
+            return new ClusterConfig(types, brokers, controllers, disksPerBroker, autoStart,
+                    brokerSecurityProtocol, brokerListenerName, controllerSecurityProtocol, controllerListenerName,
                     trustStoreFile, metadataVersion, serverProperties, producerProperties, consumerProperties,
                     adminClientProperties, saslServerProperties, saslClientProperties,
                     perServerProperties, tags, features);

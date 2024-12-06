@@ -21,7 +21,6 @@ import kafka.server.BrokerServer;
 import kafka.server.ControllerServer;
 import kafka.server.KafkaBroker;
 
-import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.test.KafkaClusterTestKit;
 import org.apache.kafka.common.test.TestKitNodes;
@@ -30,9 +29,10 @@ import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.metadata.BrokerState;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.storage.FormatterException;
+import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.FeatureVersion;
-import org.apache.kafka.server.common.Features;
 import org.apache.kafka.server.common.MetadataVersion;
+import org.apache.kafka.server.fault.FaultHandlerException;
 
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.BeforeTestExecutionCallback;
@@ -45,16 +45,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import scala.compat.java8.OptionConverters;
+import scala.jdk.javaapi.OptionConverters;
+
 
 /**
  * Wraps a {@link KafkaClusterTestKit} inside lifecycle methods for a test invocation. Each instance of this
@@ -99,19 +98,20 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         );
     }
 
-    public static class RaftClusterInstance implements ClusterInstance {
+    private static class RaftClusterInstance implements ClusterInstance {
 
         private final ClusterConfig clusterConfig;
         final AtomicBoolean started = new AtomicBoolean(false);
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final AtomicBoolean formated = new AtomicBoolean(false);
-        private final ConcurrentLinkedQueue<Admin> admins = new ConcurrentLinkedQueue<>();
         private KafkaClusterTestKit clusterTestKit;
         private final boolean isCombined;
+        private final ListenerName listenerName;
 
         RaftClusterInstance(ClusterConfig clusterConfig, boolean isCombined) {
             this.clusterConfig = clusterConfig;
             this.isCombined = isCombined;
+            this.listenerName = clusterConfig.brokerListenerName();
         }
 
         @Override
@@ -126,7 +126,7 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
 
         @Override
         public ListenerName clientListener() {
-            return ListenerName.normalised("EXTERNAL");
+            return listenerName;
         }
 
         @Override
@@ -166,16 +166,8 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
             return controllers().keySet();
         }
 
-        @Override
         public KafkaClusterTestKit getUnderlying() {
             return clusterTestKit;
-        }
-
-        @Override
-        public Admin createAdminClient(Properties configOverrides) {
-            Admin admin = Admin.create(clusterTestKit.newClientPropertiesBuilder(configOverrides).build());
-            admins.add(admin);
-            return admin;
         }
 
         @Override
@@ -197,8 +189,6 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         @Override
         public void stop() {
             if (stopped.compareAndSet(false, true)) {
-                admins.forEach(admin -> Utils.closeQuietly(admin, "admin"));
-                admins.clear();
                 Utils.closeQuietly(clusterTestKit, "cluster");
             }
         }
@@ -211,6 +201,16 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         @Override
         public void startBroker(int brokerId) {
             findBrokerOrThrow(brokerId).startup();
+        }
+
+        @Override
+        public Optional<FaultHandlerException> firstFatalException() {
+            return Optional.ofNullable(clusterTestKit.fatalFaultHandler().firstException());
+        }
+
+        @Override
+        public Optional<FaultHandlerException> firstNonFatalException() {
+            return Optional.ofNullable(clusterTestKit.nonFatalFaultHandler().firstException());
         }
 
         @Override
@@ -236,12 +236,12 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
 
         public void format() throws Exception {
             if (formated.compareAndSet(false, true)) {
-                Map<String, Features> nameToSupportedFeature = new TreeMap<>();
-                Features.PRODUCTION_FEATURES.forEach(feature -> nameToSupportedFeature.put(feature.featureName(), feature));
+                Map<String, Feature> nameToSupportedFeature = new TreeMap<>();
+                Feature.PRODUCTION_FEATURES.forEach(feature -> nameToSupportedFeature.put(feature.featureName(), feature));
                 Map<String, Short> newFeatureLevels = new TreeMap<>();
 
                 // Verify that all specified features are known to us.
-                for (Map.Entry<Features, Short> entry : clusterConfig.features().entrySet()) {
+                for (Map.Entry<Feature, Short> entry : clusterConfig.features().entrySet()) {
                     String featureName = entry.getKey().featureName();
                     short level = entry.getValue();
                     if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
@@ -255,10 +255,10 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                 newFeatureLevels.put(MetadataVersion.FEATURE_NAME, clusterConfig.metadataVersion().featureLevel());
 
                 // Add default values for features that were not specified.
-                Features.PRODUCTION_FEATURES.forEach(supportedFeature -> {
+                Feature.PRODUCTION_FEATURES.forEach(supportedFeature -> {
                     if (!newFeatureLevels.containsKey(supportedFeature.featureName())) {
                         newFeatureLevels.put(supportedFeature.featureName(),
-                            supportedFeature.defaultValue(clusterConfig.metadataVersion()));
+                            supportedFeature.defaultLevel(clusterConfig.metadataVersion()));
                     }
                 });
 
@@ -268,10 +268,10 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                     String featureName = entry.getKey();
                     if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
                         short level = entry.getValue();
-                        Features supportedFeature = nameToSupportedFeature.get(featureName);
+                        Feature supportedFeature = nameToSupportedFeature.get(featureName);
                         FeatureVersion featureVersion =
                             supportedFeature.fromFeatureLevel(level, true);
-                        Features.validateVersion(featureVersion, newFeatureLevels);
+                        Feature.validateVersion(featureVersion, newFeatureLevels);
                     }
                 }
 
@@ -281,11 +281,15 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                         .setNumBrokerNodes(clusterConfig.numBrokers())
                         .setNumDisksPerBroker(clusterConfig.numDisksPerBroker())
                         .setPerServerProperties(clusterConfig.perServerOverrideProperties())
-                        .setNumControllerNodes(clusterConfig.numControllers()).build();
+                        .setNumControllerNodes(clusterConfig.numControllers())
+                        .setBrokerListenerName(listenerName)
+                        .setBrokerSecurityProtocol(clusterConfig.brokerSecurityProtocol())
+                        .setControllerListenerName(clusterConfig.controllerListenerName())
+                        .setControllerSecurityProtocol(clusterConfig.controllerSecurityProtocol())
+                        .build();
                 KafkaClusterTestKit.Builder builder = new KafkaClusterTestKit.Builder(nodes);
                 // Copy properties into the TestKit builder
                 clusterConfig.serverProperties().forEach(builder::setConfigProp);
-                // KAFKA-12512 need to pass security protocol and listener name here
                 this.clusterTestKit = builder.build();
                 this.clusterTestKit.format();
             }

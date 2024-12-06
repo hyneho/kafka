@@ -40,6 +40,8 @@ import org.apache.kafka.server.config.ServerLogConfigs;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
@@ -48,11 +50,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ClusterTestDefaults(serverProperties = {
-        @ClusterConfigProperty(key = ServerLogConfigs.AUTO_CREATE_TOPICS_ENABLE_CONFIG, value = "false"),
-        @ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG, value = "1"),
-        @ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
-        @ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_MIN_ISR_CONFIG, value = "1"),
-        @ClusterConfigProperty(key = TransactionStateManagerConfig.TRANSACTIONS_ABORT_TIMED_OUT_TRANSACTION_CLEANUP_INTERVAL_MS_CONFIG, value = "2000")
+    @ClusterConfigProperty(key = ServerLogConfigs.AUTO_CREATE_TOPICS_ENABLE_CONFIG, value = "false"),
+    @ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_PARTITIONS_CONFIG, value = "1"),
+    @ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_REPLICATION_FACTOR_CONFIG, value = "1"),
+    @ClusterConfigProperty(key = TransactionLogConfig.TRANSACTIONS_TOPIC_MIN_ISR_CONFIG, value = "1"),
+    @ClusterConfigProperty(key = TransactionStateManagerConfig.TRANSACTIONS_ABORT_TIMED_OUT_TRANSACTION_CLEANUP_INTERVAL_MS_CONFIG, value = "2000")
 })
 @ExtendWith(ClusterTestExtensions.class)
 public class AdminFenceProducersTest {
@@ -82,7 +84,7 @@ public class AdminFenceProducersTest {
         clusterInstance.createTopic(TOPIC_NAME, 1, (short) 1);
 
         try (KafkaProducer<byte[], byte[]> producer = createProducer();
-             Admin adminClient = clusterInstance.createAdminClient()) {
+             Admin adminClient = clusterInstance.admin()) {
             producer.initTransactions();
             producer.beginTransaction();
             producer.send(RECORD).get();
@@ -103,10 +105,10 @@ public class AdminFenceProducersTest {
 
     @ClusterTest
     void testFenceProducerTimeoutMs() {
-        Properties config = new Properties();
+        Map<String, Object> config = new HashMap<>();
         config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:" + INCORRECT_BROKER_PORT);
 
-        try (Admin adminClient = clusterInstance.createAdminClient(config)) {
+        try (Admin adminClient = clusterInstance.admin(config)) {
             ExecutionException exception = assertThrows(
                     ExecutionException.class, () ->
                             adminClient.fenceProducers(Collections.singletonList(TXN_ID), new FenceProducersOptions().timeoutMs(0)).all().get());
@@ -119,7 +121,7 @@ public class AdminFenceProducersTest {
         clusterInstance.createTopic(TOPIC_NAME, 1, (short) 1);
 
         try (KafkaProducer<byte[], byte[]> producer = createProducer();
-             Admin adminClient = clusterInstance.createAdminClient()) {
+             Admin adminClient = clusterInstance.admin()) {
 
             producer.initTransactions();
             producer.beginTransaction();

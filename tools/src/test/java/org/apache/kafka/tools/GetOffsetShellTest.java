@@ -107,7 +107,7 @@ public class GetOffsetShellTest {
     }
 
     private void setupTopics(Function<Integer, String> topicName, Map<String, String> configs) {
-        try (Admin admin = cluster.createAdminClient()) {
+        try (Admin admin = cluster.admin()) {
             List<NewTopic> topics = new ArrayList<>();
 
             IntStream.range(0, topicCount + 1).forEach(i ->
@@ -143,13 +143,9 @@ public class GetOffsetShellTest {
         serverProperties.put(RemoteLogManagerConfig.REMOTE_LOG_METADATA_MANAGER_LISTENER_NAME_PROP, "EXTERNAL");
 
         return Collections.singletonList(
-                // we set REMOTE_LOG_METADATA_MANAGER_LISTENER_NAME_PROP to EXTERNAL, so we need to
-                // align listener name here as KafkaClusterTestKit (KRAFT/CO_KRAFT) the default
-                // broker listener name is EXTERNAL while in ZK it is PLAINTEXT
                 ClusterConfig.defaultBuilder()
                         .setTypes(Stream.of(KRAFT, CO_KRAFT).collect(Collectors.toSet()))
                         .setServerProperties(serverProperties)
-                        .setListenerName("EXTERNAL")
                         .build());
     }
 
@@ -209,11 +205,7 @@ public class GetOffsetShellTest {
         setUp();
 
         List<Row> output = executeAndParse();
-        if (!cluster.isKRaftTest()) {
-            assertEquals(expectedOffsetsWithInternal(), output);
-        } else {
-            assertEquals(expectedTestTopicOffsets(), output);
-        }
+        assertEquals(expectedTestTopicOffsets(), output);
     }
 
     @ClusterTest
@@ -251,11 +243,7 @@ public class GetOffsetShellTest {
         setUp();
 
         List<Row> offsets = executeAndParse("--partitions", "0,1");
-        if (!cluster.isKRaftTest()) {
-            assertEquals(expectedOffsetsWithInternal().stream().filter(r -> r.partition <= 1).collect(Collectors.toList()), offsets);
-        } else {
-            assertEquals(expectedTestTopicOffsets().stream().filter(r -> r.partition <= 1).collect(Collectors.toList()), offsets);
-        }
+        assertEquals(expectedTestTopicOffsets().stream().filter(r -> r.partition <= 1).collect(Collectors.toList()), offsets);
     }
 
     @ClusterTest

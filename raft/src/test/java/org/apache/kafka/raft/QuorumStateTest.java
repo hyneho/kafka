@@ -20,10 +20,9 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.common.utils.MockTime;
-import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.raft.internals.BatchAccumulator;
 import org.apache.kafka.raft.internals.KRaftControlRecordStateMachine;
-import org.apache.kafka.server.common.Features;
+import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.KRaftVersion;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -80,7 +79,7 @@ public class QuorumStateTest {
             localDirectoryId,
             mockPartitionState,
             localId.isPresent() ? voterSet.listeners(localId.getAsInt()) : Endpoints.empty(),
-            Features.KRAFT_VERSION.supportedVersionRange(),
+            Feature.KRAFT_VERSION.supportedVersionRange(),
             electionTimeoutMs,
             fetchTimeoutMs,
             store,
@@ -293,8 +292,8 @@ public class QuorumStateTest {
             ElectionState.withVotedCandidate(epoch, localVoterKey, voters.voterIds()),
             candidateState.election()
         );
-        assertEquals(Utils.mkSet(node1, node2), candidateState.unrecordedVoters());
-        assertEquals(Utils.mkSet(localId), candidateState.grantingVoters());
+        assertEquals(Set.of(node1, node2), candidateState.unrecordedVoters());
+        assertEquals(Set.of(localId), candidateState.grantingVoters());
         assertEquals(Collections.emptySet(), candidateState.rejectingVoters());
         assertEquals(
             electionTimeoutMs + jitterMs,
@@ -328,7 +327,7 @@ public class QuorumStateTest {
         ResignedState resignedState = state.resignedStateOrThrow();
         assertEquals(epoch, resignedState.epoch());
         assertEquals(election, resignedState.election());
-        assertEquals(Utils.mkSet(node1, node2), resignedState.unackedVoters());
+        assertEquals(Set.of(node1, node2), resignedState.unackedVoters());
         assertEquals(electionTimeoutMs + jitterMs,
             resignedState.remainingElectionTimeMs(time.milliseconds()));
     }
