@@ -2141,6 +2141,17 @@ public class ConsumerGroupTest {
         );
 
         assertEquals(
+            HOMOGENEOUS,
+            ConsumerGroup.subscriptionType(
+                Map.of("foo*", 5),
+                Map.of(
+                    "foo", new SubscriptionCount(0, 1),
+                    "food", new SubscriptionCount(0, 1)),
+                5
+            )
+        );
+
+        assertEquals(
             HETEROGENEOUS,
             ConsumerGroup.subscriptionType(
                 Map.of("foo*", 5),

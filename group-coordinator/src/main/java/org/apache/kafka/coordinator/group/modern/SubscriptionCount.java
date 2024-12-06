@@ -55,6 +55,9 @@ public class SubscriptionCount {
             ')';
     }
 
+    /**
+     * Increments the name count by 1; This helper is meant to be used with Map#compute.
+     */
     public static SubscriptionCount incNameCount(String key, SubscriptionCount count) {
         if (count == null) {
             return new SubscriptionCount(1, 0);
@@ -63,6 +66,9 @@ public class SubscriptionCount {
         }
     }
 
+    /**
+     * Decrements the name count by 1; This helper is meant to be used with Map#compute.
+     */
     public static SubscriptionCount decNameCount(String key, SubscriptionCount count) {
         if (count == null || (count.byNameCount == 1 && count.byRegexCount == 0)) {
             return null;
@@ -71,6 +77,9 @@ public class SubscriptionCount {
         }
     }
 
+    /**
+     * Increments the regex count by 1; This helper is meant to be used with Map#compute.
+     */
     public static SubscriptionCount incRegexCount(String key, SubscriptionCount count) {
         if (count == null) {
             return new SubscriptionCount(0, 1);
@@ -79,6 +88,9 @@ public class SubscriptionCount {
         }
     }
 
+    /**
+     * Decrements the regex count by 1; This helper is meant to be used with Map#compute.
+     */
     public static SubscriptionCount decRegexCount(String key, SubscriptionCount count) {
         if (count == null || (count.byRegexCount == 1 && count.byNameCount == 0)) {
             return null;
