@@ -63,6 +63,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.Closeable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,7 +85,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -105,6 +105,7 @@ public class ShareConsumerTest {
     private final TopicPartition tp = new TopicPartition("topic", 0);
     private final TopicPartition tp2 = new TopicPartition("topic2", 0);
     private final TopicPartition warmupTp = new TopicPartition("warmup", 0);
+    private final List<Closeable> resources = new ArrayList<>();
     private static final String DEFAULT_STATE_PERSISTER = "org.apache.kafka.server.share.persister.DefaultStatePersister";
     private static final String NO_OP_PERSISTER = "org.apache.kafka.server.share.persister.NoOpShareStatePersister";
 
@@ -147,6 +148,10 @@ public class ShareConsumerTest {
 
     @AfterEach
     public void destroyCluster() throws Exception {
+        for (Closeable r : resources) {
+            r.close();
+        }
+        resources.clear();
         adminClient.close();
         cluster.close();
     }
@@ -1952,7 +1957,9 @@ public class ShareConsumerTest {
     private <K, V> KafkaProducer<K, V> createProducer(Serializer<K> keySerializer,
                                                       Serializer<V> valueSerializer) {
         Properties props = cluster.clientProperties();
-        return new KafkaProducer<>(props, keySerializer, valueSerializer);
+        KafkaProducer<K, V> producer = new KafkaProducer<>(props, keySerializer, valueSerializer);
+        resources.add(producer);
+        return producer;
     }
 
     private <K, V> KafkaProducer<K, V> createProducer(Serializer<K> keySerializer,
@@ -1960,7 +1967,9 @@ public class ShareConsumerTest {
                                                       String transactionalId) {
         Properties props = cluster.clientProperties();
         props.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId);
-        return new KafkaProducer<>(props, keySerializer, valueSerializer);
+        KafkaProducer<K, V> producer = new KafkaProducer<>(props, keySerializer, valueSerializer);
+        resources.add(producer);
+        return producer;
     }
 
     private <K, V> KafkaShareConsumer<K, V> createShareConsumer(Deserializer<K> keyDeserializer,
@@ -1968,7 +1977,9 @@ public class ShareConsumerTest {
                                                                 String groupId) {
         Properties props = cluster.clientProperties();
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        return new KafkaShareConsumer<>(props, keyDeserializer, valueDeserializer);
+        KafkaShareConsumer<K, V> shareConsumer = new KafkaShareConsumer<>(props, keyDeserializer, valueDeserializer);
+        resources.add(shareConsumer);
+        return shareConsumer;
     }
 
     private <K, V> KafkaShareConsumer<K, V> createShareConsumer(Deserializer<K> keyDeserializer,
@@ -1978,10 +1989,12 @@ public class ShareConsumerTest {
         Properties props = cluster.clientProperties();
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.putAll(additionalProperties);
-        return new KafkaShareConsumer<>(props, keyDeserializer, valueDeserializer);
+        KafkaShareConsumer<K, V> shareConsumer = new KafkaShareConsumer<>(props, keyDeserializer, valueDeserializer);
+        resources.add(shareConsumer);
+        return shareConsumer;
     }
 
-    private void warmup() throws InterruptedException, ExecutionException, TimeoutException {
+    private void warmup() throws InterruptedException {
         createTopic(warmupTp.topic());
         TestUtils.waitForCondition(() ->
                 !cluster.brokers().get(0).metadataCache().getAliveBrokerNodes(new ListenerName("EXTERNAL")).isEmpty(),
