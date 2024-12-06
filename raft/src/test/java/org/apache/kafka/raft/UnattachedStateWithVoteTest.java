@@ -83,35 +83,61 @@ class UnattachedStateWithVoteTest {
     public void testCanGrantVoteWithoutDirectoryId(boolean isLogUpToDate) {
         UnattachedState state = newUnattachedVotedState(ReplicaKey.NO_DIRECTORY_ID);
 
-        assertTrue(
-            state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
-        );
-        assertTrue(
-            state.canGrantVote(
-                ReplicaKey.of(votedId, Uuid.randomUuid()),
-                isLogUpToDate
-            )
-        );
+        assertTrue(state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
 
-        assertFalse(
-            state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        assertTrue(state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+
+        // Can grant PreVote to other replicas even if we have granted a standard vote to another replica
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
         );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
     }
 
-    @Test
-    void testCanGrantVoteWithDirectoryId() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testCanGrantVoteWithDirectoryId(boolean isLogUpToDate) {
         Uuid votedDirectoryId = Uuid.randomUuid();
         UnattachedState state = newUnattachedVotedState(votedDirectoryId);
 
-        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), false));
-
-        assertFalse(
-            state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), false)
+        // Same voterKey
+        // We will not grant PreVote for a replica we have already granted a standard vote to if their log is behind
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate)
         );
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), false));
+        assertTrue(state.canGrantVote(ReplicaKey.of(votedId, votedDirectoryId), isLogUpToDate));
 
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), false));
-        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), false));
+        // Different directoryId
+        // We can grant PreVote for a replica we have already granted a standard vote to if their log is up-to-date,
+        // even if the directoryId is different
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, Uuid.randomUuid()), isLogUpToDate));
+
+        // Missing directoryId
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate));
+
+        // Different voterId
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId + 1, votedDirectoryId), isLogUpToDate)
+        );
+        assertEquals(
+            isLogUpToDate,
+            state.canGrantPreVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), isLogUpToDate)
+        );
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, votedDirectoryId), true));
+        assertFalse(state.canGrantVote(ReplicaKey.of(votedId + 1, ReplicaKey.NO_DIRECTORY_ID), true));
     }
 
     @Test

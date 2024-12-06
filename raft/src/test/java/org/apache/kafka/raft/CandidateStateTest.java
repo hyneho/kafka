@@ -219,6 +219,11 @@ public class CandidateStateTest {
             voterSetWithLocal(Stream.of(node1, node2, node3), withDirectoryId)
         );
 
+        assertFalse(state.canGrantPreVote(node0, isLogUpToDate));
+        assertFalse(state.canGrantPreVote(node1, isLogUpToDate));
+        assertFalse(state.canGrantPreVote(node2, isLogUpToDate));
+        assertFalse(state.canGrantPreVote(node3, isLogUpToDate));
+
         assertFalse(state.canGrantVote(node0, isLogUpToDate));
         assertFalse(state.canGrantVote(node1, isLogUpToDate));
         assertFalse(state.canGrantVote(node2, isLogUpToDate));

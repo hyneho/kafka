@@ -2194,17 +2194,17 @@ public class KafkaRaftClientTest {
         context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.of(localId), false);
 
         // null cluster id is accepted
-        context.deliverRequest(context.voteRequest(null, epoch, otherNodeKey, 0, 0));
+        context.deliverRequest(context.voteRequest(null, epoch, otherNodeKey, 0, 0, false));
         context.pollUntilResponse();
         context.assertSentVoteResponse(Errors.NONE, epoch, OptionalInt.of(localId), false);
 
         // empty cluster id is rejected
-        context.deliverRequest(context.voteRequest("", epoch, otherNodeKey, 0, 0));
+        context.deliverRequest(context.voteRequest("", epoch, otherNodeKey, 0, 0, false));
         context.pollUntilResponse();
         context.assertSentVoteResponse(Errors.INCONSISTENT_CLUSTER_ID);
 
         // invalid cluster id is rejected
-        context.deliverRequest(context.voteRequest("invalid-uuid", epoch, otherNodeKey, 0, 0));
+        context.deliverRequest(context.voteRequest("invalid-uuid", epoch, otherNodeKey, 0, 0, false));
         context.pollUntilResponse();
         context.assertSentVoteResponse(Errors.INCONSISTENT_CLUSTER_ID);
     }
@@ -2230,7 +2230,8 @@ public class KafkaRaftClientTest {
                 otherNodeKey,
                 ReplicaKey.of(10, Uuid.randomUuid()),
                 epoch,
-                100
+                100,
+                false
             )
         );
         context.pollUntilResponse();
@@ -2244,7 +2245,8 @@ public class KafkaRaftClientTest {
                 otherNodeKey,
                 ReplicaKey.of(0, Uuid.randomUuid()),
                 epoch,
-                100
+                100,
+                false
             )
         );
         context.pollUntilResponse();
@@ -4368,7 +4370,7 @@ public class KafkaRaftClientTest {
         return ReplicaKey.of(id, directoryId);
     }
 
-    private static int randomReplicaId() {
+    static int randomReplicaId() {
         return ThreadLocalRandom.current().nextInt(1025);
     }
 }
