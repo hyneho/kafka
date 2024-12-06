@@ -1817,6 +1817,102 @@ public class StreamsBuilderTest {
     }
 
     @Test
+    public void shouldWrapProcessorsForTableTableInnerJoin() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KTable<String, String> t1 = builder.table("input1"); // 1
+        final KTable<String, String> t2 = builder.table("input2"); // 2
+
+        t1.join(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
+                .toStream(Named.as("toStream")) // 6
+                .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
+        assertThat(counter.wrappedProcessorNames().toString(), counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+                "KTABLE-SOURCE-0000000002",
+                "KTABLE-SOURCE-0000000005",
+                "join-processor-join-this",
+                "join-processor-join-other",
+                "join-processor",
+                "toStream"
+        ));
+
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(2)); // one for join this, one for join that
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(2));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForTableTableLeftJoin() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KTable<String, String> t1 = builder.table("input1"); // 1
+        final KTable<String, String> t2 = builder.table("input2"); // 2
+
+        t1.leftJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
+                .toStream(Named.as("toStream")) // 6
+                .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
+        assertThat(counter.wrappedProcessorNames().toString(), counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+                "KTABLE-SOURCE-0000000002",
+                "KTABLE-SOURCE-0000000005",
+                "join-processor-join-this",
+                "join-processor-join-other",
+                "join-processor",
+                "toStream"
+        ));
+
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(2)); // one for join this, one for join that
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(2));
+    }
+
+    @Test
+    public void shouldWrapProcessorsForTableTableOuterJoin() {
+        final Map<Object, Object> props = dummyStreamsConfigMap();
+        props.put(PROCESSOR_WRAPPER_CLASS_CONFIG, RecordingProcessorWrapper.class);
+
+        final WrapperRecorder counter = new WrapperRecorder();
+        props.put(PROCESSOR_WRAPPER_COUNTER_CONFIG, counter);
+
+        final StreamsBuilder builder = new StreamsBuilder(new TopologyConfig(new StreamsConfig(props)));
+
+        final KTable<String, String> t1 = builder.table("input1"); // 1
+        final KTable<String, String> t2 = builder.table("input2"); // 2
+
+        t1.outerJoin(t2, (v1, v2) -> v1 + v2, Named.as("join-processor")) // 3 (this), 4 (other), 5 (merger)
+                .toStream(Named.as("toStream")) // 6
+                .to("output", Produced.as("sink"));
+
+        builder.build();
+        assertThat(counter.numWrappedProcessors(), CoreMatchers.is(6));
+        assertThat(counter.wrappedProcessorNames().toString(), counter.wrappedProcessorNames(), Matchers.containsInAnyOrder(
+                "KTABLE-SOURCE-0000000002",
+                "KTABLE-SOURCE-0000000005",
+                "join-processor-join-this",
+                "join-processor-join-other",
+                "join-processor",
+                "toStream"
+        ));
+
+        assertThat(counter.numUniqueStateStores(), CoreMatchers.is(2)); // one for join this, one for join that
+        assertThat(counter.numConnectedStateStores(), CoreMatchers.is(2));
+    }
+
+    @Test
     public void shouldAllowStreamsFromSameTopic() {
         builder.stream("topic");
         builder.stream("topic");
