@@ -335,7 +335,7 @@ public class ConsumerNetworkThread extends KafkaThread implements Closeable {
     }
 
     /**
-     * If there is a metadata error, completed all uncompleted events with the metadata error.
+     * If there is a metadata error, complete all uncompleted events that require subscription metadata.
      */
     private void maybeFailOnMetadataError(List<CompletableEvent<?>> events) {
         List<? extends CompletableApplicationEvent<?>> subscriptionMetadataEvent = events.stream()

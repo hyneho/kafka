@@ -154,6 +154,7 @@ public class NetworkClientDelegate implements AutoCloseable {
     private void maybePropagateMetadataError() {
         try {
             metadata.maybeThrowAnyException();
+            clearMetadataError();
         } catch (Exception e) {
             if (notifyMetadataErrorsViaErrorQueue) {
                 backgroundEventHandler.add(new ErrorEvent(e));
@@ -242,8 +243,12 @@ public class NetworkClientDelegate implements AutoCloseable {
     
     public Optional<Exception> getAndClearMetadataError() {
         Optional<Exception> metadataError = this.metadataError;
-        this.metadataError = Optional.empty();
+        clearMetadataError();
         return metadataError;
+    }
+    
+    private void clearMetadataError() {
+        this.metadataError = Optional.empty();
     }
 
     public Node leastLoadedNode() {
