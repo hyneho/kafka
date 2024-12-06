@@ -4605,6 +4605,10 @@ public class KafkaAdminClient extends AdminClient {
                     .map(this::translateReplicaState)
                     .collect(Collectors.toList());
 
+                List<QuorumInfo.ReplicaState> committedVoters = partition.committedVoters().stream()
+                    .map(this::translateReplicaState)
+                    .collect(Collectors.toList());
+
                 List<QuorumInfo.ReplicaState> observers = partition.observers().stream()
                     .map(this::translateReplicaState)
                     .collect(Collectors.toList());
@@ -4622,6 +4626,7 @@ public class KafkaAdminClient extends AdminClient {
                     partition.leaderEpoch(),
                     partition.highWatermark(),
                     voters,
+                    committedVoters,
                     observers,
                     nodes
                 );
