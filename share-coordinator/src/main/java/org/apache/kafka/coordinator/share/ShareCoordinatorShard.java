@@ -324,6 +324,7 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
         ReadShareGroupStateResponseData responseData = null;
 
         if (!shareStateMap.containsKey(key)) {
+            // Leader epoch update might be needed
             responseData = ReadShareGroupStateResponse.toResponseData(
                 topicId,
                 partitionId,
@@ -333,13 +334,20 @@ public class ShareCoordinatorShard implements CoordinatorShard<CoordinatorRecord
             );
         } else if (shareStateMap.get(key) == null) {
             // Key present but no state information found.
-            responseData = ReadShareGroupStateResponse.toErrorResponseData(
-                topicId,
-                partitionId,
-                Errors.UNKNOWN_SERVER_ERROR,
-                "Data not found for topic {}, partition {} for group {}, in the in-memory state of share coordinator"
+            // Since this is an unexpected critical error,
+            // lets not update leader epoch
+            log.error("Share state map contains key {} but no associated offset value.", key);
+            return new CoordinatorResult<>(
+                Collections.emptyList(),
+                ReadShareGroupStateResponse.toErrorResponseData(
+                    topicId,
+                    partitionId,
+                    Errors.UNKNOWN_SERVER_ERROR,
+                    "Data not found for topic {}, partition {} for group {}, in the in-memory state of share coordinator"
+                )
             );
         } else {
+            // Leader epoch update might be needed
             ShareGroupOffset offsetValue = shareStateMap.get(key);
             List<ReadShareGroupStateResponseData.StateBatch> stateBatches = (offsetValue.stateBatches() != null && !offsetValue.stateBatches().isEmpty()) ?
                 offsetValue.stateBatches().stream()
