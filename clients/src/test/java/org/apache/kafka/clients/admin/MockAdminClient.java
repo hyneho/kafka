@@ -21,6 +21,7 @@ import org.apache.kafka.clients.admin.internals.CoordinatorKey;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
 import org.apache.kafka.common.ElectionType;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Metric;
@@ -724,7 +725,7 @@ public class MockAdminClient extends AdminClient {
     @Override
     public synchronized ListGroupsResult listGroups(ListGroupsOptions options) {
         KafkaFutureImpl<Collection<Object>> future = new KafkaFutureImpl<>();
-        future.complete(groupConfigs.keySet().stream().map(g -> new GroupListing(g, Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE)).collect(Collectors.toList()));
+        future.complete(groupConfigs.keySet().stream().map(g -> new GroupListing(g, Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE, Optional.of(GroupState.STABLE))).collect(Collectors.toList()));
         return new ListGroupsResult(future);
     }
 
@@ -868,12 +869,6 @@ public class MockAdminClient extends AdminClient {
             configEntries.add(new ConfigEntry(entry.getKey(), entry.getValue()));
         }
         return new Config(configEntries);
-    }
-
-    @Override
-    @Deprecated
-    public synchronized AlterConfigsResult alterConfigs(Map<ConfigResource, Config> configs, AlterConfigsOptions options) {
-        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
@@ -1391,11 +1386,6 @@ public class MockAdminClient extends AdminClient {
 
     @Override
     public synchronized DescribeShareGroupsResult describeShareGroups(Collection<String> groupIds, DescribeShareGroupsOptions options) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    @Override
-    public synchronized ListShareGroupsResult listShareGroups(ListShareGroupsOptions options) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 

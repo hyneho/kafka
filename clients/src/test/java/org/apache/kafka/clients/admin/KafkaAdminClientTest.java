@@ -20,6 +20,7 @@ import org.apache.kafka.clients.ClientDnsLookup;
 import org.apache.kafka.clients.ClientRequest;
 import org.apache.kafka.clients.ClientUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.MetadataRecoveryStrategy;
 import org.apache.kafka.clients.MockClient;
 import org.apache.kafka.clients.NodeApiVersions;
 import org.apache.kafka.clients.admin.DeleteAclsResult.FilterResults;
@@ -30,14 +31,13 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.internals.ConsumerProtocol;
 import org.apache.kafka.common.ClassicGroupState;
 import org.apache.kafka.common.Cluster;
-import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.ElectionType;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.GroupType;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.ShareGroupState;
 import org.apache.kafka.common.TopicCollection;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionReplica;
@@ -883,18 +883,32 @@ public class KafkaAdminClientTest {
 
     @Test
     public void testUnreachableBootstrapServer() throws Exception {
+        verifyUnreachableBootstrapServer(MetadataRecoveryStrategy.REBOOTSTRAP);
+    }
+
+    @Test
+    public void testUnreachableBootstrapServerNoRebootstrap() throws Exception {
+        verifyUnreachableBootstrapServer(MetadataRecoveryStrategy.NONE);
+    }
+
+    private void verifyUnreachableBootstrapServer(MetadataRecoveryStrategy metadataRecoveryStrategy) throws Exception {
         // This tests the scenario in which the bootstrap server is unreachable for a short while,
         // which prevents AdminClient from being able to send the initial metadata request
 
         Cluster cluster = Cluster.bootstrap(singletonList(new InetSocketAddress("localhost", 8121)));
         Map<Node, Long> unreachableNodes = Collections.singletonMap(cluster.nodes().get(0), 200L);
         try (final AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(Time.SYSTEM, cluster,
-                AdminClientUnitTestEnv.clientConfigs(), unreachableNodes)) {
+                AdminClientUnitTestEnv.clientConfigs(AdminClientConfig.METADATA_RECOVERY_STRATEGY_CONFIG, metadataRecoveryStrategy.name), unreachableNodes)) {
             Cluster discoveredCluster = mockCluster(3, 0);
             env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
             env.kafkaClient().prepareResponse(body -> body instanceof MetadataRequest,
                     RequestTestUtils.metadataResponse(discoveredCluster.nodes(), discoveredCluster.clusterResource().clusterId(),
                             1, Collections.emptyList()));
+            if (metadataRecoveryStrategy == MetadataRecoveryStrategy.REBOOTSTRAP) {
+                env.kafkaClient().prepareResponse(body -> body instanceof MetadataRequest,
+                        RequestTestUtils.metadataResponse(discoveredCluster.nodes(),
+                                discoveredCluster.clusterResource().clusterId(), 1, Collections.emptyList()));
+            }
             env.kafkaClient().prepareResponse(body -> body instanceof CreateTopicsRequest,
                 prepareCreateTopicsResponse("myTopic", Errors.NONE));
 
@@ -2047,9 +2061,9 @@ public class KafkaAdminClientTest {
                 new DescribeConfigsResponseData().setResults(asList(new DescribeConfigsResponseData.DescribeConfigsResult()
                     .setResourceName(brokerResource.name()).setResourceType(brokerResource.type().id()).setErrorCode(Errors.NONE.code())
                     .setConfigs(emptyList()),
-                new DescribeConfigsResponseData.DescribeConfigsResult()
-                    .setResourceName(brokerLoggerResource.name()).setResourceType(brokerLoggerResource.type().id()).setErrorCode(Errors.NONE.code())
-                    .setConfigs(emptyList())))), env.cluster().nodeById(0));
+                    new DescribeConfigsResponseData.DescribeConfigsResult()
+                        .setResourceName(brokerLoggerResource.name()).setResourceType(brokerLoggerResource.type().id()).setErrorCode(Errors.NONE.code())
+                        .setConfigs(emptyList())))), env.cluster().nodeById(0));
             Map<ConfigResource, KafkaFuture<Config>> result = env.adminClient().describeConfigs(asList(
                     brokerResource,
                     brokerLoggerResource)).values();
@@ -2088,9 +2102,9 @@ public class KafkaAdminClientTest {
                 new DescribeConfigsResponseData().setResults(asList(new DescribeConfigsResponseData.DescribeConfigsResult()
                         .setResourceName(topic.name()).setResourceType(topic.type().id()).setErrorCode(Errors.NONE.code())
                         .setConfigs(emptyList()),
-                new DescribeConfigsResponseData.DescribeConfigsResult()
-                        .setResourceName(unrequested.name()).setResourceType(unrequested.type().id()).setErrorCode(Errors.NONE.code())
-                        .setConfigs(emptyList())))));
+                    new DescribeConfigsResponseData.DescribeConfigsResult()
+                            .setResourceName(unrequested.name()).setResourceType(unrequested.type().id()).setErrorCode(Errors.NONE.code())
+                            .setConfigs(emptyList())))));
             Map<ConfigResource, KafkaFuture<Config>> result = env.adminClient().describeConfigs(singletonList(
                     topic)).values();
             assertEquals(new HashSet<>(singletonList(topic)), result.keySet());
@@ -2306,50 +2320,6 @@ public class KafkaAdminClientTest {
         }
     }
 
-    @SuppressWarnings("deprecation")
-    @Test
-    public void testDescribeLogDirsDeprecated() throws ExecutionException, InterruptedException {
-        Set<Integer> brokers = singleton(0);
-        TopicPartition tp = new TopicPartition("topic", 12);
-        String logDir = "/var/data/kafka";
-        Errors error = Errors.NONE;
-        int offsetLag = 24;
-        long partitionSize = 1234567890;
-
-        try (AdminClientUnitTestEnv env = mockClientEnv()) {
-            env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
-            env.kafkaClient().prepareResponseFrom(
-                    prepareDescribeLogDirsResponse(error, logDir, tp, partitionSize, offsetLag),
-                    env.cluster().nodeById(0));
-
-            DescribeLogDirsResult result = env.adminClient().describeLogDirs(brokers);
-
-            Map<Integer, KafkaFuture<Map<String, DescribeLogDirsResponse.LogDirInfo>>> deprecatedValues = result.values();
-            assertEquals(brokers, deprecatedValues.keySet());
-            assertNotNull(deprecatedValues.get(0));
-            assertDescriptionContains(deprecatedValues.get(0).get(), logDir, tp, error, offsetLag, partitionSize);
-
-            Map<Integer, Map<String, DescribeLogDirsResponse.LogDirInfo>> deprecatedAll = result.all().get();
-            assertEquals(brokers, deprecatedAll.keySet());
-            assertDescriptionContains(deprecatedAll.get(0), logDir, tp, error, offsetLag, partitionSize);
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    private static  void assertDescriptionContains(Map<String, DescribeLogDirsResponse.LogDirInfo> descriptionsMap,
-                                           String logDir, TopicPartition tp, Errors error,
-                                           int offsetLag, long partitionSize) {
-        assertNotNull(descriptionsMap);
-        assertEquals(singleton(logDir), descriptionsMap.keySet());
-        assertEquals(error, descriptionsMap.get(logDir).error);
-        Map<TopicPartition, DescribeLogDirsResponse.ReplicaInfo> allReplicaInfos =
-                descriptionsMap.get(logDir).replicaInfos;
-        assertEquals(singleton(tp), allReplicaInfos.keySet());
-        assertEquals(partitionSize, allReplicaInfos.get(tp).size);
-        assertEquals(offsetLag, allReplicaInfos.get(tp).offsetLag);
-        assertFalse(allReplicaInfos.get(tp).isFuture);
-    }
-
     @Test
     public void testDescribeLogDirsOfflineDir() throws ExecutionException, InterruptedException {
         Set<Integer> brokers = singleton(0);
@@ -2379,39 +2349,6 @@ public class KafkaAdminClientTest {
             assertEquals(singleton(logDir), allMap.keySet());
             assertEquals(error.exception().getClass(), allMap.get(logDir).error().getClass());
             assertEquals(emptySet(), allMap.get(logDir).replicaInfos().keySet());
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    @Test
-    public void testDescribeLogDirsOfflineDirDeprecated() throws ExecutionException, InterruptedException {
-        Set<Integer> brokers = singleton(0);
-        String logDir = "/var/data/kafka";
-        Errors error = Errors.KAFKA_STORAGE_ERROR;
-
-        try (AdminClientUnitTestEnv env = mockClientEnv()) {
-            env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
-            env.kafkaClient().prepareResponseFrom(
-                    prepareDescribeLogDirsResponse(error, logDir, emptyList()),
-                    env.cluster().nodeById(0));
-
-            DescribeLogDirsResult result = env.adminClient().describeLogDirs(brokers);
-
-            Map<Integer, KafkaFuture<Map<String, DescribeLogDirsResponse.LogDirInfo>>> deprecatedValues = result.values();
-            assertEquals(brokers, deprecatedValues.keySet());
-            assertNotNull(deprecatedValues.get(0));
-            Map<String, DescribeLogDirsResponse.LogDirInfo> valuesMap = deprecatedValues.get(0).get();
-            assertEquals(singleton(logDir), valuesMap.keySet());
-            assertEquals(error, valuesMap.get(logDir).error);
-            assertEquals(emptySet(), valuesMap.get(logDir).replicaInfos.keySet());
-
-            Map<Integer, Map<String, DescribeLogDirsResponse.LogDirInfo>> deprecatedAll = result.all().get();
-            assertEquals(brokers, deprecatedAll.keySet());
-            Map<String, DescribeLogDirsResponse.LogDirInfo> allMap = deprecatedAll.get(0);
-            assertNotNull(allMap);
-            assertEquals(singleton(logDir), allMap.keySet());
-            assertEquals(error, allMap.get(logDir).error);
-            assertEquals(emptySet(), allMap.get(logDir).replicaInfos.keySet());
         }
     }
 
@@ -3134,8 +3071,8 @@ public class KafkaAdminClientTest {
 
             assertEquals(2, listings.size());
             List<GroupListing> expected = new ArrayList<>();
-            expected.add(new GroupListing("group-2", Optional.of(GroupType.CLASSIC), ""));
-            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE));
+            expected.add(new GroupListing("group-2", Optional.of(GroupType.CLASSIC), "", Optional.of(GroupState.EMPTY)));
+            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE, Optional.of(GroupState.STABLE)));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }
@@ -3163,7 +3100,7 @@ public class KafkaAdminClientTest {
 
             assertEquals(1, listings.size());
             List<GroupListing> expected = new ArrayList<>();
-            expected.add(new GroupListing("group-1", Optional.empty(), "any"));
+            expected.add(new GroupListing("group-1", Optional.empty(), "any", Optional.empty()));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }
@@ -3199,15 +3136,15 @@ public class KafkaAdminClientTest {
 
             assertEquals(2, listing.size());
             List<GroupListing> expected = new ArrayList<>();
-            expected.add(new GroupListing("group-2", Optional.of(GroupType.CONSUMER), ""));
-            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE));
+            expected.add(new GroupListing("group-2", Optional.of(GroupType.CONSUMER), "", Optional.of(GroupState.EMPTY)));
+            expected.add(new GroupListing("group-1", Optional.of(GroupType.CONSUMER), ConsumerProtocol.PROTOCOL_TYPE, Optional.of(GroupState.STABLE)));
             assertEquals(expected, listing);
             assertEquals(0, result.errors().get().size());
         }
     }
 
     @Test
-    public void testListGroupsWithTypesOlderBrokerVersion() throws Exception {
+    public void testListGroupsWithTypesOlderBrokerVersion() {
         ApiVersion listGroupV4 = new ApiVersion()
             .setApiKey(ApiKeys.LIST_GROUPS.id)
             .setMinVersion((short) 0)
@@ -3387,8 +3324,8 @@ public class KafkaAdminClientTest {
 
             assertEquals(2, listings.size());
             List<ConsumerGroupListing> expected = new ArrayList<>();
-            expected.add(new ConsumerGroupListing("group-2", true, Optional.of(ConsumerGroupState.EMPTY)));
-            expected.add(new ConsumerGroupListing("group-1", false, Optional.of(ConsumerGroupState.STABLE)));
+            expected.add(new ConsumerGroupListing("group-2", Optional.of(GroupState.EMPTY), true));
+            expected.add(new ConsumerGroupListing("group-1", Optional.of(GroupState.STABLE), false));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }
@@ -3403,7 +3340,7 @@ public class KafkaAdminClientTest {
             env.kafkaClient().prepareResponse(prepareMetadataResponse(env.cluster(), Errors.NONE));
 
             env.kafkaClient().prepareResponseFrom(
-                expectListGroupsRequestWithFilters(singleton(ConsumerGroupState.STABLE.toString()), Collections.emptySet()),
+                expectListGroupsRequestWithFilters(singleton(GroupState.STABLE.toString()), Collections.emptySet()),
                 new ListGroupsResponse(new ListGroupsResponseData()
                     .setErrorCode(Errors.NONE.code())
                     .setGroups(singletonList(
@@ -3414,13 +3351,13 @@ public class KafkaAdminClientTest {
                             .setGroupType(GroupType.CLASSIC.toString())))),
                 env.cluster().nodeById(0));
 
-            final ListConsumerGroupsOptions options = new ListConsumerGroupsOptions().inStates(singleton(ConsumerGroupState.STABLE));
+            final ListConsumerGroupsOptions options = new ListConsumerGroupsOptions().inGroupStates(singleton(GroupState.STABLE));
             final ListConsumerGroupsResult result = env.adminClient().listConsumerGroups(options);
             Collection<ConsumerGroupListing> listings = result.valid().get();
 
             assertEquals(1, listings.size());
             List<ConsumerGroupListing> expected = new ArrayList<>();
-            expected.add(new ConsumerGroupListing("group-1", false, Optional.of(ConsumerGroupState.STABLE), Optional.of(GroupType.CLASSIC)));
+            expected.add(new ConsumerGroupListing("group-1", Optional.of(GroupState.STABLE), Optional.of(GroupType.CLASSIC), false));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
 
@@ -3449,8 +3386,8 @@ public class KafkaAdminClientTest {
 
             assertEquals(2, listings2.size());
             List<ConsumerGroupListing> expected2 = new ArrayList<>();
-            expected2.add(new ConsumerGroupListing("group-2", true, Optional.of(ConsumerGroupState.EMPTY), Optional.of(GroupType.CONSUMER)));
-            expected2.add(new ConsumerGroupListing("group-1", false, Optional.of(ConsumerGroupState.STABLE), Optional.of(GroupType.CONSUMER)));
+            expected2.add(new ConsumerGroupListing("group-2", Optional.of(GroupState.EMPTY), Optional.of(GroupType.CONSUMER), true));
+            expected2.add(new ConsumerGroupListing("group-1", Optional.of(GroupState.STABLE), Optional.of(GroupType.CONSUMER), false));
             assertEquals(expected2, listings2);
             assertEquals(0, result.errors().get().size());
         }
@@ -3488,7 +3425,7 @@ public class KafkaAdminClientTest {
             env.kafkaClient().prepareUnsupportedVersionResponse(
                 body -> body instanceof ListGroupsRequest);
 
-            options = new ListConsumerGroupsOptions().inStates(singleton(ConsumerGroupState.STABLE));
+            options = new ListConsumerGroupsOptions().inGroupStates(singleton(GroupState.STABLE));
             result = env.adminClient().listConsumerGroups(options);
             TestUtils.assertFutureThrows(result.all(), UnsupportedVersionException.class);
         }
@@ -3507,23 +3444,23 @@ public class KafkaAdminClientTest {
 
             // Check if we can list groups with older broker if we specify states and don't specify types.
             env.kafkaClient().prepareResponseFrom(
-                expectListGroupsRequestWithFilters(singleton(ConsumerGroupState.STABLE.toString()), Collections.emptySet()),
+                expectListGroupsRequestWithFilters(singleton(GroupState.STABLE.toString()), Collections.emptySet()),
                 new ListGroupsResponse(new ListGroupsResponseData()
                     .setErrorCode(Errors.NONE.code())
                     .setGroups(Collections.singletonList(
                         new ListGroupsResponseData.ListedGroup()
                             .setGroupId("group-1")
                             .setProtocolType(ConsumerProtocol.PROTOCOL_TYPE)
-                            .setGroupState(ConsumerGroupState.STABLE.toString())))),
+                            .setGroupState(GroupState.STABLE.toString())))),
                 env.cluster().nodeById(0));
 
-            ListConsumerGroupsOptions options = new ListConsumerGroupsOptions().inStates(singleton(ConsumerGroupState.STABLE));
+            ListConsumerGroupsOptions options = new ListConsumerGroupsOptions().inGroupStates(singleton(GroupState.STABLE));
             ListConsumerGroupsResult result = env.adminClient().listConsumerGroups(options);
 
             Collection<ConsumerGroupListing> listing = result.all().get();
             assertEquals(1, listing.size());
             List<ConsumerGroupListing> expected = Collections.singletonList(
-                new ConsumerGroupListing("group-1", false, Optional.of(ConsumerGroupState.STABLE))
+                new ConsumerGroupListing("group-1", Optional.of(GroupState.STABLE), false)
             );
             assertEquals(expected, listing);
 
@@ -3862,7 +3799,13 @@ public class KafkaAdminClientTest {
         try (AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(mockCluster(1, 0))) {
             env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
 
-            env.kafkaClient().prepareResponse(prepareFindCoordinatorResponse(Errors.NONE, env.cluster().controller()));
+            env.kafkaClient().prepareResponse(new FindCoordinatorResponse(
+                new FindCoordinatorResponseData()
+                    .setCoordinators(asList(
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, GROUP_ID, env.cluster().controller()),
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, "group-connect-0", env.cluster().controller())
+                    ))
+            ));
 
             // The first request sent will be a ConsumerGroupDescribe request. Let's
             // fail it in order to fail back to using the classic version.
@@ -3882,8 +3825,8 @@ public class KafkaAdminClientTest {
             byte[] memberAssignmentBytes = new byte[memberAssignment.remaining()];
             memberAssignment.get(memberAssignmentBytes);
 
-            DescribeGroupsResponseData group0Data = new DescribeGroupsResponseData();
-            group0Data.groups().add(DescribeGroupsResponse.groupMetadata(
+            DescribeGroupsResponseData groupData = new DescribeGroupsResponseData();
+            groupData.groups().add(DescribeGroupsResponse.groupMetadata(
                     GROUP_ID,
                     Errors.NONE,
                     "",
@@ -3894,9 +3837,7 @@ public class KafkaAdminClientTest {
                             DescribeGroupsResponse.groupMember("1", null, "clientId1", "clientHost", memberAssignmentBytes, null)
                     ),
                     Collections.emptySet()));
-
-            DescribeGroupsResponseData groupConnectData = new DescribeGroupsResponseData();
-            group0Data.groups().add(DescribeGroupsResponse.groupMetadata(
+            groupData.groups().add(DescribeGroupsResponse.groupMetadata(
                     "group-connect-0",
                     Errors.NONE,
                     "",
@@ -3908,8 +3849,7 @@ public class KafkaAdminClientTest {
                     ),
                     Collections.emptySet()));
 
-            env.kafkaClient().prepareResponse(new DescribeGroupsResponse(group0Data));
-            env.kafkaClient().prepareResponse(new DescribeGroupsResponse(groupConnectData));
+            env.kafkaClient().prepareResponse(new DescribeGroupsResponse(groupData));
 
             Collection<String> groups = new HashSet<>();
             groups.add(GROUP_ID);
@@ -3917,6 +3857,72 @@ public class KafkaAdminClientTest {
             final DescribeConsumerGroupsResult result = env.adminClient().describeConsumerGroups(groups);
             assertEquals(2, result.describedGroups().size());
             assertEquals(groups, result.describedGroups().keySet());
+            KafkaFuture<Map<String, ConsumerGroupDescription>> allFuture = result.all();
+            // This throws because the second group is a classic connect group, not a consumer group.
+            assertThrows(ExecutionException.class, allFuture::get);
+            assertTrue(allFuture.isCompletedExceptionally());
+        }
+    }
+
+    @Test
+    public void testDescribeConsumerGroupsGroupIdNotFound() {
+        try (AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(mockCluster(1, 0))) {
+            env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
+
+            env.kafkaClient().prepareResponse(new FindCoordinatorResponse(
+                new FindCoordinatorResponseData()
+                    .setCoordinators(asList(
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, GROUP_ID, env.cluster().controller()),
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, "group-connect-0", env.cluster().controller())
+                    ))
+            ));
+
+            // The first request sent will be a ConsumerGroupDescribe request. Let's
+            // fail it in order to fail back to using the classic version.
+            env.kafkaClient().prepareUnsupportedVersionResponse(
+                request -> request instanceof ConsumerGroupDescribeRequest);
+
+            TopicPartition myTopicPartition0 = new TopicPartition("my_topic", 0);
+            TopicPartition myTopicPartition1 = new TopicPartition("my_topic", 1);
+            TopicPartition myTopicPartition2 = new TopicPartition("my_topic", 2);
+
+            final List<TopicPartition> topicPartitions = new ArrayList<>();
+            topicPartitions.add(0, myTopicPartition0);
+            topicPartitions.add(1, myTopicPartition1);
+            topicPartitions.add(2, myTopicPartition2);
+
+            final ByteBuffer memberAssignment = ConsumerProtocol.serializeAssignment(new ConsumerPartitionAssignor.Assignment(topicPartitions));
+            byte[] memberAssignmentBytes = new byte[memberAssignment.remaining()];
+            memberAssignment.get(memberAssignmentBytes);
+
+            DescribeGroupsResponseData groupData = new DescribeGroupsResponseData();
+            groupData.groups().add(DescribeGroupsResponse.groupMetadata(
+                GROUP_ID,
+                Errors.NONE,
+                "",
+                ConsumerProtocol.PROTOCOL_TYPE,
+                "",
+                asList(
+                    DescribeGroupsResponse.groupMember("0", null, "clientId0", "clientHost", memberAssignmentBytes, null),
+                    DescribeGroupsResponse.groupMember("1", null, "clientId1", "clientHost", memberAssignmentBytes, null)
+                ),
+                Collections.emptySet()));
+            groupData.groups().add(DescribeGroupsResponse.groupError(
+                "group-connect-0",
+                Errors.GROUP_ID_NOT_FOUND,
+                "Group group-connect-0 is not a classic group."));
+
+            env.kafkaClient().prepareResponse(new DescribeGroupsResponse(groupData));
+
+            Collection<String> groups = new HashSet<>();
+            groups.add(GROUP_ID);
+            groups.add("group-connect-0");
+            final DescribeConsumerGroupsResult result = env.adminClient().describeConsumerGroups(groups);
+            assertEquals(2, result.describedGroups().size());
+            assertEquals(groups, result.describedGroups().keySet());
+            KafkaFuture<Map<String, ConsumerGroupDescription>> allFuture = result.all();
+            assertThrows(ExecutionException.class, allFuture::get);
+            assertTrue(result.all().isCompletedExceptionally());
         }
     }
 
@@ -4109,7 +4115,7 @@ public class KafkaAdminClientTest {
                 ),
                 "range",
                 GroupType.CONSUMER,
-                ConsumerGroupState.STABLE,
+                GroupState.STABLE,
                 env.cluster().controller(),
                 Collections.emptySet()
             ));
@@ -4129,7 +4135,7 @@ public class KafkaAdminClientTest {
                 ),
                 "range",
                 GroupType.CLASSIC,
-                ConsumerGroupState.STABLE,
+                GroupState.STABLE,
                 env.cluster().controller(),
                 Collections.emptySet()
             ));
@@ -5029,7 +5035,7 @@ public class KafkaAdminClientTest {
             ShareGroupDescribeResponseData group0Data = new ShareGroupDescribeResponseData();
             group0Data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId(GROUP_ID)
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(memberOne, memberTwo)));
 
             final List<TopicPartition> expectedTopicPartitions = new ArrayList<>();
@@ -5037,14 +5043,14 @@ public class KafkaAdminClientTest {
             expectedTopicPartitions.add(1, new TopicPartition("my_topic", 1));
             expectedTopicPartitions.add(2, new TopicPartition("my_topic", 2));
 
-            List<MemberDescription> expectedMemberDescriptions = new ArrayList<>();
-            expectedMemberDescriptions.add(convertToMemberDescriptions(memberOne,
-                new MemberAssignment(new HashSet<>(expectedTopicPartitions))));
-            expectedMemberDescriptions.add(convertToMemberDescriptions(memberTwo,
-                new MemberAssignment(new HashSet<>(expectedTopicPartitions))));
+            List<ShareMemberDescription> expectedMemberDescriptions = new ArrayList<>();
+            expectedMemberDescriptions.add(convertToShareMemberDescriptions(memberOne,
+                new ShareMemberAssignment(new HashSet<>(expectedTopicPartitions))));
+            expectedMemberDescriptions.add(convertToShareMemberDescriptions(memberTwo,
+                new ShareMemberAssignment(new HashSet<>(expectedTopicPartitions))));
             data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId(GROUP_ID)
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(memberOne, memberTwo)));
 
             env.kafkaClient().prepareResponse(new ShareGroupDescribeResponse(data));
@@ -5056,6 +5062,59 @@ public class KafkaAdminClientTest {
             assertEquals(GROUP_ID, groupDescription.groupId());
             assertEquals(2, groupDescription.members().size());
             assertEquals(expectedMemberDescriptions, groupDescription.members());
+        }
+    }
+
+    @Test
+    public void testDescribeShareGroupsGroupIdNotFound() throws Exception {
+        try (AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(mockCluster(1, 0))) {
+            env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
+
+            env.kafkaClient().prepareResponse(new FindCoordinatorResponse(
+                new FindCoordinatorResponseData()
+                    .setCoordinators(asList(
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, GROUP_ID, env.cluster().controller()),
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, "group-1", env.cluster().controller())
+                    ))
+            ));
+
+            ShareGroupDescribeResponseData.TopicPartitions topicPartitions = new ShareGroupDescribeResponseData.TopicPartitions()
+                .setTopicName("my_topic")
+                .setPartitions(asList(0, 1, 2));
+            final ShareGroupDescribeResponseData.Assignment memberAssignment = new ShareGroupDescribeResponseData.Assignment()
+                .setTopicPartitions(asList(topicPartitions));
+            ShareGroupDescribeResponseData groupData = new ShareGroupDescribeResponseData();
+            groupData.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
+                .setGroupId(GROUP_ID)
+                .setGroupState(GroupState.STABLE.toString())
+                .setMembers(asList(
+                    new ShareGroupDescribeResponseData.Member()
+                        .setMemberId("0")
+                        .setClientId("clientId0")
+                        .setClientHost("clientHost")
+                        .setAssignment(memberAssignment),
+                    new ShareGroupDescribeResponseData.Member()
+                        .setMemberId("1")
+                        .setClientId("clientId1")
+                        .setClientHost("clientHost")
+                        .setAssignment(memberAssignment))));
+            groupData.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
+                .setGroupId("group-1")
+                .setGroupState(GroupState.DEAD.toString())
+                .setErrorCode(Errors.GROUP_ID_NOT_FOUND.code())
+                .setErrorMessage("Group group-1 not found."));
+
+            env.kafkaClient().prepareResponse(new ShareGroupDescribeResponse(groupData));
+
+            Collection<String> groups = new HashSet<>();
+            groups.add(GROUP_ID);
+            groups.add("group-1");
+            final DescribeShareGroupsResult result = env.adminClient().describeShareGroups(groups);
+            assertEquals(2, result.describedGroups().size());
+            assertEquals(groups, result.describedGroups().keySet());
+            KafkaFuture<Map<String, ShareGroupDescription>> allFuture = result.all();
+            assertThrows(ExecutionException.class, allFuture::get);
+            assertTrue(result.all().isCompletedExceptionally());
         }
     }
 
@@ -5087,17 +5146,23 @@ public class KafkaAdminClientTest {
         try (AdminClientUnitTestEnv env = new AdminClientUnitTestEnv(mockCluster(1, 0))) {
             env.kafkaClient().setNodeApiVersions(NodeApiVersions.create());
 
-            env.kafkaClient().prepareResponse(prepareFindCoordinatorResponse(Errors.NONE, env.cluster().controller()));
+            env.kafkaClient().prepareResponse(new FindCoordinatorResponse(
+                new FindCoordinatorResponseData()
+                    .setCoordinators(asList(
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, GROUP_ID, env.cluster().controller()),
+                        FindCoordinatorResponse.prepareCoordinatorResponse(Errors.NONE, "group-1", env.cluster().controller())
+                    ))
+            ));
 
             ShareGroupDescribeResponseData.TopicPartitions topicPartitions = new ShareGroupDescribeResponseData.TopicPartitions()
                 .setTopicName("my_topic")
                 .setPartitions(asList(0, 1, 2));
             final ShareGroupDescribeResponseData.Assignment memberAssignment = new ShareGroupDescribeResponseData.Assignment()
                 .setTopicPartitions(asList(topicPartitions));
-            ShareGroupDescribeResponseData group0Data = new ShareGroupDescribeResponseData();
-            group0Data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
+            ShareGroupDescribeResponseData groupData = new ShareGroupDescribeResponseData();
+            groupData.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId(GROUP_ID)
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(
                     new ShareGroupDescribeResponseData.Member()
                         .setMemberId("0")
@@ -5109,11 +5174,9 @@ public class KafkaAdminClientTest {
                         .setClientId("clientId1")
                         .setClientHost("clientHost")
                         .setAssignment(memberAssignment))));
-
-            ShareGroupDescribeResponseData group1Data = new ShareGroupDescribeResponseData();
-            group1Data.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
+            groupData.groups().add(new ShareGroupDescribeResponseData.DescribedGroup()
                 .setGroupId("group-1")
-                .setGroupState(ShareGroupState.STABLE.toString())
+                .setGroupState(GroupState.STABLE.toString())
                 .setMembers(asList(
                     new ShareGroupDescribeResponseData.Member()
                         .setMemberId("0")
@@ -5126,8 +5189,7 @@ public class KafkaAdminClientTest {
                         .setClientHost("clientHost")
                         .setAssignment(memberAssignment))));
 
-            env.kafkaClient().prepareResponse(new ShareGroupDescribeResponse(group0Data));
-            env.kafkaClient().prepareResponse(new ShareGroupDescribeResponse(group1Data));
+            env.kafkaClient().prepareResponse(new ShareGroupDescribeResponse(groupData));
 
             Collection<String> groups = new HashSet<>();
             groups.add(GROUP_ID);
@@ -5135,6 +5197,9 @@ public class KafkaAdminClientTest {
             final DescribeShareGroupsResult result = env.adminClient().describeShareGroups(groups);
             assertEquals(2, result.describedGroups().size());
             assertEquals(groups, result.describedGroups().keySet());
+            KafkaFuture<Map<String, ShareGroupDescription>> allFuture = result.all();
+            assertDoesNotThrow(() -> allFuture.get());
+            assertFalse(allFuture.isCompletedExceptionally());
         }
     }
 
@@ -5222,16 +5287,16 @@ public class KafkaAdminClientTest {
                         .setGroups(Collections.emptyList())),
                 env.cluster().nodeById(3));
 
-            final ListShareGroupsResult result = env.adminClient().listShareGroups();
+            final ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
             TestUtils.assertFutureError(result.all(), UnknownServerException.class);
 
-            Collection<ShareGroupListing> listings = result.valid().get();
+            Collection<GroupListing> listings = result.valid().get();
             assertEquals(4, listings.size());
 
             Set<String> groupIds = new HashSet<>();
-            for (ShareGroupListing listing : listings) {
+            for (GroupListing listing : listings) {
                 groupIds.add(listing.groupId());
-                assertTrue(listing.state().isPresent());
+                assertTrue(listing.groupState().isPresent());
             }
 
             assertEquals(Set.of("share-group-1", "share-group-2", "share-group-3", "share-group-4"), groupIds);
@@ -5257,7 +5322,7 @@ public class KafkaAdminClientTest {
                     -1,
                     Collections.emptyList()));
 
-            final ListShareGroupsResult result = env.adminClient().listShareGroups();
+            final ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
             TestUtils.assertFutureError(result.all(), KafkaException.class);
         }
     }
@@ -5276,28 +5341,29 @@ public class KafkaAdminClientTest {
                             new ListGroupsResponseData.ListedGroup()
                                 .setGroupId("share-group-1")
                                 .setGroupType(GroupType.SHARE.toString())
+                                .setProtocolType("share")
                                 .setGroupState("Stable"),
                             new ListGroupsResponseData.ListedGroup()
                                 .setGroupId("share-group-2")
                                 .setGroupType(GroupType.SHARE.toString())
+                                .setProtocolType("share")
                                 .setGroupState("Empty")))),
                     env.cluster().nodeById(0));
 
-            final ListShareGroupsOptions options = new ListShareGroupsOptions();
-            final ListShareGroupsResult result = env.adminClient().listShareGroups(options);
-            Collection<ShareGroupListing> listings = result.valid().get();
+            final ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
+            Collection<GroupListing> listings = result.valid().get();
 
             assertEquals(2, listings.size());
-            List<ShareGroupListing> expected = new ArrayList<>();
-            expected.add(new ShareGroupListing("share-group-1", Optional.of(ShareGroupState.STABLE)));
-            expected.add(new ShareGroupListing("share-group-2", Optional.of(ShareGroupState.EMPTY)));
+            List<GroupListing> expected = new ArrayList<>();
+            expected.add(new GroupListing("share-group-1", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.STABLE)));
+            expected.add(new GroupListing("share-group-2", Optional.of(GroupType.SHARE), "share", Optional.of(GroupState.EMPTY)));
             assertEquals(expected, listings);
             assertEquals(0, result.errors().get().size());
         }
     }
 
     @Test
-    public void testListShareGroupsWithStatesOlderBrokerVersion() throws Exception {
+    public void testListShareGroupsWithStatesOlderBrokerVersion() {
         ApiVersion listGroupV4 = new ApiVersion()
             .setApiKey(ApiKeys.LIST_GROUPS.id)
             .setMinVersion((short) 0)
@@ -5315,8 +5381,7 @@ public class KafkaAdminClientTest {
                         new ListGroupsResponseData.ListedGroup()
                             .setGroupId("share-group-1")))),
                 env.cluster().nodeById(0));
-            ListShareGroupsOptions options = new ListShareGroupsOptions();
-            ListShareGroupsResult result = env.adminClient().listShareGroups(options);
+            ListGroupsResult result = env.adminClient().listGroups(new ListGroupsOptions().withTypes(Set.of(GroupType.SHARE)));
             TestUtils.assertFutureThrows(result.all(), UnsupportedVersionException.class);
         }
     }
@@ -6549,7 +6614,7 @@ public class KafkaAdminClientTest {
                     .noneMatch(p -> p.timestamp() == ListOffsetsRequest.MAX_TIMESTAMP),
                 new ListOffsetsResponse(responseData), node);
 
-            ListOffsetsResult result = env.adminClient().listOffsets(new HashMap<TopicPartition, OffsetSpec>() {{
+            ListOffsetsResult result = env.adminClient().listOffsets(new HashMap<>() {{
                     put(tp0, OffsetSpec.maxTimestamp());
                     put(tp1, OffsetSpec.latest());
                 }});
@@ -6610,7 +6675,7 @@ public class KafkaAdminClientTest {
                     new ListOffsetsResponse(responseDataWithError), node);
             }
             ListOffsetsResult result = env.adminClient().listOffsets(
-                new HashMap<TopicPartition, OffsetSpec>() {
+                new HashMap<>() {
                     {
                         put(tp0, OffsetSpec.latest());
                         put(tp1, OffsetSpec.latest());
@@ -6633,7 +6698,7 @@ public class KafkaAdminClientTest {
             env.kafkaClient().prepareResponseFrom(
                 request -> request instanceof ListOffsetsRequest, new ListOffsetsResponse(responseData), node);
             result = env.adminClient().listOffsets(
-                new HashMap<TopicPartition, OffsetSpec>() {
+                new HashMap<>() {
                     {
                         put(tp0, OffsetSpec.latest());
                         put(tp1, OffsetSpec.latest());
@@ -8612,13 +8677,12 @@ public class KafkaAdminClientTest {
                                      assignment);
     }
 
-    private static MemberDescription convertToMemberDescriptions(ShareGroupDescribeResponseData.Member member,
-                                                                 MemberAssignment assignment) {
-        return new MemberDescription(member.memberId(),
-                                     Optional.empty(),
-                                     member.clientId(),
-                                     member.clientHost(),
-                                     assignment);
+    private static ShareMemberDescription convertToShareMemberDescriptions(ShareGroupDescribeResponseData.Member member,
+                                                                           ShareMemberAssignment assignment) {
+        return new ShareMemberDescription(member.memberId(),
+                                          member.clientId(),
+                                          member.clientHost(),
+                                          assignment);
     }
 
     @Test

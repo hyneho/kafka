@@ -18,9 +18,9 @@ package org.apache.kafka.common.requests;
 
 import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.ElectionType;
+import org.apache.kafka.common.GroupState;
 import org.apache.kafka.common.IsolationLevel;
 import org.apache.kafka.common.Node;
-import org.apache.kafka.common.ShareGroupState;
 import org.apache.kafka.common.TopicIdPartition;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
@@ -1487,7 +1487,7 @@ public class RequestResponseTest {
                                 .setGroupId("group")
                                 .setErrorCode((short) 0)
                                 .setErrorMessage(Errors.forCode((short) 0).message())
-                                .setGroupState(ShareGroupState.EMPTY.toString())
+                                .setGroupState(GroupState.EMPTY.toString())
                                 .setMembers(new ArrayList<>(0))
                 ))
                 .setThrottleTimeMs(1000);
@@ -2187,9 +2187,9 @@ public class RequestResponseTest {
         JoinGroupRequestData.JoinGroupRequestProtocolCollection protocols =
             new JoinGroupRequestData.JoinGroupRequestProtocolCollection(
                 Collections.singleton(
-                new JoinGroupRequestData.JoinGroupRequestProtocol()
-                        .setName("consumer-range")
-                        .setMetadata(new byte[0])).iterator()
+                        new JoinGroupRequestData.JoinGroupRequestProtocol()
+                                .setName("consumer-range")
+                                .setMetadata(new byte[0])).iterator()
         );
 
         JoinGroupRequestData data = new JoinGroupRequestData()

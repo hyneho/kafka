@@ -29,9 +29,10 @@ import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.metadata.BrokerState;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.storage.FormatterException;
+import org.apache.kafka.server.common.Feature;
 import org.apache.kafka.server.common.FeatureVersion;
-import org.apache.kafka.server.common.Features;
 import org.apache.kafka.server.common.MetadataVersion;
+import org.apache.kafka.server.fault.FaultHandlerException;
 
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.BeforeTestExecutionCallback;
@@ -97,7 +98,7 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         );
     }
 
-    public static class RaftClusterInstance implements ClusterInstance {
+    private static class RaftClusterInstance implements ClusterInstance {
 
         private final ClusterConfig clusterConfig;
         final AtomicBoolean started = new AtomicBoolean(false);
@@ -203,6 +204,16 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
         }
 
         @Override
+        public Optional<FaultHandlerException> firstFatalException() {
+            return Optional.ofNullable(clusterTestKit.fatalFaultHandler().firstException());
+        }
+
+        @Override
+        public Optional<FaultHandlerException> firstNonFatalException() {
+            return Optional.ofNullable(clusterTestKit.nonFatalFaultHandler().firstException());
+        }
+
+        @Override
         public void waitForReadyBrokers() throws InterruptedException {
             try {
                 clusterTestKit.waitForReadyBrokers();
@@ -225,12 +236,12 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
 
         public void format() throws Exception {
             if (formated.compareAndSet(false, true)) {
-                Map<String, Features> nameToSupportedFeature = new TreeMap<>();
-                Features.PRODUCTION_FEATURES.forEach(feature -> nameToSupportedFeature.put(feature.featureName(), feature));
+                Map<String, Feature> nameToSupportedFeature = new TreeMap<>();
+                Feature.PRODUCTION_FEATURES.forEach(feature -> nameToSupportedFeature.put(feature.featureName(), feature));
                 Map<String, Short> newFeatureLevels = new TreeMap<>();
 
                 // Verify that all specified features are known to us.
-                for (Map.Entry<Features, Short> entry : clusterConfig.features().entrySet()) {
+                for (Map.Entry<Feature, Short> entry : clusterConfig.features().entrySet()) {
                     String featureName = entry.getKey().featureName();
                     short level = entry.getValue();
                     if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
@@ -244,10 +255,10 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                 newFeatureLevels.put(MetadataVersion.FEATURE_NAME, clusterConfig.metadataVersion().featureLevel());
 
                 // Add default values for features that were not specified.
-                Features.PRODUCTION_FEATURES.forEach(supportedFeature -> {
+                Feature.PRODUCTION_FEATURES.forEach(supportedFeature -> {
                     if (!newFeatureLevels.containsKey(supportedFeature.featureName())) {
                         newFeatureLevels.put(supportedFeature.featureName(),
-                            supportedFeature.defaultValue(clusterConfig.metadataVersion()));
+                            supportedFeature.defaultLevel(clusterConfig.metadataVersion()));
                     }
                 });
 
@@ -257,10 +268,10 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                     String featureName = entry.getKey();
                     if (!featureName.equals(MetadataVersion.FEATURE_NAME)) {
                         short level = entry.getValue();
-                        Features supportedFeature = nameToSupportedFeature.get(featureName);
+                        Feature supportedFeature = nameToSupportedFeature.get(featureName);
                         FeatureVersion featureVersion =
                             supportedFeature.fromFeatureLevel(level, true);
-                        Features.validateVersion(featureVersion, newFeatureLevels);
+                        Feature.validateVersion(featureVersion, newFeatureLevels);
                     }
                 }
 
@@ -273,11 +284,12 @@ public class RaftClusterInvocationContext implements TestTemplateInvocationConte
                         .setNumControllerNodes(clusterConfig.numControllers())
                         .setBrokerListenerName(listenerName)
                         .setBrokerSecurityProtocol(clusterConfig.brokerSecurityProtocol())
+                        .setControllerListenerName(clusterConfig.controllerListenerName())
+                        .setControllerSecurityProtocol(clusterConfig.controllerSecurityProtocol())
                         .build();
                 KafkaClusterTestKit.Builder builder = new KafkaClusterTestKit.Builder(nodes);
                 // Copy properties into the TestKit builder
                 clusterConfig.serverProperties().forEach(builder::setConfigProp);
-                // KAFKA-12512 need to pass security protocol and listener name here
                 this.clusterTestKit = builder.build();
                 this.clusterTestKit.format();
             }

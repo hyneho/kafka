@@ -27,6 +27,7 @@ import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.errors.{InterruptException, InvalidGroupIdException, InvalidTopicException, TimeoutException, WakeupException}
 import org.apache.kafka.common.record.{CompressionType, TimestampType}
 import org.apache.kafka.common.serialization._
+import org.apache.kafka.common.test.api.Flaky
 import org.apache.kafka.common.{MetricName, TopicPartition}
 import org.apache.kafka.server.quota.QuotaType
 import org.apache.kafka.test.{MockConsumerInterceptor, MockProducerInterceptor}
@@ -387,8 +388,10 @@ class PlaintextConsumerTest extends BaseConsumerTest {
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testPauseStateNotPreservedByRebalance(quorum: String, groupProtocol: String): Unit = {
-    this.consumerConfig.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "100") // timeout quickly to avoid slow test
-    this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, "30")
+    if (groupProtocol.equals(GroupProtocol.CLASSIC.name)) {
+      this.consumerConfig.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "100") // timeout quickly to avoid slow test
+      this.consumerConfig.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, "30")
+    }
     val consumer = createConsumer()
 
     val producer = createProducer()
@@ -825,6 +828,7 @@ class PlaintextConsumerTest extends BaseConsumerTest {
     assertThrows(classOf[WakeupException], () => consumer.position(topicPartition, Duration.ofSeconds(100)))
   }
 
+  @Flaky("KAFKA-18031")
   @ParameterizedTest(name = TestInfoUtils.TestWithParameterizedQuorumAndGroupProtocolNames)
   @MethodSource(Array("getTestQuorumAndGroupProtocolParametersAll"))
   def testCloseLeavesGroupOnInterrupt(quorum: String, groupProtocol: String): Unit = {
