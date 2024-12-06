@@ -11548,9 +11548,6 @@ public class GroupMetadataManagerTest {
         )));
         context.commit();
 
-        // Determine the future leader of the classic group.
-        String leader = context.groupMetadataManager.consumerGroup(groupId).members().keySet().iterator().next();
-
         // A new member using classic protocol with the same instance id joins, scheduling the downgrade.
         JoinGroupRequestData joinRequest = new GroupMetadataManagerTestContext.JoinGroupRequestBuilder()
             .withGroupId(groupId)
@@ -11604,7 +11601,7 @@ public class GroupMetadataManagerTest {
             10,
             Optional.of(ConsumerProtocol.PROTOCOL_TYPE),
             Optional.of("range"),
-            Optional.of(leader),
+            Optional.of(memberId1),
             Optional.of(context.time.milliseconds())
         );
         expectedClassicGroup.add(
@@ -11633,6 +11630,11 @@ public class GroupMetadataManagerTest {
                 assignment2
             )
         );
+
+        // The leader of the classic group is not deterministic.
+        String leader = context.groupMetadataManager.getOrMaybeCreateClassicGroup(groupId, false).leaderOrNull();
+        assertTrue(Set.of(memberId1, newMemberId2).contains(leader));
+        expectedClassicGroup.setLeaderId(Optional.of(leader));
 
         assertUnorderedRecordsEquals(
             List.of(
