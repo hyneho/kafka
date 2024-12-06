@@ -64,13 +64,11 @@ import org.apache.kafka.connect.util.*;
 
 import org.apache.log4j.Level;
 import org.apache.maven.artifact.versioning.ArtifactVersion;
-import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
 import org.apache.maven.artifact.versioning.VersionRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.DefaultValue;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
@@ -678,8 +676,12 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         }
         String connType = connectorProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
         VersionRange connVersion = null;
+        Connector connector;
+        ClassLoader connectorLoader;
         try {
             connVersion = PluginVersionUtils.connectorVersionRequirement(connectorProps.get(CONNECTOR_VERSION));
+            connector = getConnector(connType, connVersion);
+            connectorLoader = plugins().pluginLoader(connType, connVersion);
         } catch (Exception e) {
             throw new BadRequestException(e.getMessage());
         }
@@ -687,8 +689,7 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
         if (connType == null)
             throw new BadRequestException("Connector config " + connectorProps + " contains no connector type");
 
-        Connector connector = getConnector(connType, connVersion);
-        ClassLoader connectorLoader = connector.getClass().getClassLoader();
+
         try (LoaderSwap loaderSwap = plugins().withClassLoader(connectorLoader)) {
             log.info("Validating connector {}, version {}", connType, connector.version());
             org.apache.kafka.connect.health.ConnectorType connectorType;
@@ -696,16 +697,14 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             Map<String, ConfigValue> validatedConnectorConfig;
             if (connector instanceof SourceConnector) {
                 connectorType = org.apache.kafka.connect.health.ConnectorType.SOURCE;
-                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SourceConnectorConfig.configDef(), connectorProps, false);
-                ConnectorConfig.updateDefaults(enrichedConfigDef, plugins(), connectorProps, worker.config().originalsStrings());
+                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SourceConnectorConfig.enrichedConfigDef(plugins(), connectorProps, worker.config().originalsStrings()), connectorProps, false);
                 stageDescription = "validating source connector-specific properties for the connector";
                 try (TemporaryStage stage = reportStage.apply(stageDescription)) {
                     validatedConnectorConfig = validateSourceConnectorConfig((SourceConnector) connector, enrichedConfigDef, connectorProps);
                 }
             } else {
                 connectorType = org.apache.kafka.connect.health.ConnectorType.SINK;
-                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SinkConnectorConfig.configDef(), connectorProps, false);
-                ConnectorConfig.updateDefaults(enrichedConfigDef, plugins(), connectorProps, worker.config().originalsStrings());
+                enrichedConfigDef = ConnectorConfig.enrich(plugins(), SinkConnectorConfig.enrichedConfigDef(plugins(), connectorProps, worker.config().originalsStrings()), connectorProps, false);
                 stageDescription = "validating sink connector-specific properties for the connector";
                 try (TemporaryStage stage = reportStage.apply(stageDescription)) {
                     validatedConnectorConfig = validateSinkConnectorConfig((SinkConnector) connector, enrichedConfigDef, connectorProps);
@@ -1180,10 +1179,10 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             // Contains definitions specifically declared on the plugin
             ConfigDef pluginConfigDefs;
             if (plugin instanceof SinkConnector) {
-                baseConfigDefs = SinkConnectorConfig.configDef();
+                baseConfigDefs = SinkConnectorConfig.enrichedConfigDef(p, pluginName);
                 pluginConfigDefs = ((SinkConnector) plugin).config();
             } else if (plugin instanceof SourceConnector) {
-                baseConfigDefs = SourceConnectorConfig.configDef();
+                baseConfigDefs = SourceConnectorConfig.enrichedConfigDef(p, pluginName);
                 pluginConfigDefs = ((SourceConnector) plugin).config();
             } else if (plugin instanceof Converter) {
                 pluginConfigDefs = ((Converter) plugin).config();
@@ -1202,7 +1201,6 @@ public abstract class AbstractHerder implements Herder, TaskStatus.Listener, Con
             // Preserve the ordering of properties as they're returned from each ConfigDef
             Map<String, ConfigKey> configsMap = new LinkedHashMap<>(pluginConfigDefs.configKeys());
             if (baseConfigDefs != null) {
-                ConnectorConfig.updateConnectorVersionDefaults(baseConfigDefs, p, pluginName);
                 baseConfigDefs.configKeys().forEach(configsMap::putIfAbsent);
             }
 

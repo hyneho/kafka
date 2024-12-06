@@ -30,6 +30,7 @@ import org.apache.kafka.connect.runtime.errors.ToleranceType;
 import org.apache.kafka.connect.runtime.isolation.LoaderSwap;
 import org.apache.kafka.connect.runtime.isolation.PluginDesc;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
+import org.apache.kafka.connect.runtime.isolation.PluginsRecommenders;
 import org.apache.kafka.connect.runtime.isolation.VersionedPluginLoadingException;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.HeaderConverter;
@@ -86,7 +87,6 @@ public class ConnectorConfig extends AbstractConfig {
     private static final String CONNECTOR_VERSION_DOC = "Version of the connector.";
     private static final String CONNECTOR_VERSION_DISPLAY = "Connector version";
     private static final ConfigDef.Validator CONNECTOR_VERSION_VALIDATOR = new PluginVersionUtils.PluginVersionValidator();
-    private static final ConfigDef.Recommender CONNECTOR_VERSION_RECOMMENDER = new PluginVersionUtils.ConnectorPluginVersionRecommender();
 
     public static final String KEY_CONVERTER_CLASS_CONFIG = WorkerConfig.KEY_CONVERTER_CLASS_CONFIG;
     public static final String KEY_CONVERTER_CLASS_DOC = WorkerConfig.KEY_CONVERTER_CLASS_DOC;
@@ -95,14 +95,12 @@ public class ConnectorConfig extends AbstractConfig {
             ConcreteSubClassValidator.forSuperClass(Converter.class),
             new InstantiableClassValidator()
     );
-    private static final ConfigDef.Recommender KEY_CONVERTER_CLASS_RECOMMENDER = new PluginVersionUtils.ConverterPluginRecommender();
 
     public static final String KEY_CONVERTER_VERSION_CONFIG = WorkerConfig.KEY_CONVERTER_VERSION;
     private static final String KEY_CONVERTER_VERSION_DEFAULT = null;
     private static final String KEY_CONVERTER_VERSION_DOC = "Version of the key converter.";
     private static final String KEY_CONVERTER_VERSION_DISPLAY = "Key converter version";
     private static final ConfigDef.Validator KEY_CONVERTER_VERSION_VALIDATOR = new PluginVersionUtils.PluginVersionValidator();
-    private static final ConfigDef.Recommender KEY_CONVERTER_VERSION_RECOMMENDER = new PluginVersionUtils.KeyConverterPluginVersionRecommender();
 
 
     public static final String VALUE_CONVERTER_CLASS_CONFIG = WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG;
@@ -112,14 +110,12 @@ public class ConnectorConfig extends AbstractConfig {
             ConcreteSubClassValidator.forSuperClass(Converter.class),
             new InstantiableClassValidator()
     );
-    private static final ConfigDef.Recommender VALUE_CONVERTER_CLASS_RECOMMENDER = new PluginVersionUtils.ConverterPluginRecommender();
 
     public static final String VALUE_CONVERTER_VERSION_CONFIG = WorkerConfig.VALUE_CONVERTER_VERSION;
     private static final String VALUE_CONVERTER_VERSION_DEFAULT = null;
     private static final String VALUE_CONVERTER_VERSION_DOC = "Version of the value converter.";
     private static final String VALUE_CONVERTER_VERSION_DISPLAY = "Value converter version";
     private static final ConfigDef.Validator VALUE_CONVERTER_VERSION_VALIDATOR = new PluginVersionUtils.PluginVersionValidator();
-    private static final ConfigDef.Recommender VALUE_CONVERTER_VERSION_RECOMMENDER = new PluginVersionUtils.ValueConverterPluginVersionRecommender();
 
     public static final String HEADER_CONVERTER_CLASS_CONFIG = WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG;
     public static final String HEADER_CONVERTER_CLASS_DOC = WorkerConfig.HEADER_CONVERTER_CLASS_DOC;
@@ -131,14 +127,12 @@ public class ConnectorConfig extends AbstractConfig {
             ConcreteSubClassValidator.forSuperClass(HeaderConverter.class),
             new InstantiableClassValidator()
     );
-    private static final ConfigDef.Recommender HEADER_CONVERTER_CLASS_RECOMMENDER = new PluginVersionUtils.HeaderConverterPluginRecommender();
 
     public static final String HEADER_CONVERTER_VERSION_CONFIG = WorkerConfig.HEADER_CONVERTER_VERSION;
     private static final String HEADER_CONVERTER_VERSION_DEFAULT = null;
     private static final String HEADER_CONVERTER_VERSION_DOC = "Version of the header converter.";
     private static final String HEADER_CONVERTER_VERSION_DISPLAY = "Header converter version";
     private static final ConfigDef.Validator HEADER_CONVERTER_VERSION_VALIDATOR = new PluginVersionUtils.PluginVersionValidator();
-    private static final ConfigDef.Recommender HEADER_CONVERTER_VERSION_RECOMMENDER = new PluginVersionUtils.HeaderConverterPluginVersionRecommender();
 
     public static final String TASKS_MAX_CONFIG = "tasks.max";
     private static final String TASKS_MAX_DOC = "Maximum number of tasks to use for this connector.";
@@ -218,7 +212,8 @@ public class ConnectorConfig extends AbstractConfig {
     public static final String CONNECTOR_CLIENT_ADMIN_OVERRIDES_PREFIX = "admin.override.";
     public static final String PREDICATES_PREFIX = "predicates.";
 
-
+    private static final PluginsRecommenders emptyRecommender = new PluginsRecommenders();
+    private static final ConverterDefaults emptyDefaults = new ConverterDefaults();
 
     private final ConnectorConfig.EnrichedConnectorConfig enrichedConfig;
 
@@ -233,22 +228,27 @@ public class ConnectorConfig extends AbstractConfig {
         }
     }
 
-
-    public static ConfigDef configDef() {
+    protected static ConfigDef configDef(
+            String defaultConnectorVersion,
+            ConverterDefaults keyConverterDefaults,
+            ConverterDefaults valueConverterDefaults,
+            ConverterDefaults headerConverterDefaults,
+            PluginsRecommenders recommender
+    ) {
         int orderInGroup = 0;
         int orderInErrorGroup = 0;
         return new ConfigDef()
                 .define(NAME_CONFIG, Type.STRING, ConfigDef.NO_DEFAULT_VALUE, nonEmptyStringWithoutControlChars(), Importance.HIGH, NAME_DOC, COMMON_GROUP, ++orderInGroup, Width.MEDIUM, NAME_DISPLAY)
                 .define(CONNECTOR_CLASS_CONFIG, Type.STRING, Importance.HIGH, CONNECTOR_CLASS_DOC, COMMON_GROUP, ++orderInGroup, Width.LONG, CONNECTOR_CLASS_DISPLAY)
-                .define(CONNECTOR_VERSION, Type.STRING, CONNECTOR_VERSION_DEFAULT, CONNECTOR_VERSION_VALIDATOR, Importance.MEDIUM, CONNECTOR_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.MEDIUM, CONNECTOR_VERSION_DISPLAY, CONNECTOR_VERSION_RECOMMENDER)
+                .define(CONNECTOR_VERSION, Type.STRING, defaultConnectorVersion, CONNECTOR_VERSION_VALIDATOR, Importance.MEDIUM, CONNECTOR_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.MEDIUM, CONNECTOR_VERSION_DISPLAY, recommender.connectorPluginVersionRecommender())
                 .define(TASKS_MAX_CONFIG, Type.INT, TASKS_MAX_DEFAULT, atLeast(TASKS_MIN_CONFIG), Importance.HIGH, TASKS_MAX_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, TASK_MAX_DISPLAY)
                 .define(TASKS_MAX_ENFORCE_CONFIG, Type.BOOLEAN, TASKS_MAX_ENFORCE_DEFAULT, Importance.LOW, TASKS_MAX_ENFORCE_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, TASKS_MAX_ENFORCE_DISPLAY)
-                .define(KEY_CONVERTER_CLASS_CONFIG, Type.CLASS, null, KEY_CONVERTER_CLASS_VALIDATOR, Importance.LOW, KEY_CONVERTER_CLASS_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, KEY_CONVERTER_CLASS_DISPLAY, KEY_CONVERTER_CLASS_RECOMMENDER)
-                .define(KEY_CONVERTER_VERSION_CONFIG, Type.STRING, KEY_CONVERTER_VERSION_DEFAULT, KEY_CONVERTER_VERSION_VALIDATOR, Importance.LOW, KEY_CONVERTER_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, KEY_CONVERTER_VERSION_DISPLAY, KEY_CONVERTER_VERSION_RECOMMENDER)
-                .define(VALUE_CONVERTER_CLASS_CONFIG, Type.CLASS, null, VALUE_CONVERTER_CLASS_VALIDATOR, Importance.LOW, VALUE_CONVERTER_CLASS_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, VALUE_CONVERTER_CLASS_DISPLAY, VALUE_CONVERTER_CLASS_RECOMMENDER)
-                .define(VALUE_CONVERTER_VERSION_CONFIG, Type.STRING, VALUE_CONVERTER_VERSION_DEFAULT, VALUE_CONVERTER_VERSION_VALIDATOR, Importance.LOW, VALUE_CONVERTER_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, VALUE_CONVERTER_VERSION_DISPLAY, VALUE_CONVERTER_VERSION_RECOMMENDER)
-                .define(HEADER_CONVERTER_CLASS_CONFIG, Type.CLASS, HEADER_CONVERTER_CLASS_DEFAULT, HEADER_CONVERTER_CLASS_VALIDATOR, Importance.LOW, HEADER_CONVERTER_CLASS_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, HEADER_CONVERTER_CLASS_DISPLAY, HEADER_CONVERTER_CLASS_RECOMMENDER)
-                .define(HEADER_CONVERTER_VERSION_CONFIG, Type.STRING, HEADER_CONVERTER_VERSION_DEFAULT, HEADER_CONVERTER_VERSION_VALIDATOR, Importance.LOW, HEADER_CONVERTER_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, HEADER_CONVERTER_VERSION_DISPLAY, HEADER_CONVERTER_VERSION_RECOMMENDER)
+                .define(KEY_CONVERTER_CLASS_CONFIG, Type.CLASS, keyConverterDefaults.type, KEY_CONVERTER_CLASS_VALIDATOR, Importance.LOW, KEY_CONVERTER_CLASS_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, KEY_CONVERTER_CLASS_DISPLAY, recommender.converterPluginRecommender())
+                .define(KEY_CONVERTER_VERSION_CONFIG, Type.STRING, keyConverterDefaults.version, KEY_CONVERTER_VERSION_VALIDATOR, Importance.LOW, KEY_CONVERTER_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, KEY_CONVERTER_VERSION_DISPLAY, recommender.keyConverterPluginVersionRecommender())
+                .define(VALUE_CONVERTER_CLASS_CONFIG, Type.CLASS, valueConverterDefaults.type, VALUE_CONVERTER_CLASS_VALIDATOR, Importance.LOW, VALUE_CONVERTER_CLASS_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, VALUE_CONVERTER_CLASS_DISPLAY, recommender.converterPluginRecommender())
+                .define(VALUE_CONVERTER_VERSION_CONFIG, Type.STRING, valueConverterDefaults.version, VALUE_CONVERTER_VERSION_VALIDATOR, Importance.LOW, VALUE_CONVERTER_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, VALUE_CONVERTER_VERSION_DISPLAY, recommender.valueConverterPluginVersionRecommender())
+                .define(HEADER_CONVERTER_CLASS_CONFIG, Type.CLASS, headerConverterDefaults.type, HEADER_CONVERTER_CLASS_VALIDATOR, Importance.LOW, HEADER_CONVERTER_CLASS_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, HEADER_CONVERTER_CLASS_DISPLAY, recommender.headerConverterPluginRecommender())
+                .define(HEADER_CONVERTER_VERSION_CONFIG, Type.STRING, headerConverterDefaults.version, HEADER_CONVERTER_VERSION_VALIDATOR, Importance.LOW, HEADER_CONVERTER_VERSION_DOC, COMMON_GROUP, ++orderInGroup, Width.SHORT, HEADER_CONVERTER_VERSION_DISPLAY, recommender.headerConverterPluginVersionRecommender())
                 .define(TRANSFORMS_CONFIG, Type.LIST, Collections.emptyList(), aliasValidator("transformation"), Importance.LOW, TRANSFORMS_DOC, TRANSFORMS_GROUP, ++orderInGroup, Width.LONG, TRANSFORMS_DISPLAY)
                 .define(PREDICATES_CONFIG, Type.LIST, Collections.emptyList(), aliasValidator("predicate"), Importance.LOW, PREDICATES_DOC, PREDICATES_GROUP, ++orderInGroup, Width.LONG, PREDICATES_DISPLAY)
                 .define(CONFIG_RELOAD_ACTION_CONFIG, Type.STRING, CONFIG_RELOAD_ACTION_RESTART,
@@ -266,6 +266,26 @@ public class ConnectorConfig extends AbstractConfig {
                 .define(ERRORS_LOG_INCLUDE_MESSAGES_CONFIG, Type.BOOLEAN, ERRORS_LOG_INCLUDE_MESSAGES_DEFAULT, Importance.MEDIUM,
                         ERRORS_LOG_INCLUDE_MESSAGES_DOC, ERROR_GROUP, ++orderInErrorGroup, Width.SHORT, ERRORS_LOG_INCLUDE_MESSAGES_DISPLAY);
 
+    }
+
+    public static ConfigDef configDef() {
+        return configDef(null, emptyDefaults, emptyDefaults, emptyDefaults, emptyRecommender);
+    }
+
+    // ConfigDef with additional defaults and recommenders
+    public static ConfigDef enrichedConfigDef(Plugins plugins, Map<String, String> connProps, Map<String, String> workerProps) {
+        ConverterDefaults keyConverterDefaults = converterDefaults(plugins, KEY_CONVERTER_CLASS_CONFIG,
+                WorkerConfig.KEY_CONVERTER_CLASS_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION, connProps, workerProps, Converter.class);
+        ConverterDefaults valueConverterDefaults = converterDefaults(plugins, VALUE_CONVERTER_CLASS_CONFIG,
+                WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION, connProps, workerProps, Converter.class);
+        ConverterDefaults headerConverterDefaults = converterDefaults(plugins, HEADER_CONVERTER_CLASS_CONFIG,
+                WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION, connProps, workerProps, HeaderConverter.class);
+        return configDef(plugins.latestVersion(connProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG)),
+                keyConverterDefaults, valueConverterDefaults, headerConverterDefaults, plugins.pluginsRecommenders());
+    }
+
+    public static ConfigDef enrichedConfigDef(Plugins plugins, String connectorClass) {
+        return configDef(plugins.latestVersion(connectorClass), emptyDefaults, emptyDefaults, emptyDefaults, emptyRecommender);
     }
 
     private static ConfigDef.CompositeValidator aliasValidator(String kind) {
@@ -436,7 +456,7 @@ public class ConnectorConfig extends AbstractConfig {
 
             @Override
             protected ConfigDef.Recommender versionRecommender(String typeConfig) {
-                return new PluginVersionUtils.TransformationPluginRecommender(typeConfig);
+                return plugins.pluginsRecommenders().transformationPluginRecommender(typeConfig);
             }
 
         }.enrich(newDef, plugins);
@@ -455,7 +475,7 @@ public class ConnectorConfig extends AbstractConfig {
 
             @Override
             protected ConfigDef.Recommender versionRecommender(String typeConfig) {
-                return new PluginVersionUtils.PredicatePluginRecommender(typeConfig);
+                return plugins.pluginsRecommenders().predicatePluginRecommender(typeConfig);
             }
 
         }.enrich(newDef, plugins);
@@ -463,59 +483,14 @@ public class ConnectorConfig extends AbstractConfig {
         return newDef;
     }
 
-    public static void updateDefaults(ConfigDef configDef, Plugins plugins, Map<String, String> connProps, Map<String, String> workerProps) {
-        updateAllConverterDefaults(configDef, plugins, connProps, workerProps);
-        updateConnectorVersionDefaults(configDef, plugins, connProps.get(CONNECTOR_CLASS_CONFIG));
-    }
-
-    public static void updateConnectorVersionDefaults(ConfigDef configDef, Plugins plugins, String connectorClass) {
-        // if provided connector version is null, the latest version is used
-        updateKeyDefault(configDef, ConnectorConfig.CONNECTOR_VERSION, plugins.latestVersion(connectorClass));
-    }
-
-    private static void updateAllConverterDefaults(ConfigDef configDef, Plugins plugins,
-                                                        Map<String, String> connProps, Map<String, String> workerProps) {
-        updateKeyConverterDefault(configDef, plugins, connProps, workerProps);
-        updateValueConverterDefault(configDef, plugins, connProps, workerProps);
-        updateHeaderConverterDefault(configDef, plugins, connProps, workerProps);
-    }
-
-    private static void updateKeyConverterDefault(ConfigDef configDef, Plugins plugins,
-                                                        Map<String, String> connProps, Map<String, String> workerProps) {
-        updateConverterDefaults(
-                configDef, plugins,
-                KEY_CONVERTER_CLASS_CONFIG, WorkerConfig.KEY_CONVERTER_CLASS_CONFIG,
-                KEY_CONVERTER_VERSION_CONFIG, WorkerConfig.KEY_CONVERTER_VERSION, connProps, workerProps
-        );
-    }
-
-    private static void updateValueConverterDefault(ConfigDef configDef, Plugins plugins,
-                                                          Map<String, String> connProps, Map<String, String> workerProps) {
-        updateConverterDefaults(
-                configDef, plugins,
-                VALUE_CONVERTER_CLASS_CONFIG, WorkerConfig.VALUE_CONVERTER_CLASS_CONFIG,
-                VALUE_CONVERTER_VERSION_CONFIG, WorkerConfig.VALUE_CONVERTER_VERSION, connProps, workerProps
-        );
-    }
-
-    private static void updateHeaderConverterDefault(ConfigDef configDef, Plugins plugins,
-                                                           Map<String, String> connProps, Map<String, String> workerProps) {
-        updateConverterDefaults(
-                configDef, plugins,
-                HEADER_CONVERTER_CLASS_CONFIG, WorkerConfig.HEADER_CONVERTER_CLASS_CONFIG,
-                HEADER_CONVERTER_VERSION_CONFIG, WorkerConfig.HEADER_CONVERTER_VERSION, connProps, workerProps
-        );
-    }
-
-    private static void updateConverterDefaults(
-            ConfigDef configDef,
+    private static <T> ConverterDefaults converterDefaults(
             Plugins plugins,
             String connectorConverterConfig,
             String workerConverterConfig,
-            String connectorConverterVersionConfig,
             String workerConverterVersionConfig,
             Map<String, String> connectorProps,
-            Map<String, String> workerProps
+            Map<String, String> workerProps,
+            Class<T> converterType
     ) {
         /*
         if a converter is specified in the connector config it overrides the worker config for the corresponding converter
@@ -543,30 +518,26 @@ public class ConnectorConfig extends AbstractConfig {
         final String workerConverter = workerProps.get(workerConverterConfig);
         final String connectorClass = connectorProps.get(ConnectorConfig.CONNECTOR_CLASS_CONFIG);
         final String connectorVersion = connectorProps.get(ConnectorConfig.CONNECTOR_VERSION);
-        if (connectorConverter == null && workerConverter == null) {
-            return;
+        if (connectorClass == null || (connectorConverter == null && workerConverter == null)) {
+            return new ConverterDefaults();
         }
-        if (connectorClass == null) {
-            return;
-        }
+
+        ConverterDefaults defaults = new ConverterDefaults();
         // update the default of connector converter based on if the worker converter is provided
-        if (workerConverter != null) {
-            updateKeyDefault(configDef, connectorConverterConfig, workerProps.get(workerConverterConfig));
-        }
+        defaults.type = workerConverter;
 
 
         String version = null;
         if (connectorConverter != null) {
-            version = fetchPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, Converter.class);
+            version = fetchPluginVersion(plugins, connectorClass, connectorVersion, connectorConverter, converterType);
         } else {
             version = workerProps.get(workerConverterVersionConfig);
             if (version == null) {
                 version = plugins.latestVersion(workerConverter);
             }
         }
-        if (version != null) {
-            updateKeyDefault(configDef, connectorConverterVersionConfig, version);
-        }
+        defaults.version = version;
+        return defaults;
     }
 
     private static void updateKeyDefault(ConfigDef configDef, String versionConfigKey, String versionDefault) {
@@ -585,7 +556,7 @@ public class ConnectorConfig extends AbstractConfig {
         }
         try {
             VersionRange range = PluginVersionUtils.connectorVersionRequirement(connectorVersion);
-            ClassLoader connectorLoader = plugins.connectorLoader(connectorClass, range);
+            ClassLoader connectorLoader = plugins.pluginLoader(connectorClass, range);
             try(LoaderSwap loaderSwap = plugins.withClassLoader(connectorLoader)) {
                 // this will load using the connector classloader, and then delegate to delegating classloader if not found
                 // this will ultimately get the latest version of the plugin if a different version is not packaged with the connector
@@ -828,6 +799,10 @@ public class ConnectorConfig extends AbstractConfig {
                 return true;
             }
         }
+    }
 
+    private static class ConverterDefaults {
+        private String type = null;
+        private String version = null;
     }
 }

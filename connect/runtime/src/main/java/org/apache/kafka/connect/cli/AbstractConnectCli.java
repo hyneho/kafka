@@ -140,7 +140,6 @@ public abstract class AbstractConnectCli<H extends Herder, T extends WorkerConfi
 
         final Connect<H> connect = new Connect<>(herder, restServer);
         log.info("Kafka Connect worker initialization took {}ms", time.hiResClockMs() - initStart);
-        PluginVersionUtils.setPlugins(plugins);
         try {
             connect.start();
         } catch (Exception e) {

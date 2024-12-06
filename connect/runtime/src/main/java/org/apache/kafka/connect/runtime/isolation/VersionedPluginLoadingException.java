@@ -17,11 +17,11 @@
 
 package org.apache.kafka.connect.runtime.isolation;
 
-import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.common.config.ConfigException;
 
 import java.util.List;
 
-public class VersionedPluginLoadingException extends ConnectException {
+public class VersionedPluginLoadingException extends ConfigException {
 
     private List<String> availableVersions = null;
 
