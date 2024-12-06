@@ -114,7 +114,7 @@ public interface PartitionWriter {
      * @param deleteBeforeOffset    Offset to delete until, starting from the beginning
      * @throws KafkaException       Any KafkaException caught during the operation.
      */
-    void deleteRecords(
+    CompletableFuture<Void> deleteRecords(
         TopicPartition tp,
         long deleteBeforeOffset
     ) throws KafkaException;

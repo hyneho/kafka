@@ -116,7 +116,7 @@ public class InMemoryPartitionWriter implements PartitionWriter {
     }
 
     @Override
-    public void deleteRecords(
+    public CompletableFuture<Void> deleteRecords(
         TopicPartition tp,
         long deleteBeforeOffset
     ) throws KafkaException {

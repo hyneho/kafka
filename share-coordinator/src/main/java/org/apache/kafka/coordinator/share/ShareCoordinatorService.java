@@ -258,17 +258,25 @@ public class ShareCoordinatorService implements ShareCoordinator {
         timer.add(new TimerTask(config.shareCoordinatorTopicPruneIntervalMs()) {
             @Override
             public void run() {
+                List<CompletableFuture<Void>> futures = new ArrayList<>();
                 runtime.activeTopicPartitions().forEach(tp -> {
-                    performRecordPruning(tp);
+                    futures.add(performRecordPruning(tp));
                 });
-                // perpetual recursion
-                setupRecordPruning();
+
+                // None of the futures will complete exceptionally.
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[]{}))
+                    .thenRun(() -> {
+                        // perpetual recursion
+                        setupRecordPruning();
+                    });
             }
         });
     }
 
     // visibility for tests
-    void performRecordPruning(TopicPartition tp) {
+    CompletableFuture<Void> performRecordPruning(TopicPartition tp) {
+        // This future will always be completed normally, exception or not.
+        CompletableFuture<Void> fut = new CompletableFuture<>();
         runtime.scheduleWriteOperation(
             "write-state-record-prune",
             tp,
@@ -282,25 +290,28 @@ public class ShareCoordinatorService implements ShareCoordinator {
                 if (!(error.equals(Errors.COORDINATOR_LOAD_IN_PROGRESS) || error.equals(Errors.NOT_COORDINATOR))) {
                     log.error("Last redundant offset lookup threw an error.", exception);
                 }
+                fut.complete(null);
                 return;
             }
-            result.ifPresent(
-                off -> {
-                    // guard and optimization
-                    if (off == Long.MAX_VALUE || off <= 0) {
-                        log.warn("Last redundant offset value {} not suitable to make delete call for {}.", off, tp);
-                        return;
-                    }
-
-                    log.info("Pruning records in {} till offset {}.", tp, off);
-                    try {
-                        writer.deleteRecords(tp, off);
-                    } catch (Exception e) {
-                        log.debug("Failed to delete records in {} till offset {}.", tp, off, e);
-                    }
+            if (result.isPresent()) {
+                Long off = result.get();
+                // guard and optimization
+                if (off == Long.MAX_VALUE || off <= 0) {
+                    log.warn("Last redundant offset value {} not suitable to make delete call for {}.", off, tp);
+                    fut.complete(null);
+                    return;
                 }
-            );
+
+                log.info("Pruning records in {} till offset {}.", tp, off);
+                writer.deleteRecords(tp, off)
+                    .whenComplete((res, exp) -> {
+                        fut.complete(null);
+                    });
+            } else {
+                fut.complete(null);
+            }
         });
+        return fut;
     }
 
     @Override

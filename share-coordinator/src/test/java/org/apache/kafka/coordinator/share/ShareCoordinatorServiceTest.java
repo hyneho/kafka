@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -707,11 +708,18 @@ class ShareCoordinatorServiceTest {
     }
 
     @Test
-    public void testRecordPruningTaskPeriodicity() throws Exception {
+    public void testRecordPruningTaskPeriodicityWithAllSuccess() throws Exception {
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
         org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
         MockTimer timer = new MockTimer(time);
         PartitionWriter writer = mock(PartitionWriter.class);
+
+        when(writer.deleteRecords(
+            any(),
+            eq(10L)
+        )).thenReturn(
+            CompletableFuture.completedFuture(null)
+        );
 
         when(runtime.scheduleWriteOperation(
             eq("write-state-record-prune"),
@@ -719,7 +727,7 @@ class ShareCoordinatorServiceTest {
             any(),
             any()
         )).thenReturn(
-            CompletableFuture.completedFuture(Optional.of(20L))
+            CompletableFuture.completedFuture(Optional.of(10L))
         );
 
         ShareCoordinatorService service = spy(new ShareCoordinatorService(
@@ -757,7 +765,90 @@ class ShareCoordinatorServiceTest {
                 any());
 
         verify(writer, times(2))
-            .deleteRecords(any(), eq(20L));
+            .deleteRecords(any(), anyLong());
+        service.shutdown();
+    }
+
+    @Test
+    public void testRecordPruningTaskPeriodicityWithSomeFailures() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+        TopicPartition tp1 = new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0);
+        TopicPartition tp2 = new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 1);
+
+        when(runtime.activeTopicPartitions())
+            .thenReturn(List.of(tp1, tp2));
+
+        when(writer.deleteRecords(
+            any(),
+            eq(10L)
+        )).thenReturn(
+            CompletableFuture.completedFuture(null)
+        );
+
+        when(writer.deleteRecords(
+            any(),
+            eq(20L)
+        )).thenReturn(
+            CompletableFuture.failedFuture(new Exception("bad stuff"))
+        );
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            eq(tp1),
+            any(),
+            any()
+        )).thenReturn(
+            CompletableFuture.completedFuture(Optional.of(10L))
+        );
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            eq(tp2),
+            any(),
+            any()
+        )).thenReturn(
+            CompletableFuture.completedFuture(Optional.of(20L))
+        );
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 2);
+        verify(runtime, times(0))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(2))   // for 2 topic partitions
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(4))   // second prune with 2 topic partitions
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        verify(writer, times(4))
+            .deleteRecords(any(), anyLong());
         service.shutdown();
     }
 
@@ -912,6 +1003,51 @@ class ShareCoordinatorServiceTest {
 
         verify(writer, times(1))
             .deleteRecords(any(), eq(20L));
+        service.shutdown();
+    }
+
+    @Test
+    public void testRecordPruningTaskEmptyOffsetReturned() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(CompletableFuture.completedFuture(Optional.empty()));
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 1);
+        verify(runtime, times(0))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(1))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        verify(writer, times(0))
+            .deleteRecords(any(), anyLong());
         service.shutdown();
     }
 }

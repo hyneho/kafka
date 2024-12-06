@@ -27,7 +27,7 @@ import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
 import org.apache.kafka.coordinator.common.runtime.PartitionWriter
 import org.apache.kafka.storage.internals.log.{AppendOrigin, LogConfig, VerificationGuard}
 import org.apache.kafka.test.TestUtils.assertFutureThrows
-import org.junit.jupiter.api.Assertions.{assertDoesNotThrow, assertEquals, assertThrows}
+import org.junit.jupiter.api.Assertions.{assertEquals, assertNull, assertThrows, assertTrue}
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
@@ -241,37 +241,6 @@ class CoordinatorPartitionWriterTest {
   }
 
   @Test
-  def testDeleteRecordsResponseMissingTopicPartition(): Unit = {
-    val replicaManager = mock(classOf[ReplicaManager])
-    val partitionRecordWriter = new CoordinatorPartitionWriter(
-      replicaManager
-    )
-
-    val callbackCapture: ArgumentCaptor[Map[TopicPartition, DeleteRecordsPartitionResult] => Unit] =
-      ArgumentCaptor.forClass(classOf[Map[TopicPartition, DeleteRecordsPartitionResult] => Unit])
-
-    // response does not contain topic partition supplied
-    when(replicaManager.deleteRecords(
-      ArgumentMatchers.eq(0L),
-      ArgumentMatchers.any(),
-      callbackCapture.capture(),
-      ArgumentMatchers.eq(true)
-    )).thenAnswer(_ => {
-      callbackCapture.getValue.apply(Map(
-        new TopicPartition("other-topic", 0) -> new DeleteRecordsPartitionResult()
-      ))
-    })
-
-    assertThrows(
-      classOf[IllegalStateException],
-      () => partitionRecordWriter.deleteRecords(
-        new TopicPartition("random-topic", 0),
-        10L
-      )
-    )
-  }
-
-  @Test
   def testDeleteRecordsResponseContainsError(): Unit = {
     val replicaManager = mock(classOf[ReplicaManager])
     val partitionRecordWriter = new CoordinatorPartitionWriter(
@@ -281,7 +250,7 @@ class CoordinatorPartitionWriterTest {
     val callbackCapture: ArgumentCaptor[Map[TopicPartition, DeleteRecordsPartitionResult] => Unit] =
       ArgumentCaptor.forClass(classOf[Map[TopicPartition, DeleteRecordsPartitionResult] => Unit])
 
-    // response contains error
+    // Response contains error.
     when(replicaManager.deleteRecords(
       ArgumentMatchers.anyLong(),
       ArgumentMatchers.any(),
@@ -294,15 +263,14 @@ class CoordinatorPartitionWriterTest {
       ))
     })
 
-    assertThrows(
-      Errors.NOT_LEADER_OR_FOLLOWER.exception().getClass,
-      () => partitionRecordWriter.deleteRecords(
-        new TopicPartition("random-topic", 0),
-        10L
-      )
-    )
+    partitionRecordWriter.deleteRecords(
+      new TopicPartition("random-topic", 0),
+      10L
+    ).whenComplete((_, exp) => {
+      assertEquals(Errors.NOT_LEADER_OR_FOLLOWER.exception(), exp)
+    })
 
-    // response does not contain topic queried
+    // Response does not contain topic queried.
     when(replicaManager.deleteRecords(
       ArgumentMatchers.anyLong(),
       ArgumentMatchers.any(),
@@ -315,13 +283,12 @@ class CoordinatorPartitionWriterTest {
       ))
     })
 
-    assertThrows(
-      classOf[IllegalStateException],
-      () => partitionRecordWriter.deleteRecords(
-        new TopicPartition("random-topic", 0),
-        10L
-      )
-    )
+    partitionRecordWriter.deleteRecords(
+      new TopicPartition("random-topic", 0),
+      10L
+    ).whenComplete((_, exp) => {
+      assertTrue(exp.isInstanceOf[IllegalStateException])
+    })
   }
 
   @Test
@@ -347,12 +314,11 @@ class CoordinatorPartitionWriterTest {
       ))
     })
 
-    assertDoesNotThrow(() => {
-      partitionRecordWriter.deleteRecords(
-        new TopicPartition("random-topic", 0),
-        10L
-      )
-      true
+    partitionRecordWriter.deleteRecords(
+      new TopicPartition("random-topic", 0),
+      10L
+    ).whenComplete((_, exp) => {
+      assertNull(exp)
     })
   }
 }

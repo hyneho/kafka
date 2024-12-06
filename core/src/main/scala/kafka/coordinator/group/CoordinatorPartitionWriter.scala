@@ -19,7 +19,6 @@ package kafka.coordinator.group
 import kafka.cluster.PartitionListener
 import kafka.server.{ReplicaManager, defaultError, genericError}
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.message.DeleteRecordsResponseData.DeleteRecordsPartitionResult
 import org.apache.kafka.common.protocol.Errors
 import org.apache.kafka.common.record.{MemoryRecords, RecordBatch}
 import org.apache.kafka.common.requests.ProduceResponse.PartitionResponse
@@ -167,20 +166,24 @@ class CoordinatorPartitionWriter(
     partitionResult.lastOffset + 1
   }
 
-  override def deleteRecords(tp: TopicPartition, deleteBeforeOffset: Long): Unit = {
-    var deleteResults: Map[TopicPartition, DeleteRecordsPartitionResult] = Map.empty
+  override def deleteRecords(tp: TopicPartition, deleteBeforeOffset: Long): CompletableFuture[Void] = {
+    val responseFuture: CompletableFuture[Void] = new CompletableFuture[Void]()
+
     replicaManager.deleteRecords(
       timeout = 30000L, // 30 seconds.
       offsetPerPartition = Map(tp -> deleteBeforeOffset),
-      responseCallback = results => deleteResults = results,
+      responseCallback = results => {
+        val result = results.get(tp)
+        if (result.isEmpty) {
+          responseFuture.completeExceptionally(new IllegalStateException(s"Delete status $result should have partition $tp."))
+        } else if (result.get.errorCode() != Errors.NONE.code()) {
+          responseFuture.completeExceptionally(Errors.forCode(result.get.errorCode()).exception())
+        } else {
+          responseFuture.complete(null)
+        }
+      },
       allowInternalTopicDeletion = true
     )
-
-    val partitionResult = deleteResults.getOrElse(tp,
-      throw new IllegalStateException(s"Delete status $deleteResults should have partition $tp."))
-
-    if (partitionResult.errorCode() != Errors.NONE.code()) {
-      throw Errors.forCode(partitionResult.errorCode()).exception()
-    }
+    responseFuture
   }
 }
