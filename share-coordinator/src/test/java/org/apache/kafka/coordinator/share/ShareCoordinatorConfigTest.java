@@ -50,6 +50,7 @@ public class ShareCoordinatorConfigTest {
         configs.put(ShareCoordinatorConfig.LOAD_BUFFER_SIZE_CONFIG, "555");
         configs.put(ShareCoordinatorConfig.APPEND_LINGER_MS_CONFIG, "10");
         configs.put(ShareCoordinatorConfig.STATE_TOPIC_COMPRESSION_CODEC_CONFIG, String.valueOf(CompressionType.NONE.id));
+        configs.put(ShareCoordinatorConfig.STATE_TOPIC_PRUNE_INTERVAL_MS_CONFIG, "30000");  // 30 seconds
         return configs;
     }
 

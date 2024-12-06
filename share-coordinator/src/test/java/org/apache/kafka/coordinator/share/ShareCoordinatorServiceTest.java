@@ -35,17 +35,21 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRecord;
 import org.apache.kafka.coordinator.common.runtime.CoordinatorRuntime;
+import org.apache.kafka.coordinator.common.runtime.PartitionWriter;
 import org.apache.kafka.coordinator.share.metrics.ShareCoordinatorMetrics;
 import org.apache.kafka.server.share.SharePartitionKey;
 import org.apache.kafka.server.util.FutureUtils;
+import org.apache.kafka.server.util.timer.MockTimer;
+import org.apache.kafka.server.util.timer.Timer;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
 
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -57,7 +61,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -66,7 +73,10 @@ class ShareCoordinatorServiceTest {
 
     @SuppressWarnings("unchecked")
     private CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> mockRuntime() {
-        return (CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord>) mock(CoordinatorRuntime.class);
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime =  mock(CoordinatorRuntime.class);
+        when(runtime.activeTopicPartitions())
+            .thenReturn(Collections.singletonList(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)));
+        return runtime;
     }
 
     @Test
@@ -77,7 +87,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            new MockTimer(),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -98,7 +110,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             coordinatorMetrics,
-            time
+            time,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -163,10 +177,10 @@ class ShareCoordinatorServiceTest {
             ));
 
         when(runtime.scheduleWriteOperation(
-            ArgumentMatchers.eq("write-share-group-state"),
-            ArgumentMatchers.eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
-            ArgumentMatchers.eq(Duration.ofMillis(5000)),
-            ArgumentMatchers.any()
+            eq("write-share-group-state"),
+            eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
+            eq(Duration.ofMillis(5000)),
+            any()
         ))
             .thenReturn(CompletableFuture.completedFuture(response1))
             .thenReturn(CompletableFuture.completedFuture(response2));
@@ -206,7 +220,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -275,9 +291,9 @@ class ShareCoordinatorServiceTest {
             );
 
         when(runtime.scheduleReadOperation(
-            ArgumentMatchers.eq("read-share-group-state"),
-            ArgumentMatchers.eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
-            ArgumentMatchers.any()
+            eq("read-share-group-state"),
+            eq(new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0)),
+            any()
         ))
             .thenReturn(CompletableFuture.completedFuture(new ReadShareGroupStateResponseData()
                 .setResults(Collections.singletonList(topicData1))))
@@ -305,7 +321,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -350,7 +368,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -395,7 +415,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         String groupId = "group1";
@@ -472,7 +494,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         String groupId = "group1";
@@ -533,7 +557,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -581,7 +607,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 1);
@@ -622,7 +650,9 @@ class ShareCoordinatorServiceTest {
             ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
             runtime,
             new ShareCoordinatorMetrics(),
-            Time.SYSTEM
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         service.startup(() -> 50);
@@ -645,11 +675,13 @@ class ShareCoordinatorServiceTest {
     public void testPartitionFor() {
         CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
         ShareCoordinatorService service = new ShareCoordinatorService(
-                new LogContext(),
-                ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
-                runtime,
-                new ShareCoordinatorMetrics(),
-                Time.SYSTEM
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            Time.SYSTEM,
+            mock(Timer.class),
+            mock(PartitionWriter.class)
         );
 
         String groupId = "group1";
@@ -673,5 +705,349 @@ class ShareCoordinatorServiceTest {
 
         // asCoordinatorKey does not discriminate on topic name
         assertEquals(key1.asCoordinatorKey(), key2.asCoordinatorKey());
+    }
+
+    @Test
+    public void testRecordPruningTaskPeriodicityWithAllSuccess() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+
+        when(writer.deleteRecords(
+            any(),
+            eq(10L)
+        )).thenReturn(
+            CompletableFuture.completedFuture(null)
+        );
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(
+            CompletableFuture.completedFuture(Optional.of(10L))
+        );
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 1);
+        verify(runtime, times(0))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(1))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(2))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        verify(writer, times(2))
+            .deleteRecords(any(), anyLong());
+        service.shutdown();
+    }
+
+    @Test
+    public void testRecordPruningTaskPeriodicityWithSomeFailures() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+        TopicPartition tp1 = new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 0);
+        TopicPartition tp2 = new TopicPartition(Topic.SHARE_GROUP_STATE_TOPIC_NAME, 1);
+
+        when(runtime.activeTopicPartitions())
+            .thenReturn(List.of(tp1, tp2));
+
+        when(writer.deleteRecords(
+            any(),
+            eq(10L)
+        )).thenReturn(
+            CompletableFuture.completedFuture(null)
+        );
+
+        when(writer.deleteRecords(
+            any(),
+            eq(20L)
+        )).thenReturn(
+            CompletableFuture.failedFuture(new Exception("bad stuff"))
+        );
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            eq(tp1),
+            any(),
+            any()
+        )).thenReturn(
+            CompletableFuture.completedFuture(Optional.of(10L))
+        );
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            eq(tp2),
+            any(),
+            any()
+        )).thenReturn(
+            CompletableFuture.completedFuture(Optional.of(20L))
+        );
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 2);
+        verify(runtime, times(0))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(2))   // for 2 topic partitions
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(4))   // second prune with 2 topic partitions
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        verify(writer, times(4))
+            .deleteRecords(any(), anyLong());
+        service.shutdown();
+    }
+
+    @Test
+    public void testRecordPruningTaskException() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(CompletableFuture.failedFuture(Errors.UNKNOWN_SERVER_ERROR.exception()));
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 1);
+        verify(runtime, times(0))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(1))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        verify(writer, times(0))
+            .deleteRecords(any(), anyLong());
+        service.shutdown();
+    }
+
+    @Test
+    public void testRecordPruningTaskGuardsAgainstUnusualOffsetValues() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 1);
+
+        // offset = Long.MAX_VALUE, delete not called
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(CompletableFuture.completedFuture(Optional.of(Long.MAX_VALUE)));
+        timer.advanceClock(30005L);
+
+        verify(writer, times(0))
+            .deleteRecords(any(), anyLong());
+
+        // offset < 0 - delete should not be called
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(CompletableFuture.completedFuture(Optional.of(0L)));
+        timer.advanceClock(30005L);
+
+        verify(writer, times(0))
+            .deleteRecords(any(), anyLong());
+
+        // offset < 0 - delete should not be called
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(CompletableFuture.completedFuture(Optional.of(-1L)));
+        timer.advanceClock(30005L);
+
+        verify(writer, times(0))
+            .deleteRecords(any(), anyLong());
+
+        verify(runtime, times(3))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+        service.shutdown();
+    }
+
+    @Test
+    public void testRecordPruningTaskSuccess() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(CompletableFuture.completedFuture(Optional.of(20L)));
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 1);
+        verify(runtime, times(0))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(1))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        verify(writer, times(1))
+            .deleteRecords(any(), eq(20L));
+        service.shutdown();
+    }
+
+    @Test
+    public void testRecordPruningTaskEmptyOffsetReturned() throws Exception {
+        CoordinatorRuntime<ShareCoordinatorShard, CoordinatorRecord> runtime = mockRuntime();
+        org.apache.kafka.server.util.MockTime time = new org.apache.kafka.server.util.MockTime();
+        MockTimer timer = new MockTimer(time);
+        PartitionWriter writer = mock(PartitionWriter.class);
+
+        when(runtime.scheduleWriteOperation(
+            eq("write-state-record-prune"),
+            any(),
+            any(),
+            any()
+        )).thenReturn(CompletableFuture.completedFuture(Optional.empty()));
+
+        ShareCoordinatorService service = spy(new ShareCoordinatorService(
+            new LogContext(),
+            ShareCoordinatorConfigTest.createConfig(ShareCoordinatorConfigTest.testConfigMap()),
+            runtime,
+            new ShareCoordinatorMetrics(),
+            time,
+            timer,
+            writer
+        ));
+
+        service.startup(() -> 1);
+        verify(runtime, times(0))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        timer.advanceClock(30005L); // prune should be called
+        verify(runtime, times(1))
+            .scheduleWriteOperation(
+                eq("write-state-record-prune"),
+                any(),
+                any(),
+                any());
+
+        verify(writer, times(0))
+            .deleteRecords(any(), anyLong());
+        service.shutdown();
     }
 }
