@@ -23,11 +23,13 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEvent;
 import org.apache.kafka.clients.consumer.internals.events.BackgroundEventHandler;
 import org.apache.kafka.clients.consumer.internals.events.ErrorEvent;
+import org.apache.kafka.clients.consumer.internals.metrics.AsyncConsumerMetrics;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.errors.AuthenticationException;
 import org.apache.kafka.common.errors.DisconnectException;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.message.FindCoordinatorRequestData;
+import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.FindCoordinatorRequest;
 import org.apache.kafka.common.requests.FindCoordinatorResponse;
@@ -41,10 +43,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
@@ -212,8 +215,8 @@ public class NetworkClientDelegateTest {
         AuthenticationException authException = new AuthenticationException("Test Auth Exception");
         doThrow(authException).when(metadata).maybeThrowAnyException();
 
-        LinkedList<BackgroundEvent> backgroundEventQueue = new LinkedList<>();
-        this.backgroundEventHandler = new BackgroundEventHandler(backgroundEventQueue);
+        BlockingQueue<BackgroundEvent> backgroundEventQueue = new LinkedBlockingQueue<>();
+        this.backgroundEventHandler = new BackgroundEventHandler(backgroundEventQueue, time, mock(AsyncConsumerMetrics.class));
         NetworkClientDelegate networkClientDelegate = newNetworkClientDelegate();
 
         assertEquals(0, backgroundEventQueue.size());
@@ -226,19 +229,42 @@ public class NetworkClientDelegateTest {
         assertEquals(authException, ((ErrorEvent) event).error());
     }
 
+    @Test
+    public void testRecordUnsentRequestsQueueTime() throws Exception {
+        try (Metrics metrics = new Metrics();
+             AsyncConsumerMetrics asyncConsumerMetrics = new AsyncConsumerMetrics(metrics, "consumer");
+             NetworkClientDelegate networkClientDelegate = newNetworkClientDelegate(asyncConsumerMetrics)) {
+            NetworkClientDelegate.UnsentRequest unsentRequest = newUnsentFindCoordinatorRequest();
+            networkClientDelegate.add(unsentRequest);
+            asyncConsumerMetrics.recordUnsentRequestsQueueSize(1, time.milliseconds());
+
+            time.sleep(10);
+            long timeMs = time.milliseconds();
+            networkClientDelegate.poll(0, timeMs);
+            assertEquals(0, (double) metrics.metric(metrics.metricName("unsent-requests-queue-size", "consumer-metrics")).metricValue());
+            assertTrue((double) metrics.metric(metrics.metricName("unsent-requests-queue-time-avg", "consumer-metrics")).metricValue() > 0);
+            assertTrue((double) metrics.metric(metrics.metricName("unsent-requests-queue-time-max", "consumer-metrics")).metricValue() > 0);
+        }
+    }
+
     public NetworkClientDelegate newNetworkClientDelegate() {
+        return newNetworkClientDelegate(mock(AsyncConsumerMetrics.class));
+    }
+
+    public NetworkClientDelegate newNetworkClientDelegate(AsyncConsumerMetrics asyncConsumerMetrics) {
         LogContext logContext = new LogContext();
         Properties properties = new Properties();
         properties.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         properties.put(VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         properties.put(GROUP_ID_CONFIG, GROUP_ID);
         properties.put(REQUEST_TIMEOUT_MS_CONFIG, REQUEST_TIMEOUT_MS);
-        return new NetworkClientDelegate(this.time,
+        return new NetworkClientDelegate(time,
                 new ConsumerConfig(properties),
                 logContext,
-                this.client,
-                this.metadata,
-                this.backgroundEventHandler);
+                client,
+                metadata,
+                backgroundEventHandler,
+                asyncConsumerMetrics);
     }
 
     public NetworkClientDelegate.UnsentRequest newUnsentFindCoordinatorRequest() {
