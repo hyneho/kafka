@@ -38,7 +38,6 @@ import org.apache.kafka.common.metadata.TopicRecord;
 import org.apache.kafka.common.metadata.UnfenceBrokerRecord;
 import org.apache.kafka.common.metadata.UnregisterBrokerRecord;
 import org.apache.kafka.common.metadata.UserScramCredentialRecord;
-import org.apache.kafka.common.metadata.ZkMigrationStateRecord;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.server.common.MetadataVersion;
 
@@ -247,8 +246,7 @@ public final class MetadataDelta {
                  */
                 break;
             case ZK_MIGRATION_STATE_RECORD:
-                replay((ZkMigrationStateRecord) record);
-                break;
+                throw new UnsupportedOperationException("ZK migration is no longer supported.");
             case REGISTER_CONTROLLER_RECORD:
                 replay((RegisterControllerRecord) record);
                 break;
@@ -343,10 +341,6 @@ public final class MetadataDelta {
 
     public void replay(RemoveUserScramCredentialRecord record) {
         getOrCreateScramDelta().replay(record);
-    }
-
-    public void replay(ZkMigrationStateRecord record) {
-        getOrCreateFeaturesDelta().replay(record);
     }
 
     public void replay(RegisterControllerRecord record) {
